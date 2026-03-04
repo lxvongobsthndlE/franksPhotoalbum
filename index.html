@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unser Fotoalbum</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,400;0,500;0,600;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:      #f7f5f2;
+  --surface: #ffffff;
+  --card:    #ffffff;
+  --border:  #ede8e2;
+  --border2: #d8d0c8;
+  --accent:  #b07448;
+  --accent-l:#f5ede4;
+  --red:     #c85c5c;
+  --red-l:   #fceaea;
+  --green:   #5a9e7a;
+  --text:    #1c1814;
+  --text2:   #3d3630;
+  --muted:   #9a9088;
+  --muted2:  #c2b8b0;
+  --shadow:  0 2px 16px rgba(60,40,20,.08);
+  --shadow2: 0 8px 40px rgba(60,40,20,.13);
+  --r:       14px;
+  --r2:      22px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body {
+  font-family:'Outfit',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.logo-text { font-family:'Cormorant',serif; }
+button { font-family:'Outfit',sans-serif; cursor:pointer; }
+input,select,textarea { font-family:'Outfit',sans-serif; }
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+.hidden { display:none !important; }
+
+/* ── SETUP BANNER ── */
+#setup-banner {
+  position:fixed; top:0; left:0; right:0; z-index:9999;
+  background:#1c1814; color:#f7f5f2;
+  padding:11px 22px; font-size:13px; text-align:center;
+}
+#setup-banner code { background:rgba(255,255,255,.15); padding:2px 8px; border-radius:5px; font-size:12px; }
+#setup-banner a { color:#e8c090; cursor:pointer; margin-left:12px; font-weight:600; }
+
+/* ── LOADING ── */
+#loading {
+  position:fixed; inset:0; background:var(--bg); z-index:900;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
+}
+#loading h2 { font-size:38px; color:var(--accent); font-weight:500; font-style:italic; }
+#loading p  { color:var(--muted); font-size:14px; font-weight:300; letter-spacing:.8px; }
+
+/* ── SPINNERS ── */
+.spinner {
+  width:32px; height:32px;
+  border:2px solid var(--border2); border-top:2px solid var(--accent);
+  border-radius:50%; animation:spin .85s linear infinite;
+}
+.spin-sm {
+  display:inline-block; width:13px; height:13px;
+  border:2px solid rgba(0,0,0,.12); border-top:2px solid currentColor;
+  border-radius:50%; animation:spin .8s linear infinite;
+  vertical-align:middle; margin-right:6px;
+}
+
+/* ── AUTH ── */
+#auth-page {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  padding:20px; position:relative; z-index:1;
+  background: linear-gradient(135deg, #f7f5f2 0%, #ede8e2 100%);
+}
+.auth-wrap { width:100%; max-width:440px; }
+.auth-brand { text-align:center; margin-bottom:32px; }
+.auth-brand h1 { font-size:42px; color:var(--accent); font-style:italic; font-weight:400; }
+.auth-brand p { font-size:13px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; font-weight:300; margin-top:4px; }
+.auth-card {
+  background:var(--surface); border-radius:var(--r2);
+  padding:40px 38px; box-shadow:var(--shadow2);
+  border:1px solid var(--border); animation:fadeUp .4s ease;
+}
+.auth-card-title { font-size:26px; color:var(--text); font-weight:500; margin-bottom:6px; }
+.auth-card-sub { font-size:13px; color:var(--muted); margin-bottom:28px; line-height:1.6; font-weight:300; }
+.lock-badge {
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  background:#f0f8f4; border:1px solid #c0dece; border-radius:9px;
+  padding:8px 14px; font-size:12px; color:var(--green); margin-bottom:22px; font-weight:500;
+}
+.field { margin-bottom:18px; }
+.field label {
+  display:block; font-size:11px; font-weight:600;
+  letter-spacing:1.2px; text-transform:uppercase; color:var(--muted2); margin-bottom:7px;
+}
+.field input {
+  width:100%; padding:11px 15px; border-radius:10px;
+  border:1.5px solid var(--border); background:var(--bg);
+  color:var(--text); font-size:14px; outline:none; transition:border-color .2s, box-shadow .2s;
+  font-weight:400;
+}
+.field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(176,116,72,.1); }
+.field .hint { font-size:11px; color:var(--muted2); margin-top:5px; font-weight:300; }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:10px 20px; border-radius:10px; border:none; font-size:14px;
+  font-weight:600; transition:all .2s; cursor:pointer; letter-spacing:.2px;
+}
+.btn-primary {
+  background:var(--accent); color:#fff; width:100%;
+  padding:13px; border-radius:12px; font-size:15px; margin-top:4px;
+  box-shadow:0 4px 16px rgba(176,116,72,.3);
+}
+.btn-primary:hover { background:#9a6438; transform:translateY(-1px); box-shadow:0 6px 20px rgba(176,116,72,.35); }
+.btn-primary:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+.btn-ghost { background:transparent; color:var(--muted); border:1.5px solid var(--border); }
+.btn-ghost:hover { border-color:var(--border2); color:var(--text2); }
+.btn-danger { background:var(--red-l); color:var(--red); border:1px solid #e8bcbc; }
+.btn-danger:hover { background:#f8dada; }
+.btn-link { background:none; border:none; color:var(--accent); font-size:13px; cursor:pointer; padding:0; font-weight:600; }
+.btn-link:hover { text-decoration:underline; }
+.msg { border-radius:10px; padding:10px 15px; font-size:13px; text-align:center; margin-bottom:16px; line-height:1.5; font-weight:400; }
+.msg-error   { background:var(--red-l); color:var(--red); border:1px solid #e8bcbc; }
+.msg-success { background:#edf7f2; color:var(--green); border:1px solid #b8deca; }
+.msg-info    { background:var(--accent-l); color:var(--accent); border:1px solid #dcc0a0; }
+.slots-row { text-align:center; margin-bottom:22px; }
+.slots-pill { display:inline-block; background:var(--bg); border:1.5px solid var(--border); border-radius:99px; padding:4px 16px; font-size:12px; color:var(--muted); font-weight:500; }
+.slots-pill.warn { border-color:#e8c080; color:#a07828; background:#fdf8ee; }
+.slots-pill.full { border-color:#e8a0a0; color:var(--red); background:var(--red-l); }
+.auth-switch { text-align:center; margin-top:22px; font-size:13px; color:var(--muted); font-weight:300; }
+.auth-switch a { color:var(--accent); font-weight:600; cursor:pointer; }
+.forgot-row { text-align:right; margin-top:-10px; margin-bottom:16px; }
+
+/* ── APP ── */
+#app { display:none; min-height:100vh; flex-direction:column; }
+#app.show { display:flex; }
+
+/* ── HEADER ── */
+#header {
+  position:sticky; top:0; z-index:100; height:62px;
+  background:rgba(247,245,242,.95); backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:16px; padding:0 28px;
+}
+.logo-text { font-size:24px; color:var(--accent); font-style:italic; font-weight:500; flex:1; white-space:nowrap; }
+.logo-text small { display:block; font-family:'Outfit',sans-serif; font-size:10px; color:var(--muted2); letter-spacing:2.5px; text-transform:uppercase; font-weight:300; font-style:normal; margin-top:1px; }
+.user-pill { display:flex; align-items:center; gap:10px; }
+.av { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:#fff; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+.uname { font-size:13px; font-weight:500; color:var(--text2); }
+.logout-btn { color:var(--muted); background:none; border:none; font-size:12px; cursor:pointer; padding:5px 10px; border-radius:7px; transition:all .2s; font-weight:500; }
+.logout-btn:hover { color:var(--red); background:var(--red-l); }
+
+/* ── BODY ── */
+#body-wrap { display:flex; flex:1; overflow:hidden; min-height:0; }
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width:240px; flex-shrink:0; border-right:1px solid var(--border);
+  background:var(--surface); padding:22px 0; overflow-y:auto;
+  display:flex; flex-direction:column;
+}
+.sb-label {
+  font-size:10px; font-weight:600; text-transform:uppercase;
+  letter-spacing:1.8px; color:var(--muted2); padding:0 20px;
+  margin:10px 0 7px; display:block;
+}
+.fb {
+  display:flex; align-items:center; gap:10px;
+  width:calc(100% - 16px); margin:1px 8px;
+  padding:9px 11px; border-radius:10px; border:none;
+  background:transparent; color:var(--muted); font-size:13px;
+  font-weight:500; text-align:left; transition:all .2s; cursor:pointer;
+}
+.fb:hover { background:var(--bg); color:var(--text2); }
+.fb.active { background:var(--accent-l); color:var(--accent); }
+.fb .fi { font-size:15px; flex-shrink:0; width:22px; text-align:center; }
+.fb .fn { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+.fb .fc { font-size:11px; background:var(--bg); border-radius:99px; padding:2px 9px; color:var(--muted2); flex-shrink:0; font-weight:600; }
+.fb.active .fc { background:rgba(176,116,72,.15); color:var(--accent); }
+.sb-div { height:1px; background:var(--border); margin:12px 18px; }
+
+/* ── CONTENT ── */
+#content { flex:1; overflow-y:auto; padding:30px 28px; }
+.gal-hdr { display:flex; align-items:center; gap:14px; margin-bottom:26px; flex-wrap:wrap; }
+.gal-title { font-size:30px; color:var(--text); font-weight:500; flex:1; font-style:italic; }
+.upload-fab {
+  display:flex; align-items:center; gap:8px; padding:10px 22px;
+  border-radius:11px; border:none; background:var(--accent); color:#fff;
+  font-size:13px; font-weight:600; transition:all .2s;
+  box-shadow:0 4px 14px rgba(176,116,72,.28);
+}
+.upload-fab:hover { background:#9a6438; transform:translateY(-1px); }
+
+/* ── PHOTO GRID ── */
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+.p-card {
+  border-radius:var(--r); overflow:hidden; background:var(--card);
+  border:1px solid var(--border); cursor:pointer;
+  transition:transform .25s, box-shadow .25s;
+  box-shadow:var(--shadow);
+}
+.p-card:hover { transform:translateY(-4px); box-shadow:var(--shadow2); }
+.p-thumb { position:relative; aspect-ratio:1; overflow:hidden; background:var(--bg); }
+.p-thumb img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .35s; }
+.p-card:hover .p-thumb img { transform:scale(1.06); }
+.p-ov {
+  position:absolute; inset:0; background:rgba(28,24,20,0);
+  display:flex; align-items:center; justify-content:center;
+  transition:background .25s; font-size:22px; opacity:0;
+}
+.p-card:hover .p-ov { background:rgba(28,24,20,.28); opacity:1; }
+.p-meta { padding:10px 12px 8px; }
+.p-top { display:flex; align-items:center; gap:7px; margin-bottom:7px; }
+.dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.p-who { font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.p-dt  { color:var(--muted2); font-size:11px; flex-shrink:0; font-weight:300; }
+.p-actions { display:flex; align-items:center; gap:10px; }
+.p-like-btn {
+  display:flex; align-items:center; gap:4px; background:none; border:none;
+  color:var(--muted); font-size:12px; font-weight:500; padding:3px 0;
+  transition:color .2s; cursor:pointer;
+}
+.p-like-btn:hover { color:var(--red); }
+.p-like-btn.liked { color:var(--red); }
+.p-like-btn .heart { font-size:14px; transition:transform .15s; }
+.p-like-btn:hover .heart { transform:scale(1.25); }
+.p-like-btn.liked .heart { transform:scale(1.1); }
+.p-comment-count { display:flex; align-items:center; gap:4px; color:var(--muted2); font-size:12px; font-weight:400; }
+.p-del { background:none; border:none; font-size:13px; opacity:.25; padding:2px; margin-left:auto; transition:opacity .2s; cursor:pointer; }
+.p-del:hover { opacity:1; color:var(--red); }
+.empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 20px; gap:16px; }
+.empty-icon { font-size:56px; opacity:.6; }
+.empty p { color:var(--muted); font-size:16px; font-weight:300; }
+.more-btn { width:100%; padding:12px; border-radius:11px; border:1.5px solid var(--border); background:var(--surface); color:var(--muted); font-size:13px; margin-top:18px; transition:all .2s; cursor:pointer; font-weight:500; }
+.more-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-l); }
+
+/* ── UPLOAD MODAL ── */
+.modal-bg { position:fixed; inset:0; background:rgba(28,24,20,.6); z-index:200; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn .18s ease; backdrop-filter:blur(4px); }
+.modal { background:var(--surface); border-radius:var(--r2); width:100%; max-width:500px; animation:fadeUp .22s ease; overflow:hidden; box-shadow:var(--shadow2); border:1px solid var(--border); }
+.modal-hdr { padding:24px 28px 0; display:flex; align-items:center; justify-content:space-between; }
+.modal-hdr h3 { font-size:22px; font-weight:500; font-style:italic; }
+.modal-x { background:none; border:none; color:var(--muted2); font-size:20px; cursor:pointer; padding:4px; line-height:1; border-radius:6px; transition:color .2s; }
+.modal-x:hover { color:var(--text); }
+.modal-body { padding:22px 28px 28px; }
+.dz {
+  border:2px dashed var(--border2); border-radius:14px; padding:48px 28px;
+  text-align:center; cursor:pointer; transition:all .2s;
+}
+.dz:hover,.dz.drag { border-color:var(--accent); background:var(--accent-l); }
+.dz-ico { font-size:42px; margin-bottom:10px; }
+.dz-ttl { font-size:16px; font-weight:600; margin-bottom:5px; }
+.dz-sub { font-size:12px; color:var(--muted); font-weight:300; }
+.up-prog { text-align:center; padding:32px 0; }
+.up-prog p { color:var(--muted); font-size:14px; margin-top:14px; font-weight:300; }
+.prog-track { height:3px; background:var(--border); border-radius:99px; margin-top:16px; overflow:hidden; }
+.prog-fill { height:100%; background:linear-gradient(90deg,var(--accent),#d4904a); border-radius:99px; transition:width .3s; }
+.modal-sel { width:100%; padding:10px 13px; border-radius:10px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); font-size:14px; outline:none; margin-top:0; font-family:'Outfit',sans-serif; }
+.modal-sel:focus { border-color:var(--accent); }
+
+/* ── LIGHTBOX ── */
+.lb-bg {
+  position:fixed; inset:0; background:rgba(28,24,20,.88); z-index:300;
+  display:flex; align-items:stretch; justify-content:center;
+  animation:fadeIn .2s ease;
+}
+.lb-layout {
+  display:flex; width:100%; max-width:1100px; margin:auto;
+  max-height:100vh; animation:fadeUp .22s ease;
+}
+.lb-img-side {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  padding:20px; position:relative; min-width:0;
+}
+.lb-img { max-width:100%; max-height:90vh; object-fit:contain; border-radius:10px; display:block; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+.lb-x { position:fixed; top:16px; right:16px; background:rgba(255,255,255,.15); border:none; color:#fff; font-size:18px; cursor:pointer; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:background .2s; z-index:10; }
+.lb-x:hover { background:rgba(255,255,255,.28); }
+.lb-arr { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,.12); border:none; color:#fff; font-size:24px; cursor:pointer; width:44px; height:44px; border-radius:50%; transition:background .2s; display:flex; align-items:center; justify-content:center; }
+.lb-arr:hover { background:rgba(255,255,255,.24); }
+#lb-prv { left:12px; }
+#lb-nxt { right:12px; }
+
+/* LIGHTBOX PANEL */
+.lb-panel {
+  width:320px; flex-shrink:0; background:var(--surface);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.lb-panel-top { padding:22px 22px 16px; border-bottom:1px solid var(--border); }
+.lb-who-row { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
+.lb-av { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:#fff; flex-shrink:0; }
+.lb-who { font-weight:600; font-size:15px; }
+.lb-dt  { font-size:12px; color:var(--muted); font-weight:300; }
+.lb-cnt { font-size:12px; color:var(--muted2); margin-top:4px; font-weight:300; }
+
+/* LIKE BUTTON IN PANEL */
+.lb-like-btn {
+  display:flex; align-items:center; gap:8px; margin-top:14px;
+  background:var(--bg); border:1.5px solid var(--border); border-radius:10px;
+  padding:9px 16px; cursor:pointer; transition:all .2s; font-size:14px; font-weight:500; color:var(--muted);
+  width:100%;
+}
+.lb-like-btn:hover { border-color:#e0a0a0; color:var(--red); background:var(--red-l); }
+.lb-like-btn.liked { border-color:#e0a0a0; color:var(--red); background:var(--red-l); }
+.lb-like-btn .lheart { font-size:18px; transition:transform .15s; }
+.lb-like-btn:hover .lheart,.lb-like-btn.liked .lheart { transform:scale(1.2); }
+
+/* COMMENTS */
+.lb-comments { flex:1; overflow-y:auto; padding:16px 22px; display:flex; flex-direction:column; gap:12px; }
+.comment-item { display:flex; gap:9px; animation:fadeUp .2s ease; }
+.c-av { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; color:#fff; flex-shrink:0; margin-top:1px; }
+.c-body { flex:1; min-width:0; }
+.c-name { font-size:12px; font-weight:600; color:var(--text2); }
+.c-text { font-size:13px; color:var(--text); line-height:1.5; word-break:break-word; font-weight:300; }
+.c-time { font-size:11px; color:var(--muted2); margin-top:2px; font-weight:300; }
+.c-del  { background:none; border:none; color:var(--muted2); font-size:11px; cursor:pointer; padding:0 3px; float:right; opacity:.4; transition:opacity .2s; }
+.c-del:hover { opacity:1; color:var(--red); }
+.no-comments { text-align:center; color:var(--muted2); font-size:13px; font-weight:300; padding:20px 0; font-style:italic; }
+
+/* COMMENT INPUT */
+.lb-input-row { padding:14px 22px; border-top:1px solid var(--border); display:flex; gap:9px; align-items:flex-end; }
+.lb-input-row textarea {
+  flex:1; resize:none; border:1.5px solid var(--border); border-radius:10px;
+  padding:9px 12px; font-size:13px; outline:none; background:var(--bg);
+  color:var(--text); line-height:1.5; max-height:90px; transition:border-color .2s;
+  font-weight:400; font-family:'Outfit',sans-serif;
+}
+.lb-input-row textarea:focus { border-color:var(--accent); }
+.lb-input-row textarea::placeholder { color:var(--muted2); }
+.send-btn { background:var(--accent); border:none; color:#fff; width:36px; height:36px; border-radius:9px; display:flex; align-items:center; justify-content:center; transition:background .2s; flex-shrink:0; font-size:16px; }
+.send-btn:hover { background:#9a6438; }
+.send-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* LB DELETE BTN */
+.lb-del-btn { background:none; border:none; color:var(--muted2); font-size:12px; cursor:pointer; padding:0; display:flex; align-items:center; gap:4px; margin-top:8px; transition:color .2s; font-weight:500; font-family:'Outfit',sans-serif; }
+.lb-del-btn:hover { color:var(--red); }
+
+/* ── DIALOG ── */
+.dlg-bg { position:fixed; inset:0; background:rgba(28,24,20,.6); z-index:400; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+.dlg { background:var(--surface); border-radius:18px; padding:34px 36px; max-width:320px; width:100%; text-align:center; animation:fadeUp .2s ease; box-shadow:var(--shadow2); border:1px solid var(--border); }
+.dlg-ico { font-size:36px; margin-bottom:12px; }
+.dlg p { font-size:15px; color:var(--muted); margin-bottom:24px; line-height:1.6; font-weight:300; }
+.dlg-btns { display:flex; gap:10px; justify-content:center; }
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .lb-panel { width:260px; }
+}
+@media(max-width:700px){
+  #sidebar { width:100%; border-right:none; border-bottom:1px solid var(--border); flex-direction:row; overflow-x:auto; padding:8px; min-height:unset; }
+  .sb-label { display:none; }
+  .sb-div { width:1px; height:auto; margin:3px 6px; }
+  #body-wrap { flex-direction:column; }
+  .fb { width:auto; margin:0 2px; padding:7px 13px; border-radius:99px; }
+  .fb .fc { display:none; }
+  #content { padding:16px; }
+  .auth-card { padding:30px 22px; }
+  #header { padding:0 16px; gap:10px; }
+  .logo-text small { display:none; }
+  .lb-layout { flex-direction:column; overflow-y:auto; }
+  .lb-panel { width:100%; max-height:50vh; }
+  .lb-img-side { padding:16px 16px 8px; }
+}
+@keyframes spin    { to { transform:rotate(360deg); } }
+@keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+@keyframes fadeUp  { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+
+<div id="setup-banner">
+  ⚙️ <strong>Supabase nicht eingerichtet</strong> — trage
+  <code>SUPABASE_URL</code> und <code>SUPABASE_ANON_KEY</code> im Script-Block ein.
+  <a onclick="this.parentElement.remove()">✕</a>
+</div>
+
+<div id="loading">
+  <h2>Unser Fotoalbum</h2>
+  <div class="spinner"></div>
+  <p>Verbinde mit Cloud…</p>
+</div>
+
+<!-- AUTH -->
+<div id="auth-page" class="hidden">
+  <div class="auth-wrap">
+    <div class="auth-brand">
+      <h1>Unser Fotoalbum</h1>
+      <p>Gemeinsame Erinnerungen · Privat & Sicher</p>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="auth-card" id="login-card">
+      <h2 class="auth-card-title">Willkommen zurück</h2>
+      <div class="lock-badge">🔒 Privates Album — nur für Mitglieder</div>
+      <div id="login-msg" class="msg hidden"></div>
+      <div class="field"><label>E-Mail</label>
+        <input type="email" id="le" placeholder="deine@email.de" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="field"><label>Passwort</label>
+        <input type="password" id="lp" placeholder="Dein Passwort" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="forgot-row"><button class="btn-link" onclick="toForgot()">Passwort vergessen?</button></div>
+      <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Einloggen →</button>
+      <div class="auth-switch">Noch kein Konto? <a onclick="toReg()">Registrieren</a></div>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="auth-card hidden" id="reg-card">
+      <h2 class="auth-card-title">Konto erstellen</h2>
+      <p class="auth-card-sub">Tritt dem privaten Album bei — max. 10 Personen</p>
+      <div class="slots-row"><span class="slots-pill" id="slots">Lädt…</span></div>
+      <div id="reg-msg" class="msg hidden"></div>
+      <div class="field"><label>Anzeigename</label>
+        <input type="text" id="rn" placeholder="Dein Name (2–20 Zeichen)" maxlength="20">
+        <div class="hint">Wird allen Mitgliedern angezeigt.</div>
+      </div>
+      <div class="field"><label>E-Mail</label>
+        <input type="email" id="re" placeholder="deine@email.de" autocomplete="email">
+      </div>
+      <div class="field"><label>Passwort</label>
+        <input type="password" id="rp" placeholder="Mindestens 6 Zeichen" autocomplete="new-password">
+      </div>
+      <div class="field"><label>Passwort wiederholen</label>
+        <input type="password" id="rp2" placeholder="Bestätigen" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+      <button class="btn btn-primary" id="reg-btn" onclick="doRegister()">Konto erstellen →</button>
+      <div class="auth-switch">Schon registriert? <a onclick="toLogin()">Einloggen</a></div>
+    </div>
+
+    <!-- PASSWORT VERGESSEN -->
+    <div class="auth-card hidden" id="forgot-card">
+      <h2 class="auth-card-title">Passwort zurücksetzen</h2>
+      <p class="auth-card-sub">Gib deine E-Mail ein — du erhältst einen Link.</p>
+      <div id="forgot-msg" class="msg hidden"></div>
+      <div class="field"><label>E-Mail</label>
+        <input type="email" id="fe" placeholder="deine@email.de" onkeydown="if(event.key==='Enter')doForgot()">
+      </div>
+      <button class="btn btn-primary" id="forgot-btn" onclick="doForgot()">Link zusenden →</button>
+      <div class="auth-switch"><a onclick="toLogin()">← Zurück zum Login</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header id="header">
+    <div class="logo-text">Unser Fotoalbum <small>Gemeinsame Erinnerungen</small></div>
+    <div class="user-pill">
+      <div class="av" id="hav"></div>
+      <span class="uname" id="hname"></span>
+      <button class="logout-btn" onclick="doLogout()">Abmelden</button>
+    </div>
+  </header>
+  <div id="body-wrap">
+    <nav id="sidebar"></nav>
+    <div id="content">
+      <div class="gal-hdr">
+        <h2 class="gal-title" id="gal-title">Gemeinsamer Ordner</h2>
+        <button class="upload-fab" id="upload-btn" onclick="openModal()">＋ Foto hochladen</button>
+      </div>
+      <div id="grid" class="grid"></div>
+      <div id="empty" class="empty hidden">
+        <div class="empty-icon">🌿</div>
+        <p>Noch keine Fotos in diesem Ordner</p>
+        <button class="btn" style="background:var(--accent-l);color:var(--accent);border:1.5px solid #dcc0a0;padding:10px 22px;border-radius:10px;font-size:14px;font-weight:600;margin-top:4px" onclick="openModal()">＋ Erstes Foto hochladen</button>
+      </div>
+      <button id="more-btn" class="more-btn hidden" onclick="loadMore()">Weitere Fotos laden…</button>
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div class="modal-bg hidden" id="up-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Fotos hochladen</h3><button class="modal-x" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div id="dz-wrap">
+        <div class="dz" id="dz" onclick="$('fi').click()">
+          <div class="dz-ico">📸</div>
+          <p class="dz-ttl">Fotos hier ablegen</p>
+          <p class="dz-sub">oder klicken · JPG, PNG, GIF, WebP · Mehrere möglich</p>
+        </div>
+        <div class="field" style="margin-top:16px">
+          <label>In welchen Ordner?</label>
+          <select id="fsel" class="modal-sel"></select>
+        </div>
+      </div>
+      <div id="prog-wrap" class="up-prog hidden">
+        <div class="spinner"></div>
+        <p id="prog-txt">Wird hochgeladen…</p>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+      <input type="file" id="fi" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lb-bg hidden" id="lb" onclick="if(event.target===this)closeLB()">
+  <button class="lb-x" onclick="closeLB()">✕</button>
+  <div class="lb-layout">
+    <div class="lb-img-side">
+      <button class="lb-arr" id="lb-prv" onclick="lbNav(-1)">‹</button>
+      <img id="lb-img" class="lb-img" src="" alt="">
+      <button class="lb-arr" id="lb-nxt" onclick="lbNav(1)">›</button>
+    </div>
+    <div class="lb-panel">
+      <div class="lb-panel-top">
+        <div class="lb-who-row">
+          <div class="lb-av" id="lb-av"></div>
+          <div>
+            <div class="lb-who" id="lb-who"></div>
+            <div class="lb-dt"  id="lb-dt"></div>
+          </div>
+        </div>
+        <div class="lb-cnt" id="lb-cnt"></div>
+        <button class="lb-like-btn" id="lb-like-btn" onclick="toggleLike()">
+          <span class="lheart">🤍</span>
+          <span id="lb-like-count">0</span> Gefällt mir
+        </button>
+        <button class="lb-del-btn hidden" id="lb-del-btn" onclick="askDel(null,true)">🗑 Foto löschen</button>
+      </div>
+      <div class="lb-comments" id="lb-comments">
+        <div class="no-comments">Noch keine Kommentare</div>
+      </div>
+      <div class="lb-input-row">
+        <textarea id="comment-input" placeholder="Kommentar schreiben…" rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendComment()}"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+        <button class="send-btn" onclick="sendComment()" id="send-btn">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE DIALOG -->
+<div class="dlg-bg hidden" id="del-dlg">
+  <div class="dlg">
+    <div class="dlg-ico">🗑</div>
+    <p>Dieses Foto wirklich unwiderruflich löschen?</p>
+    <div class="dlg-btns">
+      <button class="btn btn-ghost" onclick="cancelDel()">Abbrechen</button>
+      <button class="btn btn-danger" onclick="execDel()">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+// ║         🔧  SUPABASE KONFIGURATION                      ║
+// ╚══════════════════════════════════════════════════════════╝
+const SUPABASE_URL      = 'https://zknntdcyzcjgyxrqugqh.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_bEFUU-PWRv7MiNMIeRGgUA_dg62LyXu';
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  NEUER SQL CODE (einmalig ausführen nach Update):       ║
+/*
+-- Likes-Tabelle
+create table likes (
+  id uuid primary key default gen_random_uuid(),
+  photo_id uuid references photos(id) on delete cascade,
+  user_id uuid references profiles(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique(photo_id, user_id)
+);
+alter table likes enable row level security;
+create policy "Eingeloggte sehen Likes"
+  on likes for select using (auth.role() = 'authenticated');
+create policy "Eingeloggte liken"
+  on likes for insert with check (auth.role() = 'authenticated');
+create policy "Nur Eigentümer entfernt Like"
+  on likes for delete using (auth.uid() = user_id);
+
+-- Kommentare-Tabelle
+create table comments (
+  id uuid primary key default gen_random_uuid(),
+  photo_id uuid references photos(id) on delete cascade,
+  user_id uuid references profiles(id) on delete cascade,
+  content text not null,
+  created_at timestamptz default now()
+);
+alter table comments enable row level security;
+create policy "Eingeloggte sehen Kommentare"
+  on comments for select using (auth.role() = 'authenticated');
+create policy "Eingeloggte kommentieren"
+  on comments for insert with check (auth.role() = 'authenticated');
+create policy "Nur Eigentümer löscht Kommentar"
+  on comments for delete using (auth.uid() = user_id);
+*/
+// ╚══════════════════════════════════════════════════════════╝
+
+const SHARED  = 'gemeinsam';
+const MAX_USR = 10;
+const PG_SIZE = 24;
+const SIGNED_URL_EXPIRES = 3600;
+const COLORS  = ['#b07448','#5a9e7a','#6888d4','#c86888','#8868c8','#4aacb8','#c8a048','#7888c8','#a8c858','#c87848'];
+
+let sb, me, meProfile, curFolder = SHARED;
+let allProfiles = {}, photos = [], pgFrom = 0, hasMore = false;
+let urlCache = {};
+let lbIdx = 0, delTarget = null, delFromLb = false;
+// Like/comment state for current lightbox photo
+let lbLiked = false, lbLikeCount = 0, lbComments = [];
+
+function configured() { return SUPABASE_URL !== 'DEINE_SUPABASE_URL'; }
+
+// ── BOOT ─────────────────────────────────────────────────
+
+window.addEventListener('load', async () => {
+  if (!configured()) {
+    hide('loading'); show('auth-page'); toLogin();
+    showMsg('login-msg','info','⚙️ Bitte trage deine Supabase-Zugangsdaten ein.');
+    return;
+  }
+  document.getElementById('setup-banner').classList.add('hidden');
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Timeout-Sicherung: nach 8 Sekunden Loading immer ausblenden
+  setTimeout(() => {
+    if (!$('loading').classList.contains('hidden')) {
+      hide('loading'); show('auth-page'); toLogin();
+    }
+  }, 8000);
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+
+    if (session) {
+      me = session.user;
+      await loadProfile();
+      if (meProfile) {
+        hide('loading');
+        startApp();
+        return;
+      }
+    }
+
+    hide('loading');
+    show('auth-page');
+    toLogin();
+
+  } catch(e) {
+    hide('loading');
+    show('auth-page');
+    toLogin();
+  }
+
+  // Nur noch für Passwort-Reset Link
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      show('auth-page'); toForgot();
+      document.getElementById('forgot-card').innerHTML = `
+        <h2 class="auth-card-title">Neues Passwort</h2>
+        <p class="auth-card-sub">Gib dein neues Passwort ein.</p>
+        <div id="forgot-msg" class="msg msg-info">✓ Gib jetzt dein neues Passwort ein.</div>
+        <div class="field"><label>Neues Passwort</label><input type="password" id="np" placeholder="Mindestens 6 Zeichen"></div>
+        <div class="field"><label>Wiederholen</label><input type="password" id="np2" placeholder="Bestätigen" onkeydown="if(event.key==='Enter')doNewPw()"></div>
+        <button class="btn btn-primary" onclick="doNewPw()">Passwort speichern →</button>`;
+    }
+  });
+});
+
+// ── AUTH ─────────────────────────────────────────────────
+function toLogin()  { hide('reg-card'); hide('forgot-card'); show('login-card'); }
+function toReg()    { hide('login-card'); hide('forgot-card'); show('reg-card'); loadSlots(); }
+function toForgot() { hide('login-card'); hide('reg-card'); show('forgot-card'); }
+
+async function loadProfile() {
+  if (!me) return;
+  const { data } = await sb.from('profiles').select('*').eq('id', me.id).single();
+  meProfile = data;
+}
+
+async function loadSlots() {
+  try {
+    const { data: n } = await sb.rpc('count_users');
+    const el = $('slots');
+    el.textContent = `${n||0} von ${MAX_USR} Plätzen belegt`;
+    el.className = 'slots-pill' + ((n||0) >= MAX_USR ? ' full' : (n||0) >= 8 ? ' warn' : '');
+    $('reg-btn').disabled = (n||0) >= MAX_USR;
+  } catch { $('slots').textContent = '…'; }
+}
+
+async function doRegister() {
+  const name=V('rn').trim(), email=V('re').trim(), pw=V('rp'), pw2=V('rp2');
+  clearMsgs();
+  if (name.length<2)       return showMsg('reg-msg','error','⚠ Name muss mind. 2 Zeichen lang sein.');
+  if (!email.includes('@')) return showMsg('reg-msg','error','⚠ Bitte eine gültige E-Mail eingeben.');
+  if (pw.length<6)         return showMsg('reg-msg','error','⚠ Passwort muss mind. 6 Zeichen haben.');
+  if (pw!==pw2)            return showMsg('reg-msg','error','❌ Passwörter stimmen nicht überein.');
+  setBL('reg-btn',true,'Wird erstellt…');
+  try {
+    const {data:cnt} = await sb.rpc('count_users');
+    if ((cnt||0)>=MAX_USR) return showMsg('reg-msg','error','❌ Alle 10 Plätze sind vergeben!');
+    const {data:ex} = await sb.from('profiles').select('id').eq('name_lower',name.toLowerCase()).maybeSingle();
+    if (ex) return showMsg('reg-msg','error','❌ Dieser Name ist bereits vergeben.');
+    const color = COLORS[(cnt||0)%COLORS.length];
+    const {data:authData,error:authErr} = await sb.auth.signUp({email,password:pw,options:{data:{display_name:name}}});
+    if (authErr) throw authErr;
+    await sb.from('profiles').insert({id:authData.user.id,name,name_lower:name.toLowerCase(),color});
+    showMsg('reg-msg','success','✓ Fast fertig! Bitte bestätige deine E-Mail — schau in dein Postfach.');
+  } catch(e) {
+    showMsg('reg-msg','error', e.message.includes('already')?'❌ Diese E-Mail ist bereits registriert.':e.message);
+  } finally { setBL('reg-btn',false,'Konto erstellen →'); }
+}
+
+async function doLogin() {
+  const email=V('le').trim(), pw=V('lp');
+  clearMsgs();
+  if (!email) return showMsg('login-msg','error','⚠ Bitte E-Mail eingeben.');
+  if (!pw)    return showMsg('login-msg','error','⚠ Bitte Passwort eingeben.');
+  setBL('login-btn',true,'Einloggen…');
+  try {
+    const {data,error} = await sb.auth.signInWithPassword({email,password:pw});
+    if (error) throw error;
+    me = data.user;
+    await loadProfile();
+    if (!meProfile) { await sb.auth.signOut(); return showMsg('login-msg','error','❌ Kein Profil gefunden.'); }
+    hide('auth-page'); startApp();
+  } catch(e) {
+    const m = e.message.includes('Invalid')?'❌ E-Mail oder Passwort falsch.'
+            : e.message.includes('confirmed')?'⚠ Bitte zuerst deine E-Mail bestätigen.'
+            : e.message.includes('many')?'⚠ Zu viele Versuche — kurz warten.' : e.message;
+    showMsg('login-msg','error',m);
+  } finally { setBL('login-btn',false,'Einloggen →'); }
+}
+
+async function doForgot() {
+  const email=V('fe').trim();
+  if (!email) return showMsg('forgot-msg','error','⚠ Bitte E-Mail eingeben.');
+  setBL('forgot-btn',true,'Wird gesendet…');
+  try {
+    const {error} = await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+    if (error) throw error;
+    showMsg('forgot-msg','success','✓ E-Mail gesendet! Schau in dein Postfach.');
+  } catch(e) { showMsg('forgot-msg','error',e.message); }
+  finally { setBL('forgot-btn',false,'Link zusenden →'); }
+}
+
+async function doNewPw() {
+  const np=document.getElementById('np')?.value, np2=document.getElementById('np2')?.value;
+  if (!np||np.length<6) return showMsg('forgot-msg','error','⚠ Passwort muss mind. 6 Zeichen haben.');
+  if (np!==np2)         return showMsg('forgot-msg','error','❌ Passwörter stimmen nicht überein.');
+  try {
+    const {error} = await sb.auth.updateUser({password:np});
+    if (error) throw error;
+    showMsg('forgot-msg','success','✓ Passwort geändert!');
+    await loadProfile(); if (meProfile) setTimeout(startApp,1200);
+  } catch(e) { showMsg('forgot-msg','error',e.message); }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  me=null; meProfile=null; photos=[]; urlCache={};
+  $('app').classList.remove('show');
+  show('auth-page'); toLogin();
+}
+
+// ── APP START ─────────────────────────────────────────────
+async function startApp() {
+  hide('auth-page');
+  $('app').classList.add('show');
+  $('hav').textContent = meProfile.name[0].toUpperCase();
+  $('hav').style.background = meProfile.color;
+  $('hname').textContent = meProfile.name;
+  const {data} = await sb.from('profiles').select('*');
+  allProfiles = {};
+  (data||[]).forEach(p => { allProfiles[p.id]=p; });
+  curFolder = SHARED;
+  renderSidebar();
+  await loadPhotos(true);
+}
+
+// ── SIGNED URLS ───────────────────────────────────────────
+async function getSignedUrl(path) {
+  const c = urlCache[path];
+  if (c && c.expiresAt > Date.now()+5*60*1000) return c.url;
+  const {data,error} = await sb.storage.from('photos').createSignedUrl(path, SIGNED_URL_EXPIRES);
+  if (error||!data?.signedUrl) return null;
+  urlCache[path] = {url:data.signedUrl, expiresAt:Date.now()+SIGNED_URL_EXPIRES*1000};
+  return data.signedUrl;
+}
+async function loadSignedUrls(list) {
+  const paths = list.filter(p=>p.storage_path).filter(p=>{
+    const c=urlCache[p.storage_path]; return !c||c.expiresAt<=Date.now()+5*60*1000;
+  }).map(p=>p.storage_path);
+  if (!paths.length) return;
+  const {data} = await sb.storage.from('photos').createSignedUrls(paths, SIGNED_URL_EXPIRES);
+  (data||[]).forEach(item=>{
+    if (item.signedUrl) urlCache[item.path]={url:item.signedUrl,expiresAt:Date.now()+SIGNED_URL_EXPIRES*1000};
+  });
+}
+
+// ── SIDEBAR ──────────────────────────────────────────────
+function renderSidebar() {
+  const users = Object.values(allProfiles).sort((a,b)=>a.name.localeCompare(b.name));
+  $('sidebar').innerHTML = `
+    <span class="sb-label">Ordner</span>
+    <button class="fb ${curFolder===SHARED?'active':''}" onclick="switchFolder('${SHARED}')">
+      <span class="fi">🤝</span><span class="fn">Gemeinsam</span>
+      <span class="fc" id="fc-${SHARED}">…</span>
+    </button>
+    <div class="sb-div"></div>
+    <span class="sb-label">Persönlich</span>
+    ${users.map(u=>`
+      <button class="fb ${curFolder===u.id?'active':''}" onclick="switchFolder('${u.id}')">
+        <span class="fi" style="width:20px;height:20px;border-radius:50%;background:${u.color};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px">${u.name[0]}</span>
+        <span class="fn">${esc(u.name)}${u.id===me.id?' (du)':''}</span>
+        <span class="fc" id="fc-${u.id}">…</span>
+      </button>`).join('')}`;
+  fetchCounts([SHARED,...Object.keys(allProfiles)]);
+}
+async function fetchCounts(folders) {
+  for (const f of folders) {
+    const {count} = await sb.from('photos').select('id',{count:'exact',head:true}).eq('folder',f);
+    const el = document.getElementById('fc-'+f);
+    if (el) el.textContent = count??'…';
+  }
+}
+async function switchFolder(f) { curFolder=f; renderSidebar(); await loadPhotos(true); }
+
+// ── GALLERY ──────────────────────────────────────────────
+function folderTitle() {
+  if (curFolder===SHARED) return 'Gemeinsamer Ordner';
+  const u=allProfiles[curFolder];
+  return curFolder===me.id ? 'Mein Ordner' : `${u?.name??'?'}'s Ordner`;
+}
+function canUpload() { return curFolder===SHARED||curFolder===me.id; }
+
+async function loadPhotos(reset=false) {
+  if (reset) { photos=[]; pgFrom=0; hasMore=false; }
+  $('grid').innerHTML='<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  hide('empty'); hide('more-btn');
+  $('gal-title').textContent = folderTitle();
+  $('upload-btn').style.display = canUpload()?'':'none';
+  const {data,count,error} = await sb.from('photos')
+    .select('*',{count:'exact'}).eq('folder',curFolder)
+    .order('created_at',{ascending:false}).range(pgFrom,pgFrom+PG_SIZE-1);
+  if (!error&&data) {
+    await loadSignedUrls(data);
+    // Load like counts + user's likes
+    if (data.length) await enrichPhotos(data);
+    photos = reset?data:[...photos,...data];
+    hasMore=(pgFrom+PG_SIZE)<(count||0);
+    pgFrom=photos.length;
+  }
+  renderGrid();
+}
+
+async function enrichPhotos(list) {
+  const ids = list.map(p=>p.id);
+  // Like counts
+  const {data:likesData} = await sb.from('likes').select('photo_id').in('photo_id',ids);
+  // My likes
+  const {data:myLikes} = await sb.from('likes').select('photo_id').in('photo_id',ids).eq('user_id',me.id);
+  // Comment counts
+  const {data:commData} = await sb.from('comments').select('photo_id').in('photo_id',ids);
+  const myLikeSet = new Set((myLikes||[]).map(l=>l.photo_id));
+  const likeCountMap = {}, commCountMap = {};
+  (likesData||[]).forEach(l=>{ likeCountMap[l.photo_id]=(likeCountMap[l.photo_id]||0)+1; });
+  (commData||[]).forEach(c=>{ commCountMap[c.photo_id]=(commCountMap[c.photo_id]||0)+1; });
+  list.forEach(p=>{ p._likes=likeCountMap[p.id]||0; p._liked=myLikeSet.has(p.id); p._comments=commCountMap[p.id]||0; });
+}
+
+async function loadMore() {
+  if (!hasMore) return;
+  $('more-btn').textContent='Lädt…';
+  await loadPhotos(false);
+}
+
+function renderGrid() {
+  const g=$('grid');
+  if (!photos.length) { g.innerHTML=''; show('empty'); hide('more-btn'); return; }
+  hide('empty');
+  g.innerHTML = photos.map((p,i)=>{
+    const u=allProfiles[p.uploader_id]||{};
+    const url=urlCache[p.storage_path]?.url||'';
+    const canDel=p.uploader_id===me.id;
+    const liked=p._liked||false;
+    const likes=p._likes||0;
+    const comms=p._comments||0;
+    return `<div class="p-card" id="pc-${p.id}">
+      <div class="p-thumb" onclick="openLB(${i})">
+        ${url?`<img src="${esc(url)}" alt="" loading="lazy">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%"><div class="spinner"></div></div>`}
+        <div class="p-ov">🔍</div>
+      </div>
+      <div class="p-meta">
+        <div class="p-top">
+          <span class="dot" style="background:${esc(u.color||'#888')}"></span>
+          <span class="p-who">${esc(u.name||'?')}</span>
+          <span class="p-dt">${fmtDate(p.created_at)}</span>
+        </div>
+        <div class="p-actions">
+          <button class="p-like-btn${liked?' liked':''}" onclick="event.stopPropagation();quickLike('${p.id}',this)">
+            <span class="heart">${liked?'❤️':'🤍'}</span> ${likes>0?likes:''}
+          </button>
+          ${comms>0?`<span class="p-comment-count">💬 ${comms}</span>`:''}
+          ${canDel?`<button class="p-del" onclick="event.stopPropagation();askDel('${p.id}',false)">🗑</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  if (hasMore) { show('more-btn'); $('more-btn').textContent='Weitere Fotos laden…'; }
+  else hide('more-btn');
+}
+
+// Quick like from grid
+async function quickLike(photoId, btn) {
+  const p = photos.find(x=>x.id===photoId);
+  if (!p) return;
+  if (p._liked) {
+    await sb.from('likes').delete().eq('photo_id',photoId).eq('user_id',me.id);
+    p._liked=false; p._likes=Math.max(0,(p._likes||0)-1);
+  } else {
+    await sb.from('likes').insert({photo_id:photoId,user_id:me.id});
+    p._liked=true; p._likes=(p._likes||0)+1;
+  }
+  btn.className='p-like-btn'+(p._liked?' liked':'');
+  btn.innerHTML=`<span class="heart">${p._liked?'❤️':'🤍'}</span> ${p._likes>0?p._likes:''}`;
+}
+
+// ── UPLOAD ───────────────────────────────────────────────
+function openModal() {
+  const sel=$('fsel');
+  sel.innerHTML=`<option value="${SHARED}">🤝 Gemeinsamer Ordner</option><option value="${me.id}">👤 Mein persönlicher Ordner</option>`;
+  sel.value=canUpload()?curFolder:SHARED;
+  show('up-modal'); show('dz-wrap'); hide('prog-wrap');
+}
+function closeModal() { hide('up-modal'); $('fi').value=''; }
+
+async function handleFiles(fileList) {
+  const files=Array.from(fileList).filter(f=>f.type.startsWith('image/'));
+  if (!files.length) return;
+  const folder=$('fsel').value;
+  hide('dz-wrap'); show('prog-wrap');
+  for (let i=0;i<files.length;i++) {
+    $('prog-txt').textContent=`Bild ${i+1} von ${files.length} wird hochgeladen…`;
+    $('prog-fill').style.width=(i/files.length*100)+'%';
+    try { await uploadOne(files[i],folder); } catch(e) { console.error(e); }
+  }
+  $('prog-fill').style.width='100%';
+  closeModal();
+  if (curFolder===folder) await loadPhotos(true);
+  renderSidebar();
+  $('fi').value='';
+}
+
+async function uploadOne(file,folder) {
+  const blob=await compress(file);
+  const path=`${me.id}/${folder}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+  const {error:upErr}=await sb.storage.from('photos').upload(path,blob,{contentType:'image/jpeg'});
+  if (upErr) throw upErr;
+  const {error:dbErr}=await sb.from('photos').insert({
+    folder,uploader_id:me.id,uploader_name:meProfile.name,storage_path:path,filename:file.name
+  });
+  if (dbErr) throw dbErr;
+}
+
+const dzEl=$('dz');
+dzEl.addEventListener('dragover',e=>{e.preventDefault();dzEl.classList.add('drag')});
+dzEl.addEventListener('dragleave',()=>dzEl.classList.remove('drag'));
+dzEl.addEventListener('drop',e=>{e.preventDefault();dzEl.classList.remove('drag');handleFiles(e.dataTransfer.files)});
+
+// ── LIGHTBOX ─────────────────────────────────────────────
+async function openLB(i) {
+  lbIdx=i;
+  const p=photos[i], u=allProfiles[p.uploader_id]||{};
+  $('lb-img').src='';
+  show('lb');
+  const url=await getSignedUrl(p.storage_path);
+  $('lb-img').src=url||'';
+  $('lb-av').textContent=u.name?u.name[0].toUpperCase():'?';
+  $('lb-av').style.background=u.color||'#888';
+  $('lb-who').textContent=u.name||'?';
+  $('lb-dt').textContent=fmtDateLong(p.created_at);
+  $('lb-cnt').textContent=`${i+1} von ${photos.length} Fotos`;
+  $('lb-prv').style.display=i>0?'':'none';
+  $('lb-nxt').style.display=i<photos.length-1?'':'none';
+  // Delete button
+  const d=$('lb-del-btn');
+  p.uploader_id===me.id?d.classList.remove('hidden'):d.classList.add('hidden');
+  // Load likes + comments
+  await loadLBMeta(p.id);
+}
+
+async function loadLBMeta(photoId) {
+  // Likes
+  const {data:allLikes} = await sb.from('likes').select('user_id').eq('photo_id',photoId);
+  lbLikeCount=(allLikes||[]).length;
+  lbLiked=(allLikes||[]).some(l=>l.user_id===me.id);
+  updateLikeBtn();
+  // Comments
+  const {data:commData} = await sb.from('comments')
+    .select('*').eq('photo_id',photoId).order('created_at',{ascending:true});
+  lbComments=commData||[];
+  renderComments();
+}
+
+function updateLikeBtn() {
+  const btn=$('lb-like-btn');
+  btn.className='lb-like-btn'+(lbLiked?' liked':'');
+  btn.innerHTML=`<span class="lheart">${lbLiked?'❤️':'🤍'}</span> <span id="lb-like-count">${lbLikeCount}</span> Gefällt mir`;
+}
+
+async function toggleLike() {
+  const p=photos[lbIdx];
+  if (!p) return;
+  if (lbLiked) {
+    await sb.from('likes').delete().eq('photo_id',p.id).eq('user_id',me.id);
+    lbLiked=false; lbLikeCount=Math.max(0,lbLikeCount-1);
+    p._liked=false; p._likes=Math.max(0,(p._likes||0)-1);
+  } else {
+    await sb.from('likes').insert({photo_id:p.id,user_id:me.id});
+    lbLiked=true; lbLikeCount++;
+    p._liked=true; p._likes=(p._likes||0)+1;
+  }
+  updateLikeBtn();
+  // Update card in grid
+  const card=document.getElementById('pc-'+p.id);
+  if (card) {
+    const likeBtn=card.querySelector('.p-like-btn');
+    if (likeBtn) { likeBtn.className='p-like-btn'+(p._liked?' liked':''); likeBtn.innerHTML=`<span class="heart">${p._liked?'❤️':'🤍'}</span> ${p._likes>0?p._likes:''}`; }
+  }
+}
+
+async function sendComment() {
+  const ta=$('comment-input');
+  const text=ta.value.trim();
+  if (!text) return;
+  const p=photos[lbIdx];
+  if (!p) return;
+  $('send-btn').disabled=true;
+  const {data,error} = await sb.from('comments').insert({
+    photo_id:p.id, user_id:me.id, content:text
+  }).select().single();
+  if (!error&&data) {
+    lbComments.push(data);
+    p._comments=(p._comments||0)+1;
+    renderComments();
+    ta.value=''; ta.style.height='auto';
+  }
+  $('send-btn').disabled=false;
+  // Update comment count in grid
+  const card=document.getElementById('pc-'+p.id);
+  if (card) {
+    const cc=card.querySelector('.p-comment-count');
+    if (cc) cc.innerHTML=`💬 ${p._comments}`;
+    else {
+      const actions=card.querySelector('.p-actions');
+      if (actions) { const sp=document.createElement('span'); sp.className='p-comment-count'; sp.innerHTML=`💬 ${p._comments}`; actions.insertBefore(sp,actions.children[1]||null); }
+    }
+  }
+}
+
+async function deleteComment(commentId) {
+  await sb.from('comments').delete().eq('id',commentId);
+  lbComments=lbComments.filter(c=>c.id!==commentId);
+  const p=photos[lbIdx];
+  if (p) p._comments=Math.max(0,(p._comments||0)-1);
+  renderComments();
+}
+
+function renderComments() {
+  const el=$('lb-comments');
+  if (!lbComments.length) { el.innerHTML='<div class="no-comments">Noch keine Kommentare — schreib den ersten! ✨</div>'; return; }
+  el.innerHTML=lbComments.map(c=>{
+    const u=allProfiles[c.user_id]||{};
+    const canDel=c.user_id===me.id;
+    return `<div class="comment-item">
+      <div class="c-av" style="background:${esc(u.color||'#888')}">${u.name?u.name[0].toUpperCase():'?'}</div>
+      <div class="c-body">
+        <span class="c-name">${esc(u.name||'?')}</span>
+        ${canDel?`<button class="c-del" onclick="deleteComment('${c.id}')">🗑</button>`:''}
+        <div class="c-text">${esc(c.content)}</div>
+        <div class="c-time">${fmtDateLong(c.created_at)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function closeLB() { hide('lb'); }
+function lbNav(d) { openLB(Math.max(0,Math.min(photos.length-1,lbIdx+d))); }
+document.addEventListener('keydown',e=>{
+  if ($('lb').classList.contains('hidden')) return;
+  if(e.key==='ArrowLeft') lbNav(-1);
+  else if(e.key==='ArrowRight') lbNav(1);
+  else if(e.key==='Escape') closeLB();
+});
+
+// ── DELETE ───────────────────────────────────────────────
+function askDel(id,fromLb) { delFromLb=fromLb; delTarget=fromLb?photos[lbIdx]?.id:id; show('del-dlg'); }
+function cancelDel() { hide('del-dlg'); delTarget=null; }
+async function execDel() {
+  if (!delTarget) return;
+  hide('del-dlg');
+  try {
+    const p=photos.find(x=>x.id===delTarget);
+    if (p?.storage_path) { delete urlCache[p.storage_path]; await sb.storage.from('photos').remove([p.storage_path]); }
+    await sb.from('photos').delete().eq('id',delTarget);
+  } catch(e) { console.error(e); }
+  if (delFromLb) closeLB();
+  delTarget=null;
+  await loadPhotos(true); renderSidebar();
+}
+
+// ── HELPERS ──────────────────────────────────────────────
+async function compress(file,maxW=1400,q=0.82) {
+  return new Promise(res=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+        const c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        c.toBlob(b=>res(b),'image/jpeg',q);
+      };
+      img.src=e.target.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+function fmtDate(s){ if(!s)return''; return new Date(s).toLocaleDateString('de-DE'); }
+function fmtDateLong(s){ if(!s)return''; return new Date(s).toLocaleString('de-DE'); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function $(id){ return document.getElementById(id); }
+function V(id){ return $(id).value; }
+function show(id){ $(id).classList.remove('hidden'); }
+function hide(id){ $(id).classList.add('hidden'); }
+function showMsg(id,t,txt){ const e=$(id); if(!e)return; e.className=`msg msg-${t}`; e.textContent=txt; e.classList.remove('hidden'); }
+function clearMsgs(){ ['login-msg','reg-msg','forgot-msg'].forEach(id=>{ const e=$(id); if(e)e.classList.add('hidden'); }); }
+function setBL(id,l,txt){ const b=$(id); if(!b)return; b.disabled=l; b.innerHTML=l?`<span class="spin-sm"></span>${txt}`:txt; }
+</script>
+</body>
+</html>
