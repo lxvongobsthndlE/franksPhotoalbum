@@ -1,10 +1,10 @@
 // Service Worker — Fotoalbum PWA
-const CACHE_NAME = 'fotoalbum-v1';
+const CACHE_NAME = 'fotoalbum-v2';
 
 // App shell — these get cached on install
 const APP_SHELL = [
-  '/',
-  '/index.html',
+  '/Fotoalbum/',
+  '/Fotoalbum/index.html',
   'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700&display=swap',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
@@ -51,7 +51,7 @@ self.addEventListener('fetch', event => {
     }).catch(() => {
       // Offline fallback: return cached index.html for navigation
       if (event.request.mode === 'navigate') {
-        return caches.match('/index.html');
+        return caches.match('/Fotoalbum/index.html');
       }
     })
   );
