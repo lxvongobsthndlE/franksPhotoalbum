@@ -1,0 +1,108 @@
+// Prisma Schema
+// Database schema for Fotoalbum App
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  name      String?
+  color     String?
+  avatar    String?
+  role      String   @default("user") // "user" oder "admin"
+  createdAt DateTime @default(now())
+  
+  groups    GroupMember[]
+  photos    Photo[]
+  comments  Comment[]
+  likes     Like[]
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+  
+  members   GroupMember[]
+  albums    Album[]
+  photos    Photo[]
+}
+
+model GroupMember {
+  userId String
+  groupId String
+  
+  user   User   @relation(fields: [userId], references: [id])
+  group  Group  @relation(fields: [groupId], references: [id])
+  
+  @@id([userId, groupId])
+}
+
+model Album {
+  id        String   @id @default(cuid())
+  name      String
+  groupId   String
+  createdBy String
+  createdAt DateTime @default(now())
+  
+  group     Group        @relation(fields: [groupId], references: [id])
+  photos    PhotoAlbum[]
+}
+
+model Photo {
+  id          String   @id @default(cuid())
+  uploaderId  String
+  groupId     String
+  filename    String
+  path        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  
+  uploader    User         @relation(fields: [uploaderId], references: [id])
+  group       Group        @relation(fields: [groupId], references: [id])
+  albums      PhotoAlbum[]
+  comments    Comment[]
+  likes       Like[]
+}
+
+model PhotoAlbum {
+  photoId String
+  albumId String
+
+  photo   Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  album   Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@id([photoId, albumId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  photoId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  
+  photo     Photo    @relation(fields: [photoId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  photoId   String
+  userId    String
+  createdAt DateTime @default(now())
+  
+  photo     Photo    @relation(fields: [photoId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@unique([photoId, userId])
+}

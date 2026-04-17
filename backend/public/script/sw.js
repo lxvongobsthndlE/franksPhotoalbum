@@ -1,7 +1,11 @@
-const CACHE_NAME = 'fotoalbum-v2';
+const CACHE_NAME = 'fotoalbum-v5';
 const APP_SHELL = [
-  './',
-  './index.html'
+  '/',
+  '/index.html',
+  '/style/main.css',
+  '/script/main.js',
+  '/script/auth-oidc.js',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', event => {
@@ -22,7 +26,14 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  if (url.hostname.includes('supabase') && !url.pathname.includes('supabase-js')) return;
+  
+  // API-Requests: Nicht cachen (immer frisch vom Server)
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
+  // Statische Assets & HTML: Cache-First Strategie
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
