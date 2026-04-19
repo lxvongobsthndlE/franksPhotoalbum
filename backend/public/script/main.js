@@ -47,7 +47,7 @@ let me, meProfile, curFolder = SHARED, curAlbum = null, curFilter = null;
 let curView = 'medium';
 let curSort = 'newest';
 let selectMode = false, selectedIds = new Set();
-let curGroupId = null, myGroups = [], groupMembers = [];
+let curGroupId = null, myGroups = [], groupMembers = [], groupDeputies = [];
 let curFilterUserId = null;
 let allProfiles = {}, photos = [], pgFrom = 0, hasMore = false;
 let allAlbums = [];
@@ -61,6 +61,8 @@ function photoSrc(url) {
   if (!t) return url;
   return url + (url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(t);
 }
+// Dasselbe für Backup-Download-URLs — kein Auth nötig, zipKey ist das Geheimnis
+function backupSrc(url) { return url; }
 let ssPlaying = false, ssTimer = null, ssSpeeds = [3,4,6,8], ssSpeedIdx = 1;
 let lbLiked = false, lbLikeCount = 0, lbComments = [], lbLikers = [];
 
@@ -232,6 +234,14 @@ async function startApp() {
     } catch(e) { console.warn('Mitglieder laden fehlgeschlagen:', e); }
   }
 
+  // Gruppen-Vertreter laden
+  if (curGroupId) {
+    try {
+      const { deputies } = await apiCall(`/groups/${curGroupId}/deputies`, 'GET');
+      groupDeputies = deputies || [];
+    } catch(e) { console.warn('Deputies laden fehlgeschlagen:', e); }
+  }
+
   // Alben laden
   if (curGroupId) await loadAlbums();
 
@@ -264,12 +274,20 @@ async function loadSignedUrls(list) {
 // ── SIDEBAR ──────────────────────────────────────────────
 function renderSidebar() {
   // Albums list — always show "Neues Album" first, then existing albums
-  const albumsListHtml = allAlbums.map(a=>`
-    <button class="fb ${curAlbum===a.id?'active':''}" onclick="switchAlbum('${a.id}')">
-      <span class="fi">${ICON_ALBUM}</span>
-      <span class="fn">${esc(a.name)}</span>
+  const sortedAlbums = [...allAlbums].sort((a, b) => {
+    const aOwn = a.createdBy === me.id ? 0 : 1;
+    const bOwn = b.createdBy === me.id ? 0 : 1;
+    return aOwn - bOwn;
+  });
+  const albumsListHtml = sortedAlbums.map(a => {
+    const isOwn = a.createdBy === me.id;
+    return `
+    <button class="fb ${curAlbum===a.id?'active':''}" onclick="switchAlbum('${a.id}')" ${isOwn ? 'style="font-weight:600"' : ''}>
+      <span class="fi" style="${isOwn ? 'color:var(--accent)' : ''}">${ICON_ALBUM}</span>
+      <span class="fn" style="${isOwn ? 'color:var(--accent)' : ''}">${esc(a.name)}</span>
       <span class="fc" id="fc-a-${a.id}">…</span>
-    </button>`).join('');
+    </button>`;
+  }).join('');
 
   // Members list (exclude self, already shown as "Meine Fotos")
   const otherMembers = groupMembers.filter(m => m.id !== me.id);
@@ -336,6 +354,11 @@ function renderSidebar() {
       <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></svg></span>
       <span class="fn">Einladungscode anzeigen</span>
     </button>
+    ${(()=>{ const g=myGroups.find(x=>x.id===curGroupId); return g?.createdBy===me.id; })() ? `
+    <button class="fb" onclick="openDeputyModal()${window.innerWidth<=900?';closeSidebar()':''}">
+      <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      <span class="fn">Vertreter verwalten</span>
+    </button>` : ''}
     ${window.innerWidth <= 900 && myGroups.length > 1 ? `
     <div class="sb-div"></div>
     <span class="sb-label">Gruppe wechseln</span>
@@ -354,6 +377,10 @@ function renderSidebar() {
     <button class="fb" onclick="openAdminGroups()">
       <span class="fi">${ICON_GEAR}</span>
       <span class="fn">Gruppen verwalten</span>
+    </button>
+    <button class="fb" onclick="openAdminBackups()">
+      <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 15 21 21 3 21 3 15"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+      <span class="fn">Backups verwalten</span>
     </button>` : ''}
     <div class="sb-div"></div>
     <div style="padding:6px 14px;display:flex;align-items:center;gap:8px">
@@ -445,6 +472,28 @@ function folderTitle() {
 }
 function canUpload() { return true; }
 
+// Prüft ob der User Fotos zum aktuell geöffneten Album hinzufügen/entfernen darf
+function canAddToAlbum() {
+  if (!curAlbum) return false;
+  if (me.role === 'admin') return true;
+  const a = allAlbums.find(x => x.id === curAlbum);
+  if (!a) return false;
+  if (a.createdBy === me.id) return true;
+  return (a.contributors || []).some(c => c.id === me.id);
+}
+
+// Prüft ob der User das Album verwalten darf (Contributor hinzufügen/entfernen, umbenennen)
+function canManageAlbum() {
+  if (!curAlbum) return false;
+  if (me.role === 'admin') return true;
+  const a = allAlbums.find(x => x.id === curAlbum);
+  if (!a) return false;
+  if (a.createdBy === me.id) return true;
+  const curGroup = myGroups.find(g => g.id === curGroupId);
+  if (curGroup?.createdBy === me.id) return true;
+  return groupDeputies.some(d => d.id === me.id);
+}
+
 async function switchToUser(userId) {
   curAlbum = null; curFilter = null; curFilterUserId = userId;
   closeSidebar(); renderSidebar(); await loadPhotos(true);
@@ -461,25 +510,35 @@ async function loadPhotos(reset=false) {
   // Show album action button if in album view
   const albumAddBtn = document.getElementById('album-add-btn');
   if (curAlbum) {
-    if (!albumAddBtn) {
-      const btn = document.createElement('button');
-      btn.id = 'album-add-btn';
-      btn.className = 'btn-ghost btn';
-      btn.style.cssText = 'padding:5px 10px;font-size:11px;gap:4px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;color:var(--muted)';
-      btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Hinzufügen`;
-      btn.onclick = openAddFromAll;
-      $('upload-btn').after(btn);
+    // Hinzufügen-Button: nur für Berechtigte (Creator, Contributor, Admin)
+    if (canAddToAlbum()) {
+      if (!albumAddBtn) {
+        const btn = document.createElement('button');
+        btn.id = 'album-add-btn';
+        btn.className = 'btn-ghost btn';
+        btn.style.cssText = 'padding:5px 10px;font-size:11px;gap:4px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;color:var(--muted)';
+        btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Hinzufügen`;
+        btn.onclick = openAddFromAll;
+        $('upload-btn').after(btn);
+      }
+    } else {
+      if (albumAddBtn) albumAddBtn.remove();
     }
-    // Add gear/rename button
-    if (!document.getElementById('album-rename-btn')) {
-      const gear = document.createElement('button');
-      gear.id = 'album-rename-btn';
-      gear.className = 'btn-ghost btn';
-      gear.title = 'Album umbenennen';
-      gear.style.cssText = 'padding:5px 7px;font-size:11px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;color:var(--muted)';
-      gear.innerHTML = ICON_GEAR;
-      gear.onclick = openRenameAlbum;
-      $('upload-btn').after(gear);
+    // Gear-Button: nur für Album-Creator, Gruppen-Owner, Admin
+    if (canManageAlbum()) {
+      if (!document.getElementById('album-rename-btn')) {
+        const gear = document.createElement('button');
+        gear.id = 'album-rename-btn';
+        gear.className = 'btn-ghost btn';
+        gear.title = 'Album-Einstellungen';
+        gear.style.cssText = 'padding:5px 7px;font-size:11px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;color:var(--muted)';
+        gear.innerHTML = ICON_GEAR;
+        gear.onclick = () => openAlbumSettings(curAlbum);
+        $('upload-btn').after(gear);
+      }
+    } else {
+      const gear = document.getElementById('album-rename-btn');
+      if (gear) gear.remove();
     }
   } else {
     if (albumAddBtn) albumAddBtn.remove();
@@ -1084,13 +1143,35 @@ function closeAlbumModal() { hide('album-modal'); document.getElementById('album
 function renderAlbumList() {
   const el=$('album-list');
   if (!allAlbums.length) { el.innerHTML='<p style="font-size:13px;color:var(--muted2);font-weight:300;padding:8px 0">Noch keine Alben erstellt.</p>'; return; }
-  // Album-Foto-Anzahl aus _count (kommt vom API)
-  el.innerHTML=allAlbums.map(a=>`
-    <div class="album-row">
-      <span class="album-row-name">${esc(a.name)}</span>
-      <span class="album-row-count" id="arc-${a.id}">${a._count?.photos ?? '…'} Fotos</span>
-      ${a.createdBy===me.id||a.created_by===me.id?`<button class="album-row-del" onclick="deleteAlbum('${a.id}')" title="Löschen">${ICON_TRASH}</button>`:''}
-    </div>`).join('');
+  const sortedForModal = [...allAlbums].sort((a, b) => {
+    const aOwn = a.createdBy === me.id ? 0 : 1;
+    const bOwn = b.createdBy === me.id ? 0 : 1;
+    return aOwn - bOwn;
+  });
+  el.innerHTML=sortedForModal.map(a=>{
+    const isCreator = a.createdBy === me.id;
+    const isAdmin = me.role === 'admin';
+    const curGroup = myGroups.find(g => g.id === curGroupId);
+    const isGroupOwner = curGroup?.createdBy === me.id;
+    const isDeputy = groupDeputies.some(d => d.id === me.id);
+    const canManage = isCreator || isAdmin || isGroupOwner || isDeputy;
+    const creatorUser = groupMembers.find(m => m.id === a.createdBy);
+    const creatorChip = creatorUser
+      ? `<span style="font-size:10px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px" title="Ersteller">${esc(creatorUser.name||creatorUser.username)}</span>`
+      : '';
+    const contributorChips = (a.contributors||[]).map(c=>`<span style="font-size:10px;background:var(--accent-l);color:var(--accent);border-radius:10px;padding:1px 6px">${esc(c.name||c.username)}</span>`).join(' ');
+    const chips = [creatorChip, contributorChips].filter(Boolean).join(' ');
+    return `
+    <div class="album-row" style="flex-direction:column;align-items:stretch;gap:4px${isCreator ? ';box-shadow:inset 3px 0 0 var(--accent)' : ''}">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="album-row-name" style="${isCreator ? 'color:var(--accent);font-weight:600' : ''}">${esc(a.name)}</span>
+        <span class="album-row-count" id="arc-${a.id}">${a._count?.photos ?? '…'} Fotos</span>
+        ${canManage ? `<button class="album-row-del" onclick="openAlbumSettings('${a.id}')" title="Einstellungen" style="color:var(--muted2)">${ICON_GEAR}</button>` : ''}
+        ${canManage ? `<button class="album-row-del" onclick="deleteAlbum('${a.id}')" title="Löschen">${ICON_TRASH}</button>` : ''}
+      </div>
+      ${chips ? `<div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:2px">${chips}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 async function createAlbum() {
@@ -1123,6 +1204,16 @@ async function createAlbumInline() {
     closeNewAlbumInline();
     renderSidebar();
   } catch(e) { toast('Album-Erstellung fehlgeschlagen','error'); }
+}
+
+// openAlbumSettings: öffnet Album-Einstellungen (Umbenennen + Contributors)
+// Kann mit einer albumId aufgerufen werden (aus renderAlbumList) oder ohne (curAlbum)
+function openAlbumSettings(albumId) {
+  const id = albumId || curAlbum;
+  if (!id) return;
+  const a = allAlbums.find(x => x.id === id);
+  if (!a) return;
+  openContributorModal(id);
 }
 
 function openRenameAlbum() {
@@ -1166,6 +1257,125 @@ async function execDeleteAlbum(id) {
     renderSidebar();
     toast('Album gelöscht','success');
   } catch(e) { toast('Album-Löschen fehlgeschlagen','error'); }
+}
+
+// ── CONTRIBUTOR MODAL ────────────────────────────────────
+let _contribAlbumId = null;
+
+async function openContributorModal(albumId) {
+  _contribAlbumId = albumId;
+  const a = allAlbums.find(x => x.id === albumId);
+  if (!a) return;
+
+  const el = document.getElementById('contrib-modal');
+  document.getElementById('contrib-modal-title').textContent = `„${a.name}" verwalten`;
+
+  // Umbenennen-Feld vorbelegen
+  const renameInput = document.getElementById('contrib-rename-input');
+  if (renameInput) renameInput.value = a.name;
+
+  // Creator oder Admin darf umbenennen und löschen
+  const curGroup = myGroups.find(g => g.id === curGroupId);
+  const isGroupOwner = curGroup?.createdBy === me.id;
+  const isDeputy = groupDeputies.some(d => d.id === me.id);
+  const canRename = a.createdBy === me.id || me.role === 'admin' || isGroupOwner || isDeputy;
+  const renameRow = document.getElementById('contrib-rename-row');
+  if (renameRow) renameRow.style.display = canRename ? '' : 'none';
+  const deleteRow = document.getElementById('contrib-delete-row');
+  if (deleteRow) deleteRow.style.display = canRename ? '' : 'none';
+
+  renderContributorList(a);
+  renderContributorMemberPicker(a);
+  show('contrib-modal');
+}
+
+function closeContributorModal() {
+  _contribAlbumId = null;
+  hide('contrib-modal');
+}
+
+function deleteAlbumFromModal() {
+  if (!_contribAlbumId) return;
+  const id = _contribAlbumId;
+  closeContributorModal();
+  deleteAlbum(id);
+}
+
+function renderContributorList(album) {
+  const el = document.getElementById('contrib-list');
+  const contributors = album.contributors || [];
+  if (!contributors.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted);font-weight:300">Noch keine Contributors hinzugefügt.<br>Nur der Ersteller kann Fotos hinzufügen.</p>';
+    return;
+  }
+  el.innerHTML = contributors.map(c => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="width:28px;height:28px;border-radius:50%;background:${c.color||'#888'};flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700">
+        ${c.avatar ? `<img src="${c.avatar}" style="width:100%;height:100%;object-fit:cover">` : (c.name||'?')[0].toUpperCase()}
+      </div>
+      <span style="flex:1;font-size:13px">${esc(c.name||c.username)}</span>
+      <button onclick="removeContributor('${album.id}','${c.id}')" style="background:none;border:none;cursor:pointer;color:var(--red,#e05555);padding:3px 6px;border-radius:6px;font-size:12px" title="Entfernen">✕</button>
+    </div>`).join('');
+}
+
+function renderContributorMemberPicker(album) {
+  const sel = document.getElementById('contrib-user-select');
+  if (!sel) return;
+  const existingIds = new Set((album.contributors || []).map(c => c.id));
+  existingIds.add(album.createdBy); // Creator schon drin
+  const eligible = groupMembers.filter(m => !existingIds.has(m.id));
+  if (!eligible.length) {
+    sel.innerHTML = '<option value="">— Alle Mitglieder bereits Contributors —</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Mitglied auswählen —</option>' +
+    eligible.map(m => `<option value="${m.id}">${esc(m.name||m.username)}</option>`).join('');
+}
+
+async function addContributor() {
+  const sel = document.getElementById('contrib-user-select');
+  const userId = sel?.value;
+  if (!userId || !_contribAlbumId) return;
+  try {
+    const newUser = await apiCall(`/albums/${_contribAlbumId}/contributors`, 'POST', { userId });
+    const a = allAlbums.find(x => x.id === _contribAlbumId);
+    if (a) {
+      a.contributors = [...(a.contributors || []), newUser];
+      renderContributorList(a);
+      renderContributorMemberPicker(a);
+    }
+    toast(`${newUser.name||newUser.username} als Contributor hinzugefügt`, 'success');
+  } catch(e) { toast('Hinzufügen fehlgeschlagen', 'error'); }
+}
+
+async function removeContributor(albumId, userId) {
+  try {
+    await apiCall(`/albums/${albumId}/contributors/${userId}`, 'DELETE');
+    const a = allAlbums.find(x => x.id === albumId);
+    if (a) {
+      a.contributors = (a.contributors || []).filter(c => c.id !== userId);
+      renderContributorList(a);
+      renderContributorMemberPicker(a);
+    }
+    toast('Contributor entfernt', 'success');
+  } catch(e) { toast('Entfernen fehlgeschlagen', 'error'); }
+}
+
+async function saveAlbumRename() {
+  const input = document.getElementById('contrib-rename-input');
+  const newName = input?.value?.trim();
+  if (!newName || !_contribAlbumId) return;
+  const a = allAlbums.find(x => x.id === _contribAlbumId);
+  if (a && newName === a.name) return;
+  try {
+    await apiCall(`/albums/${_contribAlbumId}`, 'PATCH', { name: newName });
+    if (a) a.name = newName;
+    document.getElementById('contrib-modal-title').textContent = `„${newName}" verwalten`;
+    renderSidebar();
+    if (curAlbum === _contribAlbumId) $('gal-title').textContent = newName;
+    renderAlbumList();
+    toast('Album umbenannt', 'success');
+  } catch(e) { toast('Umbenennen fehlgeschlagen', 'error'); }
 }
 
 // ── SLIDESHOW ─────────────────────────────────────────────
@@ -1640,18 +1850,131 @@ async function adminSetRole(userId, newRole, selectEl) {
 
 function closeAdminUsers() { hide('admin-users-modal'); }
 
+// ── ADMIN BACKUPS ─────────────────────────────────────────
+
+async function openAdminBackups() {
+  closeSidebar();
+  show('admin-backups-modal');
+  await renderAdminBackups();
+}
+
+function closeAdminBackups() { hide('admin-backups-modal'); }
+
+async function renderAdminBackups() {
+  const list = $('admin-backups-list');
+  list.innerHTML = '<div style="display:flex;justify-content:center;padding:30px"><div class="spinner"></div></div>';
+  try {
+    const { backups } = await apiCall('/groups/admin/backups', 'GET');
+    if (!backups?.length) {
+      list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px">Keine Backups vorhanden.</p>';
+      return;
+    }
+    list.innerHTML = backups.map(b => {
+      const created = new Date(b.createdAt).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const createdTime = new Date(b.createdAt).toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+      const expiry = new Date(b.linkExpiry);
+      const now = new Date();
+      const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+      const expired = b.expired || daysLeft <= 0;
+      const expiryStr = expired ? '⛔ Abgelaufen' : `⏳ noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''}`;
+      const expiryColor = expired ? 'var(--danger,#e05555)' : daysLeft <= 7 ? '#f5a623' : 'var(--muted)';
+      const sizeMB = b.sizeBytes ? (b.sizeBytes / 1024 / 1024).toFixed(1) + ' MB' : null;
+      return `
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📁 ${esc(b.groupName)}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+              <span style="font-size:12px;color:var(--muted)">🗓 ${created}, ${createdTime} Uhr</span>
+              ${b.deletedByName ? `<span style="font-size:12px;color:var(--muted)">👤 ${esc(b.deletedByName)}</span>` : ''}
+              <span style="font-size:12px;color:var(--muted)">🖼 ${b.photoCount} Foto${b.photoCount !== 1 ? 's' : ''}</span>
+              ${sizeMB ? `<span style="font-size:12px;color:var(--muted)">💾 ${sizeMB}</span>` : ''}
+            </div>
+            <div style="font-size:12px;color:${expiryColor};margin-top:4px;font-weight:600">${expiryStr}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start">
+            ${!expired ? `<a href="${esc(backupSrc(b.downloadUrl))}" target="_blank" rel="noopener" style="background:var(--accent);color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center">📥 Download</a>` : ''}
+            <button onclick="adminRefreshBackupLink('${esc(b.zipKey)}')" style="background:var(--accent-l);border:none;color:var(--accent);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">🔗 Link erneuern</button>
+            <button onclick="adminDeleteBackupEntry('${esc(b.zipKey)}','${esc(b.groupName)}')" style="background:none;border:1.5px solid var(--danger,#e05555);color:var(--danger,#e05555);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<p style="color:var(--danger,#e05555);text-align:center;padding:24px">${esc(e.message)}</p>`;
+  }
+}
+
+async function adminRefreshBackupLink(zipKey) {
+  try {
+    const { linkExpiry } = await apiCall(`/groups/admin/backups/${encodeURIComponent(zipKey)}/refresh`, 'POST');
+    const d = new Date(linkExpiry).toLocaleDateString('de-DE');
+    toast(`Link verlängert bis ${d}`, 'success');
+    await renderAdminBackups();
+  } catch(e) {
+    toast('❌ ' + (e.serverMessage || e.message), 'error');
+  }
+}
+
+async function adminDeleteBackupEntry(zipKey, groupName) {
+  const confirmed = await showConfirmDlg(
+    'Backup endgültig löschen',
+    `Das Backup für „${groupName}" wird unwiderruflich aus MinIO gelöscht.`,
+    'Löschen', 'Abbrechen', true
+  );
+  if (!confirmed) return;
+  try {
+    await apiCall(`/groups/admin/backups/${encodeURIComponent(zipKey)}`, 'DELETE');
+    toast('Backup gelöscht', 'success');
+    await renderAdminBackups();
+  } catch(e) {
+    toast('❌ ' + (e.serverMessage || e.message), 'error');
+  }
+}
+
 async function renderAdminGroups() {
   const list = $('ag-list');
   list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>';
   try {
     const { groups } = await apiCall('/groups/admin/all', 'GET');
     if (!groups.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Keine Gruppen vorhanden.</div>'; return; }
-    list.innerHTML = groups.map(g => `
+
+    // Owner-User + Deputies für alle Gruppen laden
+    const ownerIds = [...new Set(groups.map(g => g.createdBy).filter(Boolean))];
+    const allMembersMap = {};
+    const allDeputiesMap = {};
+    await Promise.all(groups.map(async g => {
+      try {
+        const { members } = await apiCall(`/groups/${g.id}/members`, 'GET');
+        allMembersMap[g.id] = members || [];
+        const { deputies } = await apiCall(`/groups/${g.id}/deputies`, 'GET');
+        allDeputiesMap[g.id] = deputies || [];
+      } catch(e) {
+        allMembersMap[g.id] = [];
+        allDeputiesMap[g.id] = [];
+      }
+    }));
+
+    list.innerHTML = groups.map(g => {
+      const members = allMembersMap[g.id] || [];
+      const deputies = allDeputiesMap[g.id] || [];
+      const owner = g.createdBy ? members.find(m => m.id === g.createdBy) : null;
+      const ownerChip = owner
+        ? `<span style="font-size:11px;background:var(--accent);color:#fff;border-radius:10px;padding:2px 8px;font-weight:600" title="Gruppen-Owner">${esc(owner.name||owner.username)}</span>`
+        : `<span style="font-size:11px;background:var(--border);color:var(--muted);border-radius:10px;padding:2px 8px">kein Owner</span>`;
+      const deputyChips = deputies.map(d =>
+        `<span style="font-size:11px;background:var(--accent-l);color:var(--accent);border-radius:10px;padding:2px 8px" title="Vertreter">${esc(d.name||d.username)}</span>`
+      ).join(' ');
+      return `
       <div id="ag-row-${g.id}" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
         <div id="ag-view-${g.id}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">Code: <span style="font-family:monospace;font-weight:700;letter-spacing:1px;color:var(--accent)">${esc(g.code)}</span> · ${g._count.members} Mitglieder · ${g._count.photos} Fotos</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Code: <span style="font-family:monospace;font-weight:700;letter-spacing:1px;color:var(--accent)">${esc(g.code)}</span> · <span style="${g._count.members === 0 ? 'color:var(--danger,#e05555);font-weight:700' : ''}">${g._count.members} Mitglieder</span> · ${g._count.photos} Fotos</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">
+              <span style="font-size:11px;color:var(--muted2);margin-right:2px">Owner:</span>${ownerChip}
+              ${deputies.length ? `<span style="font-size:11px;color:var(--muted2);margin-left:6px;margin-right:2px">Vertreter:</span>${deputyChips}` : ''}
+            </div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <button onclick="adminEditGroup('${g.id}','${esc(g.name)}','${esc(g.code)}')" style="background:var(--accent-l);border:none;color:var(--accent);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Bearbeiten</button>
@@ -1670,7 +1993,8 @@ async function renderAdminGroups() {
           <button onclick="adminCancelEdit('${g.id}')" style="background:none;border:1.5px solid var(--border);color:var(--muted);padding:8px 10px;border-radius:9px;cursor:pointer;font-size:13px">✕</button>
         </div>
         <div id="ag-err-${g.id}" class="msg hidden" style="margin-top:8px"></div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch(e) {
     list.innerHTML = `<div style="color:var(--danger,#e05555);font-size:13px">${esc(e.message)}</div>`;
   }
@@ -1722,7 +2046,13 @@ async function adminDeleteGroup(id, name) {
   _agdm_backupDone = false;
 
   $('agdm-title').textContent = `Gruppe „${name}" löschen`;
-  $('agdm-info').textContent = 'Alle Fotos, Alben und Mitglieder dieser Gruppe werden unwiderruflich gelöscht. Ein ZIP-Backup aller Fotos wird in jedem Fall in MinIO gespeichert (7 Tage).';
+  $('agdm-info').textContent = 'Alle Fotos, Alben und Mitglieder dieser Gruppe werden unwiderruflich gelöscht.';
+
+  // Buttons auf Admin-Modus zurücksetzen
+  $('agdm-backup-btn').onclick = () => adminGroupDoBackup();
+  $('agdm-delete-btn').onclick = () => adminGroupDoDelete();
+  $('agdm-backup-btn').innerHTML = `📥 Backup erstellen &amp; herunterladen<div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Alle Fotos als ZIP sichern — Gruppe wird danach gelöscht</div>`;
+  $('agdm-delete-btn').innerHTML = `🗑 Gruppe löschen<div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Kein Backup gewünscht — Gruppe wird sofort gelöscht</div>`;
 
   show('agdm-actions');
   hide('agdm-loading');
@@ -1732,10 +2062,49 @@ async function adminDeleteGroup(id, name) {
   $('agdm-delete-btn').disabled = false;
 
   show('admin-group-delete-modal');
+
+  // Stranded-Members laden: User die nach dem Löschen in keiner Gruppe mehr sind
+  try {
+    hide('agdm-stranded-warning');
+    $('agdm-stranded-confirm').checked = false;
+    const { stranded } = await apiCall(`/groups/admin/${id}/stranded-members`, 'GET');
+    if (stranded && stranded.length > 0) {
+      $('agdm-stranded-names').textContent = stranded.map(u => u.name).join(', ');
+      show('agdm-stranded-warning');
+      $('agdm-backup-btn').disabled = true;
+      $('agdm-delete-btn').disabled = true;
+    }
+  } catch (e) {
+    // Fehler ignorieren — Flow nicht blockieren
+  }
+}
+
+function agdmStrandedCheckChange() {
+  const checked = $('agdm-stranded-confirm').checked;
+  $('agdm-backup-btn').disabled = !checked;
+  $('agdm-delete-btn').disabled = !checked;
 }
 
 function closeAdminGroupDeleteModal() {
   hide('admin-group-delete-modal');
+}
+
+function agdmCopyLink() {
+  const href = $('agdm-dl-link')?.href;
+  if (!href || href === '#') return;
+  // Absoluten Link zusammensetzen
+  const url = href.startsWith('http') ? href : window.location.origin + href;
+  navigator.clipboard.writeText(url).then(() => toast('Link kopiert', 'success'));
+}
+
+// Wird nach Erfolg vom Schließen-Button ausgelöst
+let _agdm_pendingCleanup = null;
+function agdmCloseAndCleanup() {
+  closeAdminGroupDeleteModal();
+  if (_agdm_pendingCleanup) {
+    _agdm_pendingCleanup();
+    _agdm_pendingCleanup = null;
+  }
 }
 
 let _agdm_id = null;
@@ -1746,19 +2115,31 @@ async function adminGroupDoBackup() {
   $('agdm-backup-btn').disabled = true;
   $('agdm-delete-btn').disabled = true;
   hide('agdm-actions');
-  $('agdm-loading-text').textContent = 'ZIP wird erstellt…';
+  $('agdm-loading-text').textContent = 'ZIP wird erstellt, heruntergeladen & Gruppe gelöscht…';
   show('agdm-loading');
   try {
-    const { backupUrl, count } = await apiCall(`/groups/admin/${_agdm_id}/backup`, 'POST');
+    const res = await apiCall(`/groups/admin/${_agdm_id}`, 'DELETE');
     hide('agdm-loading');
-    show('agdm-result');
-    if (backupUrl) {
-      $('agdm-dl-link').href = backupUrl;
+    const innerDiv = $('agdm-dl-link')?.closest('div');
+    $('agdm-confirm-delete-btn')?.classList.add('hidden');
+    if (res.backupUrl) {
+      const expiry = res.linkExpiry ? new Date(res.linkExpiry) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const expiryStr = expiry.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      $('agdm-result-text').innerHTML = `✅ Backup heruntergeladen — Gruppe gelöscht<br><span style="font-size:11px;opacity:0.7">Der Link ist gültig bis ${expiryStr} — danach werden alle Daten restlos von unserem Server gelöscht.</span>`;
+      $('agdm-dl-link').href = backupSrc(res.backupUrl);
+      $('agdm-dl-link').style.display = '';
+      // Sofort-Download
+      const a = document.createElement('a');
+      a.href = backupSrc(res.backupUrl);
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     } else {
-      $('agdm-dl-link').closest('div').innerHTML = '<p style="color:var(--text2);font-size:13px;margin:0">ℹ️ Keine Fotos in dieser Gruppe — kein Backup nötig.</p>';
+      innerDiv.innerHTML = '<p style="color:var(--text2);font-size:13px;margin:0">ℹ️ Keine Fotos in dieser Gruppe — kein Backup nötig.</p>';
     }
-    _agdm_backupDone = true;
-    $('agdm-confirm-delete-btn')?.classList.remove('hidden');
+    show('agdm-result');
+    await _agdm_afterDelete(_agdm_id, _agdm_name);
   } catch (e) {
     hide('agdm-loading');
     show('agdm-actions');
@@ -1777,12 +2158,18 @@ async function adminGroupDoDelete() {
   try {
     const res = await apiCall(`/groups/admin/${_agdm_id}`, 'DELETE');
     hide('agdm-loading');
-    show('agdm-result');
+    const innerDiv = $('agdm-dl-link')?.closest('div');
+    $('agdm-confirm-delete-btn')?.classList.add('hidden');
     if (res.backupUrl) {
-      $('agdm-dl-link').href = res.backupUrl;
+      const expiry = res.linkExpiry ? new Date(res.linkExpiry) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const expiryStr = expiry.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      $('agdm-result-text').innerHTML = `✅ Gruppe gelöscht — über den Link kannst du alle Bilder noch bis ${expiryStr} herunterladen<br><span style="font-size:11px;opacity:0.7">Nach dem ${expiryStr} werden alle Daten restlos von unserem Server gelöscht.</span>`;
+      $('agdm-dl-link').href = backupSrc(res.backupUrl);
+      $('agdm-dl-link').style.display = '';
     } else {
-      $('agdm-dl-link').closest('div').innerHTML = '<p style="color:var(--text2);font-size:13px;margin:0">ℹ️ Keine Fotos vorhanden — kein Backup erstellt.</p>';
+      innerDiv.innerHTML = '<p style="color:var(--text2);font-size:13px;margin:0">ℹ️ Keine Fotos vorhanden — kein Backup erstellt.</p>';
     }
+    show('agdm-result');
     await _agdm_afterDelete(_agdm_id, _agdm_name);
   } catch (e) {
     hide('agdm-loading');
@@ -1811,28 +2198,30 @@ async function adminGroupConfirmDelete() {
 }
 
 async function _agdm_afterDelete(id, name) {
-  closeAdminGroupDeleteModal();
-  if (id === curGroupId) {
-    const { groups } = await apiCall('/groups/my', 'GET');
-    myGroups = groups || [];
-    const next = myGroups[0];
-    if (next) {
-      curGroupId = next.id;
-      try { localStorage.setItem('activeGroup', next.id); } catch(e) {}
-      closeAdminGroups();
-      await loadGroupMembers();
-      await loadAlbums();
-      renderGroupSwitcher();
-      renderSidebar();
-      await loadPhotos(true);
-      toast(`Gruppe „${name}" gelöscht. Gewechselt zu „${next.name}"`, 'success');
-      return;
+  // Modal bleibt offen — Cleanup wird beim Schließen-Button ausgelöst
+  _agdm_pendingCleanup = async () => {
+    if (id === curGroupId) {
+      const { groups } = await apiCall('/groups/my', 'GET');
+      myGroups = groups || [];
+      const next = myGroups[0];
+      if (next) {
+        curGroupId = next.id;
+        try { localStorage.setItem('activeGroup', next.id); } catch(e) {}
+        closeAdminGroups();
+        await loadGroupMembers();
+        await loadAlbums();
+        renderGroupSwitcher();
+        renderSidebar();
+        await loadPhotos(true);
+        toast(`Gruppe „${name}" gelöscht. Gewechselt zu „${next.name}"`, 'success');
+        return;
+      }
+    } else {
+      myGroups = myGroups.filter(g => g.id !== id);
     }
-  } else {
-    myGroups = myGroups.filter(g => g.id !== id);
-  }
-  await renderAdminGroups();
-  toast(`Gruppe „${name}" gelöscht`, 'success');
+    await renderAdminGroups();
+    toast(`Gruppe „${name}" gelöscht`, 'success');
+  };
 }
 
 // ── JOIN GROUP ───────────────────────────────────────────
@@ -1867,16 +2256,106 @@ function openJoinGroup() {
 }
 function closeJoinGroup() { hide('join-group-modal'); }
 
-function openLeaveGroup() {
+async function openLeaveGroup() {
   document.getElementById('group-dd')?.remove();
   const sel = $('leave-group-select');
   sel.innerHTML = myGroups.map(g =>
     `<option value="${g.id}"${g.id===curGroupId?' selected':''}>${esc(g.name)}</option>`
   ).join('');
   hide('leave-group-msg');
+  hide('leave-owner-section');
+  hide('leave-dissolve-section');
+  hide('leave-successor-section');
+  hide('leave-last-group-hint');
+  $('leave-group-btn').textContent = 'Verlassen';
+  $('leave-group-btn').disabled = false;
+  $('leave-group-btn').style.display = '';
   show('leave-group-modal');
+  await _leaveGroupUpdateOwnerUI();
 }
-function closeLeaveGroup() { hide('leave-group-modal'); }
+
+async function _leaveGroupUpdateOwnerUI() {
+  const groupId = $('leave-group-select')?.value;
+  if (!groupId) return;
+  const group = myGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  // Ist aktueller User Owner dieser Gruppe?
+  // Wir laden Mitglieder um Anzahl zu wissen
+  hide('leave-owner-section');
+  hide('leave-dissolve-section');
+  hide('leave-successor-section');
+  $('leave-group-btn').textContent = 'Verlassen';
+
+  try {
+    const { members } = await apiCall(`/groups/${groupId}/members`, 'GET');
+    const otherMembers = (members || []).filter(m => m.id !== me.id);
+
+    // Gruppen-Owner-Check: Wir prüfen gegen me.id  
+    // me.id ist der aktuelle Nutzer; createdBy laden wir per admin/all nicht, also
+    // Heuristik: wir prüfen, ob der me.id der group.createdBy entspricht — 
+    // dazu laden wir die Gruppen-Info neu
+    const isOwner = await _isGroupOwnerCheck(groupId);
+
+    const isLastGroup = myGroups.length <= 1;
+
+    if (!isOwner) {
+      // Nicht Owner: Hinweis + Button sperren wenn letzte Gruppe
+      $('leave-last-group-hint').classList.toggle('hidden', !isLastGroup);
+      $('leave-group-btn').style.display = isLastGroup ? 'none' : '';
+      $('leave-group-btn').disabled = false;
+      return;
+    }
+
+    // Owner
+    $('leave-last-group-hint').classList.add('hidden');
+    show('leave-owner-section');
+
+    if (isLastGroup) {
+      // Owner + letzte Gruppe → Auflösen/Verlassen nicht möglich
+      show('leave-dissolve-section');
+      $('leave-group-btn').style.display = 'none';
+      $('leave-dissolve-btn').style.display = 'none';
+      $('leave-dissolve-last-group-hint').classList.remove('hidden');
+    } else if (otherMembers.length === 0) {
+      // Owner + alleiniges Mitglied + nicht letzte Gruppe → Auflösen möglich
+      show('leave-dissolve-section');
+      $('leave-group-btn').style.display = 'none';
+      $('leave-dissolve-btn').style.display = '';
+      $('leave-dissolve-last-group-hint').classList.add('hidden');
+    } else {
+      // Owner + andere Mitglieder → Nachfolger wählen
+      show('leave-successor-section');
+      const succSel = $('leave-successor-select');
+      succSel.innerHTML = otherMembers.map(m =>
+        `<option value="${m.id}">${esc(m.name || m.username)}</option>`
+      ).join('');
+      $('leave-group-btn').style.display = '';
+      $('leave-group-btn').disabled = false;
+      $('leave-group-btn').textContent = 'Ownership übertragen & verlassen';
+    }
+  } catch(e) {
+    // Fehler beim Laden ignorieren, normaler Flow
+  }
+}
+
+async function _isGroupOwnerCheck(groupId) {
+  // myGroups enthält createdBy aus dem /groups/my Endpoint
+  const g = myGroups.find(x => x.id === groupId);
+  if (g?.createdBy) return g.createdBy === me.id;
+  // Fallback: frisch laden
+  try {
+    const { groups } = await apiCall('/groups/my', 'GET');
+    myGroups = groups || myGroups;
+    const fresh = myGroups.find(x => x.id === groupId);
+    return fresh ? fresh.createdBy === me.id : false;
+  } catch { return false; }
+}
+
+function closeLeaveGroup() {
+  $('leave-group-btn').style.display = '';
+  hide('leave-group-modal');
+}
 
 async function doLeaveGroup() {
   const groupId = $('leave-group-select').value;
@@ -1884,18 +2363,36 @@ async function doLeaveGroup() {
     return showMsg('leave-group-msg', 'error', '⚠ Du kannst deine letzte Gruppe nicht verlassen.');
   }
   const groupName = myGroups.find(g => g.id === groupId)?.name || 'Gruppe';
-  const confirmed = await showConfirmDlg(
-    `„${groupName}" verlassen`,
-    'Du verlässt diese Gruppe und siehst ihre Fotos nicht mehr. Deine hochgeladenen Fotos bleiben erhalten.',
-    'Verlassen', 'Abbrechen', true
-  );
-  if (!confirmed) return;
+
+  const isOwner = await _isGroupOwnerCheck(groupId);
+  const dissolveSection = $('leave-dissolve-section');
+  const isDissolveFlow = isOwner && dissolveSection && !dissolveSection.classList.contains('hidden');
+
+  if (isDissolveFlow) {
+    // Delegieren an Auflösen-Flow (handled by dissolveGroup())
+    return;
+  }
+
+  const successorId = isOwner && $('leave-successor-section') && !$('leave-successor-section').classList.contains('hidden')
+    ? $('leave-successor-select')?.value
+    : null;
+
+  if (!isOwner || successorId) {
+    const confirmed = await showConfirmDlg(
+      `„${groupName}" verlassen`,
+      successorId
+        ? `Du überträgst die Ownership auf den gewählten Nachfolger und verlässt die Gruppe.`
+        : 'Du verlässt diese Gruppe und siehst ihre Fotos nicht mehr. Deine hochgeladenen Fotos bleiben erhalten.',
+      successorId ? 'Übertragen & Verlassen' : 'Verlassen', 'Abbrechen', true
+    );
+    if (!confirmed) return;
+  }
+
   setBL('leave-group-btn', true, 'Wird verlassen…');
   try {
-    await apiCall(`/groups/${groupId}/leave`, 'DELETE');
+    await apiCall(`/groups/${groupId}/leave`, 'DELETE', successorId ? { successorId } : undefined);
     myGroups = myGroups.filter(g => g.id !== groupId);
     closeLeaveGroup();
-    // Falls aktive Gruppe verlassen → zur nächsten wechseln
     if (groupId === curGroupId) {
       curGroupId = myGroups[0].id;
       try { localStorage.setItem('activeGroup', curGroupId); } catch(e) {}
@@ -1917,8 +2414,117 @@ async function doLeaveGroup() {
     const msg = e.serverMessage || 'Fehler beim Verlassen der Gruppe.';
     showMsg('leave-group-msg', 'error', msg);
   } finally {
-    setBL('leave-group-btn', false, 'Verlassen');
+    setBL('leave-group-btn', false, isOwner ? 'Ownership übertragen & verlassen' : 'Verlassen');
   }
+}
+
+// Gruppe auflösen (Owner, letztes Mitglied) — mit Backup-Flow
+let _dissolveGroupId = null;
+let _dissolveGroupName = null;
+let _dissolveBackupDone = false;
+
+async function dissolveGroup() {
+  const groupId = $('leave-group-select').value;
+  const groupName = myGroups.find(g => g.id === groupId)?.name || 'Gruppe';
+  _dissolveGroupId = groupId;
+  _dissolveGroupName = groupName;
+  _dissolveBackupDone = false;
+
+  closeLeaveGroup();
+  $('agdm-title').textContent = `Gruppe „${groupName}" auflösen`;
+  $('agdm-info').textContent = 'Die Gruppe wird unwiderruflich gelöscht. Ein ZIP-Backup aller Fotos wird automatisch erstellt.';
+
+  $('agdm-backup-btn').onclick = () => _dissolveDoDelete(true);
+  $('agdm-delete-btn').onclick = () => _dissolveDoDelete(false);
+
+  $('agdm-backup-btn').innerHTML = `📥 Backup erstellen &amp; herunterladen<div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Alle Fotos als ZIP sichern — Gruppe wird danach gelöscht</div>`;
+  $('agdm-delete-btn').innerHTML = `🗑 Gruppe löschen<div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Kein Backup gewünscht — Gruppe wird sofort gelöscht</div>`;
+
+  show('agdm-actions');
+  hide('agdm-loading');
+  hide('agdm-result');
+  $('agdm-confirm-delete-btn')?.classList.add('hidden');
+  $('agdm-backup-btn').disabled = false;
+  $('agdm-delete-btn').disabled = false;
+
+  show('admin-group-delete-modal');
+}
+
+async function _dissolveDoDelete(autoDownload = false) {
+  $('agdm-backup-btn').disabled = true;
+  $('agdm-delete-btn').disabled = true;
+  hide('agdm-actions');
+  $('agdm-loading-text').textContent = autoDownload ? 'ZIP wird erstellt & heruntergeladen…' : 'ZIP wird erstellt & Gruppe wird aufgelöst…';
+  show('agdm-loading');
+  try {
+    const res = await apiCall(`/groups/${_dissolveGroupId}/dissolve`, 'DELETE');
+    hide('agdm-loading');
+
+    const resultBox = $('agdm-result');
+    const innerDiv = $('agdm-dl-link')?.closest('div');
+    $('agdm-confirm-delete-btn')?.classList.add('hidden');
+
+    if (res.backupUrl) {
+      const expiry = res.linkExpiry ? new Date(res.linkExpiry) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const expiryStr = expiry.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      if (autoDownload) {
+        $('agdm-result-text').innerHTML = `✅ Backup heruntergeladen — Gruppe gelöscht<br><span style="font-size:11px;opacity:0.7">Der Link ist gültig bis ${expiryStr} — danach werden alle Daten restlos von unserem Server gelöscht.</span>`;
+      } else {
+        $('agdm-result-text').innerHTML = `✅ Gruppe gelöscht — über den Link kannst du alle Bilder noch bis ${expiryStr} herunterladen<br><span style="font-size:11px;opacity:0.7">Nach dem ${expiryStr} werden alle Daten restlos von unserem Server gelöscht.</span>`;
+      }
+      $('agdm-dl-link').href = backupSrc(res.backupUrl);
+      $('agdm-dl-link').style.display = '';
+
+      if (autoDownload) {
+        // Sofort-Download auslösen
+        const a = document.createElement('a');
+        a.href = backupSrc(res.backupUrl);
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } else {
+      innerDiv.innerHTML = '<p style="color:var(--text2);font-size:13px;margin:0">ℹ️ Keine Fotos vorhanden — kein Backup erstellt.</p>';
+    }
+
+    show('agdm-result');
+    _dissolveBackupDone = true;
+    await _dissolveAfterDelete();
+  } catch(e) {
+    hide('agdm-loading');
+    show('agdm-actions');
+    $('agdm-backup-btn').disabled = false;
+    $('agdm-delete-btn').disabled = false;
+    toast('❌ ' + (e.serverMessage || e.message), 'error');
+  }
+}
+
+async function _dissolveAfterDelete() {
+  myGroups = myGroups.filter(g => g.id !== _dissolveGroupId);
+  const dissolvedId = _dissolveGroupId;
+  const name = _dissolveGroupName;
+
+  // Modal bleibt offen — Cleanup beim Schließen-Button
+  _agdm_pendingCleanup = async () => {
+    if (dissolvedId === curGroupId || !myGroups.find(g => g.id === curGroupId)) {
+      curGroupId = myGroups[0]?.id;
+      if (curGroupId) {
+        try { localStorage.setItem('activeGroup', curGroupId); } catch(e) {}
+        renderGroupSwitcher();
+        const { members } = await apiCall(`/groups/${curGroupId}/members`, 'GET');
+        groupMembers = members || [];
+        groupMembers.forEach(m => { allProfiles[m.id] = m; });
+        curAlbum = null; curFilter = null; curFilterUserId = null;
+        await loadAlbums();
+        renderSidebar();
+        await loadPhotos(true);
+      }
+    }
+    renderGroupSwitcher();
+    renderSidebar();
+    toast(`Gruppe „${name}" aufgelöst.`, 'success');
+  };
 }
 
 async function doJoinGroup() {
@@ -2313,6 +2919,67 @@ function syncThemeColor() {
   if (meta) meta.content = isDark ? '#141210' : '#8a6a4a';
 }
 
+// ── DEPUTY MODAL ──────────────────────────────────────────
+async function openDeputyModal() {
+  try {
+    const { deputies } = await apiCall(`/groups/${curGroupId}/deputies`, 'GET');
+    groupDeputies = deputies || [];
+  } catch(e) { groupDeputies = []; }
+  _renderDeputyList();
+
+  // Mitglieder-Dropdown füllen (ohne Owner und schon ernannte Deputies)
+  const curGroup = myGroups.find(g => g.id === curGroupId);
+  const sel = document.getElementById('deputy-user-select');
+  sel.innerHTML = '<option value="">— Mitglied auswählen —</option>';
+  groupMembers
+    .filter(m => m.id !== curGroup?.createdBy && !groupDeputies.some(d => d.id === m.id))
+    .forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name || m.username;
+      sel.appendChild(opt);
+    });
+
+  show('deputy-modal');
+}
+
+function closeDeputyModal() { hide('deputy-modal'); }
+
+function _renderDeputyList() {
+  const el = document.getElementById('deputy-list');
+  if (!groupDeputies.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted2);font-weight:300">Noch keine Vertreter ernannt.</p>';
+    return;
+  }
+  el.innerHTML = groupDeputies.map(d => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      ${avatarHtml(d, 28)}
+      <span style="flex:1;font-size:13px">${esc(d.name||d.username)}</span>
+      <button onclick="removeDeputy('${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:18px;line-height:1;padding:2px 6px" title="Entfernen">×</button>
+    </div>`).join('');
+}
+
+async function addDeputy() {
+  const userId = document.getElementById('deputy-user-select').value;
+  if (!userId) return;
+  try {
+    const deputy = await apiCall(`/groups/${curGroupId}/deputies`, 'POST', { userId });
+    groupDeputies.push(deputy);
+    await openDeputyModal(); // refresh
+    renderSidebar();
+  } catch(e) { toast('Fehler beim Hinzufügen', 'error'); }
+}
+
+async function removeDeputy(userId) {
+  try {
+    await apiCall(`/groups/${curGroupId}/deputies/${userId}`, 'DELETE');
+    groupDeputies = groupDeputies.filter(d => d.id !== userId);
+    _renderDeputyList();
+    renderAlbumList();
+    renderSidebar();
+  } catch(e) { toast('Fehler beim Entfernen', 'error'); }
+}
+
 // ── GLOBAL EXPORTS für onclick-Handler im HTML ───────────
 // ES-Module haben ihren eigenen Scope; onclick="fn()" braucht window.fn
 Object.assign(window, {
@@ -2341,16 +3008,20 @@ Object.assign(window, {
   openAlbumModal, closeAlbumModal, createAlbum,
   openNewAlbumInline, closeNewAlbumInline, createAlbumInline,
   deleteAlbum, execDeleteAlbum,
+  openAlbumSettings,
+  openContributorModal, closeContributorModal, addContributor, removeContributor, saveAlbumRename, deleteAlbumFromModal,
   // Add-to-album modal
   openAddFromAll, closeAddModal, confirmAddToAlbum, toggleAddSelection,
   // Profile
   openProfileModal, closeProfileModal, uploadAvatar, clearAvatar, setUserColor,
   // Groups
   switchGroup, openJoinGroup, closeJoinGroup, doJoinGroup, showGroupCode,
-  openLeaveGroup, closeLeaveGroup, doLeaveGroup,
+  openLeaveGroup, closeLeaveGroup, doLeaveGroup, dissolveGroup, _leaveGroupUpdateOwnerUI,
+  openDeputyModal, closeDeputyModal, addDeputy, removeDeputy,
   openAdminGroups, closeAdminGroups, adminEditGroup, adminCancelEdit, adminSaveGroup, adminCreateGroup, adminDeleteGroup,
-  closeAdminGroupDeleteModal, adminGroupDoBackup, adminGroupDoDelete, adminGroupConfirmDelete,
+  closeAdminGroupDeleteModal, agdmCopyLink, agdmCloseAndCleanup, agdmStrandedCheckChange, adminGroupDoBackup, adminGroupDoDelete, adminGroupConfirmDelete,
   openAdminUsers, closeAdminUsers, adminSetRole,
+  openAdminBackups, closeAdminBackups, adminRefreshBackupLink, adminDeleteBackupEntry,
   toggleGroupDropdown,
   // Slideshow
   openSS, toggleSS, ssChangeSpeed,

@@ -1,6 +1,24 @@
 import { uploadPhoto, deletePhoto, getPhotoStream, getPhotoStat } from '../utils/storage.js';
 
 export default async function photosRoutes(fastify) {
+  async function isGroupOwner(groupId, userId) {
+    const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (user?.role === 'admin') return true;
+    const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { createdBy: true } });
+    return group?.createdBy === userId;
+  }
+
+  async function isGroupDeputy(groupId, userId) {
+    const deputy = await fastify.prisma.groupDeputy.findUnique({
+      where: { groupId_userId: { groupId, userId } },
+    });
+    return !!deputy;
+  }
+
+  async function hasGroupAdminRights(groupId, userId) {
+    return await isGroupOwner(groupId, userId) || await isGroupDeputy(groupId, userId);
+  }
+
   // GET /api/photos - Liste Fotos mit Pagination + Likes/Comments-Counts
   fastify.get('/', async (request, reply) => {
     try {
@@ -166,17 +184,31 @@ export default async function photosRoutes(fastify) {
   fastify.patch('/batch-album', async (request, reply) => {
     try {
       await request.jwtVerify();
+      const userId = request.user.id;
       const { photoIds, albumId, remove } = request.body;
       if (!Array.isArray(photoIds)) return reply.code(400).send({ error: 'photoIds erforderlich' });
       if (!albumId) return reply.code(400).send({ error: 'albumId erforderlich' });
 
+      // Berechtigung prüfen: Creator, Contributor oder Admin
+      const album = await fastify.prisma.album.findUnique({ where: { id: albumId } });
+      if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
+
+      const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const isAdmin = user?.role === 'admin';
+      const isCreator = album.createdBy === userId;
+      const isGroupAdmin = !isAdmin && !isCreator && await hasGroupAdminRights(album.groupId, userId);
+      const isContrib = !isAdmin && !isCreator && !isGroupAdmin && await fastify.prisma.albumContributor.findUnique({
+        where: { albumId_userId: { albumId, userId } },
+      });
+      if (!isAdmin && !isCreator && !isGroupAdmin && !isContrib) {
+        return reply.code(403).send({ error: 'Keine Berechtigung für dieses Album' });
+      }
+
       if (remove) {
-        // Aus Album entfernen
         await fastify.prisma.photoAlbum.deleteMany({
           where: { albumId, photoId: { in: photoIds } },
         });
       } else {
-        // Zum Album hinzufügen (überspringt Duplikate via skipDuplicates)
         await fastify.prisma.photoAlbum.createMany({
           data: photoIds.map(photoId => ({ photoId, albumId })),
           skipDuplicates: true,
@@ -198,13 +230,33 @@ export default async function photosRoutes(fastify) {
       if (!photo) return reply.code(404).send({ error: 'Foto nicht gefunden' });
 
       const { albumId, albumIds, description } = request.body;
+      const userId = request.user.id;
+      const userRecord = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const isAdmin = userRecord?.role === 'admin';
+
       // Beschreibung darf nur der Uploader ändern
-      if (description !== undefined && photo.uploaderId !== request.user.id) {
+      if (description !== undefined && photo.uploaderId !== userId && !isAdmin) {
         return reply.code(403).send({ error: 'Kein Zugriff' });
+      }
+
+      // Helper: prüft Album-Berechtigung (Creator, Contributor oder Admin)
+      async function checkAlbumAccess(aid) {
+        if (isAdmin) return true;
+        const alb = await fastify.prisma.album.findUnique({ where: { id: aid } });
+        if (!alb) return false;
+        if (alb.createdBy === userId) return true;
+        if (await hasGroupAdminRights(alb.groupId, userId)) return true;
+        const contrib = await fastify.prisma.albumContributor.findUnique({
+          where: { albumId_userId: { albumId: aid, userId } },
+        });
+        return !!contrib;
       }
 
       // albumId: toggle (add if not present, remove if present)
       if (albumId !== undefined) {
+        if (!await checkAlbumAccess(albumId)) {
+          return reply.code(403).send({ error: 'Keine Berechtigung für dieses Album' });
+        }
         const existing = await fastify.prisma.photoAlbum.findUnique({
           where: { photoId_albumId: { photoId: photo.id, albumId } },
         });
@@ -219,6 +271,12 @@ export default async function photosRoutes(fastify) {
 
       // albumIds: replace all album assignments
       if (albumIds !== undefined) {
+        // Alle neuen albumIds auf Berechtigung prüfen
+        for (const aid of albumIds) {
+          if (!await checkAlbumAccess(aid)) {
+            return reply.code(403).send({ error: `Keine Berechtigung für Album ${aid}` });
+          }
+        }
         await fastify.prisma.photoAlbum.deleteMany({ where: { photoId: photo.id } });
         if (albumIds.length > 0) {
           await fastify.prisma.photoAlbum.createMany({

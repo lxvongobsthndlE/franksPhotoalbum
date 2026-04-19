@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Unser Fotoalbum</title>
+<title>Franks Fotoalbum</title>
 <link rel="icon" type="image/x-icon" href="/media/favicon.ico">
 <link rel="icon" type="image/png" sizes="96x96" href="/media/icon-96x96.png">
 <!-- PWA -->
@@ -17,6 +17,11 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./media/icon-180x180.png">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./style/main.css">
+<script>
+  window.APP_CONFIG = {
+    authentikBase: 'https://auth.lx-derpi-cloud.de'
+  };
+</script>
 <script type="module" src="./script/auth-oidc.js"></script>
 <script type="module" src="./script/main.js"></script>
 </head>
@@ -24,7 +29,7 @@
 <div class="toast-container" id="toast-container"></div>
 
 <div id="loading">
-  <h2>Unser Fotoalbum</h2>
+  <h2>Franks Fotoalbum</h2>
   <div class="spinner"></div>
   <p>Verbinde mit Cloud…</p>
 </div>
@@ -32,64 +37,82 @@
 <!-- AUTH -->
 <div id="auth-page" class="hidden">
   <div class="auth-wrap">
+
+    <!-- Brand -->
     <div class="auth-brand">
       <div class="auth-brand-icon">
         <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- back polaroid (tilted left) -->
           <g transform="rotate(-8 36 38)">
             <rect x="14" y="14" width="34" height="42" rx="3" fill="#ede4d8" stroke="#c4a882" stroke-width="1.4"/>
             <rect x="18" y="18" width="26" height="26" rx="1.5" fill="#e0d5c6"/>
-            <!-- tiny mountain scene -->
             <path d="M18 38 l8-8 6 5 5-4 7 7v2H18z" fill="#c4a882" opacity=".35"/>
             <circle cx="24" cy="24" r="3" fill="#c4a882" opacity=".25"/>
           </g>
-          <!-- front polaroid (tilted right) -->
           <g transform="rotate(6 36 38)">
             <rect x="24" y="12" width="34" height="42" rx="3" fill="#fff" stroke="#c4a882" stroke-width="1.4"/>
             <rect x="28" y="16" width="26" height="26" rx="1.5" fill="#f5ede3"/>
-            <!-- mountain + sun scene -->
             <path d="M28 36 l7-9 5 4 6-6 8 11v2H28z" fill="#8a6a4a" opacity=".3"/>
             <circle cx="46" cy="22" r="3.5" fill="#c4a882" opacity=".35"/>
-            <!-- heart -->
             <path d="M38 49 c-1.5-1.5-4-3.5-4-5.5a2.5 2.5 0 0 1 4-2 2.5 2.5 0 0 1 4 2c0 2-2.5 4-4 5.5z" fill="#c4a882" opacity=".45"/>
           </g>
         </svg>
       </div>
-      <h1>Unser <span>Fotoalbum</span></h1>
-      <p>Gemeinsame Erinnerungen · Privat & Sicher</p>
-      <div class="auth-brand-dots"><span></span><span></span><span></span></div>
+      <h1>Franks <span>Fotoalbum</span></h1>
+      <p>Gemeinsame Erinnerungen · Privat &amp; Sicher</p>
     </div>
 
-    <!-- LOGIN WITH OIDC -->
+    <!-- Login Card -->
     <div class="auth-card" id="login-card">
       <h2 class="auth-card-title">Willkommen zurück</h2>
       <p class="auth-card-welcome-sub">Schön, dass du da bist — deine Erinnerungen warten auf dich.</p>
-      <div class="lock-badge">🔒 Privates Album — nur für Mitglieder</div>
+
+      <div id="login-msg" class="msg hidden" style="margin-bottom:4px"></div>
+
+      <!-- CTA-Buttons -->
+      <div class="auth-actions">
+        <button class="auth-login-btn" id="login-btn" onclick="window.startOIDCLogin()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Anmelden
+        </button>
+        <a href="#" onclick="event.preventDefault();window.open(window.APP_CONFIG.authentikBase+'/if/flow/default-enrollment-flow/','_blank','noopener')" class="auth-register-btn">
+          Registrieren
+        </a>
+      </div>
+
+      <!-- Trennlinie -->
+      <div class="auth-sep"></div>
+
+      <!-- Features -->
       <div class="auth-card-features">
-        <span class="auth-card-feature">📸 Fotos & Alben</span>
-        <span class="auth-card-feature">💬 Kommentare</span>
-        <span class="auth-card-feature">❤️ Reaktionen</span>
-        <span class="auth-card-feature">☁️ Sicher gespeichert</span>
+        <span class="auth-card-feature">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Fotos &amp; Alben
+        </span>
+        <span class="auth-card-feature">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Kommentare
+        </span>
+        <span class="auth-card-feature">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          Reaktionen
+        </span>
+        <span class="auth-card-feature">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Selfhosted &amp; privat
+        </span>
+        <span class="auth-card-feature">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/0/0f/Lesser_coat_of_arms_of_Baden-W%C3%BCrttemberg.svg" alt="BW" style="height:16px;width:auto;flex-shrink:0" />
+          Hosted in BW
+        </span>
+      </div>
+
+      <!-- SSO-Hinweis -->
+      <div class="auth-sso-hint">
+        <img src="https://lx-derpi-cloud.de/web_images/dashboard/authentik.png" alt="Authentik" style="width:13px;height:13px;object-fit:contain;opacity:.55" />
+        <span>Anmeldung via Authentik Single Sign-On</span>
       </div>
     </div>
 
-    <!-- SSO CARD -->
-    <div class="sso-card" id="sso-card">
-      <div class="sso-card-inner">
-        <div class="sso-logo-wrap">
-          <img src="https://lx-derpi-cloud.de/web_images/dashboard/authentik.png" alt="Authentik" class="sso-logo" />
-        </div>
-        <div class="sso-card-text">
-          <span class="sso-card-label">Single Sign-On</span>
-          <span class="sso-card-desc">Melde dich sicher mit deinem Authentik-Konto an</span>
-        </div>
-      </div>
-      <div id="login-msg" class="msg hidden" style="width:100%;margin-top:10px;order:3"></div>
-      <button class="sso-btn" id="login-btn" onclick="window.startOIDCLogin()">
-        <span>Anmelden</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </button>
-    </div>
   </div>
 </div>
 
@@ -115,7 +138,7 @@
           <line x1="19.5" y1="17" x2="24" y2="17" stroke="#c4a882" stroke-width=".9" stroke-linecap="round" opacity=".3"/>
         </svg>
       </span>
-      Unser <span>Fotoalbum</span><small id="header-group-name">Gemeinsame Erinnerungen</small>
+      Franks <span>Fotoalbum</span><small id="header-group-name">Gemeinsame Erinnerungen</small>
     </div>
     <div id="group-switcher-wrap"></div>
     <div class="user-pill">
@@ -297,7 +320,7 @@
         <div class="color-swatches" id="color-swatches"></div>
       </div>
       <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:4px">
-        <a href="https://auth.lx-derpi-cloud.de/if/user/#/settings" target="_blank" rel="noopener noreferrer"
+        <a href="#" onclick="event.preventDefault();window.open(window.APP_CONFIG.authentikBase+'/if/user/#/settings','_blank','noopener noreferrer')" rel="noopener noreferrer"
           style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--accent);text-decoration:none;font-weight:500">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
           Account in Authentik bearbeiten (Name, Benutzername, E-Mail)
@@ -348,14 +371,38 @@
 
 <!-- LEAVE GROUP MODAL -->
 <div class="modal-bg hidden" id="leave-group-modal" onclick="if(event.target===this)closeLeaveGroup()">
-  <div class="modal" style="max-width:400px">
+  <div class="modal" style="max-width:420px">
     <div class="modal-hdr"><h3>Gruppe verlassen</h3><button class="modal-x" onclick="closeLeaveGroup()">✕</button></div>
     <div class="modal-body">
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:300">Wähle die Gruppe, die du verlassen möchtest.</p>
       <div id="leave-group-msg" class="msg hidden"></div>
       <div class="field">
         <label>Gruppe</label>
-        <select id="leave-group-select" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px"></select>
+        <select id="leave-group-select" onchange="_leaveGroupUpdateOwnerUI()" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px"></select>
+      </div>
+
+      <!-- Owner-Hinweis (wird dynamisch eingeblendet) -->
+      <div id="leave-owner-section" class="hidden" style="background:rgba(255,160,0,0.1);border:1px solid rgba(255,160,0,0.35);border-radius:10px;padding:12px 14px;margin-top:14px">
+        <div style="font-size:13px;font-weight:700;color:#c87700;margin-bottom:6px">⚠️ Du bist Gruppen-Owner</div>
+
+        <!-- Nachfolger wählen -->
+        <div id="leave-successor-section" class="hidden">
+          <p style="font-size:12px;color:var(--text2);margin:0 0 10px">Bitte wähle einen Nachfolger. Die Ownership wird übertragen, bevor du die Gruppe verlässt.</p>
+          <select id="leave-successor-select" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px"></select>
+        </div>
+
+        <!-- Letztes Mitglied → Auflösen -->
+        <div id="leave-dissolve-section" class="hidden">
+          <p style="font-size:12px;color:var(--text2);margin:0 0 10px">Du bist das einzige Mitglied. Das Verlassen wird die Gruppe <strong>endgültig löschen</strong>. Vorher wird automatisch ein ZIP-Backup erstellt.</p>
+          <div id="leave-dissolve-last-group-hint" class="hidden" style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0">
+            Du kannst deine letzte Gruppe nicht auflösen.<br>Tritt zuerst einer anderen Gruppe bei.
+          </div>
+          <button id="leave-dissolve-btn" class="btn btn-danger" style="width:100%" onclick="dissolveGroup()">🗑 Gruppe auflösen &amp; Backup erstellen</button>
+        </div>
+      </div>
+
+      <div id="leave-last-group-hint" class="hidden" style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0;margin-top:16px">
+        Du kannst deine letzte Gruppe nicht verlassen.<br>Tritt zuerst einer anderen Gruppe bei.
       </div>
       <div style="display:flex;gap:10px;margin-top:20px">
         <button class="btn btn-ghost" style="flex:1" onclick="closeLeaveGroup()">Abbrechen</button>
@@ -366,14 +413,24 @@
 </div>
 
 <!-- ADMIN GROUPS MODAL -->
-<div class="modal-bg modal-bg--top hidden" id="admin-group-delete-modal" onclick="if(event.target===this)closeAdminGroupDeleteModal()">
+<div class="modal-bg modal-bg--top hidden" id="admin-group-delete-modal" onclick="if(event.target===this)agdmCloseAndCleanup()">
   <div class="modal" style="max-width:460px">
     <div class="modal-hdr">
       <h3 id="agdm-title">Gruppe löschen</h3>
-      <button class="modal-x" onclick="closeAdminGroupDeleteModal()">✕</button>
+      <button class="modal-x" onclick="agdmCloseAndCleanup()">✕</button>
     </div>
     <div class="modal-body">
-      <p id="agdm-info" style="color:var(--text2);font-size:14px;margin:0 0 18px"></p>
+      <p id="agdm-info" style="color:var(--text2);font-size:14px;margin:0 0 12px"></p>
+
+      <!-- Warnung: User verlieren Zugriff -->
+      <div id="agdm-stranded-warning" class="hidden" style="background:rgba(224,85,85,0.09);border:1px solid rgba(224,85,85,0.3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <p style="font-size:13px;font-weight:600;color:var(--danger,#e05555);margin:0 0 6px">⚠️ Diese Nutzer verlieren nach dem Löschen ihren kompletten Zugriff:</p>
+        <p id="agdm-stranded-names" style="font-size:13px;color:var(--text2);margin:0 0 10px"></p>
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
+          <input type="checkbox" id="agdm-stranded-confirm" onchange="agdmStrandedCheckChange()" style="margin-top:2px;flex-shrink:0">
+          Ich bestätige, dass diese Nutzer ihren Zugriff verlieren.
+        </label>
+      </div>
 
       <!-- Action Buttons -->
       <div id="agdm-actions" style="display:flex;flex-direction:column;gap:10px">
@@ -398,17 +455,39 @@
       <!-- Result: download link + optional confirm delete -->
       <div id="agdm-result" class="hidden" style="margin-top:4px">
         <div style="background:rgba(109,204,112,0.12);border:1px solid rgba(109,204,112,0.3);border-radius:10px;padding:14px;margin-bottom:14px">
-          <p style="color:#6dcc70;font-size:13px;font-weight:600;margin:0 0 8px">✅ ZIP-Backup erstellt (7 Tage gültig)</p>
+          <p id="agdm-result-text" style="color:#6dcc70;font-size:13px;font-weight:600;margin:0 0 8px">✅ ZIP-Backup erstellt (30 Tage gültig)</p>
           <a id="agdm-dl-link" href="#" target="_blank" rel="noopener"
             style="display:inline-block;background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none">
             📥 ZIP herunterladen
           </a>
+          <button id="agdm-copy-link-btn" onclick="agdmCopyLink()" title="Link kopieren"
+            style="margin-left:8px;background:var(--accent-l);border:none;color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;vertical-align:middle">
+            🔗 Link kopieren
+          </button>
         </div>
         <button id="agdm-confirm-delete-btn" class="hidden" onclick="adminGroupConfirmDelete()"
           style="width:100%;background:var(--danger,#e05555);border:none;color:#fff;padding:11px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600">
           🗑 Gruppe jetzt endgültig löschen
         </button>
+        <button id="agdm-close-result-btn" onclick="agdmCloseAndCleanup()"
+          style="width:100%;margin-top:10px;background:none;border:1.5px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500">
+          Schließen
+        </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN BACKUPS MODAL -->
+<div class="modal-bg hidden" id="admin-backups-modal" onclick="if(event.target===this)closeAdminBackups()">
+  <div class="modal" style="max-width:720px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-hdr">
+      <h3>📦 Backups verwalten</h3>
+      <button class="modal-x" onclick="closeAdminBackups()">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;padding:12px 20px">
+      <p style="font-size:13px;color:var(--muted);margin:0 0 16px">Alle gespeicherten Gruppen-Backups. Links können bei Bedarf verlängert werden. Backups werden <strong>nicht</strong> automatisch gelöscht.</p>
+      <div id="admin-backups-list" style="display:flex;flex-direction:column;gap:10px"></div>
     </div>
   </div>
 </div>
@@ -473,6 +552,65 @@
       <div style="display:flex;gap:10px;margin-top:20px">
         <button class="btn btn-ghost" style="flex:1" onclick="closeBulkAlbumModal()">Abbrechen</button>
         <button class="btn btn-primary" style="flex:1" onclick="execBulkMoveToAlbum()">Verschieben</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTRIBUTOR MODAL -->
+<div class="modal-bg hidden" id="contrib-modal" onclick="if(event.target===this)closeContributorModal()">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hdr">
+      <h3 id="contrib-modal-title">Album verwalten</h3>
+      <button class="modal-x" onclick="closeContributorModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Umbenennen -->
+      <div id="contrib-rename-row" style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Album umbenennen</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="contrib-rename-input" maxlength="40" placeholder="Albumname…"
+            style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
+            onkeydown="if(event.key==='Enter')saveAlbumRename()">
+          <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="saveAlbumRename()">Speichern</button>
+        </div>
+      </div>
+      <!-- Contributors -->
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Bearbeitungsrechte — wer darf Fotos hinzufügen &amp; entfernen?</label>
+      <div id="contrib-list" style="margin-bottom:14px;min-height:32px"></div>
+      <div style="display:flex;gap:8px">
+        <select id="contrib-user-select"
+          style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit">
+          <option value="">— Mitglied auswählen —</option>
+        </select>
+        <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="addContributor()">Hinzufügen</button>
+      </div>
+      <!-- Löschen -->
+      <div id="contrib-delete-row" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
+        <button class="btn btn-danger" style="width:100%" onclick="deleteAlbumFromModal()">Album löschen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DEPUTY MODAL -->
+<div class="modal-bg hidden" id="deputy-modal" onclick="if(event.target===this)closeDeputyModal()">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hdr">
+      <h3>Vertreter verwalten</h3>
+      <button class="modal-x" onclick="closeDeputyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:300">Vertreter haben dieselben Rechte wie du in dieser Gruppe – außer die Gruppe selbst umzubenennen oder zu löschen.</p>
+      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Aktuelle Vertreter</label>
+      <div id="deputy-list" style="margin-bottom:16px;min-height:32px"></div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+        <select id="deputy-user-select"
+          style="width:100%;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis">
+          <option value="">— Mitglied auswählen —</option>
+        </select>
+        <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="addDeputy()">Ernennen</button>
       </div>
     </div>
   </div>

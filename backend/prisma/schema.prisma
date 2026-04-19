@@ -20,21 +20,25 @@ model User {
   role      String   @default("user") // "user" oder "admin"
   createdAt DateTime @default(now())
   
-  groups    GroupMember[]
-  photos    Photo[]
-  comments  Comment[]
-  likes     Like[]
+  groups             GroupMember[]
+  photos             Photo[]
+  comments           Comment[]
+  likes              Like[]
+  albumContributions AlbumContributor[]
+  groupDeputies      GroupDeputy[]
 }
 
 model Group {
   id        String   @id @default(cuid())
   name      String
   code      String   @unique
+  createdBy String?
   createdAt DateTime @default(now())
   
   members   GroupMember[]
   albums    Album[]
   photos    Photo[]
+  deputies  GroupDeputy[]
 }
 
 model GroupMember {
@@ -54,8 +58,19 @@ model Album {
   createdBy String
   createdAt DateTime @default(now())
   
-  group     Group        @relation(fields: [groupId], references: [id])
-  photos    PhotoAlbum[]
+  group        Group              @relation(fields: [groupId], references: [id])
+  photos       PhotoAlbum[]
+  contributors AlbumContributor[]
+}
+
+model AlbumContributor {
+  albumId String
+  userId  String
+
+  album   Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([albumId, userId])
 }
 
 model Photo {
@@ -105,4 +120,28 @@ model Like {
   user      User     @relation(fields: [userId], references: [id])
   
   @@unique([photoId, userId])
+}
+
+model GroupDeputy {
+  groupId String
+  userId  String
+
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+}
+
+model GroupBackup {
+  id            String   @id @default(cuid())
+  zipKey        String   @unique
+  groupId       String?
+  groupName     String
+  deletedByName String?
+  photoCount    Int      @default(0)
+  sizeBytes     BigInt?
+  createdAt     DateTime @default(now())
+  linkExpiry    DateTime
+
+  @@map("group_backups")
 }

@@ -26,9 +26,13 @@ Eine selbst gehostete Familien-Fotogalerie mit Gruppen, Alben, Kommentaren und O
 - **Lightbox** – Vollbild-Ansicht mit Slideshow, Album-Picker, Like- und Kommentarfunktion
 - **Likes & Kommentare** – pro Foto, mit Echtzeit-Zählern
 - **Upload** – Bilder werden clientseitig komprimiert (JPEG, max. 1400 px), dann per Multipart hochgeladen
-- **Gruppen-Backup** – Admin kann ein ZIP aller Gruppenfotos erzeugen und herunterladen
+- **Gruppen-Verwalter (Deputies)** – Owner kann Mitglieder als Vertreter ernennen; Deputies haben alle Owner-Rechte außer Umbenennen/Löschen
+- **Owner-Succession** – Beim Verlassen als Owner kann ein Nachfolger bestimmt werden; ist man das letzte Mitglied, kann die Gruppe aufgelöst werden
+- **Gruppen auflösen** – Letztes Mitglied (Owner) kann die Gruppe inkl. optionalem ZIP-Backup endgültig auflösen; Link bleibt 30 Tage gültig
+- **Gruppen-Backup** – Admin oder Owner kann ein ZIP aller Gruppenfotos erzeugen; Backup-Link ist 30 Tage gültig und kann weitergegeben werden (kein Auth nötig)
+- **Admin Backup-Verwaltung** – Admins sehen alle gespeicherten Backups mit Gruppe, Ersteller, Timestamp, Dateigröße und Fotoanzahl; Links können erneuert oder Backups gelöscht werden
 - **Profil** – Avatar, Anzeigename (aus Authentik), Link zum Authentik-Account
-- **Admin-Panel** – Benutzerliste, Rollenvergabe (user / admin)
+- **Admin-Panel** – Benutzerliste, Rollenvergabe (user / admin), Gruppenübersicht mit Owner/Deputies
 - **PWA** – Web-App-Manifest und Service Worker für Offline-Caching
 - **Dark Mode** – automatisch per `prefers-color-scheme`
 - **Mobil-optimiert** – responsives Layout, Gruppen-Wechsel in der Sidebar
@@ -160,18 +164,22 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker) gesetzt
 
 ```
 User ──< GroupMember >── Group ──< Album
-                          │           │
-                        Photo ─────< PhotoAlbum
-                          │
-                     Comment / Like
+           │               │          │
+           │           GroupDeputy  Photo ─────< PhotoAlbum
+           │               │          │
+           │               │       Comment / Like
+           │               │
+           └───────────────┴── GroupBackup (ZIP-Archiv, 30 Tage gültig)
 ```
 
 - **User** – wird bei jedem Login aus dem OIDC-Token synchronisiert (`name › preferred_username › email`)
-- **Group** – Beitritt per zufälligem 6-stelligen Code
+- **Group** – Beitritt per zufälligem 6-stelligen Code; `createdBy` zeigt den aktuellen Owner (erster Beitretender nach Admin-Anlage wird automatisch Owner)
 - **GroupMember** – n:m zwischen User und Group
+- **GroupDeputy** – Vertreter eines Owners; haben alle Owner-Rechte außer Umbenennen/Löschen
 - **Photo** – gespeichert in MinIO; wird über Backend-Proxy ausgeliefert
 - **PhotoAlbum** – n:m Join-Tabelle (ein Foto kann in mehreren Alben sein)
 - **Comment / Like** – pro Foto, User-gebunden
+- **GroupBackup** – Metadaten zu gespeicherten ZIP-Backups: `zipKey`, `groupName`, `deletedByName`, `photoCount`, `sizeBytes`, `linkExpiry`
 
 ---
 
@@ -196,9 +204,20 @@ User ──< GroupMember >── Group ──< Album
 | `DELETE` | `/api/albums/:id` | Album löschen |
 | `GET` | `/api/groups` | Eigene Gruppen |
 | `POST` | `/api/groups` | Neue Gruppe erstellen |
-| `POST` | `/api/groups/join` | Gruppe per Code beitreten |
+| `POST` | `/api/groups/join` | Gruppe per Code beitreten (erster Beitretender wird Owner) |
 | `GET` | `/api/groups/:id/members` | Mitglieder einer Gruppe |
-| `POST` | `/api/groups/admin/:id/backup` | Gruppen-Backup-ZIP erzeugen |
+| `DELETE` | `/api/groups/:id/leave` | Gruppe verlassen (Owner kann Nachfolger per `successorId` übergeben) |
+| `DELETE` | `/api/groups/:id/dissolve` | Gruppe auflösen (nur Owner als letztes Mitglied); erstellt ZIP-Backup |
+| `GET` | `/api/groups/:id/deputies` | Vertreter einer Gruppe auflisten |
+| `POST` | `/api/groups/:id/deputies` | Vertreter ernennen (nur Owner) |
+| `DELETE` | `/api/groups/:id/deputies/:userId` | Vertreter entfernen (nur Owner) |
+| `POST` | `/api/groups/admin/:id/backup` | Gruppen-Backup-ZIP erzeugen ohne zu löschen (Admin) |
+| `DELETE` | `/api/groups/admin/:id` | Gruppe löschen + Backup erzeugen (Admin) |
+| `GET` | `/api/groups/admin/:id/stranded-members` | User die nach dem Löschen in keiner Gruppe mehr wären (Admin) |
+| `GET` | `/api/groups/admin/backup/:zipKey` | ZIP herunterladen – **kein Auth nötig**, `zipKey` ist das Geheimnis; 410 wenn abgelaufen; **Rate-Limit: 10 req/min pro IP** |
+| `GET` | `/api/groups/admin/backups` | Alle Backup-Einträge auflisten (Admin) |
+| `POST` | `/api/groups/admin/backups/:zipKey/refresh` | Backup-Link um 30 Tage verlängern (Admin) |
+| `DELETE` | `/api/groups/admin/backups/:zipKey` | Backup aus MinIO + DB löschen (Admin) |
 | `GET` | `/api/comments/:photoId` | Kommentare eines Fotos |
 | `POST` | `/api/comments` | Kommentar erstellen |
 | `DELETE` | `/api/comments/:id` | Kommentar löschen |

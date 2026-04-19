@@ -4,6 +4,7 @@ import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import jwt from '@fastify/jwt';
 import fastifyStatic from '@fastify/static';
+import rateLimit from '@fastify/rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -83,6 +84,7 @@ await app.register(cors, { origin: true, credentials: true });
 await app.register(cookie, { secret: process.env.JWT_SECRET });
 await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
 await app.register(jwt, { secret: process.env.JWT_SECRET });
+await app.register(rateLimit, { global: false });
 
 // Prisma als Decorator verfügbar machen
 app.decorate('prisma', prisma);
