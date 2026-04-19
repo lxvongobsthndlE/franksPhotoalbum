@@ -1,6 +1,7 @@
 node_modules/
 .env.local
 .env.*.local
+.env.dev
 uploads/
 *.log
 .DS_Store

@@ -185,3 +185,25 @@ export async function deleteGroupPhotoObjects(keys) {
     }
   }
 }
+
+/**
+ * Löscht ein einzelnes Backup-Objekt aus MinIO.
+ */
+export async function deleteBackupObject(zipKey) {
+  await getClient().removeObject(BUCKET_BACKUPS, zipKey);
+}
+
+/**
+ * Listet alle Backup-Objekte im Backups-Bucket auf.
+ * @returns {Promise<Array<{name:string, size:number, lastModified:Date}>>}
+ */
+export async function listBackupObjects() {
+  const client = getClient();
+  return new Promise((resolve, reject) => {
+    const items = [];
+    const stream = client.listObjects(BUCKET_BACKUPS, '', true);
+    stream.on('data', obj => items.push({ name: obj.name, size: obj.size, lastModified: obj.lastModified }));
+    stream.on('end', () => resolve(items));
+    stream.on('error', reject);
+  });
+}
