@@ -142,6 +142,14 @@
     </div>
     <div id="group-switcher-wrap"></div>
     <div class="user-pill">
+      <!-- Bell Notification Button -->
+      <button class="notif-bell-btn" id="notif-bell-btn" onclick="toggleNotifPanel()" aria-label="Benachrichtigungen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+      </button>
       <button class="profile-btn" onclick="openProfileModal()">
         <div class="av" id="hav"></div>
         <span class="uname" id="hname"></span>
@@ -149,6 +157,50 @@
       <button class="logout-btn" onclick="doLogout()">Abmelden</button>
     </div>
   </header>
+
+  <!-- ── NOTIFICATION PANEL ── -->
+  <div id="notif-panel" class="notif-panel" style="display:none" aria-live="polite">
+    <div class="notif-panel-hdr">
+      <span>Benachrichtigungen</span>
+      <div class="notif-panel-actions">
+        <button id="notif-broadcast-btn" class="notif-mark-all-btn" onclick="openBroadcastModal()" title="System-Benachrichtigung senden" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg></button>
+        <button class="notif-mark-all-btn" onclick="markAllNotificationsRead()" title="Alle als gelesen markieren"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+        <button class="notif-mark-all-btn" onclick="deleteAllNotifications()" title="Alle löschen" style="color:var(--danger,#c0392b)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        <button class="notif-close-btn" onclick="toggleNotifPanel()" aria-label="Schließen">✕</button>
+      </div>
+    </div>
+    <ul id="notif-list" class="notif-list">
+      <li class="notif-empty" id="notif-empty">Keine Benachrichtigungen</li>
+    </ul>
+  </div>
+  <!-- ── END NOTIFICATION PANEL ── -->
+
+  <!-- ── BROADCAST MODAL ── -->
+  <div id="broadcast-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeBroadcastModal()">
+    <div class="modal-box broadcast-modal-box" onclick="event.stopPropagation()">
+      <div class="modal-hdr">
+        <span>System-Benachrichtigung senden</span>
+        <button class="modal-close" onclick="closeBroadcastModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="broadcast-hint">Diese Nachricht wird an <strong>alle</strong> Nutzer gesendet.</p>
+        <label class="broadcast-label">Titel <span class="broadcast-req">*</span></label>
+        <input id="broadcast-title" class="broadcast-input" type="text" maxlength="120" placeholder="z.B. Wartung am Samstag" />
+        <label class="broadcast-label" style="margin-top:10px">Nachricht (optional)</label>
+        <textarea id="broadcast-body" class="broadcast-input broadcast-textarea" maxlength="500" rows="3" placeholder="Weitere Details..."></textarea>
+        <label class="broadcast-label" style="margin-top:10px">Bild-URL (optional)</label>
+        <input id="broadcast-imageurl" class="broadcast-input" type="url" maxlength="500" placeholder="https://… (wird als Vorschau angezeigt)" />
+        <label class="broadcast-label" style="margin-top:10px">Link-URL (optional)</label>
+        <input id="broadcast-linkurl" class="broadcast-input" type="url" maxlength="500" placeholder="https://… (beim Klick geöffnet)" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeBroadcastModal()" style="padding:8px 16px;font-size:13px">Abbrechen</button>
+        <button class="btn btn-primary" id="broadcast-send-btn" onclick="sendBroadcast()" style="width:auto;padding:8px 20px;margin-top:0">Senden</button>
+      </div>
+    </div>
+  </div>
+  <!-- ── END BROADCAST MODAL ── -->
+
   <div id="body-wrap">
     <nav id="sidebar"></nav>
     <div id="content">
@@ -201,10 +253,20 @@
     <div class="modal-hdr"><h3>Fotos hochladen</h3><button class="modal-x" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       <div id="dz-wrap">
+        <!-- Dropzone: kompakt wenn Vorschau vorhanden -->
         <div class="dz" id="dz">
           <div class="dz-ico">📸</div>
           <p class="dz-ttl">Fotos hier ablegen</p>
           <p class="dz-sub">oder klicken · JPG, PNG, GIF, WebP · Mehrere möglich</p>
+        </div>
+
+        <!-- Vorschau-Bereich -->
+        <div id="dz-preview-wrap" style="display:none">
+          <div id="dz-preview-grid" class="dz-preview-grid"></div>
+          <button class="dz-add-more" onclick="$('fi').click()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Weitere hinzufügen
+          </button>
         </div>
 
         <div class="field" style="margin-top:12px">
@@ -215,6 +277,12 @@
           <label>Beschreibung (optional)</label>
           <input type="text" id="desc-input" placeholder="Z.B. Urlaub in Italien, Sommer 2024…" maxlength="200" style="width:100%;padding:10px 13px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;outline:none">
         </div>
+
+        <!-- Upload-Button -->
+        <button class="btn btn-primary" id="do-upload-btn" onclick="startUpload()" style="display:none;margin-top:16px;width:100%;padding:12px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="do-upload-label">Hochladen</span>
+        </button>
       </div>
       <div id="prog-wrap" class="up-prog hidden">
         <div class="spinner"></div>
@@ -328,6 +396,32 @@
         </a>
         <p style="font-size:11px;color:var(--muted);margin-top:6px;font-weight:300;text-align:center">Änderungen in Authentik werden beim nächsten Login übernommen.</p>
       </div>
+
+      <!-- ── NOTIFICATION PREFERENCES ── -->
+      <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:14px">
+        <button onclick="toggleNotifPrefs()" style="display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;cursor:pointer;padding:0;margin-bottom:0" aria-expanded="false" id="notif-prefs-toggle">
+          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);pointer-events:none">Benachrichtigungen</label>
+          <svg id="notif-prefs-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted2)" stroke-width="2.5" stroke-linecap="round" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="notif-prefs-collapsible" style="display:none;margin-top:12px">
+          <div id="notif-prefs-loading" style="font-size:13px;color:var(--muted);text-align:center;padding:8px">Laden…</div>
+          <div id="notif-prefs-body" class="hidden">
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:4px 6px;color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.8px">Ereignis</th>
+                  <th style="text-align:center;padding:4px 6px;color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.8px">In-App</th>
+                  <th style="text-align:center;padding:4px 6px;color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.8px">E-Mail</th>
+                </tr>
+              </thead>
+              <tbody id="notif-prefs-table"></tbody>
+            </table>
+            <button class="btn btn-primary" style="margin-top:14px;width:100%;padding:10px" onclick="saveNotifPrefs()">Speichern</button>
+            <div id="notif-prefs-msg" class="msg hidden" style="margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+      <!-- ── END NOTIFICATION PREFERENCES ── -->
     </div>
   </div>
 </div>

@@ -1,3 +1,5 @@
+import { createNotification } from '../utils/notifications.js';
+
 export default async function adminRoutes(fastify) {
 
   // Hilfsfunktion: prüft ob der anfragende User Admin ist
@@ -43,6 +45,37 @@ export default async function adminRoutes(fastify) {
           : u.avatar,
       })),
     };
+  });
+
+  // POST /api/admin/broadcast - System-Benachrichtigung an alle User
+  fastify.post('/broadcast', async (request, reply) => {
+    const stop = await requireAdmin(request, reply);
+    if (stop) return;
+
+    const { title, body, imageUrl, entityUrl } = request.body || {};
+    if (!title || typeof title !== 'string' || title.trim().length < 1) {
+      return reply.code(400).send({ error: 'title erforderlich' });
+    }
+
+    const users = await fastify.prisma.user.findMany({ select: { id: true } });
+    // System-Benachrichtigungen direkt erstellen (kein Prefs-Check, immer liefern)
+    const uniqueIds = [...new Set(users.map(u => u.id))];
+    for (const userId of uniqueIds) {
+      try {
+        await createNotification(fastify.prisma, {
+          userId,
+          type: 'system',
+          title: title.trim(),
+          body: (body || '').trim() || undefined,
+          imageUrl: imageUrl ? String(imageUrl).trim() : undefined,
+          entityUrl: entityUrl ? String(entityUrl).trim() : undefined,
+        });
+      } catch(e) {
+        fastify.log.warn(`Broadcast an ${userId} fehlgeschlagen: ${e.message}`);
+      }
+    }
+
+    return { sent: uniqueIds.length };
   });
 
   // PATCH /api/admin/users/:id/role - Rolle eines Users ändern

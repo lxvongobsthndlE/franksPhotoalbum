@@ -1,4 +1,45 @@
 import { uploadPhoto, deletePhoto, getPhotoStream, getPhotoStat } from '../utils/storage.js';
+import { createNotification } from '../utils/notifications.js';
+
+// Debounce-Map für gebündelte "neue Fotos"-Notifications
+// Key: `${uploaderId}:${groupId}` → { timer, photoIds, uploaderName, groupName, memberIds }
+const _pendingPhotoNotifs = new Map();
+const PHOTO_NOTIF_DEBOUNCE_MS = 5000;
+
+function _flushPhotoNotif(prisma, key) {
+  const pending = _pendingPhotoNotifs.get(key);
+  if (!pending) return;
+  _pendingPhotoNotifs.delete(key);
+
+  const count = pending.photoIds.length;
+  const title = `${count === 1 ? 'Neues Foto' : `${count} neue Fotos`} in „${pending.groupName}"`;
+  const body  = count === 1
+    ? `${pending.uploaderName} hat ein neues Foto hochgeladen.`
+    : `${pending.uploaderName} hat ${count} neue Fotos hochgeladen.`;
+  const entityId   = count === 1 ? pending.photoIds[0] : undefined;
+  const entityType = count === 1 ? 'photo' : undefined;
+
+  for (const userId of pending.memberIds) {
+    createNotification(prisma, {
+      userId, type: 'newPhoto', title, body, entityId, entityType,
+    }).catch(() => {});
+  }
+}
+
+function _schedulePhotoNotif(prisma, { uploaderId, groupId, photoId, uploaderName, groupName, memberIds }) {
+  const key = `${uploaderId}:${groupId}`;
+  const existing = _pendingPhotoNotifs.get(key);
+
+  if (existing) {
+    clearTimeout(existing.timer);
+    existing.photoIds.push(photoId);
+  } else {
+    _pendingPhotoNotifs.set(key, { photoIds: [photoId], uploaderName, groupName, memberIds });
+  }
+
+  const entry = _pendingPhotoNotifs.get(key);
+  entry.timer = setTimeout(() => _flushPhotoNotif(prisma, key), PHOTO_NOTIF_DEBOUNCE_MS);
+}
 
 export default async function photosRoutes(fastify) {
   async function isGroupOwner(groupId, userId) {
@@ -138,6 +179,21 @@ export default async function photosRoutes(fastify) {
       });
 
       const url = `/api/photos/${photo.id}/file`;
+
+      // Gebündelte Notification: Debounce pro (uploader, group)
+      const groupMembers = await fastify.prisma.groupMember.findMany({
+        where: { groupId },
+        select: { userId: true },
+      });
+      const uploaderUser = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+      const uploaderName = uploaderUser?.name || uploaderUser?.username || 'Jemand';
+      const photoGroup = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
+      const memberIds = groupMembers.map(m => m.userId).filter(id => id !== request.user.id);
+      _schedulePhotoNotif(fastify.prisma, {
+        uploaderId: request.user.id, groupId, photoId: photo.id,
+        uploaderName, groupName: photoGroup?.name || groupId, memberIds,
+      });
+
       return { photo: { ...photo, albumIds: photo.albums.map(a => a.albumId), albums: undefined }, url };
     } catch (err) {
       fastify.log.error(err);

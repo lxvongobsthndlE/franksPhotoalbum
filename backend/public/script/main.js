@@ -252,6 +252,13 @@ async function startApp() {
   // Fotos laden
   if (curGroupId) await loadPhotos(true);
   else toast('Keine Gruppe gefunden – ein Album wird automatisch erstellt.', 'info');
+
+  // Notifications initialisieren
+  loadNotifications();
+  initNotificationSSE();
+  // Broadcast-Button nur für Admins anzeigen
+  const broadcastBtn = $('notif-broadcast-btn');
+  if (broadcastBtn && me?.role === 'admin') broadcastBtn.style.display = '';
 }
 
 async function loadHeaderAvatar() {
@@ -290,12 +297,31 @@ function renderSidebar() {
   }).join('');
 
   // Members list (exclude self, already shown as "Meine Fotos")
-  const otherMembers = groupMembers.filter(m => m.id !== me.id);
-  const membersHtml = otherMembers.map(m => `
-    <button class="fb ${curFilterUserId===m.id?'active':''}" onclick="switchToUser('${m.id}')">
+  const curGroup = myGroups.find(x => x.id === curGroupId);
+  const deputyIds = new Set(groupDeputies.map(d => d.id));
+  const allMembers = [
+    groupMembers.find(m => m.id === me.id) || meProfile,
+    ...groupMembers.filter(m => m.id !== me.id),
+  ];
+  const membersHtml = allMembers.map(m => {
+    const isSelf = m.id === me.id;
+    const isOwner = curGroup?.createdBy === m.id;
+    const isDeputy = deputyIds.has(m.id);
+    const badge = isOwner
+      ? `<span style="font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-l);border-radius:4px;padding:1px 5px;flex-shrink:0" title="Gruppen-Owner">Owner</span>`
+      : isDeputy
+      ? `<span style="font-size:10px;font-weight:600;color:var(--muted2);background:var(--border);border-radius:4px;padding:1px 5px;flex-shrink:0" title="Vertreter">Vertreter</span>`
+      : '';
+    const isActive = isSelf ? curFilter==='mine' && !curAlbum && !curFilterUserId : curFilterUserId===m.id;
+    const onclick = isSelf ? `switchFolder('mine')` : `switchToUser('${m.id}')`;
+    const displayName = isSelf ? `${esc(m.name||'?')} <span style="font-size:10px;color:var(--muted);font-weight:400">(du)</span>` : esc(m.name||'?');
+    return `
+    <button class="fb ${isActive?'active':''}" onclick="${onclick}" style="gap:6px">
       <span class="fi">${avatarHtml(m, 20)}</span>
-      <span class="fn">${esc(m.name||'?')}</span>
-    </button>`).join('');
+      <span class="fn" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName}</span>
+      ${badge}
+    </button>`;
+  }).join('');
 
   $('sidebar').innerHTML = `
     <span class="sb-label">Fotos</span>
@@ -335,7 +361,7 @@ function renderSidebar() {
       <span class="fi">${ICON_ALBUM_MANAGE}</span>
       <span class="fn">Alben verwalten</span>
     </button>
-    ${otherMembers.length ? `
+    ${allMembers.length ? `
       <div class="sb-div"></div>
       <span class="sb-label">Mitglieder</span>
       ${membersHtml}
@@ -355,6 +381,20 @@ function renderSidebar() {
       <span class="fn">Einladungscode anzeigen</span>
     </button>
     ${(()=>{ const g=myGroups.find(x=>x.id===curGroupId); return g?.createdBy===me.id; })() ? `
+    <button class="fb" onclick="openRenameGroupInline()">
+      <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+      <span class="fn">Gruppe umbenennen</span>
+    </button>
+    <div id="rename-group-inline" class="hidden" style="padding:6px 10px">
+      <div style="display:flex;gap:6px">
+        <input id="rename-group-input" type="text" maxlength="60"
+          style="flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;outline:none;font-family:inherit"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
+          onkeydown="if(event.key==='Enter')saveGroupRename();if(event.key==='Escape')closeRenameGroupInline()">
+        <button onclick="saveGroupRename()" style="background:var(--accent);border:none;color:#fff;padding:7px 11px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">✓</button>
+        <button onclick="closeRenameGroupInline()" style="background:none;border:1.5px solid var(--border);color:var(--muted);padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13px">✕</button>
+      </div>
+    </div>
     <button class="fb" onclick="openDeputyModal()${window.innerWidth<=900?';closeSidebar()':''}">
       <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
       <span class="fn">Vertreter verwalten</span>
@@ -765,11 +805,17 @@ async function doLike(photoId) {
 }
 
 // ── UPLOAD ───────────────────────────────────────────────
+const UPLOAD_MAX_FILES = 100;
+const UPLOAD_PREVIEW_VISIBLE = 12;
+let _stagedFiles = [];
+
 function openModal() {
   const asel=$('asel');
   asel.innerHTML=`<option value="">— Kein Album —</option>`+allAlbums.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
   if (curAlbum) asel.value=curAlbum;
   if ($('desc-input')) $('desc-input').value='';
+  _stagedFiles = [];
+  _renderStagedPreviews();
   show('up-modal'); show('dz-wrap'); hide('prog-wrap');
   // Drag&Drop-Listener (einmalig registrieren)
   const dzEl=$('dz');
@@ -781,10 +827,100 @@ function openModal() {
     dzEl.addEventListener('click',     ()=>$('fi').click());
   }
 }
-function closeModal() { hide('up-modal'); $('fi').value=''; }
+function closeModal() { hide('up-modal'); $('fi').value=''; _stagedFiles=[]; }
 
-async function handleFiles(fileList) {
-  const files=Array.from(fileList).filter(f=>f.type.startsWith('image/'));
+// ── GRUPPE UMBENENNEN ─────────────────────────────────────
+function openRenameGroupInline() {
+  const wrap = $('rename-group-inline');
+  if (!wrap) return;
+  const curGroup = myGroups.find(g => g.id === curGroupId);
+  const inp = $('rename-group-input');
+  inp.value = curGroup?.name || '';
+  wrap.classList.remove('hidden');
+  inp.focus();
+  inp.select();
+}
+function closeRenameGroupInline() {
+  $('rename-group-inline')?.classList.add('hidden');
+}
+async function saveGroupRename() {
+  const name = $('rename-group-input')?.value?.trim();
+  if (!name) return;
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}`, 'PATCH', { name });
+    const idx = myGroups.findIndex(g => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx].name = group.name;
+    const sub = $('header-group-name');
+    if (sub) sub.textContent = group.name;
+    closeRenameGroupInline();
+    renderSidebar();
+    toast('Gruppe umbenannt', 'success');
+  } catch(e) {
+    toast('Umbenennen fehlgeschlagen', 'error');
+  }
+}
+
+function _renderStagedPreviews() {
+  const grid = $('dz-preview-grid');
+  const previewWrap = $('dz-preview-wrap');
+  const uploadBtn = $('do-upload-btn');
+  const dz = $('dz');
+  if (!grid) return;
+
+  const hasFiles = _stagedFiles.length > 0;
+
+  // Dropzone kompakt wenn Dateien vorhanden
+  if (hasFiles) {
+    dz?.classList.add('dz--compact');
+    previewWrap.style.display = 'block';
+    uploadBtn.style.display = 'flex';
+    $('do-upload-label').textContent = _stagedFiles.length === 1
+      ? '1 Foto hochladen'
+      : `${_stagedFiles.length} Fotos hochladen`;
+  } else {
+    dz?.classList.remove('dz--compact');
+    previewWrap.style.display = 'none';
+    uploadBtn.style.display = 'none';
+  }
+
+  const visible = _stagedFiles.slice(0, UPLOAD_PREVIEW_VISIBLE);
+  const overflow = _stagedFiles.length - visible.length;
+  grid.innerHTML = visible.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="dz-thumb" id="dz-thumb-${i}">
+      <img src="${url}" alt="${esc(f.name)}" onload="URL.revokeObjectURL(this.src)">
+      <button class="dz-thumb-del" onclick="_removeStagedFile(${i})" title="Entfernen">✕</button>
+    </div>`;
+  }).join('') + (overflow > 0
+    ? `<div class="dz-thumb dz-thumb-overflow"><span>+${overflow}</span></div>`
+    : '');
+}
+
+function _removeStagedFile(idx) {
+  _stagedFiles.splice(idx, 1);
+  _renderStagedPreviews();
+}
+
+function handleFiles(fileList) {
+  const newFiles = Array.from(fileList).filter(f=>f.type.startsWith('image/'));
+  if (!newFiles.length) return;
+  const remaining = UPLOAD_MAX_FILES - _stagedFiles.length;
+  if (remaining <= 0) {
+    toast(`Maximal ${UPLOAD_MAX_FILES} Fotos pro Upload erlaubt.`, 'error');
+    $('fi').value = '';
+    return;
+  }
+  const toAdd = newFiles.slice(0, remaining);
+  if (newFiles.length > remaining) {
+    toast(`Nur ${toAdd.length} von ${newFiles.length} Fotos hinzugefügt (Limit: ${UPLOAD_MAX_FILES}).`, 'error');
+  }
+  _stagedFiles.push(...toAdd);
+  $('fi').value = ''; // reset so same files can be re-added
+  _renderStagedPreviews();
+}
+
+async function startUpload() {
+  const files = _stagedFiles;
   if (!files.length) return;
   const folder=SHARED;
   const desc = $('desc-input')?.value?.trim()||null;
@@ -821,13 +957,11 @@ async function handleFiles(fileList) {
     ? `Fertig! ${done-failed} hochgeladen, ${failed} fehlgeschlagen`
     : `Fertig! ${done} Fotos hochgeladen`;
 
-  // Batch-Benachrichtigung (no-op, server-side handled)
-  if (uploadedIds.length > 0) { /* notifications handled server-side */ }
-
   if (uploadedIds.length > 0) invalidateCounts();
   setTimeout(closeModal, 800);
   if (curFolder===folder) await loadPhotos(true);
   renderSidebar();
+  _stagedFiles = [];
   $('fi').value='';
   if (failed) toast(`${failed} Foto${failed>1?'s':''} konnten nicht hochgeladen werden`, 'error');
   else toast(`${done} Foto${done>1?'s':''} hochgeladen`, 'success');
@@ -1428,6 +1562,17 @@ async function openProfileModal() {
   if (clearBtn) clearBtn.style.display = meProfile.avatar ? '' : 'none';
   renderColorSwatches();
   hide('avatar-msg');
+  // Reset prefs panel to collapsed state
+  const col = $('notif-prefs-collapsible');
+  const toggle = $('notif-prefs-toggle');
+  const chevron = $('notif-prefs-chevron');
+  if (col) col.style.display = 'none';
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  if (chevron) chevron.style.transform = '';
+  const loading = $('notif-prefs-loading');
+  const prefsBody = $('notif-prefs-body');
+  if (loading) { loading.textContent = 'Laden…'; loading.style.display = ''; }
+  if (prefsBody) hide('notif-prefs-body');
   show('profile-modal');
 }
 
@@ -2980,6 +3125,344 @@ async function removeDeputy(userId) {
   } catch(e) { toast('Fehler beim Entfernen', 'error'); }
 }
 
+// ── NOTIFICATIONS ────────────────────────────────────────
+let _notifPanelOpen = false;
+let _sseSource = null;
+let _notifCursor = null;
+let _notifItems = [];
+const _NOTIF_LABELS = {
+  groupMemberJoined: '👤', groupMemberLeft: '🚪', groupDeleted: '🗑',
+  deputyAdded: '⭐', deputyRemoved: '⭐',
+  newAlbum: '📁', contributorAdded: '✏️', contributorRemoved: '✏️',
+  newPhoto: '🖼', photoCommented: '💬', photoLiked: '❤️',
+  system: '📢',
+};
+
+function _notifTimeAgo(iso) {
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60) return 'Gerade eben';
+  if (diff < 3600) return `vor ${Math.floor(diff/60)} Min`;
+  if (diff < 86400) return `vor ${Math.floor(diff/3600)} Std`;
+  return `vor ${Math.floor(diff/86400)} T`;
+}
+
+function _renderNotifList() {
+  const list = $('notif-list');
+  const empty = $('notif-empty');
+  if (!list) return;
+  if (_notifItems.length === 0) {
+    list.innerHTML = '';
+    if (empty) { empty.style.display = ''; list.appendChild(empty); }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = _notifItems.map(n => {
+    const hasTarget = !!n.entityId || !!n.entityUrl;
+    return `
+    <li class="notif-item${n.read ? '' : ' unread'}${hasTarget ? ' notif-item--nav' : ''}" data-id="${n.id}" onclick="_notifClick('${n.id}')">
+      <div class="notif-item-body">
+        <div class="notif-item-title">${_NOTIF_LABELS[n.type] || '🔔'} ${_esc(n.title)}${hasTarget ? ' <span class="notif-item-nav-hint">→</span>' : ''}</div>
+        <div class="notif-item-text">${_esc(n.body || '')}</div>
+        ${n.imageUrl ? `<img class="notif-item-thumb" src="${_esc(n.imageUrl)}" alt="" onclick="event.stopPropagation();window.open('${_esc(n.imageUrl)}','_blank','noopener,noreferrer')">` : ''}
+        <div class="notif-item-meta">
+          <span class="notif-item-time">${_notifTimeAgo(n.createdAt)}</span>
+        </div>
+      </div>
+      <div class="notif-item-actions">
+        ${!n.read ? `<button class="notif-item-read" onclick="event.stopPropagation();_notifMarkRead('${n.id}')" title="Als gelesen markieren"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
+        <button class="notif-item-del" onclick="event.stopPropagation();_notifDelete('${n.id}')" title="Löschen">✕</button>
+      </div>
+    </li>`;
+  }).join('');
+}
+
+function _updateNotifBadge(count) {
+  const badge = $('notif-badge');
+  if (!badge) return;
+  if (count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+}
+
+async function loadNotifications() {
+  try {
+    const res = await apiCall('/notifications?limit=30');
+    _notifItems = res.notifications || [];
+    _notifCursor = res.nextCursor || null;
+    _updateNotifBadge(res.unreadCount || 0);
+    _renderNotifList();
+  } catch(e) { /* ignore */ }
+}
+
+async function _notifMarkRead(id) {
+  const item = _notifItems.find(n => n.id === id);
+  if (!item || item.read) return;
+  try { await apiCall(`/notifications/${id}/read`, 'PATCH'); item.read = true; } catch(e) { /**/ }
+  _updateNotifBadge(_notifItems.filter(n => !n.read).length);
+  _renderNotifList();
+}
+
+async function _notifClick(id) {
+  const item = _notifItems.find(n => n.id === id);
+  if (!item) return;
+  // Als gelesen markieren
+  if (!item.read) {
+    try { await apiCall(`/notifications/${id}/read`, 'PATCH'); item.read = true; } catch(e) { /**/ }
+    _updateNotifBadge(_notifItems.filter(n => !n.read).length);
+    _renderNotifList();
+  }
+  // Navigation
+  if (item.entityId || item.entityUrl) {
+    toggleNotifPanel();
+    await _notifNavigate(item);
+  }
+}
+
+async function _notifNavigate(item) {
+  const { entityId, entityType } = item;
+  try {
+    if (entityType === 'photo') {
+      // Foto-Details laden um groupId zu ermitteln
+      const photo = await apiCall(`/photos/${entityId}`);
+      if (!photo || !photo.id) return;
+      // Ggf. Gruppe wechseln
+      if (photo.groupId !== curGroupId) await switchGroup(photo.groupId);
+      // Alle Fotos der Gruppe (aktueller Filter) laden und Lightbox öffnen
+      curAlbum = null; curFilter = null; curFilterUserId = null;
+      await loadPhotos(true);
+      const idx = photos.findIndex(p => p.id === entityId);
+      if (idx !== -1) openLB(idx);
+      else toast('Foto nicht mehr verfügbar', 'error');
+    } else if (entityType === 'album') {
+      const album = allAlbums.find(a => a.id === entityId);
+      if (album) {
+        if (album.groupId && album.groupId !== curGroupId) await switchGroup(album.groupId);
+        await switchAlbum(entityId);
+      }
+    } else if (entityType === 'group') {
+      if (entityId !== curGroupId) await switchGroup(entityId);
+    } else if (entityType === 'external') {
+      if (item.entityUrl) window.open(item.entityUrl, '_blank', 'noopener,noreferrer');
+    } else if (item.entityUrl) {
+      window.open(item.entityUrl, '_blank', 'noopener,noreferrer');
+    }
+  } catch(e) {
+    toast('Navigation fehlgeschlagen', 'error');
+  }
+}
+
+async function _notifDelete(id) {
+  try {
+    await apiCall(`/notifications/${id}`, 'DELETE');
+    _notifItems = _notifItems.filter(n => n.id !== id);
+    _updateNotifBadge(_notifItems.filter(n => !n.read).length);
+    _renderNotifList();
+  } catch(e) { toast('Löschen fehlgeschlagen', 'error'); }
+}
+
+async function markAllNotificationsRead() {
+  try {
+    await apiCall('/notifications/read-all', 'PATCH');
+    _notifItems.forEach(n => n.read = true);
+    _updateNotifBadge(0);
+    _renderNotifList();
+  } catch(e) { toast('Fehler', 'error'); }
+}
+
+async function deleteAllNotifications() {
+  if (!_notifItems.length) return;
+  try {
+    await apiCall('/notifications', 'DELETE');
+    _notifItems = [];
+    _updateNotifBadge(0);
+    _renderNotifList();
+  } catch(e) { toast('Fehler beim Löschen', 'error'); }
+}
+
+function toggleNotifPanel() {
+  const panel = $('notif-panel');
+  if (!panel) return;
+  _notifPanelOpen = !_notifPanelOpen;
+  panel.style.display = _notifPanelOpen ? 'flex' : 'none';
+  if (_notifPanelOpen) {
+    loadNotifications();
+    // Click-outside: nächsten Tick abwarten damit der aktuelle Klick nicht sofort schließt
+    setTimeout(() => {
+      function _notifOutside(e) {
+        const bell = $('notif-bell-btn');
+        if (!panel.contains(e.target) && e.target !== bell && !bell?.contains(e.target)) {
+          _notifPanelOpen = false;
+          panel.style.display = 'none';
+          document.removeEventListener('click', _notifOutside, true);
+        }
+      }
+      document.addEventListener('click', _notifOutside, true);
+    }, 0);
+  }
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function initNotificationSSE() {
+  const token = sessionStorage.getItem('accessToken');
+  if (!token) return;
+  if (_sseSource) { _sseSource.close(); _sseSource = null; }
+  const url = `/api/notifications/stream?token=${encodeURIComponent(token)}`;
+  _sseSource = new EventSource(url);
+  _sseSource.addEventListener('notification', e => {
+    try {
+      const notif = JSON.parse(e.data);
+      // Deduplizieren: nur hinzufügen wenn ID noch nicht vorhanden
+      if (_notifItems.some(n => n.id === notif.id)) return;
+      _notifItems.unshift(notif);
+      if (_notifItems.length > 50) _notifItems.pop();
+      _updateNotifBadge(_notifItems.filter(n => !n.read).length);
+      if (_notifPanelOpen) _renderNotifList();
+      toast(`${_NOTIF_LABELS[notif.type] || '🔔'} ${notif.title}`, 'info');
+    } catch(err) { /**/ }
+  });
+  _sseSource.addEventListener('unreadCount', e => {
+    try { _updateNotifBadge(parseInt(e.data, 10) || 0); } catch(err) { /**/ }
+  });
+  _sseSource.onerror = () => {
+    // Reconnect after 10s on error
+    if (_sseSource) { _sseSource.close(); _sseSource = null; }
+    setTimeout(initNotificationSSE, 10000);
+  };
+}
+
+// ── NOTIFICATION PREFERENCES ──
+const _NOTIF_PREF_LABELS = {
+  groupMemberJoined: { label: 'Mitglied beigetreten',         hint: 'Jemand tritt einer deiner Gruppen bei (nur für Gruppen-Owner & Vertreter).' },
+  groupMemberLeft:   { label: 'Mitglied verlassen',           hint: 'Ein Mitglied verlässt eine deiner Gruppen (nur für Gruppen-Owner & Vertreter).' },
+  groupDeleted:      { label: 'Gruppe gelöscht',              hint: 'Ein Administrator hat eine Gruppe gelöscht, in der du Mitglied warst.' },
+  deputyAdded:       { label: 'Zum Vertreter ernannt',        hint: 'Du wurdest in einer Gruppe als Vertreter (Deputy) eingesetzt und hast dort erweiterte Rechte.' },
+  deputyRemoved:     { label: 'Vertreter-Rolle entzogen',     hint: 'Deine Vertreter-Rolle in einer Gruppe wurde entfernt.' },
+  newAlbum:          { label: 'Neues Album erstellt',         hint: 'Ein Mitglied hat in einer deiner Gruppen ein neues Album angelegt.' },
+  contributorAdded:  { label: 'Contributor-Zugang erhalten',  hint: 'Du wurdest zu einem Album als Contributor hinzugefügt und kannst dort Fotos hochladen.' },
+  contributorRemoved:{ label: 'Contributor-Zugang entzogen',  hint: 'Dein Contributor-Zugang zu einem Album wurde entfernt.' },
+  newPhoto:          { label: 'Neues Foto hochgeladen',       hint: 'Ein Mitglied hat ein Foto in einer deiner Gruppen hochgeladen.' },
+  photoCommented:    { label: 'Kommentar auf dein Foto',      hint: 'Jemand hat einen Kommentar unter eines deiner Fotos geschrieben.' },
+  photoLiked:        { label: 'Like auf dein Foto',           hint: 'Jemand hat eines deiner Fotos mit einem Like markiert.' },
+  system:            { label: 'System-Benachrichtigungen',    hint: 'Ankündigungen vom Administrator (z.B. Updates, Wartungen). In-App ist immer aktiv.' },
+};
+let _notifPrefs = {};
+
+async function loadNotifPrefs() {
+  const loading = $('notif-prefs-loading');
+  const body = $('notif-prefs-body');
+  if (!loading || !body) return;
+  try {
+    const res = await apiCall('/notifications/preferences');
+    _notifPrefs = res.preferences || res;
+    if (loading) loading.style.display = 'none';
+    show('notif-prefs-body');
+    _renderPrefsTable();
+  } catch(e) { if (loading) loading.textContent = 'Fehler beim Laden'; }
+}
+
+function toggleNotifPrefs() {
+  const col = $('notif-prefs-collapsible');
+  const toggle = $('notif-prefs-toggle');
+  const chevron = $('notif-prefs-chevron');
+  if (!col) return;
+  const open = col.style.display !== 'none';
+  col.style.display = open ? 'none' : 'block';
+  if (toggle) toggle.setAttribute('aria-expanded', String(!open));
+  if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+  if (!open) loadNotifPrefs();
+}
+
+function _renderPrefsTable() {
+  const tb = $('notif-prefs-table');
+  if (!tb) return;
+  tb.innerHTML = Object.keys(_NOTIF_PREF_LABELS).map(key => {
+    const { label, hint } = _NOTIF_PREF_LABELS[key];
+    const isSystem = key === 'system';
+    return `
+    <tr>
+      <td style="padding:7px 6px;color:var(--text2);">
+        <span style="display:inline-flex;align-items:center;gap:5px">
+          ${_esc(label)}
+          <span class="notif-pref-hint" title="${_esc(hint)}" aria-label="${_esc(hint)}">&#x24D8;</span>
+        </span>
+      </td>
+      <td style="text-align:center;padding:7px 6px">
+        ${isSystem
+          ? `<input type="checkbox" id="np_inApp_${key}" checked disabled title="System-Benachrichtigungen sind immer aktiv"> <span title="Nicht deaktivierbar" style="font-size:10px;opacity:.6">🔒</span>`
+          : `<input type="checkbox" id="np_inApp_${key}" ${_notifPrefs['inApp_'+key] ? 'checked' : ''}>`
+        }
+      </td>
+      <td style="text-align:center;padding:7px 6px">
+        <input type="checkbox" id="np_email_${key}" ${_notifPrefs['email_'+key] ? 'checked' : ''}>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function saveNotifPrefs() {
+  const prefs = {};
+  for (const key of Object.keys(_NOTIF_PREF_LABELS)) {
+    // inApp_system ist immer true und wird nicht per UI geändert
+    if (key !== 'system') {
+      prefs['inApp_' + key] = !!($('np_inApp_' + key)?.checked);
+    }
+    prefs['email_' + key] = !!($('np_email_' + key)?.checked);
+  }
+  try {
+    await apiCall('/notifications/preferences', 'PUT', prefs);
+    _notifPrefs = prefs;
+    const msg = $('notif-prefs-msg');
+    if (msg) { msg.textContent = 'Gespeichert ✓'; msg.className = 'msg ok'; show('notif-prefs-msg'); setTimeout(() => hide('notif-prefs-msg'), 3000); }
+  } catch(e) {
+    const msg = $('notif-prefs-msg');
+    if (msg) { msg.textContent = 'Fehler beim Speichern'; msg.className = 'msg error'; show('notif-prefs-msg'); }
+  }
+}
+// ── END NOTIFICATIONS ────────────────────────────────────
+
+// ── BROADCAST MODAL (Admin) ──────────────────────────────
+function openBroadcastModal() {
+  const modal = $('broadcast-modal');
+  if (!modal) return;
+  // Notif-Panel schließen damit es das Modal nicht überdeckt
+  if (_notifPanelOpen) toggleNotifPanel();
+  $('broadcast-title').value = '';
+  $('broadcast-body').value = '';
+  const imgInput = $('broadcast-imageurl');
+  const linkInput = $('broadcast-linkurl');
+  if (imgInput) imgInput.value = '';
+  if (linkInput) linkInput.value = '';
+  modal.style.display = '';
+  setTimeout(() => $('broadcast-title')?.focus(), 50);
+}
+
+function closeBroadcastModal() {
+  const modal = $('broadcast-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function sendBroadcast() {
+  const title    = $('broadcast-title')?.value?.trim();
+  const body     = $('broadcast-body')?.value?.trim();
+  const imageUrl = $('broadcast-imageurl')?.value?.trim() || undefined;
+  const entityUrl = $('broadcast-linkurl')?.value?.trim() || undefined;
+  if (!title) { toast('Bitte einen Titel eingeben', 'error'); return; }
+  const btn = $('broadcast-send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Wird gesendet…'; }
+  try {
+    const res = await apiCall('/admin/broadcast', 'POST', { title, body, imageUrl, entityUrl });
+    closeBroadcastModal();
+    toast(`📢 Nachricht an ${res.sent} Nutzer gesendet`, 'success');
+  } catch(e) {
+    toast('Fehler beim Senden', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Senden'; }
+  }
+}
+// ── END BROADCAST MODAL ──────────────────────────────────
+
 // ── GLOBAL EXPORTS für onclick-Handler im HTML ───────────
 // ES-Module haben ihren eigenen Scope; onclick="fn()" braucht window.fn
 Object.assign(window, {
@@ -2990,7 +3473,8 @@ Object.assign(window, {
   switchFolder, switchAlbum, switchToUser,
   toast,
   // Upload Modal
-  openModal, closeModal, handleFiles,
+  openModal, closeModal, handleFiles, startUpload, _removeStagedFile,
+  openRenameGroupInline, closeRenameGroupInline, saveGroupRename,
   // Gallery
   loadMore, toggleSelectMode, toggleCardSelect, switchView,
   openLB, doLike,
@@ -3027,6 +3511,9 @@ Object.assign(window, {
   openSS, toggleSS, ssChangeSpeed,
   // Misc
   toggleDarkMode, changeSort,
+  // Notifications
+  toggleNotifPanel, markAllNotificationsRead, deleteAllNotifications, saveNotifPrefs, toggleNotifPrefs, _notifClick, _notifMarkRead, _notifDelete,
+  openBroadcastModal, closeBroadcastModal, sendBroadcast,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)
   $,
   onThumbLoad,

@@ -1,4 +1,5 @@
 // Albums Routes: GET, POST, PATCH, DELETE /api/albums
+import { createNotification } from '../utils/notifications.js';
 export default async function albumsRoutes(fastify) {
 
   // Helper: prüft ob User Admin ist
@@ -81,6 +82,25 @@ export default async function albumsRoutes(fastify) {
         data: { name, groupId, createdBy: request.user.id },
         include: { _count: { select: { photos: true } }, contributors: true },
       });
+
+      // Alle Gruppenmitglieder außer dem Ersteller benachrichtigen
+      const members = await fastify.prisma.groupMember.findMany({
+        where: { groupId },
+        select: { userId: true },
+      });
+      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
+      const creator = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+      const creatorName = creator?.name || creator?.username || 'Jemand';
+      for (const { userId } of members) {
+        if (userId !== request.user.id) {
+          createNotification(fastify.prisma, {
+            userId, type: 'newAlbum',
+            title: `Neues Album in „${group?.name || groupId}"`,
+            body: `${creatorName} hat das Album „${name}" erstellt.`,
+            entityId: album.id, entityType: 'album',
+          }).catch(() => {});
+        }
+      }
 
       return { ...album, contributors: [] };
     } catch (err) {
@@ -200,6 +220,14 @@ export default async function albumsRoutes(fastify) {
         select: { id: true, name: true, username: true, color: true, avatar: true },
       });
 
+      // Notification an neuen Contributor
+      createNotification(fastify.prisma, {
+        userId, type: 'contributorAdded',
+        title: `Du kannst jetzt zum Album „${album.name}" beitragen`,
+        body: `Du wurdest als Contributor hinzugefügt.`,
+        entityId: album.id, entityType: 'album',
+      }).catch(() => {});
+
       return {
         ...user,
         avatar: user.avatar && !user.avatar.startsWith('/api/') ? `/api/auth/avatar/${user.id}` : user.avatar,
@@ -226,6 +254,14 @@ export default async function albumsRoutes(fastify) {
       await fastify.prisma.albumContributor.deleteMany({
         where: { albumId: album.id, userId: request.params.userId },
       });
+
+      // Notification an entfernten Contributor
+      createNotification(fastify.prisma, {
+        userId: request.params.userId, type: 'contributorRemoved',
+        title: `Contributor-Zugang zu „${album.name}" entzogen`,
+        body: `Du kannst nicht mehr zum Album beitragen.`,
+        entityId: album.id, entityType: 'album',
+      }).catch(() => {});
 
       return { status: 'removed' };
     } catch (err) {
