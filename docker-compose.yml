@@ -23,6 +23,12 @@ services:
       MINIO_BUCKET_PHOTOS: ${MINIO_BUCKET_PHOTOS:-photos}
       MINIO_BUCKET_AVATARS: ${MINIO_BUCKET_AVATARS:-avatars}
       MINIO_BUCKET_BACKUPS: ${MINIO_BUCKET_BACKUPS:-backups}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-Franks Fotoalbum}
     depends_on:
       postgres:
         condition: service_healthy
