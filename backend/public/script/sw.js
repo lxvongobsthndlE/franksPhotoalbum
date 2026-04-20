@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fotoalbum-v5';
+const CACHE_NAME = 'fotoalbum-v6';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -27,6 +27,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   
+  // SSE-Streams: komplett ignorieren, nicht intercepten
+  if (url.pathname.startsWith('/api/notifications/stream')) {
+    return;
+  }
+
   // API-Requests: Nicht cachen (immer frisch vom Server)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(event.request));

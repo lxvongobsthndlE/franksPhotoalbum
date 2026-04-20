@@ -25,6 +25,7 @@
     "fastify": "^4.25.0",
     "jwt-decode": "^4.0.0",
     "minio": "^8.0.7",
+    "nodemailer": "^8.0.5",
     "openid-client": "^6.8.3",
     "pg": "^8.11.0",
     "prisma": "^5.7.0"

@@ -1,4 +1,5 @@
 // Likes Routes
+import { createNotification } from '../utils/notifications.js';
 export default async function likesRoutes(fastify) {
   // POST /api/likes (Like hinzufügen, protected)
   fastify.post('/', async (request, reply) => {
@@ -30,6 +31,19 @@ export default async function likesRoutes(fastify) {
           userId: request.user.id
         }
       });
+
+      // Foto-Owner benachrichtigen (nicht sich selbst)
+      const photo = await fastify.prisma.photo.findUnique({ where: { id: photoId }, select: { uploaderId: true } });
+      if (photo && photo.uploaderId !== request.user.id) {
+        const liker = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+        const likerName = liker?.name || liker?.username || 'Jemand';
+        createNotification(fastify.prisma, {
+          userId: photo.uploaderId, type: 'photoLiked',
+          title: 'Jemand mag dein Foto',
+          body: `${likerName} hat dein Foto geliked.`,
+          entityId: photoId, entityType: 'photo',
+        }).catch(() => {});
+      }
       
       return { status: 'liked', like };
     } catch (err) {

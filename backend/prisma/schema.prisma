@@ -26,6 +26,8 @@ model User {
   likes              Like[]
   albumContributions AlbumContributor[]
   groupDeputies      GroupDeputy[]
+  notifications      Notification[]
+  notifPreference    NotificationPreference?
 }
 
 model Group {
@@ -144,4 +146,57 @@ model GroupBackup {
   linkExpiry    DateTime
 
   @@map("group_backups")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // deputyAdded | deputyRemoved | contributorAdded | contributorRemoved | groupMemberJoined | groupMemberLeft | groupDeleted | photoLiked | photoCommented | newPhoto | newAlbum
+  title       String
+  body        String
+  entityId    String?  // ID des betroffenen Objekts (Photo, Group, Album...)
+  entityType  String?  // "group" | "photo" | "album" | "external"
+  imageUrl    String?  // Optionale Bild-URL für Vorschau in der Benachrichtigung
+  entityUrl   String?  // Optionale externe URL für Navigation
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model NotificationPreference {
+  userId String @id
+
+  // In-App Einstellungen
+  inApp_deputyAdded          Boolean @default(true)
+  inApp_deputyRemoved        Boolean @default(true)
+  inApp_contributorAdded     Boolean @default(true)
+  inApp_contributorRemoved   Boolean @default(true)
+  inApp_groupMemberJoined    Boolean @default(true)
+  inApp_groupMemberLeft      Boolean @default(true)
+  inApp_groupDeleted         Boolean @default(true)
+  inApp_photoLiked           Boolean @default(true)
+  inApp_photoCommented       Boolean @default(true)
+  inApp_newPhoto             Boolean @default(true)
+  inApp_newAlbum             Boolean @default(true)
+  inApp_system               Boolean @default(true)
+
+  // E-Mail Einstellungen
+  email_deputyAdded          Boolean @default(true)
+  email_deputyRemoved        Boolean @default(false)
+  email_contributorAdded     Boolean @default(true)
+  email_contributorRemoved   Boolean @default(false)
+  email_groupMemberJoined    Boolean @default(false)
+  email_groupMemberLeft      Boolean @default(false)
+  email_groupDeleted         Boolean @default(true)
+  email_photoLiked           Boolean @default(false)
+  email_photoCommented       Boolean @default(false)
+  email_newPhoto             Boolean @default(false)
+  email_newAlbum             Boolean @default(false)
+  email_system               Boolean @default(false)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

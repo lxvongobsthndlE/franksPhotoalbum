@@ -1,5 +1,6 @@
 // Groups Routes
 import { createGroupBackupZip, deleteGroupPhotoObjects, deleteBackupObject, getBackupStream, getBackupStat } from '../utils/storage.js';
+import { createNotification } from '../utils/notifications.js';
 
 export default async function groupsRoutes(fastify) {
   // GET /api/groups/my - Gibt die Gruppen des eingeloggten Users zurück.
@@ -92,10 +93,51 @@ export default async function groupsRoutes(fastify) {
         });
       }
 
+      // Notification an Gruppen-Owner
+      const ownerId = group.createdBy;
+      if (ownerId && ownerId !== request.user.id) {
+        const joiner = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+        const joinerName = joiner?.name || joiner?.username || 'Jemand';
+        createNotification(fastify.prisma, {
+          userId: ownerId, type: 'groupMemberJoined',
+          title: `Neues Mitglied in „${group.name}"`,
+          body: `${joinerName} ist der Gruppe beigetreten.`,
+          entityId: group.id, entityType: 'group',
+        }).catch(() => {});
+      }
+
       return { group };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Beitritt fehlgeschlagen' });
+    }
+  });
+
+  // PATCH /api/groups/:id - Gruppe umbenennen (nur Owner)
+  fastify.patch('/:id', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = request.user.id;
+      const groupId = request.params.id;
+      const { name } = request.body;
+      if (!name?.trim()) return reply.code(400).send({ error: 'Name erforderlich' });
+
+      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { createdBy: true } });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (group.createdBy !== userId && user?.role !== 'admin') {
+        return reply.code(403).send({ error: 'Nur der Owner kann die Gruppe umbenennen' });
+      }
+
+      const updated = await fastify.prisma.group.update({
+        where: { id: groupId },
+        data: { name: name.trim() },
+      });
+      return { group: updated };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Umbenennen fehlgeschlagen' });
     }
   });
 
@@ -147,6 +189,18 @@ export default async function groupsRoutes(fastify) {
       });
       // Auch als Deputy entfernen
       await fastify.prisma.groupDeputy.deleteMany({ where: { groupId, userId } });
+
+      // Notification an Gruppen-Owner
+      if (group?.createdBy && group.createdBy !== userId) {
+        const leaver = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { name: true, username: true } });
+        const leaverName = leaver?.name || leaver?.username || 'Jemand';
+        createNotification(fastify.prisma, {
+          userId: group.createdBy, type: 'groupMemberLeft',
+          title: `Mitglied hat „${group.name}" verlassen`,
+          body: `${leaverName} hat die Gruppe verlassen.`,
+          entityId: groupId, entityType: 'group',
+        }).catch(() => {});
+      }
 
       return { ok: true };
     } catch (err) {
@@ -436,6 +490,12 @@ export default async function groupsRoutes(fastify) {
         });
       }
 
+      // Mitglieder-Liste vor dem Löschen für Notifications holen
+      const groupMembers = await fastify.prisma.groupMember.findMany({
+        where: { groupId: request.params.id },
+        select: { userId: true },
+      });
+
       // Cascade: DB-Einträge löschen
       await fastify.prisma.like.deleteMany({ where: { photo: { groupId: request.params.id } } });
       await fastify.prisma.comment.deleteMany({ where: { photo: { groupId: request.params.id } } });
@@ -447,6 +507,17 @@ export default async function groupsRoutes(fastify) {
 
       // MinIO-Foto-Objekte bereinigen
       await deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean));
+
+      // Notifications an alle Mitglieder (fire-and-forget)
+      const groupNameStr = group?.name || '?';
+      for (const { userId } of groupMembers) {
+        createNotification(fastify.prisma, {
+          userId, type: 'groupDeleted',
+          title: `Gruppe „${groupNameStr}" wurde gelöscht`,
+          body: `Ein Administrator hat die Gruppe gelöscht. Deine Fotos wurden gesichert.`,
+          entityType: 'group',
+        }).catch(() => {});
+      }
 
       return { status: 'deleted', backupUrl, count: photos.length, linkExpiry: photos.length > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null };
     } catch (err) {
@@ -519,6 +590,14 @@ export default async function groupsRoutes(fastify) {
         select: { id: true, name: true, username: true, color: true, avatar: true },
       });
 
+      // Notification an ernannten Deputy
+      createNotification(fastify.prisma, {
+        userId, type: 'deputyAdded',
+        title: `Du bist jetzt Vertreter in „${group.name}"`,
+        body: `Du wurdest als Vertreter ernannt und hast erweiterte Rechte in dieser Gruppe.`,
+        entityId: group.id, entityType: 'group',
+      }).catch(() => {});
+
       return {
         ...user,
         avatar: user.avatar && !user.avatar.startsWith('/api/') ? `/api/auth/avatar/${user.id}` : user.avatar,
@@ -546,6 +625,14 @@ export default async function groupsRoutes(fastify) {
       await fastify.prisma.groupDeputy.deleteMany({
         where: { groupId: request.params.id, userId: request.params.userId },
       });
+
+      // Notification an entfernten Deputy
+      createNotification(fastify.prisma, {
+        userId: request.params.userId, type: 'deputyRemoved',
+        title: `Vertreter-Rolle in „${group.name}" entzogen`,
+        body: `Du bist nicht mehr Vertreter dieser Gruppe.`,
+        entityId: group.id, entityType: 'group',
+      }).catch(() => {});
 
       return { status: 'removed' };
     } catch (err) {

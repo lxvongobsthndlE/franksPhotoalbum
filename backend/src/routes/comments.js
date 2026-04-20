@@ -1,4 +1,5 @@
 // Comments Routes
+import { createNotification } from '../utils/notifications.js';
 export default async function commentsRoutes(fastify) {
   // POST /api/comments (Neuer Kommentar, protected)
   fastify.post('/', async (request, reply) => {
@@ -18,6 +19,18 @@ export default async function commentsRoutes(fastify) {
         },
         include: { user: true }
       });
+
+      // Foto-Owner benachrichtigen (nicht sich selbst)
+      const photo = await fastify.prisma.photo.findUnique({ where: { id: photoId }, select: { uploaderId: true } });
+      if (photo && photo.uploaderId !== request.user.id) {
+        const commenterName = comment.user?.name || comment.user?.username || 'Jemand';
+        createNotification(fastify.prisma, {
+          userId: photo.uploaderId, type: 'photoCommented',
+          title: 'Neuer Kommentar auf dein Foto',
+          body: `${commenterName}: „${content.length > 80 ? content.slice(0, 80) + '…' : content}"`,
+          entityId: photoId, entityType: 'photo',
+        }).catch(() => {});
+      }
       
       return comment;
     } catch (err) {
