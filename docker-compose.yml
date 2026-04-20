@@ -29,6 +29,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-Franks Fotoalbum}
+      DEV_MAIL_CATCHALL: ${DEV_MAIL_CATCHALL:-}
     depends_on:
       postgres:
         condition: service_healthy
