@@ -120,8 +120,34 @@ await app.register(fastifyStatic, {
 const start = async () => {
   try {
     await initStorage();
-    await app.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' });
-    console.log(`Server läuft auf Port ${process.env.PORT || 3000}`);
+    const port = process.env.PORT || 3000;
+    const env  = process.env.NODE_ENV || 'development';
+    await app.listen({ port, host: '0.0.0.0' });
+    const isProd = env === 'production';
+
+    const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
+    const oidcConfigured = !!(process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID);
+    const catchAll       = process.env.DEV_MAIL_CATCHALL;
+
+    const row  = (label, value) => `  ${label.padEnd(12)}: ${value}`;
+    const lines = [
+      row('Umgebung', env),
+      row('Port', String(port)),
+      row('OIDC', oidcConfigured ? process.env.OIDC_ISSUER : '(nicht konfiguriert)'),
+      smtpConfigured ? row('SMTP', process.env.SMTP_HOST) : row('SMTP', '(nicht konfiguriert)'),
+      smtpConfigured ? row('SMTP-User', process.env.SMTP_USER) : null,
+      smtpConfigured && !isProd ? row('DEV-Mail', catchAll ? `-> ${catchAll}` : '(kein Versand - kein Catch-All)') : null,
+    ].filter(Boolean);
+    const width = Math.max(28, ...lines.map(l => l.length));
+    const sep   = '='.repeat(width);
+
+    console.log('');
+    console.log(sep);
+    console.log('  Franks Fotoalbum Backend');
+    console.log(sep);
+    lines.forEach(l => console.log(l));
+    console.log(sep);
+    console.log('');
   } catch (err) {
     app.log.error(err);
     process.exit(1);

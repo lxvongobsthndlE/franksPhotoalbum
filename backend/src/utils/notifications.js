@@ -41,19 +41,29 @@ function getTransporter() {
   return _transporter;
 }
 
+// Gibt die tatsächliche Empfängeradresse zurück.
+// Im DEV-Modus ohne DEV_MAIL_CATCHALL wird null zurückgegeben → kein Versand.
+// Alle DEV-Versandentscheidungen werden hier getroffen; sendNotificationEmail
+// wertet nur noch den Rückgabewert aus.
 function resolveEmailAddress(email) {
   if (process.env.NODE_ENV === 'production') return email;
+  const catchAll = process.env.DEV_MAIL_CATCHALL; // z.B. "dev@example.de" oder "${local}@catchall.example.de"
+  if (!catchAll) return null; // DEV ohne Catch-All → kein Versand
   const localPart = email.split('@')[0];
-  return `ta-ff-dev-${localPart}@lxvongobsthndl.dev`;
+  return catchAll.includes('${local}')
+    ? catchAll.replace('${local}', localPart)
+    : catchAll;
 }
 
 async function sendNotificationEmail(user, { title, body, entityUrl }) {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return; // SMTP nicht konfiguriert
+  const isProd = process.env.NODE_ENV === 'production';
   const to = resolveEmailAddress(user.email);
+  if (!to) return; // DEV ohne Catch-All → kein Versand
+  const isRedirected = !isProd && to !== user.email;
   const fromEmail = process.env.SMTP_USER;
   const fromName  = process.env.SMTP_FROM || 'Franks Fotoalbum';
   const from = `"${fromName}" <${fromEmail}>`;
-  const isProd = process.env.NODE_ENV === 'production';
   const html = `
 <!DOCTYPE html>
 <html lang="de">
@@ -88,7 +98,7 @@ async function sendNotificationEmail(user, { title, body, entityUrl }) {
             Du kannst diese Einstellung jederzeit in deinem
             <strong style="color:#8a6a4a">Profil → Benachrichtigungen</strong> anpassen.
           </p>
-          ${!isProd ? `<p style="margin:8px 0 0;font-size:11px;color:#b8a898;font-style:italic">DEV-Modus — eigentlicher Empfänger: ${user.email}</p>` : ''}
+          ${isRedirected ? `<p style="margin:8px 0 0;font-size:11px;color:#b8a898;font-style:italic">DEV-Modus — eigentlicher Empfänger: ${user.email}</p>` : ''}
         </td></tr>
 
       </table>
@@ -103,7 +113,7 @@ async function sendNotificationEmail(user, { title, body, entityUrl }) {
       to,
       subject: title,
       html,
-      headers: !isProd ? { 'X-Original-To': user.email } : {},
+      headers: isRedirected ? { 'X-Original-To': user.email } : {},
     });
   } catch (err) {
     console.error('[notifications] E-Mail-Fehler:', err.message);

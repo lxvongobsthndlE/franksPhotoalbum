@@ -60,9 +60,16 @@ E-Mails werden per **nodemailer** versendet. Konfiguration über SMTP-Umgebungsv
 
 Falls `SMTP_HOST` nicht gesetzt ist, wird kein E-Mail-Versand versucht.
 
-**DEV-Modus:** Im `development`-Modus werden E-Mails an eine Catch-All-Adresse umgeleitet:  
-`ta-ff-dev-<lokalerTeil>@lxvongobsthndl.dev`  
-Der ursprüngliche Empfänger steht im `X-Original-To`-Header.
+**DEV-Modus:** Im `development`-Modus steuert `DEV_MAIL_CATCHALL` den E-Mail-Versand:
+
+| `DEV_MAIL_CATCHALL` | Verhalten |
+|---|---|
+| nicht gesetzt oder leer | **kein E-Mail-Versand** im DEV-Modus |
+| `dev@example.de` | alle Mails gehen an diese eine Adresse |
+| `${local}-dev@catchall.example.de` | lokaler Teil der Original-Adresse wird eingesetzt, z. B. `max-dev@catchall.example.de` |
+
+> **Hinweis:** In `.env`-Dateien und insbesondere in `docker-compose`/Compose kann `${local}` als Interpolationssyntax ausgewertet werden. Wenn der Platzhalter **wörtlich** im Container ankommen soll, je nach Setup z. B. als `$${local}-dev@catchall.example.de` escapen oder die Variable auf einem Weg setzen, der keine Compose-Interpolation ausführt.
+In Produktion (`NODE_ENV=production`) wird `DEV_MAIL_CATCHALL` ignoriert und Mails gehen an die echten Adressen.
 
 ---
 

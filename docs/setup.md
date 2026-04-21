@@ -172,6 +172,7 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker Compose)
 | `SMTP_USER` | Benutzername / Absende-Adresse | – |
 | `SMTP_PASS` | Passwort | – |
 | `SMTP_FROM` | Anzeigename des Absenders | `Franks Fotoalbum` |
+| `DEV_MAIL_CATCHALL` | Catch-All-Adresse für DEV-Modus (optional). Ohne Wert: kein E-Mail-Versand im DEV-Modus. Mit `${local}` als Platzhalter für den lokalen Teil der Originaladresse. | `${local}-dev@catchall.example.de` |
 
 > Falls `SMTP_HOST` nicht gesetzt ist, wird kein E-Mail-Versand versucht.
 
