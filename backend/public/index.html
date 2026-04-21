@@ -140,8 +140,9 @@
       </span>
       Franks <span>Fotoalbum</span><small id="header-group-name">Gemeinsame Erinnerungen</small>
     </div>
-    <div id="group-switcher-wrap"></div>
+    <span id="hname" style="display:none"></span>
     <div class="user-pill">
+      <div id="group-switcher-wrap"></div>
       <!-- Bell Notification Button -->
       <button class="notif-bell-btn" id="notif-bell-btn" onclick="toggleNotifPanel()" aria-label="Benachrichtigungen">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -152,9 +153,7 @@
       </button>
       <button class="profile-btn" onclick="openProfileModal()">
         <div class="av" id="hav"></div>
-        <span class="uname" id="hname"></span>
       </button>
-      <button class="logout-btn" onclick="doLogout()">Abmelden</button>
     </div>
   </header>
 
@@ -188,10 +187,9 @@
         <input id="broadcast-title" class="broadcast-input" type="text" maxlength="120" placeholder="z.B. Wartung am Samstag" />
         <label class="broadcast-label" style="margin-top:10px">Nachricht (optional)</label>
         <textarea id="broadcast-body" class="broadcast-input broadcast-textarea" maxlength="500" rows="3" placeholder="Weitere Details..."></textarea>
-        <label class="broadcast-label" style="margin-top:10px">Bild-URL (optional)</label>
-        <input id="broadcast-imageurl" class="broadcast-input" type="url" maxlength="500" placeholder="https://… (wird als Vorschau angezeigt)" />
-        <label class="broadcast-label" style="margin-top:10px">Link-URL (optional)</label>
-        <input id="broadcast-linkurl" class="broadcast-input" type="url" maxlength="500" placeholder="https://… (beim Klick geöffnet)" />
+        <label class="broadcast-label" style="margin-top:10px">Bild-ID oder Link (optional)</label>
+        <input id="broadcast-attachment" class="broadcast-input" type="text" maxlength="500" placeholder="Bild-ID (z.B. abc123) oder https://…" oninput="renderBroadcastAttachmentPreview()" />
+        <div id="broadcast-attachment-preview" style="margin-top:8px;min-height:0"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeBroadcastModal()" style="padding:8px 16px;font-size:13px">Abbrechen</button>
@@ -318,11 +316,12 @@
           <span id="lb-like-count">0</span> Gefällt mir
         </button>
         <div id="lb-likers" onclick="showLikersList()" style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5;cursor:pointer"></div>
-        <div style="display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--border);padding-top:10px" id="lb-action-btns">
-          <button class="lb-act-btn down" id="lb-down-btn" onclick="downloadPhoto()"></button>
-          <button class="lb-act-btn album" id="lb-album-btn" onclick="openAlbumPicker()"></button>
-          <button class="lb-act-btn del hidden" id="lb-del-btn" onclick="askDel(null,true)"></button>
-          <button class="lb-act-btn" id="lb-full-btn" onclick="toggleFullview()" style="color:var(--muted2)"></button>
+        <div class="lb-action-btns" id="lb-action-btns">
+          <button class="lb-act-btn" id="lb-down-btn" onclick="downloadPhoto()" title="Herunterladen"></button>
+          <button class="lb-act-btn" id="lb-album-btn" onclick="openAlbumPicker()" title="Album"></button>
+          <button class="lb-act-btn" id="lb-full-btn" onclick="toggleFullview()" title="Vollbild"></button>
+          <button class="lb-act-btn del hidden" id="lb-del-btn" onclick="askDel(null,true)" title="Löschen"></button>
+          <button class="lb-act-btn lb-copy-id hidden" id="lb-copy-id-btn" onclick="copyCurrentImageId()" title="Bild-ID kopieren"></button>
         </div>
         <div id="lb-album-tag" style="margin-top:8px;display:none"></div>
       </div>
@@ -383,18 +382,23 @@
       </div>
       <input type="file" id="avatar-fi" accept="image/*" style="display:none" onchange="uploadAvatar(this.files[0])">
       <div id="avatar-msg" class="msg hidden"></div>
+      <!-- ── ANZEIGENAME ── -->
+      <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:4px">
+        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Anzeigename</label>
+        <div id="displayname-btns"></div>
+        <div id="displayname-msg" class="msg hidden" style="margin-top:8px"></div>
+        <p id="displayname-hint" style="font-size:11px;color:var(--muted);margin-top:6px;font-weight:300;text-align:center">Wähle, welcher Name in der App für dich angezeigt wird.</p>
+        <a href="#" onclick="event.preventDefault();window.open(window.APP_CONFIG.authentikBase+'/if/user/#/settings','_blank','noopener noreferrer')" rel="noopener noreferrer"
+          style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--accent);text-decoration:none;font-weight:500;margin-top:8px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+          Name, Benutzername oder E-Mail in Authentik ändern
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+        <p style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:300;text-align:center">Änderungen werden beim nächsten Login übernommen.</p>
+      </div>
       <div class="profile-color-section">
         <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Meine Farbe</label>
         <div class="color-swatches" id="color-swatches"></div>
-      </div>
-      <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:4px">
-        <a href="#" onclick="event.preventDefault();window.open(window.APP_CONFIG.authentikBase+'/if/user/#/settings','_blank','noopener noreferrer')" rel="noopener noreferrer"
-          style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--accent);text-decoration:none;font-weight:500">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
-          Account in Authentik bearbeiten (Name, Benutzername, E-Mail)
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;opacity:.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        </a>
-        <p style="font-size:11px;color:var(--muted);margin-top:6px;font-weight:300;text-align:center">Änderungen in Authentik werden beim nächsten Login übernommen.</p>
       </div>
 
       <!-- ── NOTIFICATION PREFERENCES ── -->

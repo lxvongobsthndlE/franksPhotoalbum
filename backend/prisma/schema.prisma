@@ -17,6 +17,7 @@ model User {
   name      String?
   color     String?
   avatar    String?
+  displayNameField String? @default("name") // "name" oder "username"
   role      String   @default("user") // "user" oder "admin"
   createdAt DateTime @default(now())
   

@@ -232,7 +232,8 @@ export default async function authRoutes(fastify) {
           name: user.name,
           role: user.role,
           color: user.color,
-          avatar: normalizeAvatarUrl(user.avatar, user.id)
+          avatar: normalizeAvatarUrl(user.avatar, user.id),
+          displayNameField: user.displayNameField || 'name'
         },
         groups: user.groups.map(gm => gm.group)
       };
@@ -299,20 +300,30 @@ export default async function authRoutes(fastify) {
     }
   });
 
-  // PATCH /api/auth/profile - Profil aktualisieren (Farbe etc.)
+  // PATCH /api/auth/profile - Profil aktualisieren (Farbe, Anzeigename)
   fastify.patch('/profile', async (request, reply) => {
     try {
       await request.jwtVerify();
       const userId = request.user.id;
-      const { color } = request.body;
-      if (!color || !/^#[0-9a-fA-F]{3,8}$/.test(color)) {
-        return reply.code(400).send({ error: 'Ungültige Farbe' });
+      const { color, displayNameField } = request.body;
+      const data = {};
+      if (color !== undefined) {
+        if (!/^#[0-9a-fA-F]{3,8}$/.test(color)) {
+          return reply.code(400).send({ error: 'Ungültige Farbe' });
+        }
+        data.color = color;
       }
-      await fastify.prisma.user.update({
-        where: { id: userId },
-        data: { color }
-      });
-      return { ok: true, color };
+      if (displayNameField !== undefined) {
+        if (displayNameField !== 'name' && displayNameField !== 'username') {
+          return reply.code(400).send({ error: 'Ungültiger Anzeigename-Modus' });
+        }
+        data.displayNameField = displayNameField;
+      }
+      if (Object.keys(data).length === 0) {
+        return reply.code(400).send({ error: 'Keine Änderungen angegeben' });
+      }
+      await fastify.prisma.user.update({ where: { id: userId }, data });
+      return { ok: true, ...data };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Profil konnte nicht gespeichert werden' });
