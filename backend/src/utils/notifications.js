@@ -41,10 +41,14 @@ function getTransporter() {
   return _transporter;
 }
 
+// Gibt die tatsächliche Empfängeradresse zurück.
+// Im DEV-Modus ohne DEV_MAIL_CATCHALL wird null zurückgegeben → kein Versand.
+// Alle DEV-Versandentscheidungen werden hier getroffen; sendNotificationEmail
+// wertet nur noch den Rückgabewert aus.
 function resolveEmailAddress(email) {
   if (process.env.NODE_ENV === 'production') return email;
   const catchAll = process.env.DEV_MAIL_CATCHALL; // z.B. "dev@example.de" oder "${local}@catchall.example.de"
-  if (!catchAll) return email; // kein Catch-All → echte Adresse
+  if (!catchAll) return null; // DEV ohne Catch-All → kein Versand
   const localPart = email.split('@')[0];
   return catchAll.includes('${local}')
     ? catchAll.replace('${local}', localPart)
@@ -54,8 +58,8 @@ function resolveEmailAddress(email) {
 async function sendNotificationEmail(user, { title, body, entityUrl }) {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return; // SMTP nicht konfiguriert
   const isProd = process.env.NODE_ENV === 'production';
-  if (!isProd && !process.env.DEV_MAIL_CATCHALL) return; // DEV ohne Catch-All → kein Versand
   const to = resolveEmailAddress(user.email);
+  if (!to) return; // DEV ohne Catch-All → kein Versand
   const isRedirected = !isProd && to !== user.email;
   const fromEmail = process.env.SMTP_USER;
   const fromName  = process.env.SMTP_FROM || 'Franks Fotoalbum';
