@@ -468,7 +468,7 @@ export default async function groupsRoutes(fastify) {
   fastify.delete('/admin/:id', async (request, reply) => {
     if (!await requireAdmin(request, reply)) return;
     try {
-      const group = await fastify.prisma.group.findUnique({ where: { id: request.params.id }, select: { name: true } });
+      const group = await fastify.prisma.group.findUnique({ where: { id: request.params.id }, select: { name: true, createdBy: true } });
       // Fotos vor dem Löschen laden (für ZIP + MinIO-Cleanup)
       const photos = await fastify.prisma.photo.findMany({
         where: { groupId: request.params.id },
@@ -503,19 +503,27 @@ export default async function groupsRoutes(fastify) {
       await fastify.prisma.album.deleteMany({ where: { groupId: request.params.id } });
       await fastify.prisma.groupDeputy.deleteMany({ where: { groupId: request.params.id } });
       await fastify.prisma.groupMember.deleteMany({ where: { groupId: request.params.id } });
-      await fastify.prisma.group.delete({ where: { id: request.params.id } });
+      await fastify.prisma.group.deleteMany({ where: { id: request.params.id } });
 
       // MinIO-Foto-Objekte bereinigen
       await deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean));
 
       // Notifications an alle Mitglieder (fire-and-forget)
       const groupNameStr = group?.name || '?';
+      const ownerId = group?.createdBy || null;
       for (const { userId } of groupMembers) {
+        const isOwner = userId === ownerId;
+        const notifBody = backupUrl && isOwner
+          ? `Ein Administrator hat die Gruppe gelöscht. Deine Fotos wurden gesichert und können heruntergeladen werden.`
+          : backupUrl
+            ? `Ein Administrator hat die Gruppe gelöscht. Die Fotos wurden gesichert.`
+            : `Ein Administrator hat die Gruppe gelöscht. Es waren keine Fotos vorhanden.`;
         createNotification(fastify.prisma, {
           userId, type: 'groupDeleted',
           title: `Gruppe „${groupNameStr}" wurde gelöscht`,
-          body: `Ein Administrator hat die Gruppe gelöscht. Deine Fotos wurden gesichert.`,
+          body: notifBody,
           entityType: 'group',
+          entityUrl: isOwner ? (backupUrl || undefined) : undefined,
         }).catch(() => {});
       }
 

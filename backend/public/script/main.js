@@ -176,6 +176,11 @@ async function startApp() {
   
   // Set user profile UI
   meProfile = me;
+  // Freeze original OIDC values so toggle buttons always have correct labels
+  me._origName     = me.name;
+  me._origUsername = me.username;
+  // Apply display-name preference from DB (displayNameField: 'name'|'username')
+  if (me.displayNameField === 'username' && me.username) meProfile.name = me.username;
   const avElement = $('hav');
   if (avElement) {
     if (me.avatar) {
@@ -423,12 +428,10 @@ function renderSidebar() {
       <span class="fn">Backups verwalten</span>
     </button>` : ''}
     <div class="sb-div"></div>
-    <div style="padding:6px 14px;display:flex;align-items:center;gap:8px">
-      <button class="theme-btn" id="theme-btn" onclick="toggleDarkMode()" title="Dark Mode" style="width:32px;height:32px">
-        <svg id="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
-      <span style="font-size:12px;color:var(--muted);font-weight:400">Nachtmodus</span>
-    </div>
+    <button class="fb" onclick="toggleDarkMode()" id="theme-btn" title="Dark Mode">
+      <span class="fi"><svg id="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+      <span class="fn">Nachtmodus</span>
+    </button>
   `;
   loadSidebarAvatars();
   // Load counts asynchronously (don't block sidebar rendering)
@@ -439,24 +442,20 @@ function renderSidebar() {
     console.warn('Error fetching sidebar counts:', e);
   }
   updateThemeIcon();
-  // Only on mobile: append profile + logout + groups at bottom of sidebar
-  if (window.innerWidth <= 900) {
-    const sb2 = $('sidebar');
-    const div = document.createElement('div');
-    div.id = 'sb-mobile-extra';
-    div.innerHTML = `
-      <div class="sb-div">
-      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <button class="sb-profile-btn" onclick="openProfileModal();closeSidebar()" style="flex:1">
-            <div class="av" style="background:${meProfile.color};width:32px;height:32px;font-size:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;border-radius:50%;overflow:hidden">${avatarHtml(meProfile, 32)}</div>
-            <span>${esc(meProfile.name)}</span>
-          </button>
-        </div>
-        <button class="sb-logout-btn" onclick="doLogout()" style="width:100%;text-align:center">Abmelden</button>
-      </div>`;
-    sb2.appendChild(div);
-  }
+  // Sidebar footer: always show profile + logout at bottom
+  const sb2 = $('sidebar');
+  const footerDiv = document.createElement('div');
+  footerDiv.id = 'sb-mobile-extra';
+  footerDiv.innerHTML = `
+    <div class="sb-footer">
+      <div class="sb-div" style="margin:0 4px 2px"></div>
+      <button class="sb-profile-btn" onclick="openProfileModal();closeSidebar()">
+        <div class="av" style="background:${meProfile.color};width:32px;height:32px;font-size:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;border-radius:50%;overflow:hidden">${avatarHtml(meProfile, 32)}</div>
+        <span>${esc(meProfile.name)}</span>
+      </button>
+      <button class="sb-logout-btn" onclick="doLogout()">Abmelden</button>
+    </div>`;
+  sb2.appendChild(footerDiv);
 }
 
 async function fetchAlbumCount(albumId) {
@@ -1030,11 +1029,14 @@ async function openLB(i) {
   $('lb-nxt').style.display=i<photos.length-1?'':'none';
   // Action buttons
   const d=$('lb-del-btn');
-  if(d){ d.innerHTML=ICON_TRASH+' Löschen'; p.uploaderId===me.id?d.classList.remove('hidden'):d.classList.add('hidden'); }
-  const dn=$('lb-down-btn'); if(dn) dn.innerHTML=ICON_DOWNLOAD+' Herunterladen';
-  const ab=$('lb-album-btn'); if(ab) ab.innerHTML=`${ICON_ALBUM} Album`;
+  if(d){ d.innerHTML=ICON_TRASH; p.uploaderId===me.id?d.classList.remove('hidden'):d.classList.add('hidden'); }
+  const dn=$('lb-down-btn'); if(dn) dn.innerHTML=ICON_DOWNLOAD;
+  const ab=$('lb-album-btn'); if(ab) ab.innerHTML=ICON_ALBUM;
   updateFullviewBtn();
   updateLbAlbumTag(p);
+  // Copy Image ID (Admin only)
+  const copyIdBtn = document.getElementById('lb-copy-id-btn');
+  if (copyIdBtn) { copyIdBtn.innerHTML='#ID'; me?.role==='admin'?copyIdBtn.classList.remove('hidden'):copyIdBtn.classList.add('hidden'); }
   // Refresh album_id from API
   try {
     const fresh = await apiCall(`/photos/${p.id}`, 'GET');
@@ -1164,6 +1166,63 @@ function renderComments() {
     </div>`;
   }).join('');
   el.scrollTop=el.scrollHeight;
+}
+
+let _lbMenuOpen = false;
+
+function toggleLbMenu() {
+  if (_lbMenuOpen) { document.getElementById('lb-action-menu')?.remove(); _lbMenuOpen=false; return; }
+  buildLbMenu();
+}
+
+function buildLbMenu() {
+  document.getElementById('lb-action-menu')?.remove();
+  const p = photos[lbIdx];
+  if (!p) return;
+  const isFullview = $('lb').classList.contains('lb-fullview');
+  const canDel = p.uploaderId === me.id;
+  const isAdmin = me?.role === 'admin';
+
+  const items = [
+    { icon: ICON_DOWNLOAD, label: 'Herunterladen', fn: 'downloadPhoto()', cls: '' },
+    { icon: ICON_ALBUM,    label: 'Album',         fn: 'openAlbumPicker()', cls: '' },
+    { icon: isFullview ? ICON_SHRINK : ICON_FULLSCREEN, label: isFullview ? 'Verkleinern' : 'Vollbild', fn: 'toggleFullview()', cls: 'muted' },
+    ...(canDel ? [{ icon: ICON_TRASH, label: 'Löschen', fn: 'askDel(null,true)', cls: 'danger' }] : []),
+    ...(isAdmin ? [{ icon: '', label: '#ID kopieren', fn: 'copyCurrentImageId()', cls: 'muted' }] : []),
+  ];
+
+  const menu = document.createElement('div');
+  menu.id = 'lb-action-menu';
+  menu.className = 'lb-action-menu';
+  menu.innerHTML = items.map(it =>
+    `<button class="lb-action-menu-item ${it.cls}" onclick="closeLbMenu();${it.fn}">${it.icon ? it.icon+'&nbsp;' : ''}${esc(it.label)}</button>`
+  ).join('');
+
+  // Positionieren relativ zum lb-panel-top
+  const panelTop = document.querySelector('.lb-panel-top');
+  if (panelTop) panelTop.appendChild(menu);
+  _lbMenuOpen = true;
+
+  // Schließen bei Klick außerhalb
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!menu.contains(e.target) && e.target !== document.getElementById('lb-more-btn')) {
+        menu.remove(); _lbMenuOpen = false;
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 10);
+}
+
+function closeLbMenu() {
+  document.getElementById('lb-action-menu')?.remove();
+  _lbMenuOpen = false;
+}
+
+function copyCurrentImageId() {
+  const p = photos[lbIdx];
+  if (!p?.id) return;
+  navigator.clipboard.writeText(p.id).then(() => toast('Bild-ID kopiert', 'success'));
 }
 
 function closeLB() { resetZoom(); hide('lb'); hide('ss-bar'); pauseSS(); $('lb').classList.remove('ss-fullscreen'); $('lb').classList.remove('lb-fullview'); document.querySelectorAll('.lb-fullview-hint').forEach(e=>e.remove()); }
@@ -1561,6 +1620,7 @@ async function openProfileModal() {
   const clearBtn = $('clear-avatar-btn');
   if (clearBtn) clearBtn.style.display = meProfile.avatar ? '' : 'none';
   renderColorSwatches();
+  renderDisplayNameBtns();
   hide('avatar-msg');
   // Reset prefs panel to collapsed state
   const col = $('notif-prefs-collapsible');
@@ -1607,6 +1667,58 @@ async function setUserColor(color, previewOnly=false) {
     showMsg('avatar-msg', 'success', '✓ Farbe gespeichert!');
   } catch(e) {
     showMsg('avatar-msg', 'error', 'Fehler beim Speichern der Farbe.');
+  }
+}
+
+function renderDisplayNameBtns() {
+  const wrap = $('displayname-btns');
+  if (!wrap) return;
+  const rawName = me._origName || me.name;
+  const rawUser = me._origUsername || me.username;
+  const current = me.displayNameField || 'name';
+  const hint = $('displayname-hint');
+
+  // Only show toggle if both values exist and are distinct
+  if (!rawName || !rawUser || rawName === rawUser) {
+    const single = rawName || rawUser || '—';
+    wrap.innerHTML = `<div style="width:100%;padding:8px 12px;font-size:13px;font-weight:600;color:var(--text);border:1.5px solid var(--border);border-radius:10px;text-align:center;background:var(--accent);color:#fff">${esc(single)}</div>`;
+    if (hint) hint.style.display = 'none';
+    return;
+  }
+  if (hint) hint.style.display = '';
+  // Render as a segmented toggle group
+  wrap.innerHTML = `
+    <div style="display:flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;width:100%">
+      ${[{ field: 'name', label: rawName }, { field: 'username', label: rawUser }].map(({ field, label }) => `
+        <button
+          onclick="setDisplayName('${field}')"
+          style="flex:1;padding:8px 12px;font-size:13px;font-weight:${field === current ? '600' : '400'};border:none;cursor:pointer;transition:background .15s,color .15s;
+            background:${field === current ? 'var(--accent)' : 'transparent'};
+            color:${field === current ? '#fff' : 'var(--text)'};
+            border-right:${field === 'name' ? '1.5px solid var(--border)' : 'none'}"
+        >${esc(label)}</button>
+      `).join('')}
+    </div>`;
+}
+
+async function setDisplayName(field) {
+  const val = field === 'username' ? (me._origUsername || me.username) : (me._origName || me.name);
+  if (!val) return;
+  try {
+    await apiCall('/auth/profile', 'PATCH', { displayNameField: field });
+    me.displayNameField = field;
+    meProfile.name = val;
+    if (allProfiles[me.id]) allProfiles[me.id].name = val;
+    // Update header
+    const nameElement = $('hname');
+    if (nameElement) nameElement.textContent = val;
+    const hav = $('hav');
+    if (hav && !meProfile.avatar) hav.textContent = val[0].toUpperCase();
+    renderSidebar();
+    renderDisplayNameBtns();
+    showMsg('displayname-msg', 'success', `✓ Anzeigename auf „${esc(val)}" gesetzt.`);
+  } catch(e) {
+    showMsg('displayname-msg', 'error', 'Fehler beim Speichern des Anzeigenamens.');
   }
 }
 
@@ -2968,7 +3080,8 @@ function updateFullviewBtn() {
   const btn = $('lb-full-btn');
   if (!btn) return;
   const isFullview = $('lb').classList.contains('lb-fullview');
-  btn.innerHTML = (isFullview ? ICON_SHRINK : ICON_FULLSCREEN) + (isFullview ? ' Verkleinern' : ' Vollbild');
+  btn.innerHTML = isFullview ? ICON_SHRINK : ICON_FULLSCREEN;
+  btn.title = isFullview ? 'Verkleinern' : 'Vollbild';
 }
 
 // ── EDIT DESCRIPTION ──────────────────────────────────────
@@ -3052,7 +3165,13 @@ async function downloadPhoto() {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/script/sw.js', { scope: '/' })
-      .then(reg => console.log('SW registered:', reg.scope))
+      .then(reg => {
+        console.log('SW registered:', reg.scope);
+        // DEV: Bei localhost bei jedem Seitenaufruf auf Updates prüfen → sofortige Aktivierung
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+          reg.update();
+        }
+      })
       .catch(err => console.log('SW failed:', err));
   });
 }
@@ -3239,7 +3358,12 @@ async function _notifNavigate(item) {
         await switchAlbum(entityId);
       }
     } else if (entityType === 'group') {
-      if (entityId !== curGroupId) await switchGroup(entityId);
+      if (item.type === 'groupDeleted') {
+        // Gruppe existiert nicht mehr — Backup-Link öffnen falls vorhanden
+        if (item.entityUrl) window.open(item.entityUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        if (entityId !== curGroupId) await switchGroup(entityId);
+      }
     } else if (entityType === 'external') {
       if (item.entityUrl) window.open(item.entityUrl, '_blank', 'noopener,noreferrer');
     } else if (item.entityUrl) {
@@ -3430,10 +3554,10 @@ function openBroadcastModal() {
   if (_notifPanelOpen) toggleNotifPanel();
   $('broadcast-title').value = '';
   $('broadcast-body').value = '';
-  const imgInput = $('broadcast-imageurl');
-  const linkInput = $('broadcast-linkurl');
-  if (imgInput) imgInput.value = '';
-  if (linkInput) linkInput.value = '';
+  const attInput = $('broadcast-attachment');
+  if (attInput) attInput.value = '';
+  const prev = $('broadcast-attachment-preview');
+  if (prev) prev.innerHTML = '';
   modal.style.display = '';
   setTimeout(() => $('broadcast-title')?.focus(), 50);
 }
@@ -3443,12 +3567,42 @@ function closeBroadcastModal() {
   if (modal) modal.style.display = 'none';
 }
 
+// Broadcast Attachment Preview
+function renderBroadcastAttachmentPreview() {
+  const attInput = $('broadcast-attachment');
+  const preview = $('broadcast-attachment-preview');
+  if (!attInput || !preview) return;
+  const val = attInput.value.trim();
+  if (!val) { preview.innerHTML = ''; return; }
+  // Bild-ID: 6–36 Zeichen, nur Buchstaben/Zahlen/Bindestrich/Unterstrich (CUID/UUID)
+  if (/^[a-zA-Z0-9_-]{6,36}$/.test(val) && !/^https?:\/\//.test(val)) {
+    const url = photoSrc(`/api/photos/${encodeURIComponent(val)}/file`);
+    preview.innerHTML = `<img src="${url}" alt="Bildvorschau" style="max-width:120px;max-height:80px;border-radius:7px;border:1.5px solid var(--border);box-shadow:var(--shadow1)" onerror="this.parentElement.innerHTML='<span style=\'font-size:12px;color:var(--danger,#e05555)\'>Bild nicht gefunden</span>'"><div style="font-size:11px;color:var(--muted2);margin-top:4px">Bild-ID: <b>${esc(val)}</b></div>`;
+  } else if (/^https?:\/\//.test(val)) {
+    preview.innerHTML = `<a href="${esc(val)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:13px;text-decoration:underline;word-break:break-all">${esc(val)}</a><div style="font-size:11px;color:var(--muted2);margin-top:2px">Wird als Link angezeigt</div>`;
+  } else {
+    preview.innerHTML = `<span style="color:var(--danger,#e05555);font-size:12px">Bild-ID oder https://… URL erwartet</span>`;
+  }
+}
+
 async function sendBroadcast() {
   const title    = $('broadcast-title')?.value?.trim();
   const body     = $('broadcast-body')?.value?.trim();
-  const imageUrl = $('broadcast-imageurl')?.value?.trim() || undefined;
-  const entityUrl = $('broadcast-linkurl')?.value?.trim() || undefined;
+  const att      = $('broadcast-attachment')?.value?.trim();
+  let imageUrl, entityUrl;
   if (!title) { toast('Bitte einen Titel eingeben', 'error'); return; }
+  if (att) {
+    if (/^[a-zA-Z0-9_-]{6,36}$/.test(att) && !/^https?:\/\//.test(att)) {
+      imageUrl = `/api/photos/${encodeURIComponent(att)}/file`;
+      entityUrl = undefined;
+    } else if (/^https?:\/\//.test(att)) {
+      imageUrl = undefined;
+      entityUrl = att;
+    } else {
+      toast('Ungültige Bild-ID oder URL', 'error');
+      return;
+    }
+  }
   const btn = $('broadcast-send-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Wird gesendet…'; }
   try {
@@ -3497,7 +3651,7 @@ Object.assign(window, {
   // Add-to-album modal
   openAddFromAll, closeAddModal, confirmAddToAlbum, toggleAddSelection,
   // Profile
-  openProfileModal, closeProfileModal, uploadAvatar, clearAvatar, setUserColor,
+  openProfileModal, closeProfileModal, uploadAvatar, clearAvatar, setUserColor, setDisplayName,
   // Groups
   switchGroup, openJoinGroup, closeJoinGroup, doJoinGroup, showGroupCode,
   openLeaveGroup, closeLeaveGroup, doLeaveGroup, dissolveGroup, _leaveGroupUpdateOwnerUI,
@@ -3513,7 +3667,8 @@ Object.assign(window, {
   toggleDarkMode, changeSort,
   // Notifications
   toggleNotifPanel, markAllNotificationsRead, deleteAllNotifications, saveNotifPrefs, toggleNotifPrefs, _notifClick, _notifMarkRead, _notifDelete,
-  openBroadcastModal, closeBroadcastModal, sendBroadcast,
+  openBroadcastModal, closeBroadcastModal, sendBroadcast, renderBroadcastAttachmentPreview,
+  copyCurrentImageId, toggleLbMenu, closeLbMenu,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)
   $,
   onThumbLoad,
