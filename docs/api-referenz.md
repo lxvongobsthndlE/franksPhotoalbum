@@ -18,6 +18,7 @@ Authorization: Bearer <accessToken>
 | `GET` | `/api/auth/me` | Eigenes Nutzerprofil | JWT |
 | `POST` | `/api/auth/logout` | Löscht Refresh Token | JWT |
 | `GET` | `/api/auth/avatar/:userId` | Avatar-Proxy (aus MinIO) | Öffentlich |
+| `PATCH` | `/api/auth/profile` | Profil aktualisieren (`color`, `displayNameField`) | JWT |
 
 ---
 

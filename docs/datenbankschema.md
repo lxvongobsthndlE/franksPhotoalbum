@@ -29,10 +29,11 @@ model User {
   email     String   @unique
   username  String   @unique
   name      String?
-  color     String?           // Farbe für Avatar-Platzhalter (hex oder hsl)
-  avatar    String?           // URL, Proxy über /api/auth/avatar/:userId
-  role      String   @default("user")  // "user" | "admin"
-  createdAt DateTime @default(now())
+  color            String?           // Farbe für Avatar-Platzhalter (hex oder hsl)
+  avatar           String?           // URL, Proxy über /api/auth/avatar/:userId
+  displayNameField String?  @default("name")  // "name" | "username" – bevorzugter Anzeigename
+  role             String   @default("user")  // "user" | "admin"
+  createdAt        DateTime @default(now())
 }
 ```
 
