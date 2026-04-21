@@ -38,7 +38,8 @@ function createSessionTokens(fastify, userId, email, username) {
 
 async function syncUserFromOIDC(fastify, userInfo) {
   const { email, preferred_username, name } = userInfo;
-  const displayName = name || preferred_username || email.split('@')[0];
+  // name: nur den echten name-Claim speichern, kein Fallback – null wenn nicht gesetzt
+  const realName = (name && name.trim()) ? name.trim() : null;
 
   // Prüfe, ob User existiert
   let user = await fastify.prisma.user.findUnique({
@@ -51,7 +52,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
       data: {
         email,
         username: preferred_username || email.split('@')[0],
-        name: displayName,
+        name: realName,
         color: `hsl(${Math.random() * 360}, 70%, 70%)`
       }
     });
@@ -60,7 +61,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
     user = await fastify.prisma.user.update({
       where: { id: user.id },
       data: {
-        name: displayName,
+        name: realName,
         username: preferred_username || user.username
       }
     });

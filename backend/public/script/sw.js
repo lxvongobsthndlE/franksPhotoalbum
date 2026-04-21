@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fotoalbum-v6';
+const CACHE_NAME = 'fotoalbum-v1';
 const APP_SHELL = [
   '/',
   '/index.html',

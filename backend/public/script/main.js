@@ -180,7 +180,12 @@ async function startApp() {
   me._origName     = me.name;
   me._origUsername = me.username;
   // Apply display-name preference from DB (displayNameField: 'name'|'username')
-  if (me.displayNameField === 'username' && me.username) meProfile.name = me.username;
+  if (me.displayNameField === 'username' && me.username) {
+    meProfile.name = me.username;
+  } else if (!me.name && me.username) {
+    // no real name available – fall back to username as display name
+    meProfile.name = me.username;
+  }
   const avElement = $('hav');
   if (avElement) {
     if (me.avatar) {
@@ -1616,7 +1621,7 @@ async function openProfileModal() {
   av.style.background=meProfile.color;
   if (meProfile.avatar) {
     av.innerHTML=`<img src="${meProfile.avatar}" style="width:100%;height:100%;object-fit:cover">`;
-  } else { av.textContent=meProfile.name[0].toUpperCase(); }
+  } else { av.textContent=(meProfile.name||meProfile.username||'?')[0].toUpperCase(); }
   const clearBtn = $('clear-avatar-btn');
   if (clearBtn) clearBtn.style.display = meProfile.avatar ? '' : 'none';
   renderColorSwatches();
@@ -1758,8 +1763,8 @@ async function clearAvatar() {
     if (allProfiles[me.id]) allProfiles[me.id].avatar = null;
     const av = $('avatar-preview');
     av.innerHTML = '';
-    av.textContent = meProfile.name[0].toUpperCase();
-    const hav = $('hav'); if (hav) { hav.innerHTML=''; hav.textContent=(meProfile.name||'')[0].toUpperCase(); hav.style.background=meProfile.color; }
+    av.textContent = (meProfile.name||meProfile.username||'?')[0].toUpperCase();
+    const hav = $('hav'); if (hav) { hav.innerHTML=''; hav.textContent=(meProfile.name||meProfile.username||'?')[0].toUpperCase(); hav.style.background=meProfile.color; }
     $('clear-avatar-btn').style.display = 'none';
     renderSidebar();
     updateMobileAv();
@@ -2065,32 +2070,174 @@ async function openAdminGroups() {
 function closeAdminGroups() { hide('admin-groups-modal'); }
 
 // ── ADMIN USERS ──────────────────────────────────────────
+const _adminUserExpanded = new Set(); // expanded user IDs
+const _adminUserLoaded = {}; // cached detail data per ID
+
 async function openAdminUsers() {
   closeSidebar();
+  _adminUserExpanded.clear();
+  Object.keys(_adminUserLoaded).forEach(k => delete _adminUserLoaded[k]);
   show('admin-users-modal');
+  await _renderAdminUserList();
+}
+
+async function _renderAdminUserList() {
   const list = $('admin-users-list');
   list.innerHTML = '<div style="display:flex;justify-content:center;padding:30px"><div class="spinner"></div></div>';
   try {
     const { users } = await apiCall('/admin/users', 'GET');
     if (!users?.length) { list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">Keine Benutzer gefunden.</p>'; return; }
-    list.innerHTML = users.map(u => `
-      <div class="admin-user-row" id="aur-${u.id}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border)">
-        <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${esc(u.color||'#888')};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">
-          ${u.avatar ? `<img src="${esc(u.avatar)}" style="width:100%;height:100%;object-fit:cover">` : (u.name||'?')[0].toUpperCase()}
+    list.innerHTML = users.map(u => _adminUserRowHtml(u)).join('');
+  } catch(e) {
+    list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">Fehler beim Laden.</p>';
+  }
+}
+
+function _adminUserRowHtml(u) {
+  const isMe = u.id === me?.id;
+  const sinceYear = new Date(u.createdAt).getFullYear();
+  return `
+    <div class="au-row" id="aur-${u.id}">
+      <div class="au-summary" onclick="adminToggleUser('${u.id}')">
+        <div class="au-avatar" style="background:${esc(u.color||'#888')}">
+          ${u.avatar ? `<img src="${esc(u.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : esc((u.name||u.username||'?')[0].toUpperCase())}
         </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name||u.username)}</div>
-          <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.email)}</div>
+        <div class="au-info">
+          <span class="au-name">${esc(u.name||u.username)}</span>
+          <span class="au-email">${esc(u.email)}</span>
         </div>
-        <select onchange="adminSetRole('${u.id}', this.value, this)"
-          style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;flex-shrink:0"
-          ${u.id === me.id ? 'title="Eigene Rolle kann nur geändert werden solange weitere Admins existieren"' : ''}>
+        <span class="au-role-badge ${u.role === 'admin' ? 'au-role-admin' : 'au-role-user'}">${u.role === 'admin' ? 'Admin' : 'Nutzer'}</span>
+        <span class="au-since">${sinceYear}</span>
+        <span class="au-chevron" id="au-chev-${u.id}">›</span>
+      </div>
+      <div class="au-detail hidden" id="au-detail-${u.id}">
+        <div class="au-detail-loading"><div class="spinner" style="width:22px;height:22px;border-width:2px"></div></div>
+      </div>
+    </div>`;
+}
+
+async function adminToggleUser(userId) {
+  const detail = $(`au-detail-${userId}`);
+  const chev = $(`au-chev-${userId}`);
+  if (_adminUserExpanded.has(userId)) {
+    _adminUserExpanded.delete(userId);
+    detail.classList.add('hidden');
+    chev.classList.remove('au-chev-open');
+    return;
+  }
+  _adminUserExpanded.add(userId);
+  detail.classList.remove('hidden');
+  chev.classList.add('au-chev-open');
+  if (_adminUserLoaded[userId]) {
+    _renderAdminUserDetail(userId, _adminUserLoaded[userId]);
+    return;
+  }
+  try {
+    const data = await apiCall(`/admin/users/${userId}`, 'GET');
+    _adminUserLoaded[userId] = data;
+    _renderAdminUserDetail(userId, data);
+  } catch(e) {
+    $(`au-detail-${userId}`).innerHTML = `<p class="au-err">Fehler beim Laden.</p>`;
+  }
+}
+
+function _renderAdminUserDetail(userId, u) {
+  const isMe = userId === me?.id;
+  const roleLabelMap = { owner: 'Owner', deputy: 'Deputy', member: 'Mitglied' };
+  const roleClassMap = { owner: 'au-grole-owner', deputy: 'au-grole-deputy', member: 'au-grole-member' };
+  const hasName = !!(u.name && u.name.trim());
+  const effectiveDisplayField = hasName ? (u.displayNameField || 'name') : 'username';
+  const displayNameLabel = effectiveDisplayField === 'name' ? 'Vollständiger Name' : 'Benutzername';
+
+  const groupsHtml = u.groups?.length
+    ? u.groups.map(g => `
+        <div class="au-group-item">
+          <span class="au-group-name">${esc(g.name)}</span>
+          <span class="au-grole-badge ${roleClassMap[g.role]||''}">${roleLabelMap[g.role]||g.role}</span>
+        </div>`).join('')
+    : '<span style="font-size:13px;color:var(--muted)">Keine Gruppen</span>';
+
+  $(`au-detail-${userId}`).innerHTML = `
+    <div class="au-stats-grid">
+      <div class="au-stat"><span class="au-stat-val">${u.stats.photos}</span><span class="au-stat-lbl">Fotos</span></div>
+      <div class="au-stat"><span class="au-stat-val">${u.stats.comments}</span><span class="au-stat-lbl">Kommentare</span></div>
+      <div class="au-stat"><span class="au-stat-val">${u.stats.likesReceived}</span><span class="au-stat-lbl">Likes erhalten</span></div>
+      <div class="au-stat"><span class="au-stat-val">${u.stats.likesGiven}</span><span class="au-stat-lbl">Likes gegeben</span></div>
+      <div class="au-stat"><span class="au-stat-val">${u.stats.albums}</span><span class="au-stat-lbl">Alben</span></div>
+      <div class="au-stat"><span class="au-stat-val">${new Date(u.createdAt).toLocaleDateString('de-DE')}</span><span class="au-stat-lbl">Mitglied seit</span></div>
+    </div>
+    <div class="au-card">
+      <div class="au-card-title">Einstellungen</div>
+      <div class="au-info-row"><span class="au-info-key">Anzeigename</span><span class="au-info-val">${esc(displayNameLabel)}</span></div>
+      <div class="au-info-row"><span class="au-info-key">Benutzername</span><span class="au-info-val au-mono">${esc(u.username || '-')}</span></div>
+      <div class="au-info-row"><span class="au-info-key">Vollst. Name</span><span class="au-info-val">${esc(u.name || '-')}</span></div>
+      <div class="au-info-row"><span class="au-info-key">E-Mail</span><span class="au-info-val au-mono">${esc(u.email)}</span></div>
+    </div>
+    <div class="au-card">
+      <div class="au-card-title">Gruppen <span class="au-card-count">${u.groups?.length||0}</span></div>
+      <div class="au-groups-list">${groupsHtml}</div>
+    </div>
+    <div class="au-card">
+      <div class="au-card-title">Aktionen</div>
+      <div class="au-action-block">
+        <span class="au-info-key" style="min-width:52px">Rolle</span>
+        <select id="au-role-sel-${userId}" onchange="adminSetRole('${userId}', this.value, this)" class="au-role-select"
+          ${isMe ? 'title="Eigene Rolle kann nur geändert werden solange weitere Admins existieren"' : ''}>
           <option value="user" ${u.role==='user'?'selected':''}>Benutzer</option>
           <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
         </select>
-      </div>`).join('');
+      </div>
+      <div class="au-btns-row">
+        <button class="au-btn" onclick="adminToggleNotifyForm('${userId}')">📣 Benachrichtigung senden</button>
+        ${!isMe ? `<button class="au-btn au-btn-danger" onclick="adminDeleteUser('${userId}', '${esc(u.name||u.username)}')">🗑 Benutzer löschen</button>` : ''}
+      </div>
+      <div class="au-notify-form hidden" id="au-notify-${userId}">
+        <input id="au-ntitle-${userId}" type="text" placeholder="Titel *" maxlength="120"
+          class="au-notify-input" />
+        <textarea id="au-nbody-${userId}" placeholder="Nachricht (optional)" maxlength="500" rows="2"
+          class="au-notify-input au-notify-textarea"></textarea>
+        <input id="au-nurl-${userId}" type="url" placeholder="Link (optional)" maxlength="500"
+          class="au-notify-input" />
+        <div style="display:flex;justify-content:flex-end">
+          <button class="au-btn" onclick="adminSendUserNotification('${userId}')">Absenden</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function adminToggleNotifyForm(userId) {
+  const form = $(`au-notify-${userId}`);
+  form.classList.toggle('hidden');
+}
+
+async function adminSendUserNotification(userId) {
+  const title = $(`au-ntitle-${userId}`)?.value?.trim();
+  const body  = $(`au-nbody-${userId}`)?.value?.trim();
+  const entityUrl = $(`au-nurl-${userId}`)?.value?.trim();
+  if (!title) { toast('Titel ist erforderlich', 'error'); return; }
+  try {
+    await apiCall(`/admin/users/${userId}/notify`, 'POST', { title, body: body||undefined, entityUrl: entityUrl||undefined });
+    toast('Benachrichtigung gesendet', 'success');
+    $(`au-notify-${userId}`).classList.add('hidden');
+    $(`au-ntitle-${userId}`).value = '';
+    $(`au-nbody-${userId}`).value = '';
+    $(`au-nurl-${userId}`).value = '';
   } catch(e) {
-    list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">Fehler beim Laden.</p>';
+    toast(e.message || 'Fehler beim Senden', 'error');
+  }
+}
+
+async function adminDeleteUser(userId, userName) {
+  if (!confirm(`Benutzer „${userName}" und alle zugehörigen Daten (Fotos, Kommentare, Likes) unwiderruflich löschen?`)) return;
+  try {
+    await apiCall(`/admin/users/${userId}`, 'DELETE');
+    toast(`Benutzer „${userName}" gelöscht`, 'success');
+    delete _adminUserLoaded[userId];
+    _adminUserExpanded.delete(userId);
+    const row = $(`aur-${userId}`);
+    if (row) row.remove();
+  } catch(e) {
+    toast(e.message || 'Fehler beim Löschen', 'error');
   }
 }
 
@@ -2099,9 +2246,19 @@ async function adminSetRole(userId, newRole, selectEl) {
   try {
     await apiCall(`/admin/users/${userId}/role`, 'PATCH', { role: newRole });
     toast(`Rolle auf „${newRole === 'admin' ? 'Admin' : 'Benutzer'}" gesetzt`, 'success');
+    // Update cached data + role badge
+    if (_adminUserLoaded[userId]) _adminUserLoaded[userId].role = newRole;
+    const row = $(`aur-${userId}`);
+    if (row) {
+      const badge = row.querySelector('.au-role-badge');
+      if (badge) {
+        badge.textContent = newRole === 'admin' ? 'Admin' : 'Nutzer';
+        badge.className = `au-role-badge ${newRole === 'admin' ? 'au-role-admin' : 'au-role-user'}`;
+      }
+    }
   } catch(e) {
     toast(e.message || 'Fehler beim Ändern der Rolle', 'error');
-    selectEl.value = prev; // Revert
+    if (selectEl) selectEl.value = prev;
   }
 }
 
@@ -3658,7 +3815,8 @@ Object.assign(window, {
   openDeputyModal, closeDeputyModal, addDeputy, removeDeputy,
   openAdminGroups, closeAdminGroups, adminEditGroup, adminCancelEdit, adminSaveGroup, adminCreateGroup, adminDeleteGroup,
   closeAdminGroupDeleteModal, agdmCopyLink, agdmCloseAndCleanup, agdmStrandedCheckChange, adminGroupDoBackup, adminGroupDoDelete, adminGroupConfirmDelete,
-  openAdminUsers, closeAdminUsers, adminSetRole,
+  openAdminUsers, closeAdminUsers, adminSetRole, adminToggleUser,
+  adminDeleteUser, adminToggleNotifyForm, adminSendUserNotification,
   openAdminBackups, closeAdminBackups, adminRefreshBackupLink, adminDeleteBackupEntry,
   toggleGroupDropdown,
   // Slideshow
