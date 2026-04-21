@@ -18,6 +18,7 @@ Authorization: Bearer <accessToken>
 | `GET` | `/api/auth/me` | Eigenes Nutzerprofil | JWT |
 | `POST` | `/api/auth/logout` | Löscht Refresh Token | JWT |
 | `GET` | `/api/auth/avatar/:userId` | Avatar-Proxy (aus MinIO) | Öffentlich |
+| `PATCH` | `/api/auth/profile` | Profil aktualisieren (`color`, `displayNameField`) | JWT |
 
 ---
 
@@ -117,7 +118,10 @@ Authorization: Bearer <accessToken>
 | Methode | Pfad | Beschreibung |
 |---|---|---|
 | `GET` | `/api/admin/users` | Alle Nutzer auflisten |
+| `GET` | `/api/admin/users/:id` | Detailprofil eines Nutzers (Statistiken, Gruppen mit Rolle) |
 | `PATCH` | `/api/admin/users/:id/role` | Rolle eines Nutzers ändern (`user` oder `admin`) |
+| `DELETE` | `/api/admin/users/:id` | Nutzer löschen inkl. Fotos, Kommentare, Likes und MinIO-Cleanup |
+| `POST` | `/api/admin/users/:id/notify` | Gezielte System-Benachrichtigung an einzelnen Nutzer senden (`title`, `body`, `entityUrl`) |
 | `POST` | `/api/admin/broadcast` | System-Benachrichtigung an alle Nutzer senden (`title`, `body`, `imageUrl`, `entityUrl`) |
 
 ---

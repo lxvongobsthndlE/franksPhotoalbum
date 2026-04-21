@@ -71,7 +71,7 @@ Bei jedem Login wird der User-Datensatz in der Datenbank mit den Daten aus dem O
 
 | Feld | Quelle (Präzedenz) |
 |---|---|
-| `name` | `name` → `preferred_username` → `email.split('@')[0]` |
+| `name` | Direkt aus dem `name`-Claim – `null` wenn nicht gesetzt (kein Fallback) |
 | `username` | `preferred_username` → `email.split('@')[0]` |
 | `email` | `email` (Pflicht) |
 | `avatar` | `picture`-URL (wird in MinIO gecacht) |
