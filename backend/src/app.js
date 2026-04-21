@@ -120,10 +120,9 @@ await app.register(fastifyStatic, {
 const start = async () => {
   try {
     await initStorage();
-    await app.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' });
-
     const port = process.env.PORT || 3000;
     const env  = process.env.NODE_ENV || 'development';
+    await app.listen({ port, host: '0.0.0.0' });
     const isProd = env === 'production';
 
     const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
@@ -131,37 +130,23 @@ const start = async () => {
     const catchAll       = process.env.DEV_MAIL_CATCHALL;
 
     const row  = (label, value) => `  ${label.padEnd(12)}: ${value}`;
-    const values = [
+    const lines = [
       row('Umgebung', env),
       row('Port', String(port)),
       row('OIDC', oidcConfigured ? process.env.OIDC_ISSUER : '(nicht konfiguriert)'),
-      smtpConfigured ? row('SMTP', process.env.SMTP_HOST) : null,
+      smtpConfigured ? row('SMTP', process.env.SMTP_HOST) : row('SMTP', '(nicht konfiguriert)'),
       smtpConfigured ? row('SMTP-User', process.env.SMTP_USER) : null,
       smtpConfigured && !isProd ? row('DEV-Mail', catchAll ? `-> ${catchAll}` : '(kein Versand - kein Catch-All)') : null,
-      !smtpConfigured ? row('SMTP', '(nicht konfiguriert)') : null,
     ].filter(Boolean);
-    const width = Math.max(28, ...values.map(v => v.length));
-    const line  = '='.repeat(width);
+    const width = Math.max(28, ...lines.map(l => l.length));
+    const sep   = '='.repeat(width);
 
     console.log('');
-    console.log(line);
+    console.log(sep);
     console.log('  Franks Fotoalbum Backend');
-    console.log(line);
-    console.log(row('Umgebung', env));
-    console.log(row('Port', String(port)));
-    console.log(row('OIDC', oidcConfigured ? process.env.OIDC_ISSUER : '(nicht konfiguriert)'));
-    console.log(line);
-    if (smtpConfigured) {
-      console.log(row('SMTP', process.env.SMTP_HOST));
-      console.log(row('SMTP-User', process.env.SMTP_USER));
-      if (!isProd) {
-        const mailMode = catchAll ? `-> ${catchAll}` : '(kein Versand - kein Catch-All)';
-        console.log(row('DEV-Mail', mailMode));
-      }
-    } else {
-      console.log(row('SMTP', '(nicht konfiguriert)'));
-    }
-    console.log(line);
+    console.log(sep);
+    lines.forEach(l => console.log(l));
+    console.log(sep);
     console.log('');
   } catch (err) {
     app.log.error(err);
