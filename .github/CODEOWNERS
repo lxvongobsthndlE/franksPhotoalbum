@@ -1,2 +1,2 @@
-# Global owner — must approve all pull requests
+# Global owner for all paths; required approvals are enforced via branch protection rules
 * @lxvongobsthndlE
