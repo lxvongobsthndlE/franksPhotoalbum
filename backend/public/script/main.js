@@ -3318,18 +3318,11 @@ async function downloadPhoto() {
   btn.innerHTML = orig;
 }
 
-// ── SERVICE WORKER (PWA) ─────────────────────────────────
+// ── SERVICE WORKER – Deregistrierung ─────────────────────
+// SW wurde entfernt. Bereits installierte SWs werden aktiv deregistriert.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/script/sw.js', { scope: '/' })
-      .then(reg => {
-        console.log('SW registered:', reg.scope);
-        // DEV: Bei localhost bei jedem Seitenaufruf auf Updates prüfen → sofortige Aktivierung
-        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-          reg.update();
-        }
-      })
-      .catch(err => console.log('SW failed:', err));
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    for (const reg of regs) reg.unregister();
   });
 }
 
