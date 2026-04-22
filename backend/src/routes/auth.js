@@ -20,6 +20,16 @@ function generateNonce() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function normalizePreferredUsername(value) {
+  if (!value) return null;
+  return String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64) || null;
+}
+
 function createSessionTokens(fastify, userId, email, username) {
   // Access Token: 15 Minuten
   const accessToken = fastify.jwt.sign(
@@ -38,31 +48,55 @@ function createSessionTokens(fastify, userId, email, username) {
 
 async function syncUserFromOIDC(fastify, userInfo) {
   const { email, preferred_username, name } = userInfo;
+  const normalizedPreferredUsername = normalizePreferredUsername(preferred_username);
   // name: nur den echten name-Claim speichern, kein Fallback – null wenn nicht gesetzt
   const realName = (name && name.trim()) ? name.trim() : null;
 
-  // Prüfe, ob User existiert
+  // 1) Primär nach E-Mail matchen
   let user = await fastify.prisma.user.findUnique({
     where: { email }
   });
+
+  // 2) Falls nicht gefunden, anhand preferred_username matchen
+  //    (wichtig für Supabase-Migration: Authentik preferred_username == alter Supabase username)
+  if (!user && normalizedPreferredUsername) {
+    user = await fastify.prisma.user.findUnique({
+      where: { username: normalizedPreferredUsername }
+    });
+  }
+
+  // 3) Falls weiterhin nicht gefunden, neuen User erstellen
+  const targetUsername = normalizedPreferredUsername || email.split('@')[0];
 
   if (!user) {
     // Erstelle neuen User (immer mit role "user")
     user = await fastify.prisma.user.create({
       data: {
         email,
-        username: preferred_username || email.split('@')[0],
+        username: targetUsername,
         name: realName,
         color: `hsl(${Math.random() * 360}, 70%, 70%)`
       }
     });
   } else {
     // Update User mit neuen Daten von Authentik
+    // username nur setzen, wenn frei oder bereits eigener Name
+    let usernameForUpdate = user.username;
+    if (normalizedPreferredUsername && normalizedPreferredUsername !== user.username) {
+      const conflict = await fastify.prisma.user.findUnique({
+        where: { username: normalizedPreferredUsername }
+      });
+      if (!conflict || conflict.id === user.id) {
+        usernameForUpdate = normalizedPreferredUsername;
+      }
+    }
+
     user = await fastify.prisma.user.update({
       where: { id: user.id },
       data: {
         name: realName,
-        username: preferred_username || user.username
+        username: usernameForUpdate,
+        email
       }
     });
   }
