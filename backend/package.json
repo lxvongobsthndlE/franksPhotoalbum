@@ -5,9 +5,12 @@
   "main": "src/app.js",
   "type": "module",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "node --watch src/app.js",
-    "migrate": "node db/migrate.js"
+    "start": "node --env-file=.env.local src/app.js",
+    "dev": "node --env-file=.env.local --watch src/app.js",
+    "migrate": "node --env-file=.env.local db/migrate.js",
+    "migrate:supabase": "node --env-file=.env.local scripts/migrate-supabase-to-prisma.mjs",
+    "crawl:supabase:anon": "node --env-file=.env.local scripts/crawl-supabase-anon.mjs",
+    "crawl:supabase:login": "node --env-file=.env.local scripts/crawl-supabase-login.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^8.3.0",
