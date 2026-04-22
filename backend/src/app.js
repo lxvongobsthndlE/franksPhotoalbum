@@ -128,11 +128,33 @@ const start = async () => {
     const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
     const oidcConfigured = !!(process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID);
     const catchAll       = process.env.DEV_MAIL_CATCHALL;
+    const minioHost      = process.env.MINIO_ENDPOINT || '(nicht konfiguriert)';
+    const minioPort      = process.env.MINIO_PORT || '9000';
+
+    let dbName = process.env.POSTGRES_DB || '(nicht konfiguriert)';
+    let dbUser = process.env.POSTGRES_USER || '(nicht konfiguriert)';
+    if ((dbName === '(nicht konfiguriert)' || dbUser === '(nicht konfiguriert)') && process.env.DATABASE_URL) {
+      try {
+        const dbUrl = new URL(process.env.DATABASE_URL);
+        if (dbName === '(nicht konfiguriert)') {
+          dbName = dbUrl.pathname.replace(/^\//, '') || '(nicht konfiguriert)';
+        }
+        if (dbUser === '(nicht konfiguriert)') {
+          dbUser = dbUrl.username || '(nicht konfiguriert)';
+        }
+      } catch {
+        if (dbName === '(nicht konfiguriert)') dbName = '(unbekannt)';
+        if (dbUser === '(nicht konfiguriert)') dbUser = '(unbekannt)';
+      }
+    }
 
     const row  = (label, value) => `  ${label.padEnd(12)}: ${value}`;
     const lines = [
       row('Umgebung', env),
       row('Port', String(port)),
+      row('DB-Name', dbName),
+      row('DB-User', dbUser),
+      row('MinIO', `${minioHost}:${minioPort}`),
       row('OIDC', oidcConfigured ? process.env.OIDC_ISSUER : '(nicht konfiguriert)'),
       smtpConfigured ? row('SMTP', process.env.SMTP_HOST) : row('SMTP', '(nicht konfiguriert)'),
       smtpConfigured ? row('SMTP-User', process.env.SMTP_USER) : null,
