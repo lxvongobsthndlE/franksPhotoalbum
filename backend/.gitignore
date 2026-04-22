@@ -7,3 +7,5 @@ uploads/
 .DS_Store
 dist/
 .vscode/
+dev_tools/
+dev_tools/minio_data/

@@ -47,12 +47,22 @@ npx prisma migrate dev
 npx prisma generate
 
 # 6. Server starten
+# nur App (ohne MinIO-Autostart):
 node --env-file .env.local src/app.js
-# oder mit Auto-Reload:
+
+# Dev-Workflow (Auto-Reload + optional lokales MinIO):
 npm run dev
+
+# nur App im Watch-Modus (ohne MinIO-Autostart):
+npm run dev:app
 ```
 
 Der Server läuft auf [http://localhost:3000](http://localhost:3000).
+
+`npm run dev` startet lokal automatisch MinIO, wenn `MINIO_ENDPOINT=localhost` oder `MINIO_ENDPOINT=127.0.0.1` gesetzt ist.
+Voraussetzung: `minio.exe` liegt unter `backend/dev_tools/minio.exe` (oder `MINIO_BINARY_PATH` ist gesetzt).
+
+Wichtig: Der Dev-Runner maskiert MinIO-Credentials (`RootUser`, `RootPass`, `mc alias set ...`) in der Konsole.
 
 > **Tipp:** Für OIDC lokal muss `OIDC_REDIRECT_URI_DEV` auf `http://localhost:3000/auth/callback` gesetzt und in Authentik als erlaubter Redirect registriert sein.
 
@@ -162,6 +172,8 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker Compose)
 | `MINIO_BUCKET_PHOTOS` | Bucket für Fotos | `photos` |
 | `MINIO_BUCKET_AVATARS` | Bucket für Avatare | `avatars` |
 | `MINIO_BUCKET_BACKUPS` | Bucket für ZIP-Backups | `backups` |
+| `MINIO_BINARY_PATH` | Optionaler Pfad zu `minio.exe` für `npm run dev` | `backend/dev_tools/minio.exe` |
+| `MINIO_DATA_DIR` | Optionales lokales MinIO-Datenverzeichnis für `npm run dev` | `backend/dev_tools/minio_data` |
 
 ### SMTP (optional – für E-Mail-Benachrichtigungen)
 
@@ -188,7 +200,8 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker Compose)
 
 ## MinIO einrichten
 
-Drei Buckets müssen vor dem ersten Start existieren:
+Die Buckets werden beim Backend-Start automatisch angelegt, falls sie fehlen.
+Manuelles Anlegen ist nur nötig, wenn du Buckets vorab selbst kontrollieren willst:
 
 ```bash
 # MinIO Client (mc) konfigurieren
