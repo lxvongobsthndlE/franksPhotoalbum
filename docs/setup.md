@@ -284,11 +284,11 @@ backend/
 ## Supabase Alt-Daten Migration
 
 Fuer den Umzug aus der alten Supabase-App steht ein Migrationsskript bereit.
-Der empfohlene Weg ist der Login-Mode (RLS-sichtbare Daten des Login-Users):
+Das Skript arbeitet im Login-Mode (RLS-sichtbare Daten des Login-Users):
 
 ```bash
 cd backend
-npm run migrate:supabase -- --login --dry-run --skip-storage
+npm run migrate:supabase -- --dry-run --skip-storage
 ```
 
 Standardverhalten des Skripts:
@@ -299,50 +299,43 @@ Standardverhalten des Skripts:
 
 Optional:
 
-- `--login`: Importiert nur Daten, die fuer den angegebenen Supabase-User sichtbar sind (RLS)
 - `--email=<mail>` und `--password=<pass>`: Login-Credentials direkt als CLI-Flags
 - `--replace`: Zieltabellen vor Import leeren
 - `--skip-storage`: nur DB-Migration, keine Foto-Dateien kopieren
 - `--strict`: bei Referenz-Warnungen abbrechen
+- `--rollback`: importierte Gruppen/Alben/Fotos/Relationen und Migrations-Notifs zurueckrollen (User-Accounts bleiben bestehen)
 
 Noetige Variablen zusaetzlich zu den normalen Backend-Variablen:
 
-Allgemein:
+Login-Mode (immer aktiv):
 
 | Variable | Beschreibung |
 |---|---|
 | `TARGET_DATABASE_URL` | Optionale Ziel-DB fuer Migration; Fallback ist `DATABASE_URL` |
 | `SUPABASE_STORAGE_BUCKET` | Quell-Bucket in Supabase (Standard: `photos`) |
-
-Login-Mode (`--login`, empfohlen):
-
-| Variable | Beschreibung |
-|---|---|
 | `SUPABASE_URL` | Supabase Projekt-URL, z.B. `https://xyz.supabase.co` |
 | `SUPABASE_ANON_KEY` | Anon Key fuer Login + Rest-API |
 | `SUPABASE_LOGIN_EMAIL` | Login-E-Mail (alternativ `--email=...`) |
 | `SUPABASE_LOGIN_PASSWORD` | Login-Passwort (alternativ `--password=...`) |
 | `VISIBLE_IMPORT_EMAIL_DOMAIN` | Optionales Domain-Suffix fuer Platzhalter-E-Mails (Default: `visible-import.local`) |
 
-Full-DB-Mode (ohne `--login`):
-
-| Variable | Beschreibung |
-|---|---|
-| `SUPABASE_DB_URL` | Direkte Postgres-Verbindung auf das alte Supabase-Projekt |
-| `SUPABASE_URL` | Supabase Projekt-URL, z.B. `https://xyz.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service-Role Key fuer Storage-Downloads im Full-DB-Mode |
-
 Typische Befehle:
 
 ```bash
 # 1) Sicherer Check ohne Writes
-npm run migrate:supabase -- --login --dry-run --skip-storage
+npm run migrate:supabase -- --dry-run --skip-storage
 
-# 2) Echter Import mit Login-Mode
-npm run migrate:supabase -- --login
+# 2) Echter Import
+npm run migrate:supabase
 
-# 3) Full-DB-Import (nur wenn SUPABASE_DB_URL vorhanden)
-npm run migrate:supabase -- --dry-run
+# 3) Import mit expliziten Login-Credentials per CLI
+npm run migrate:supabase -- --email=beispiel@domain.tld --password=geheim
+
+# 4) Rollback-Vorschau (ohne Writes)
+npm run migrate:supabase -- --rollback --dry-run --skip-storage
+
+# 5) Echter Rollback inkl. Storage-Objekte
+npm run migrate:supabase -- --rollback
 ```
 
 Hinweis: `TARGET_DATABASE_URL` kann identisch mit `DATABASE_URL` sein.

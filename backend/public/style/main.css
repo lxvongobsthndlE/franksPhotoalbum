@@ -1074,6 +1074,10 @@ input,select,textarea { font-family:'Plus Jakarta Sans',sans-serif; font-size:16
 .au-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
 .au-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .au-email { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.au-migration-note {
+  font-size:11px; color:var(--muted2); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
 .au-role-badge {
   font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; flex-shrink:0; letter-spacing:.3px;
 }
@@ -1126,6 +1130,14 @@ input,select,textarea { font-family:'Plus Jakarta Sans',sans-serif; font-size:16
 .au-grole-owner  { background:rgba(196,148,72,.15); color:#c49448; }
 .au-grole-deputy { background:rgba(100,130,200,.15); color:#6482c8; }
 .au-grole-member { background:var(--border); color:var(--muted); }
+.au-mini-btn {
+  border:1px solid rgba(200,70,70,.35); background:rgba(200,70,70,.04); color:#c84646;
+  border-radius:8px; padding:4px 8px; font-size:11px; cursor:pointer; font-family:inherit;
+}
+.au-mini-btn:hover { background:rgba(200,70,70,.1); }
+.au-mini-btn-disabled { cursor:not-allowed; opacity:.55; }
+.au-group-manage-row { display:flex; gap:8px; margin-top:10px; }
+.au-group-manage-row .au-role-select { flex:1; }
 
 .au-action-block { display:flex; align-items:center; gap:10px; }
 .au-role-select {
