@@ -19,6 +19,9 @@ model User {
   avatar    String?
   displayNameField String? @default("name") // "name" oder "username"
   role      String   @default("user") // "user" oder "admin"
+  migratedFrom String?
+  migratedAt DateTime?
+  lastLoginAt DateTime?
   createdAt DateTime @default(now())
   
   groups             GroupMember[]

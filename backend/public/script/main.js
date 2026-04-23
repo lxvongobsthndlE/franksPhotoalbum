@@ -163,6 +163,36 @@ async function doLogout() {
   toLogin();
 }
 
+function resolveDisplayName(user, preferredField) {
+  if (!user) return '';
+  const field = preferredField !== undefined ? preferredField : (user.displayNameField || 'name');
+  if (field === 'username') return user.username || '';
+  if (field === 'name') return user.name || '';
+  return '';
+}
+
+function getVisibleProfile(user) {
+  if (!user) return null;
+  if (!user.id) return user;
+  return { ...(allProfiles[user.id] || {}), ...user };
+}
+
+function getVisibleName(user, preferredField) {
+  return resolveDisplayName(getVisibleProfile(user), preferredField);
+}
+
+function getVisibleInitial(user, preferredField) {
+  const visibleName = getVisibleName(user, preferredField);
+  const fallback = user?.username || user?.email || '?';
+  return (visibleName || fallback || '?')[0].toUpperCase();
+}
+
+function withCacheBust(url) {
+  if (!url) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${Date.now()}`;
+}
+
 // ── APP START ─────────────────────────────────────────────
 async function startApp() {
   hide('auth-page');
@@ -179,26 +209,19 @@ async function startApp() {
   // Freeze original OIDC values so toggle buttons always have correct labels
   me._origName     = me.name;
   me._origUsername = me.username;
-  // Apply display-name preference from DB (displayNameField: 'name'|'username')
-  if (me.displayNameField === 'username' && me.username) {
-    meProfile.name = me.username;
-  } else if (!me.name && me.username) {
-    // no real name available – fall back to username as display name
-    meProfile.name = me.username;
-  }
   const avElement = $('hav');
   if (avElement) {
     if (me.avatar) {
       avElement.innerHTML = `<img class="av-img" src="${esc(me.avatar)}">`;
     } else {
-      avElement.textContent = (me.name || me.email)[0].toUpperCase();
+      avElement.textContent = getVisibleInitial(me, me.displayNameField);
       avElement.style.background = me.color || '#8a6a4a';
     }
   }
   
   const nameElement = $('hname');
   if (nameElement) {
-    nameElement.textContent = me.name || me.email;
+    nameElement.textContent = getVisibleName(me, me.displayNameField) || me.email;
   }
   
   updateMobileAv();
@@ -232,15 +255,7 @@ async function startApp() {
   // Gruppenmmitglieder laden (für Sidebar)
   if (curGroupId) {
     try {
-      const { members } = await apiCall(`/groups/${curGroupId}/members`, 'GET');
-      groupMembers = members || [];
-      groupMembers.forEach(m => { allProfiles[m.id] = m; });
-      // Aktuellen User vorne
-      groupMembers.sort((a, b) => {
-        if (a.id === me.id) return -1;
-        if (b.id === me.id) return 1;
-        return (a.name||'').localeCompare(b.name||'');
-      });
+      await loadGroupMembers();
     } catch(e) { console.warn('Mitglieder laden fehlgeschlagen:', e); }
   }
 
@@ -309,9 +324,20 @@ function renderSidebar() {
   // Members list (exclude self, already shown as "Meine Fotos")
   const curGroup = myGroups.find(x => x.id === curGroupId);
   const deputyIds = new Set(groupDeputies.map(d => d.id));
+  const selfFromMembers = groupMembers.find(m => m.id === me.id) || {};
+  const selfMember = {
+    ...selfFromMembers,
+    ...meProfile,
+    id: me.id,
+    displayNameField: me.displayNameField,
+  };
+  const otherMembers = groupMembers
+    .filter(m => m.id !== me.id)
+    .slice()
+    .sort((a, b) => getVisibleName(a).localeCompare(getVisibleName(b), 'de', { sensitivity: 'base' }));
   const allMembers = [
-    groupMembers.find(m => m.id === me.id) || meProfile,
-    ...groupMembers.filter(m => m.id !== me.id),
+    selfMember,
+    ...otherMembers,
   ];
   const membersHtml = allMembers.map(m => {
     const isSelf = m.id === me.id;
@@ -324,7 +350,8 @@ function renderSidebar() {
       : '';
     const isActive = isSelf ? curFilter==='mine' && !curAlbum && !curFilterUserId : curFilterUserId===m.id;
     const onclick = isSelf ? `switchFolder('mine')` : `switchToUser('${m.id}')`;
-    const displayName = isSelf ? `${esc(m.name||'?')} <span style="font-size:10px;color:var(--muted);font-weight:400">(du)</span>` : esc(m.name||'?');
+    const resolvedName = getVisibleName(m, isSelf ? me.displayNameField : undefined);
+    const displayName = isSelf ? `${esc(resolvedName||'?')} <span style="font-size:10px;color:var(--muted);font-weight:400">(du)</span>` : esc(resolvedName||'?');
     return `
     <button class="fb ${isActive?'active':''}" onclick="${onclick}" style="gap:6px">
       <span class="fi">${avatarHtml(m, 20)}</span>
@@ -456,7 +483,7 @@ function renderSidebar() {
       <div class="sb-div" style="margin:0 4px 2px"></div>
       <button class="sb-profile-btn" onclick="openProfileModal();closeSidebar()">
         <div class="av" style="background:${meProfile.color};width:32px;height:32px;font-size:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;border-radius:50%;overflow:hidden">${avatarHtml(meProfile, 32)}</div>
-        <span>${esc(meProfile.name)}</span>
+        <span>${esc(getVisibleName(meProfile, me.displayNameField) || me.email)}</span>
       </button>
       <button class="sb-logout-btn" onclick="doLogout()">Abmelden</button>
     </div>`;
@@ -744,7 +771,7 @@ function renderGrid(appendFrom=0) {
         ${p.description?`<div class="p-desc">${esc(p.description)}</div>`:''}
         <div class="p-top">
           <span class="dot" style="background:${esc(u.color||'#888')}"></span>
-          <span class="p-who">${esc(u.name||'?')}</span>
+          <span class="p-who">${esc(getVisibleName(u) || '?')}</span>
           <span class="p-dt">${fmtDate(p.created_at)}</span>
         </div>
         <div class="p-actions">
@@ -799,7 +826,7 @@ async function doLike(photoId) {
   if (photos[lbIdx]?.id===photoId) {
     lbLiked=p._liked; lbLikeCount=p._likes;
     if (p._liked) {
-      if (!lbLikers.find(u=>u.id===me.id)) lbLikers.unshift(allProfiles[me.id]||{id:me.id,name:meProfile.name});
+      if (!lbLikers.find(u=>u.id===me.id)) lbLikers.unshift(allProfiles[me.id] || { ...me });
     } else {
       lbLikers = lbLikers.filter(u=>u.id!==me.id);
     }
@@ -857,6 +884,14 @@ async function saveGroupRename() {
     const sub = $('header-group-name');
     if (sub) sub.textContent = group.name;
     closeRenameGroupInline();
+    // Mitgliederliste neu laden, damit Sidebar garantiert aktuellen Wert nutzt
+    if (curGroupId) {
+      try {
+        const { members } = await apiCall(`/groups/${curGroupId}/members`, 'GET');
+        groupMembers = members || [];
+        groupMembers.forEach(m => { allProfiles[m.id] = m; });
+      } catch(e) { /* ignore */ }
+    }
     renderSidebar();
     toast('Gruppe umbenannt', 'success');
   } catch(e) {
@@ -1006,7 +1041,7 @@ async function openLB(i) {
   $('lb-img').src = photoSrc(url);
   $('lb-av').innerHTML = avatarHtml(u, 32);
   $('lb-av').style.background = u.avatar ? 'transparent' : (u.color||'#888');
-  $('lb-who').textContent=u.name||'?';
+  $('lb-who').textContent = getVisibleName(u) || '?';
   $('lb-dt').textContent=fmtDateLong(p.created_at);
   $('lb-cnt').textContent=`${i+1} von ${photos.length} Fotos`;
   // Description with edit capability
@@ -1072,7 +1107,7 @@ function updateLikers() {
   const el = $('lb-likers');
   if (!el) return;
   if (!lbLikers || !lbLikers.length) { el.textContent=''; return; }
-  const names = lbLikers.map(u => u.id===me.id ? 'Dir' : u.name);
+  const names = lbLikers.map(u => u.id===me.id ? 'Dir' : (getVisibleName(u) || '?'));
   if (names.length === 1) el.innerHTML = `Gefällt <b>${esc(names[0])}</b>`;
   else if (names.length === 2) el.innerHTML = `Gefällt <b>${esc(names[0])}</b> und <b>${esc(names[1])}</b>`;
   else el.innerHTML = `Gefällt <b>${esc(names[0])}</b>, <b>${esc(names[1])}</b> und ${names.length-2} weiteren`;
@@ -1092,8 +1127,8 @@ function showLikersList() {
     </div>
     ${lbLikers.map(u => `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 0;${u.id!==lbLikers[lbLikers.length-1]?.id?'border-bottom:1px solid var(--border)':''}">
-        <div style="width:32px;height:32px;border-radius:50%;background:${esc(u.color||'#888')};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0">${(u.name||'?')[0].toUpperCase()}</div>
-        <span style="font-size:14px;font-weight:500;color:var(--text)">${esc(u.id===me.id ? u.name+' (Du)' : u.name||'?')}</span>
+        <div style="width:32px;height:32px;border-radius:50%;background:${esc(u.color||'#888')};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0">${getVisibleInitial(u)}</div>
+        <span style="font-size:14px;font-weight:500;color:var(--text)">${esc(u.id===me.id ? `${getVisibleName(u) || '?'} (Du)` : (getVisibleName(u) || '?'))}</span>
       </div>
     `).join('')}`;
   const backdrop = document.createElement('div');
@@ -1163,7 +1198,7 @@ function renderComments() {
     return `<div class="comment-item" title="${esc(ts)}">
       <div class="c-av">${avatarHtml(u, 32)}</div>
       <div class="c-body">
-        <span class="c-name">${esc(u.name||'?')}</span>
+        <span class="c-name">${esc(getVisibleName(u) || '?')}</span>
         ${canDel?`<button class="c-del" onclick="deleteComment('${c.id}')" title="Löschen">${ICON_TRASH}</button>`:''}
         <div class="c-text">${esc(c.content)}</div>
         <div class="c-time">${ts}</div>
@@ -1355,9 +1390,9 @@ function renderAlbumList() {
     const canManage = isCreator || isAdmin || isGroupOwner || isDeputy;
     const creatorUser = groupMembers.find(m => m.id === a.createdBy);
     const creatorChip = creatorUser
-      ? `<span style="font-size:10px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px" title="Ersteller">${esc(creatorUser.name||creatorUser.username)}</span>`
+      ? `<span style="font-size:10px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px" title="Ersteller">${esc(getVisibleName(creatorUser) || '?')}</span>`
       : '';
-    const contributorChips = (a.contributors||[]).map(c=>`<span style="font-size:10px;background:var(--accent-l);color:var(--accent);border-radius:10px;padding:1px 6px">${esc(c.name||c.username)}</span>`).join(' ');
+    const contributorChips = (a.contributors||[]).map(c=>`<span style="font-size:10px;background:var(--accent-l);color:var(--accent);border-radius:10px;padding:1px 6px">${esc(getVisibleName(c) || '?')}</span>`).join(' ');
     const chips = [creatorChip, contributorChips].filter(Boolean).join(' ');
     return `
     <div class="album-row" style="flex-direction:column;align-items:stretch;gap:4px${isCreator ? ';box-shadow:inset 3px 0 0 var(--accent)' : ''}">
@@ -1509,9 +1544,9 @@ function renderContributorList(album) {
   el.innerHTML = contributors.map(c => `
     <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
       <div style="width:28px;height:28px;border-radius:50%;background:${c.color||'#888'};flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700">
-        ${c.avatar ? `<img src="${c.avatar}" style="width:100%;height:100%;object-fit:cover">` : (c.name||'?')[0].toUpperCase()}
+        ${c.avatar ? `<img src="${c.avatar}" style="width:100%;height:100%;object-fit:cover">` : getVisibleInitial(c)}
       </div>
-      <span style="flex:1;font-size:13px">${esc(c.name||c.username)}</span>
+      <span style="flex:1;font-size:13px">${esc(getVisibleName(c) || '?')}</span>
       <button onclick="removeContributor('${album.id}','${c.id}')" style="background:none;border:none;cursor:pointer;color:var(--red,#e05555);padding:3px 6px;border-radius:6px;font-size:12px" title="Entfernen">✕</button>
     </div>`).join('');
 }
@@ -1527,7 +1562,7 @@ function renderContributorMemberPicker(album) {
     return;
   }
   sel.innerHTML = '<option value="">— Mitglied auswählen —</option>' +
-    eligible.map(m => `<option value="${m.id}">${esc(m.name||m.username)}</option>`).join('');
+    eligible.map(m => `<option value="${m.id}">${esc(getVisibleName(m) || '?')}</option>`).join('');
 }
 
 async function addContributor() {
@@ -1542,7 +1577,7 @@ async function addContributor() {
       renderContributorList(a);
       renderContributorMemberPicker(a);
     }
-    toast(`${newUser.name||newUser.username} als Contributor hinzugefügt`, 'success');
+    toast(`${getVisibleName(newUser) || '?'} als Contributor hinzugefügt`, 'success');
   } catch(e) { toast('Hinzufügen fehlgeschlagen', 'error'); }
 }
 
@@ -1615,18 +1650,30 @@ function ssChangeSpeed() {
 
 // ── PROFILE / AVATAR ──────────────────────────────────────
 const PROFILE_COLORS = ['#b07448','#c86888','#8868c8','#6888d4','#4aacb8','#5a9e7a','#c8a048','#c87848','#7888c8','#a8c858','#888888'];
+const _inlineMsgTimers = {};
+
+function flashInlineMessage(id, type, text, timeout = 5000) {
+  showMsg(id, type, text);
+  if (_inlineMsgTimers[id]) clearTimeout(_inlineMsgTimers[id]);
+  _inlineMsgTimers[id] = setTimeout(() => {
+    hide(id);
+    delete _inlineMsgTimers[id];
+  }, timeout);
+}
 
 async function openProfileModal() {
   const av=$('avatar-preview');
   av.style.background=meProfile.color;
   if (meProfile.avatar) {
     av.innerHTML=`<img src="${meProfile.avatar}" style="width:100%;height:100%;object-fit:cover">`;
-  } else { av.textContent=(meProfile.name||meProfile.username||'?')[0].toUpperCase(); }
+  } else { av.textContent = getVisibleInitial(meProfile, me.displayNameField); }
   const clearBtn = $('clear-avatar-btn');
   if (clearBtn) clearBtn.style.display = meProfile.avatar ? '' : 'none';
   renderColorSwatches();
   renderDisplayNameBtns();
   hide('avatar-msg');
+  hide('color-msg');
+  hide('notif-prefs-msg');
   // Reset prefs panel to collapsed state
   const col = $('notif-prefs-collapsible');
   const toggle = $('notif-prefs-toggle');
@@ -1669,9 +1716,9 @@ async function setUserColor(color, previewOnly=false) {
     await apiCall('/auth/profile', 'PATCH', { color });
     me.color = color;
     renderSidebar();
-    showMsg('avatar-msg', 'success', '✓ Farbe gespeichert!');
+    flashInlineMessage('color-msg', 'success', '✓ Farbe gespeichert!');
   } catch(e) {
-    showMsg('avatar-msg', 'error', 'Fehler beim Speichern der Farbe.');
+    flashInlineMessage('color-msg', 'error', 'Fehler beim Speichern der Farbe.');
   }
 }
 
@@ -1712,22 +1759,36 @@ async function setDisplayName(field) {
   try {
     await apiCall('/auth/profile', 'PATCH', { displayNameField: field });
     me.displayNameField = field;
-    meProfile.name = val;
-    if (allProfiles[me.id]) allProfiles[me.id].name = val;
+    meProfile.displayNameField = field;
+    if (allProfiles[me.id]) {
+      allProfiles[me.id].displayNameField = field;
+    }
     // Update header
     const nameElement = $('hname');
-    if (nameElement) nameElement.textContent = val;
+    if (nameElement) nameElement.textContent = getVisibleName(me, field) || me.email;
     const hav = $('hav');
-    if (hav && !meProfile.avatar) hav.textContent = val[0].toUpperCase();
+    if (hav && !meProfile.avatar) hav.textContent = getVisibleInitial(meProfile, field);
+    // Mitgliederliste neu laden, damit Sidebar garantiert aktuellen Wert nutzt
+    if (curGroupId) {
+      try {
+        await loadGroupMembers();
+      } catch(e) { /* ignore */ }
+    }
     renderSidebar();
     renderDisplayNameBtns();
-    showMsg('displayname-msg', 'success', `✓ Anzeigename auf „${esc(val)}" gesetzt.`);
+    const valLabel = getVisibleName(me, field) ? `„${esc(getVisibleName(me, field))}"` : '—';
+    flashInlineMessage('displayname-msg', 'success', `✓ Anzeigename auf ${valLabel} gesetzt.`);
   } catch(e) {
-    showMsg('displayname-msg', 'error', 'Fehler beim Speichern des Anzeigenamens.');
+    flashInlineMessage('displayname-msg', 'error', 'Fehler beim Speichern des Anzeigenamens.');
   }
 }
 
-function closeProfileModal() { hide('profile-modal'); }
+function closeProfileModal() {
+  hide('profile-modal');
+  hide('displayname-msg');
+  hide('color-msg');
+  hide('notif-prefs-msg');
+}
 
 async function uploadAvatar(file) {
   if (!file) return;
@@ -1744,15 +1805,17 @@ async function uploadAvatar(file) {
     });
     if (!resp.ok) throw new Error(await resp.text());
     const { avatarUrl } = await resp.json();
-    meProfile.avatar = avatarUrl;
-    if (allProfiles[me.id]) allProfiles[me.id].avatar = avatarUrl;
-    $('avatar-preview').innerHTML=`<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover">`;
-    const hav=$('hav'); if(hav) hav.innerHTML=`<img class="av-img" src="${avatarUrl}">`;
+    const freshAvatarUrl = withCacheBust(avatarUrl);
+    meProfile.avatar = freshAvatarUrl;
+    me.avatar = freshAvatarUrl;
+    if (allProfiles[me.id]) allProfiles[me.id].avatar = freshAvatarUrl;
+    $('avatar-preview').innerHTML=`<img src="${freshAvatarUrl}" style="width:100%;height:100%;object-fit:cover">`;
+    const hav=$('hav'); if(hav) hav.innerHTML=`<img class="av-img" src="${freshAvatarUrl}">`;
     renderSidebar();
     updateMobileAv();
-    showMsg('avatar-msg','success','✓ Profilfoto gespeichert!');
+    flashInlineMessage('avatar-msg', 'success', '✓ Profilfoto gespeichert!');
     $('clear-avatar-btn').style.display = '';
-  } catch(e){ showMsg('avatar-msg','error','Fehler beim Hochladen.'); }
+  } catch(e){ flashInlineMessage('avatar-msg', 'error', 'Fehler beim Hochladen.'); }
 }
 
 async function clearAvatar() {
@@ -1763,13 +1826,13 @@ async function clearAvatar() {
     if (allProfiles[me.id]) allProfiles[me.id].avatar = null;
     const av = $('avatar-preview');
     av.innerHTML = '';
-    av.textContent = (meProfile.name||meProfile.username||'?')[0].toUpperCase();
-    const hav = $('hav'); if (hav) { hav.innerHTML=''; hav.textContent=(meProfile.name||meProfile.username||'?')[0].toUpperCase(); hav.style.background=meProfile.color; }
+    av.textContent = getVisibleInitial(meProfile, me.displayNameField);
+    const hav = $('hav'); if (hav) { hav.innerHTML=''; hav.textContent=getVisibleInitial(meProfile, me.displayNameField); hav.style.background=meProfile.color; }
     $('clear-avatar-btn').style.display = 'none';
     renderSidebar();
     updateMobileAv();
-    showMsg('avatar-msg','success','✓ Profilfoto entfernt.');
-  } catch(e) { showMsg('avatar-msg','error','Fehler beim Löschen.'); }
+    flashInlineMessage('avatar-msg', 'success', '✓ Profilfoto entfernt.');
+  } catch(e) { flashInlineMessage('avatar-msg', 'error', 'Fehler beim Löschen.'); }
 }
 
 // ── ADD FROM ALL PHOTOS ──────────────────────────────────
@@ -1937,6 +2000,36 @@ async function compress(file,maxW=1400,q=0.82) {
 }
 function fmtDate(s){ if(!s)return''; return new Date(s).toLocaleDateString('de-DE'); }
 function fmtDateLong(s){ if(!s)return''; return new Date(s).toLocaleString('de-DE'); }
+function fmtRelativeTime(s) {
+  if (!s) return 'nie online';
+  const dt = new Date(s);
+  if (Number.isNaN(dt.getTime())) return 'unbekannt';
+
+  const diffMs = Date.now() - dt.getTime();
+  const diffSec = Math.round(diffMs / 1000);
+  const absSec = Math.abs(diffSec);
+
+  if (absSec < 45) return 'gerade eben';
+
+  const units = [
+    { sec: 60 * 60 * 24 * 365, label: 'Jahr' },
+    { sec: 60 * 60 * 24 * 30, label: 'Monat' },
+    { sec: 60 * 60 * 24 * 7, label: 'Woche' },
+    { sec: 60 * 60 * 24, label: 'Tag' },
+    { sec: 60 * 60, label: 'Std.' },
+    { sec: 60, label: 'Min.' },
+  ];
+
+  for (const u of units) {
+    if (absSec >= u.sec) {
+      const v = Math.round(absSec / u.sec);
+      const plural = (u.label === 'Std.' || u.label === 'Min.') ? '' : (v > 1 ? 'en' : '');
+      return `vor ${v} ${u.label}${plural}`;
+    }
+  }
+
+  return 'gerade eben';
+}
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // Gibt konsistentes Avatar-HTML zurück: Foto oder Initialen-Kreis
@@ -1944,7 +2037,7 @@ function avatarHtml(user, size=20) {
   if (user?.avatar) {
     return `<img src="${esc(user.avatar)}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:50%;display:block;flex-shrink:0">`;
   }
-  const initial = (user?.name||'?')[0].toUpperCase();
+  const initial = getVisibleInitial(user);
   const bg = esc(user?.color||'#888');
   const fs = Math.round(size * 0.52);
   return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${bg};color:#fff;font-weight:700;font-size:${fs}px;flex-shrink:0;overflow:hidden">${initial}</span>`;
@@ -1961,12 +2054,16 @@ function setBL(id,l,txt){ const b=$(id); if(!b)return; b.disabled=l; b.innerHTML
 async function loadGroupMembers() {
   try {
     const { members } = await apiCall(`/groups/${curGroupId}/members`, 'GET');
-    groupMembers = members || [];
+    const cacheBust = Date.now();
+    groupMembers = (members || []).map(m => ({
+      ...m,
+      avatar: m.avatar ? `${m.avatar}${m.avatar.includes('?') ? '&' : '?'}v=${cacheBust}` : m.avatar,
+    }));
     groupMembers.forEach(m => { allProfiles[m.id] = m; });
     groupMembers.sort((a,b) => {
       if (a.id === me.id) return -1;
       if (b.id === me.id) return 1;
-      return (a.name||'').localeCompare(b.name||'');
+      return getVisibleName(a).localeCompare(getVisibleName(b), 'de', { sensitivity: 'base' });
     });
   } catch(e) { groupMembers = []; }
 }
@@ -2095,7 +2192,11 @@ async function _renderAdminUserList() {
 
 function _adminUserRowHtml(u) {
   const isMe = u.id === me?.id;
-  const sinceYear = new Date(u.createdAt).getFullYear();
+  const lastLoginText = fmtRelativeTime(u.lastLoginAt);
+  const lastLoginTitle = u.lastLoginAt ? `Letzter Login: ${fmtDateLong(u.lastLoginAt)}` : 'Noch kein Login';
+  const migratedInfo = (u.migratedFrom || u.migratedAt)
+    ? `Migriert von ${esc(u.migratedFrom || 'supabase')} am ${esc(fmtDate(u.migratedAt || u.createdAt))}`
+    : '';
   return `
     <div class="au-row" id="aur-${u.id}">
       <div class="au-summary" onclick="adminToggleUser('${u.id}')">
@@ -2105,9 +2206,10 @@ function _adminUserRowHtml(u) {
         <div class="au-info">
           <span class="au-name">${esc(u.name||u.username)}</span>
           <span class="au-email">${esc(u.email)}</span>
+          ${migratedInfo ? `<span class="au-migration-note">${migratedInfo}</span>` : ''}
         </div>
         <span class="au-role-badge ${u.role === 'admin' ? 'au-role-admin' : 'au-role-user'}">${u.role === 'admin' ? 'Admin' : 'Nutzer'}</span>
-        <span class="au-since">${sinceYear}</span>
+        <span class="au-since" title="${esc(lastLoginTitle)}">${esc(lastLoginText)}</span>
         <span class="au-chevron" id="au-chev-${u.id}">›</span>
       </div>
       <div class="au-detail hidden" id="au-detail-${u.id}">
@@ -2154,8 +2256,20 @@ function _renderAdminUserDetail(userId, u) {
         <div class="au-group-item">
           <span class="au-group-name">${esc(g.name)}</span>
           <span class="au-grole-badge ${roleClassMap[g.role]||''}">${roleLabelMap[g.role]||g.role}</span>
+          <button
+            class="au-mini-btn ${g.role === 'owner' ? 'au-mini-btn-disabled' : ''}"
+            ${g.role === 'owner' ? 'disabled title="Owner kann nicht direkt entfernt werden"' : `onclick="event.stopPropagation();adminRemoveUserFromGroup('${userId}','${g.id}','${esc(g.name)}',false)"`}
+          >Entfernen</button>
         </div>`).join('')
     : '<span style="font-size:13px;color:var(--muted)">Keine Gruppen</span>';
+
+  const addableGroupsOptions = (u.assignableGroups || [])
+    .map(g => `<option value="${g.id}">${esc(g.name)}</option>`)
+    .join('');
+
+  const migrationInfo = (u.migratedFrom || u.migratedAt)
+    ? `Migriert von ${esc(u.migratedFrom || 'supabase')} am ${esc(fmtDate(u.migratedAt || u.createdAt))}`
+    : '-';
 
   $(`au-detail-${userId}`).innerHTML = `
     <div class="au-stats-grid">
@@ -2172,10 +2286,19 @@ function _renderAdminUserDetail(userId, u) {
       <div class="au-info-row"><span class="au-info-key">Benutzername</span><span class="au-info-val au-mono">${esc(u.username || '-')}</span></div>
       <div class="au-info-row"><span class="au-info-key">Vollst. Name</span><span class="au-info-val">${esc(u.name || '-')}</span></div>
       <div class="au-info-row"><span class="au-info-key">E-Mail</span><span class="au-info-val au-mono">${esc(u.email)}</span></div>
+      <div class="au-info-row"><span class="au-info-key">Last Login</span><span class="au-info-val">${esc(u.lastLoginAt ? fmtDateLong(u.lastLoginAt) : 'Noch nie')}</span></div>
+      <div class="au-info-row"><span class="au-info-key">Migration</span><span class="au-info-val">${migrationInfo}</span></div>
     </div>
     <div class="au-card">
       <div class="au-card-title">Gruppen <span class="au-card-count">${u.groups?.length||0}</span></div>
       <div class="au-groups-list">${groupsHtml}</div>
+      <div class="au-group-manage-row">
+        <select id="au-add-group-sel-${userId}" class="au-role-select" ${addableGroupsOptions ? '' : 'disabled'}>
+          <option value="">${addableGroupsOptions ? 'Gruppe wählen…' : 'Keine weitere Gruppe verfügbar'}</option>
+          ${addableGroupsOptions}
+        </select>
+        <button class="au-btn" ${addableGroupsOptions ? `onclick="adminAddUserToGroup('${userId}')"` : 'disabled'}>Hinzufügen</button>
+      </div>
     </div>
     <div class="au-card">
       <div class="au-card-title">Aktionen</div>
@@ -2259,6 +2382,47 @@ async function adminSetRole(userId, newRole, selectEl) {
   } catch(e) {
     toast(e.message || 'Fehler beim Ändern der Rolle', 'error');
     if (selectEl) selectEl.value = prev;
+  }
+}
+
+async function adminReloadUserDetail(userId) {
+  const data = await apiCall(`/admin/users/${userId}`, 'GET');
+  _adminUserLoaded[userId] = data;
+  _renderAdminUserDetail(userId, data);
+}
+
+async function adminAddUserToGroup(userId) {
+  const sel = $(`au-add-group-sel-${userId}`);
+  const groupId = sel?.value;
+  if (!groupId) {
+    toast('Bitte zuerst eine Gruppe auswählen', 'error');
+    return;
+  }
+  try {
+    await apiCall(`/admin/users/${userId}/groups`, 'POST', { groupId });
+    await adminReloadUserDetail(userId);
+    toast('Benutzer zur Gruppe hinzugefügt', 'success');
+  } catch (e) {
+    toast(e.message || 'Fehler beim Hinzufügen zur Gruppe', 'error');
+  }
+}
+
+async function adminRemoveUserFromGroup(userId, groupId, groupName) {
+  const ok = await showConfirmDlg(
+    'Benutzer aus Gruppe entfernen',
+    `Soll der Benutzer wirklich aus „${groupName}" entfernt werden?`,
+    'Entfernen',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+
+  try {
+    await apiCall(`/admin/users/${userId}/groups/${groupId}`, 'DELETE');
+    await adminReloadUserDetail(userId);
+    toast('Benutzer aus Gruppe entfernt', 'success');
+  } catch (e) {
+    toast(e.message || 'Fehler beim Entfernen aus der Gruppe', 'error');
   }
 }
 
@@ -3622,6 +3786,9 @@ const _NOTIF_PREF_LABELS = {
   system:            { label: 'System-Benachrichtigungen',    hint: 'Ankündigungen vom Administrator (z.B. Updates, Wartungen). In-App ist immer aktiv.' },
 };
 let _notifPrefs = {};
+let _notifPrefsSaveTimer = null;
+let _notifPrefsSaving = false;
+let _notifPrefsQueued = false;
 
 async function loadNotifPrefs() {
   const loading = $('notif-prefs-loading');
@@ -3665,33 +3832,71 @@ function _renderPrefsTable() {
       <td style="text-align:center;padding:7px 6px">
         ${isSystem
           ? `<input type="checkbox" id="np_inApp_${key}" checked disabled title="System-Benachrichtigungen sind immer aktiv"> <span title="Nicht deaktivierbar" style="font-size:10px;opacity:.6">🔒</span>`
-          : `<input type="checkbox" id="np_inApp_${key}" ${_notifPrefs['inApp_'+key] ? 'checked' : ''}>`
+          : `<input type="checkbox" id="np_inApp_${key}" ${_notifPrefs['inApp_'+key] ? 'checked' : ''} onchange="handleNotifPrefToggle('${key}','inApp',this.checked)">`
         }
       </td>
       <td style="text-align:center;padding:7px 6px">
-        <input type="checkbox" id="np_email_${key}" ${_notifPrefs['email_'+key] ? 'checked' : ''}>
+        <input type="checkbox" id="np_email_${key}" ${_notifPrefs['email_'+key] ? 'checked' : ''} onchange="handleNotifPrefToggle('${key}','email',this.checked)">
       </td>
     </tr>`;
   }).join('');
 }
 
-async function saveNotifPrefs() {
+function collectNotifPrefsFromUi() {
   const prefs = {};
   for (const key of Object.keys(_NOTIF_PREF_LABELS)) {
-    // inApp_system ist immer true und wird nicht per UI geändert
     if (key !== 'system') {
       prefs['inApp_' + key] = !!($('np_inApp_' + key)?.checked);
     }
     prefs['email_' + key] = !!($('np_email_' + key)?.checked);
   }
+  return prefs;
+}
+
+function setNotifPrefsMessage(text, type) {
+  showMsg('notif-prefs-msg', type, text);
+}
+
+function scheduleNotifPrefsSave() {
+  if (_notifPrefsSaveTimer) clearTimeout(_notifPrefsSaveTimer);
+  _notifPrefsSaveTimer = setTimeout(() => {
+    _notifPrefsSaveTimer = null;
+    saveNotifPrefs();
+  }, 200);
+}
+
+function handleNotifPrefToggle(key, channel, checked) {
+  const prefKey = `${channel}_${key}`;
+  const previousPrefs = { ..._notifPrefs };
+  _notifPrefs[prefKey] = checked;
+  setNotifPrefsMessage('Speichert…', 'success');
+  scheduleNotifPrefsSave();
+  handleNotifPrefToggle._lastPreviousPrefs = previousPrefs;
+}
+
+async function saveNotifPrefs() {
+  const prefs = collectNotifPrefsFromUi();
+  if (_notifPrefsSaving) {
+    _notifPrefsQueued = true;
+    return;
+  }
+  _notifPrefsSaving = true;
+  const previousPrefs = handleNotifPrefToggle._lastPreviousPrefs || { ..._notifPrefs };
   try {
     await apiCall('/notifications/preferences', 'PUT', prefs);
     _notifPrefs = prefs;
-    const msg = $('notif-prefs-msg');
-    if (msg) { msg.textContent = 'Gespeichert ✓'; msg.className = 'msg ok'; show('notif-prefs-msg'); setTimeout(() => hide('notif-prefs-msg'), 3000); }
+    setNotifPrefsMessage('✓ Benachrichtigungseinstellungen gespeichert!', 'success');
+    setTimeout(() => hide('notif-prefs-msg'), 5000);
   } catch(e) {
-    const msg = $('notif-prefs-msg');
-    if (msg) { msg.textContent = 'Fehler beim Speichern'; msg.className = 'msg error'; show('notif-prefs-msg'); }
+    _notifPrefs = previousPrefs;
+    _renderPrefsTable();
+    setNotifPrefsMessage('Fehler beim Speichern der Benachrichtigungseinstellungen.', 'error');
+  } finally {
+    _notifPrefsSaving = false;
+    if (_notifPrefsQueued) {
+      _notifPrefsQueued = false;
+      saveNotifPrefs();
+    }
   }
 }
 // ── END NOTIFICATIONS ────────────────────────────────────
@@ -3810,6 +4015,7 @@ Object.assign(window, {
   closeAdminGroupDeleteModal, agdmCopyLink, agdmCloseAndCleanup, agdmStrandedCheckChange, adminGroupDoBackup, adminGroupDoDelete, adminGroupConfirmDelete,
   openAdminUsers, closeAdminUsers, adminSetRole, adminToggleUser,
   adminDeleteUser, adminToggleNotifyForm, adminSendUserNotification,
+  adminAddUserToGroup, adminRemoveUserFromGroup,
   openAdminBackups, closeAdminBackups, adminRefreshBackupLink, adminDeleteBackupEntry,
   toggleGroupDropdown,
   // Slideshow
@@ -3817,7 +4023,7 @@ Object.assign(window, {
   // Misc
   toggleDarkMode, changeSort,
   // Notifications
-  toggleNotifPanel, markAllNotificationsRead, deleteAllNotifications, saveNotifPrefs, toggleNotifPrefs, _notifClick, _notifMarkRead, _notifDelete,
+  toggleNotifPanel, markAllNotificationsRead, deleteAllNotifications, saveNotifPrefs, toggleNotifPrefs, handleNotifPrefToggle, _notifClick, _notifMarkRead, _notifDelete,
   openBroadcastModal, closeBroadcastModal, sendBroadcast, renderBroadcastAttachmentPreview,
   copyCurrentImageId, toggleLbMenu, closeLbMenu,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)

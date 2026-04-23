@@ -49,7 +49,7 @@ export default async function groupsRoutes(fastify) {
         where: { groupId: request.params.id },
         include: {
           user: {
-            select: { id: true, name: true, username: true, color: true, avatar: true },
+            select: { id: true, name: true, username: true, color: true, avatar: true, displayNameField: true },
           },
         },
       });

@@ -9,7 +9,9 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const STRICT = process.argv.includes('--strict');
 const REPLACE_MODE = process.argv.includes('--replace');
 const SKIP_STORAGE = process.argv.includes('--skip-storage');
-const LOGIN_MODE = process.argv.includes('--login');
+const ROLLBACK_MODE = process.argv.includes('--rollback');
+const MIGRATION_SOURCE_HOST = getMigrationSourceHost();
+const MIGRATION_DATE_ISO = new Date().toISOString();
 
 const DEFAULT_PAGE_SIZE = 1000;
 
@@ -27,6 +29,16 @@ function getOptionalEnv(name, fallback = '') {
 
 function getTargetDatabaseUrl() {
   return process.env.TARGET_DATABASE_URL || requireEnv('DATABASE_URL');
+}
+
+function getMigrationSourceHost() {
+  const raw = process.env.SUPABASE_URL;
+  if (!raw) return null;
+  try {
+    return new URL(raw).host;
+  } catch {
+    return null;
+  }
 }
 
 function parseArg(name, fallback = null) {
@@ -104,64 +116,6 @@ function randomColorFromId(id) {
     .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const hue = seed % 360;
   return `hsl(${hue}, 50%, 55%)`;
-}
-
-async function queryMap(client, sql, rowMapper = (x) => x) {
-  const { rows } = await client.query(sql);
-  return rows.map(rowMapper);
-}
-
-async function loadSupabaseData(source) {
-  const profiles = await queryMap(
-    source,
-    `select id, name, name_lower, color, avatar_path from public.profiles`
-  );
-
-  const authUsers = await queryMap(
-    source,
-    `select id, email, raw_user_meta_data, created_at from auth.users`
-  );
-
-  const groups = await queryMap(
-    source,
-    `select id, name, code, created_by, created_at from public.groups`
-  );
-
-  const groupMembers = await queryMap(
-    source,
-    `select user_id, group_id from public.group_members`
-  );
-
-  const albums = await queryMap(
-    source,
-    `select id, name, created_by, group_id, created_at from public.albums`
-  );
-
-  const photos = await queryMap(
-    source,
-    `select id, uploader_id, filename, storage_path, description, album_id, group_id, created_at from public.photos`
-  );
-
-  const likes = await queryMap(
-    source,
-    `select photo_id, user_id, created_at from public.likes`
-  );
-
-  const comments = await queryMap(
-    source,
-    `select id, photo_id, user_id, content, created_at from public.comments`
-  );
-
-  return {
-    profiles,
-    authUsers,
-    groups,
-    groupMembers,
-    albums,
-    photos,
-    likes,
-    comments
-  };
 }
 
 async function loginSupabase(baseUrl, anonKey, email, password) {
@@ -256,31 +210,6 @@ async function loadVisibleSupabaseData(baseUrl, anonKey, accessToken) {
   };
 }
 
-function buildUserRows(authUsers, profiles, usedUsernames) {
-  const profileById = new Map(profiles.map((p) => [p.id, p]));
-
-  return authUsers
-    .filter((u) => !!u.email)
-    .map((u) => {
-      const p = profileById.get(u.id);
-      const displayName = p?.name || u?.raw_user_meta_data?.display_name || null;
-      const username = generateUsername(u.email, displayName, u.id, usedUsernames, p?.name_lower || null);
-
-      return {
-        id: u.id,
-        email: u.email,
-        username,
-        name: displayName,
-        color: p?.color || randomColorFromId(u.id),
-        // Avatar migration is intentionally disabled.
-        avatar: null,
-        displayNameField: 'name',
-        role: 'user',
-        createdAt: u.created_at || new Date().toISOString()
-      };
-    });
-}
-
 function buildVisibleUserRows({ currentUser, profiles, groupMembers, albums, photos, likes, comments, usedUsernames }) {
   const profileById = new Map(profiles.map((p) => [p.id, p]));
   const referencedUserIds = new Set([currentUser.id]);
@@ -317,6 +246,9 @@ function buildVisibleUserRows({ currentUser, profiles, groupMembers, albums, pho
       avatar: null,
       displayNameField: 'name',
       role: 'user',
+      migratedFrom: MIGRATION_SOURCE_HOST,
+      migratedAt: MIGRATION_DATE_ISO,
+      lastLoginAt: null,
       createdAt: profile?.created_at || currentUser.created_at || new Date().toISOString()
     };
   });
@@ -570,17 +502,40 @@ async function insertAll(target, data, targetState) {
   for (const u of users) {
     try {
       await target.query(
-        `insert into "User" (id, email, username, name, color, avatar, "displayNameField", role, "createdAt")
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `insert into "User" (id, email, username, name, color, avatar, "displayNameField", role, "migratedFrom", "migratedAt", "lastLoginAt", "createdAt")
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          on conflict (id) do update set
            email = excluded.email,
            username = excluded.username,
            name = excluded.name,
            color = excluded.color,
            avatar = excluded.avatar,
-           "displayNameField" = excluded."displayNameField"`,
-        [u.id, u.email, u.username, u.name, u.color, u.avatar, u.displayNameField, u.role, u.createdAt]
+           "displayNameField" = excluded."displayNameField",
+           "migratedFrom" = coalesce("User"."migratedFrom", excluded."migratedFrom"),
+           "migratedAt" = coalesce("User"."migratedAt", excluded."migratedAt")`,
+        [u.id, u.email, u.username, u.name, u.color, u.avatar, u.displayNameField, u.role, u.migratedFrom, u.migratedAt, u.lastLoginAt, u.createdAt]
       );
+
+      // Create one system inbox message per migrated user (idempotent on reruns).
+      await target.query(
+        `insert into "Notification" (id, "userId", type, title, body, "entityId", "entityType")
+         select $1, $2, 'system', $3, $4, 'supabase-migration', 'external'
+         where not exists (
+           select 1
+           from "Notification"
+           where "userId" = $2
+             and type = 'system'
+             and "entityType" = 'external'
+             and "entityId" = 'supabase-migration'
+         )`,
+        [
+          randomUUID(),
+          u.id,
+          'Dein Konto wurde migriert',
+          'Dein Benutzerkonto und deine Daten wurden erfolgreich aus Supabase in das neue Fotoalbum-System übernommen.'
+        ]
+      );
+
       targetState.userIds.add(u.id);
       targetState.usernames.add(u.username);
       inserted.users += 1;
@@ -823,6 +778,138 @@ async function migratePhotosToMinio(photos, authContext) {
   return stats;
 }
 
+async function rollbackPhotosFromMinio(photos) {
+  const targetBucket = process.env.MINIO_BUCKET_PHOTOS || 'photos';
+  const minio = getMinioClient();
+  const uniquePaths = [...new Set(photos.map((p) => p.storage_path).filter(Boolean))];
+  const stats = { total: uniquePaths.length, removed: 0, missing: 0, error: 0 };
+
+  for (const objectPath of uniquePaths) {
+    try {
+      await minio.removeObject(targetBucket, objectPath);
+      stats.removed += 1;
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no such key')) {
+        stats.missing += 1;
+      } else {
+        stats.error += 1;
+        console.warn(`Storage rollback failed for ${objectPath}: ${msg}`);
+      }
+    }
+  }
+
+  return stats;
+}
+
+async function rollbackAll(target, data) {
+  const {
+    users,
+    groups,
+    groupMembers,
+    albums,
+    photos,
+    photoAlbums,
+    likes,
+    comments
+  } = data;
+
+  const stats = {
+    notifications: 0,
+    usersMetaCleared: 0,
+    likes: 0,
+    comments: 0,
+    photoAlbums: 0,
+    photos: 0,
+    albumContributors: 0,
+    albums: 0,
+    groupDeputies: 0,
+    groupMembers: 0,
+    groups: 0
+  };
+
+  const userIds = [...new Set(users.map((u) => u.id))];
+  const photoIds = [...new Set(photos.map((p) => p.id))];
+  const albumIds = [...new Set(albums.map((a) => a.id))];
+  const groupIds = [...new Set(groups.map((g) => g.id))];
+
+  if (userIds.length) {
+    const res = await target.query(
+      `delete from "Notification"
+       where "userId" = any($1::text[])
+         and type = 'system'
+         and "entityType" = 'external'
+         and "entityId" = 'supabase-migration'`,
+      [userIds]
+    );
+    stats.notifications += res.rowCount || 0;
+
+    const metaRes = await target.query(
+      `update "User"
+       set "migratedFrom" = null,
+           "migratedAt" = null
+       where id = any($1::text[])`,
+      [userIds]
+    );
+    stats.usersMetaCleared += metaRes.rowCount || 0;
+  }
+
+  for (const l of likes) {
+    const res = await target.query(
+      `delete from "Like" where "photoId" = $1 and "userId" = $2`,
+      [l.photo_id, l.user_id]
+    );
+    stats.likes += res.rowCount || 0;
+  }
+
+  if (comments.length) {
+    const commentIds = comments.map((c) => c.id);
+    const res = await target.query(`delete from "Comment" where id = any($1::text[])`, [commentIds]);
+    stats.comments += res.rowCount || 0;
+  }
+
+  for (const pa of photoAlbums) {
+    const res = await target.query(
+      `delete from "PhotoAlbum" where "photoId" = $1 and "albumId" = $2`,
+      [pa.photoId, pa.albumId]
+    );
+    stats.photoAlbums += res.rowCount || 0;
+  }
+
+  if (photoIds.length) {
+    const res = await target.query(`delete from "Photo" where id = any($1::text[])`, [photoIds]);
+    stats.photos += res.rowCount || 0;
+  }
+
+  if (albumIds.length) {
+    const contribRes = await target.query(`delete from "AlbumContributor" where "albumId" = any($1::text[])`, [albumIds]);
+    stats.albumContributors += contribRes.rowCount || 0;
+
+    const albumRes = await target.query(`delete from "Album" where id = any($1::text[])`, [albumIds]);
+    stats.albums += albumRes.rowCount || 0;
+  }
+
+  if (groupIds.length) {
+    const deputyRes = await target.query(`delete from "GroupDeputy" where "groupId" = any($1::text[])`, [groupIds]);
+    stats.groupDeputies += deputyRes.rowCount || 0;
+  }
+
+  for (const gm of groupMembers) {
+    const res = await target.query(
+      `delete from "GroupMember" where "userId" = $1 and "groupId" = $2`,
+      [gm.user_id, gm.group_id]
+    );
+    stats.groupMembers += res.rowCount || 0;
+  }
+
+  if (groupIds.length) {
+    const res = await target.query(`delete from "Group" where id = any($1::text[])`, [groupIds]);
+    stats.groups += res.rowCount || 0;
+  }
+
+  return stats;
+}
+
 function printSummary(summary) {
   console.log('Migration summary:');
   console.log(`- users: ${summary.users}`);
@@ -850,7 +937,7 @@ function sampleLines(items, formatter, limit = 10) {
   return items.slice(0, limit).map(formatter);
 }
 
-function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photoAlbums, likes, comments, issues, targetState, replaceMode, skipStorage, loginMode }) {
+function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photoAlbums, likes, comments, issues, targetState, replaceMode, skipStorage }) {
   const existingUserCount = users.filter((u) => targetState.userIds.has(u.id)).length;
   const existingGroupCount = groups.filter((g) => targetState.groupIds.has(g.id)).length;
   const existingAlbumCount = albums.filter((a) => targetState.albumIds.has(a.id)).length;
@@ -870,7 +957,7 @@ function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photo
   const usersWithoutRealEmail = users.filter((u) => u.email.endsWith(`@${getOptionalEnv('VISIBLE_IMPORT_EMAIL_DOMAIN', 'visible-import.local')}`));
 
   printSection('Dry-run mode:', [
-    `mode: ${loginMode ? 'login-visible-import' : 'full-db-import'}`,
+    `mode: login-visible-import`,
     `target strategy: ${replaceMode ? 'replace existing target data' : 'merge into existing target data'}`,
     `storage step: ${skipStorage ? 'skipped' : 'would copy visible photos to MinIO'}`
   ]);
@@ -912,16 +999,25 @@ function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photo
   }
 }
 
+function printRollbackSummary(summary) {
+  console.log('Rollback scope:');
+  console.log(`- users (kept): ${summary.users}`);
+  console.log(`- groups: ${summary.groups}`);
+  console.log(`- groupMembers: ${summary.groupMembers}`);
+  console.log(`- albums: ${summary.albums}`);
+  console.log(`- photos: ${summary.photos}`);
+  console.log(`- photoAlbums: ${summary.photoAlbums}`);
+  console.log(`- likes: ${summary.likes}`);
+  console.log(`- comments: ${summary.comments}`);
+}
+
 async function main() {
   const target = new Client({ connectionString: getTargetDatabaseUrl() });
-  const source = LOGIN_MODE
-    ? null
-    : new Client({ connectionString: requireEnv('SUPABASE_DB_URL') });
-
-  if (source) {
-    await source.connect();
-  }
   await target.connect();
+
+  if (ROLLBACK_MODE && REPLACE_MODE) {
+    throw new Error('Flags --rollback und --replace koennen nicht kombiniert werden.');
+  }
 
   try {
     const targetState = await getExistingTargetState(target);
@@ -934,45 +1030,33 @@ async function main() {
     let storageAuthContext;
     let userMappingStats = null;
 
-    if (LOGIN_MODE) {
-      const supabaseUrl = requireEnv('SUPABASE_URL');
-      const anonKey = requireEnv('SUPABASE_ANON_KEY');
-      const { email, password } = getLoginCredentials();
-      const session = await loginSupabase(supabaseUrl, anonKey, email, password);
-      const currentUser = await fetchCurrentUser(supabaseUrl, anonKey, session.access_token);
-      const visibleRaw = await loadVisibleSupabaseData(supabaseUrl, anonKey, session.access_token);
-      const normalized = normalizeVisibleData(visibleRaw, currentUser);
+    const supabaseUrl = requireEnv('SUPABASE_URL');
+    const anonKey = requireEnv('SUPABASE_ANON_KEY');
+    const { email, password } = getLoginCredentials();
+    const session = await loginSupabase(supabaseUrl, anonKey, email, password);
+    const currentUser = await fetchCurrentUser(supabaseUrl, anonKey, session.access_token);
+    const visibleRaw = await loadVisibleSupabaseData(supabaseUrl, anonKey, session.access_token);
+    const normalized = normalizeVisibleData(visibleRaw, currentUser);
 
-      raw = {
-        ...normalized,
-        authUsers: []
-      };
-      photoAlbums = normalized.photoAlbums;
-      users = buildVisibleUserRows({
-        currentUser,
-        profiles: normalized.profiles,
-        groupMembers: normalized.groupMembers,
-        albums: normalized.albums,
-        photos: normalized.photos,
-        likes: normalized.likes,
-        comments: normalized.comments,
-        usedUsernames
-      });
-      storageAuthContext = {
-        apiKey: anonKey,
-        bearerToken: session.access_token
-      };
-    } else {
-      raw = await loadSupabaseData(source);
-      users = buildUserRows(raw.authUsers, raw.profiles, usedUsernames);
-      photoAlbums = raw.photos
-        .filter((p) => !!p.album_id)
-        .map((p) => ({ photoId: p.id, albumId: p.album_id }));
-      storageAuthContext = {
-        apiKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
-        bearerToken: requireEnv('SUPABASE_SERVICE_ROLE_KEY')
-      };
-    }
+    raw = {
+      ...normalized,
+      authUsers: []
+    };
+    photoAlbums = normalized.photoAlbums;
+    users = buildVisibleUserRows({
+      currentUser,
+      profiles: normalized.profiles,
+      groupMembers: normalized.groupMembers,
+      albums: normalized.albums,
+      photos: normalized.photos,
+      likes: normalized.likes,
+      comments: normalized.comments,
+      usedUsernames
+    });
+    storageAuthContext = {
+      apiKey: anonKey,
+      bearerToken: session.access_token
+    };
 
     raw.groups = normalizeGroupCodes(raw.groups);
 
@@ -1039,7 +1123,11 @@ async function main() {
       comments: raw.comments.length
     };
 
-    printSummary(summary);
+    if (ROLLBACK_MODE) {
+      printRollbackSummary(summary);
+    } else {
+      printSummary(summary);
+    }
 
     if (DRY_RUN) {
       if (userMappingStats) {
@@ -1064,42 +1152,76 @@ async function main() {
         issues,
         targetState,
         replaceMode: REPLACE_MODE,
-        skipStorage: SKIP_STORAGE,
-        loginMode: LOGIN_MODE
+        skipStorage: SKIP_STORAGE
       });
-      console.log('Dry-run mode enabled. No target writes were executed.');
+      if (ROLLBACK_MODE) {
+        console.log('Dry-run mode enabled. Kein Rollback wurde ausgefuehrt.');
+      } else {
+        console.log('Dry-run mode enabled. No target writes were executed.');
+      }
       return;
     }
 
     await target.query('begin');
-    if (REPLACE_MODE) {
+    if (!ROLLBACK_MODE && REPLACE_MODE) {
       await truncateTarget(target);
     }
 
-    const inserted = await insertAll(target, {
-      users,
-      groups: raw.groups,
-      groupMembers: raw.groupMembers,
-      albums: raw.albums,
-      photos: raw.photos,
-      photoAlbums,
-      likes: raw.likes,
-      comments: raw.comments
-    }, targetState);
+    let inserted = null;
+    let rollbackStats = null;
+    if (ROLLBACK_MODE) {
+      rollbackStats = await rollbackAll(target, {
+        users,
+        groups: raw.groups,
+        groupMembers: raw.groupMembers,
+        albums: raw.albums,
+        photos: raw.photos,
+        photoAlbums,
+        likes: raw.likes,
+        comments: raw.comments
+      });
+    } else {
+      inserted = await insertAll(target, {
+        users,
+        groups: raw.groups,
+        groupMembers: raw.groupMembers,
+        albums: raw.albums,
+        photos: raw.photos,
+        photoAlbums,
+        likes: raw.likes,
+        comments: raw.comments
+      }, targetState);
+    }
 
     await target.query('commit');
-    console.log('Database migration completed successfully.');
-    console.log(`Inserted/updated rows (best effort): ${JSON.stringify(inserted)}`);
+    if (ROLLBACK_MODE) {
+      console.log('Database rollback completed successfully.');
+      console.log(`Rollback result: ${JSON.stringify(rollbackStats)}`);
 
-    if (!SKIP_STORAGE) {
-      const storageStats = await migratePhotosToMinio(raw.photos, storageAuthContext);
-      console.log('Photo storage migration completed.');
-      console.log(`- total: ${storageStats.total}`);
-      console.log(`- copied: ${storageStats.copied}`);
-      console.log(`- already existed: ${storageStats.exists}`);
-      console.log(`- errors: ${storageStats.error}`);
+      if (!SKIP_STORAGE) {
+        const storageRollbackStats = await rollbackPhotosFromMinio(raw.photos);
+        console.log('Photo storage rollback completed.');
+        console.log(`- total: ${storageRollbackStats.total}`);
+        console.log(`- removed: ${storageRollbackStats.removed}`);
+        console.log(`- missing: ${storageRollbackStats.missing}`);
+        console.log(`- errors: ${storageRollbackStats.error}`);
+      } else {
+        console.log('Photo storage rollback skipped (--skip-storage).');
+      }
     } else {
-      console.log('Photo storage migration skipped (--skip-storage).');
+      console.log('Database migration completed successfully.');
+      console.log(`Inserted/updated rows (best effort): ${JSON.stringify(inserted)}`);
+
+      if (!SKIP_STORAGE) {
+        const storageStats = await migratePhotosToMinio(raw.photos, storageAuthContext);
+        console.log('Photo storage migration completed.');
+        console.log(`- total: ${storageStats.total}`);
+        console.log(`- copied: ${storageStats.copied}`);
+        console.log(`- already existed: ${storageStats.exists}`);
+        console.log(`- errors: ${storageStats.error}`);
+      } else {
+        console.log('Photo storage migration skipped (--skip-storage).');
+      }
     }
   } catch (err) {
     try {
@@ -1109,9 +1231,6 @@ async function main() {
     }
     throw err;
   } finally {
-    if (source) {
-      await source.end();
-    }
     await target.end();
   }
 }

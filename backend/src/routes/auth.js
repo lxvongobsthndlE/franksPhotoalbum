@@ -23,9 +23,8 @@ function generateNonce() {
 function normalizePreferredUsername(value) {
   if (!value) return null;
   return String(value)
-    .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 64) || null;
 }
@@ -75,7 +74,8 @@ async function syncUserFromOIDC(fastify, userInfo) {
         email,
         username: targetUsername,
         name: realName,
-        color: `hsl(${Math.random() * 360}, 70%, 70%)`
+        color: `hsl(${Math.random() * 360}, 70%, 70%)`,
+        lastLoginAt: new Date(),
       }
     });
   } else {
@@ -96,7 +96,8 @@ async function syncUserFromOIDC(fastify, userInfo) {
       data: {
         name: realName,
         username: usernameForUpdate,
-        email
+        email,
+        lastLoginAt: new Date(),
       }
     });
   }
@@ -328,7 +329,9 @@ export default async function authRoutes(fastify) {
       reply
         .header('Content-Type', stat.metaData['content-type'] || 'image/jpeg')
         .header('Content-Length', stat.size)
-        .header('Cache-Control', 'public, max-age=86400');
+        .header('Cache-Control', 'private, no-cache, no-store, must-revalidate')
+        .header('Pragma', 'no-cache')
+        .header('Expires', '0');
       return reply.send(stream);
     } catch (err) {
       return reply.code(404).send({ error: 'Avatar nicht gefunden' });
