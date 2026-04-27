@@ -12,7 +12,15 @@
     "migrate": "node --env-file=.env.local db/migrate.js",
     "migrate:supabase": "node --env-file=.env.local scripts/migrate-supabase-to-prisma.mjs",
     "crawl:supabase:anon": "node --env-file=.env.local scripts/crawl-supabase-anon.mjs",
-    "crawl:supabase:login": "node --env-file=.env.local scripts/crawl-supabase-login.mjs"
+    "crawl:supabase:login": "node --env-file=.env.local scripts/crawl-supabase-login.mjs",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src routes middleware auth utils scripts",
+    "lint:fix": "eslint src routes middleware auth utils scripts --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "npm run format:check && npm run lint && npx prisma validate"
   },
   "dependencies": {
     "@fastify/cookie": "^8.3.0",
@@ -36,9 +44,16 @@
     "prisma": "^5.7.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "@vitest/ui": "^1.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-jsdoc": "^48.0.0",
     "nodemon": "^3.0.0",
     "pino-pretty": "^10.2.0",
     "png-to-ico": "^3.0.1",
-    "sharp": "^0.34.5"
+    "prettier": "^3.0.0",
+    "sharp": "^0.34.5",
+    "vitest": "^1.0.0"
   }
 }
