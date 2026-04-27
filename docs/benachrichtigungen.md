@@ -37,20 +37,20 @@ data: {"id":"…","type":"photoCommented","title":"…","body":"…","entityId":
 
 ## Benachrichtigungstypen
 
-| Typ | Auslöser | Standard in-app | Standard E-Mail |
-|---|---|---|---|
-| `deputyAdded` | Nutzer wird zum Deputy ernannt | ✅ | ✅ |
-| `deputyRemoved` | Deputy-Status entzogen | ✅ | ❌ |
-| `contributorAdded` | Nutzer als Album-Contributor hinzugefügt | ✅ | ✅ |
-| `contributorRemoved` | Contributor-Status entzogen | ✅ | ❌ |
-| `groupMemberJoined` | Neues Mitglied tritt der Gruppe bei | ✅ | ❌ |
-| `groupMemberLeft` | Mitglied verlässt die Gruppe | ✅ | ❌ |
-| `groupDeleted` | Gruppe wurde gelöscht | ✅ | ✅ |
-| `photoLiked` | Eigenes Foto wurde geliked | ✅ | ❌ |
-| `photoCommented` | Eigenes Foto wurde kommentiert | ✅ | ❌ |
-| `newPhoto` | Neues Foto in der Gruppe hochgeladen | ✅ | ❌ |
-| `newAlbum` | Neues Album in der Gruppe erstellt | ✅ | ❌ |
-| `system` | Admin-Broadcast-Nachricht | ✅ (immer) | ❌ |
+| Typ                  | Auslöser                                 | Standard in-app | Standard E-Mail |
+| -------------------- | ---------------------------------------- | --------------- | --------------- |
+| `deputyAdded`        | Nutzer wird zum Deputy ernannt           | ✅              | ✅              |
+| `deputyRemoved`      | Deputy-Status entzogen                   | ✅              | ❌              |
+| `contributorAdded`   | Nutzer als Album-Contributor hinzugefügt | ✅              | ✅              |
+| `contributorRemoved` | Contributor-Status entzogen              | ✅              | ❌              |
+| `groupMemberJoined`  | Neues Mitglied tritt der Gruppe bei      | ✅              | ❌              |
+| `groupMemberLeft`    | Mitglied verlässt die Gruppe             | ✅              | ❌              |
+| `groupDeleted`       | Gruppe wurde gelöscht                    | ✅              | ✅              |
+| `photoLiked`         | Eigenes Foto wurde geliked               | ✅              | ❌              |
+| `photoCommented`     | Eigenes Foto wurde kommentiert           | ✅              | ❌              |
+| `newPhoto`           | Neues Foto in der Gruppe hochgeladen     | ✅              | ❌              |
+| `newAlbum`           | Neues Album in der Gruppe erstellt       | ✅              | ❌              |
+| `system`             | Admin-Broadcast-Nachricht                | ✅ (immer)      | ❌              |
 
 ---
 
@@ -62,14 +62,14 @@ Falls `SMTP_HOST` nicht gesetzt ist, wird kein E-Mail-Versand versucht.
 
 **DEV-Modus:** Im `development`-Modus steuert `DEV_MAIL_CATCHALL` den E-Mail-Versand:
 
-| `DEV_MAIL_CATCHALL` | Verhalten |
-|---|---|
-| nicht gesetzt oder leer | **kein E-Mail-Versand** im DEV-Modus |
-| `dev@example.de` | alle Mails gehen an diese eine Adresse |
+| `DEV_MAIL_CATCHALL`                | Verhalten                                                                              |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| nicht gesetzt oder leer            | **kein E-Mail-Versand** im DEV-Modus                                                   |
+| `dev@example.de`                   | alle Mails gehen an diese eine Adresse                                                 |
 | `${local}-dev@catchall.example.de` | lokaler Teil der Original-Adresse wird eingesetzt, z. B. `max-dev@catchall.example.de` |
 
 > **Hinweis:** In `.env`-Dateien und insbesondere in `docker-compose`/Compose kann `${local}` als Interpolationssyntax ausgewertet werden. Wenn der Platzhalter **wörtlich** im Container ankommen soll, je nach Setup z. B. als `$${local}-dev@catchall.example.de` escapen oder die Variable auf einem Weg setzen, der keine Compose-Interpolation ausführt.
-In Produktion (`NODE_ENV=production`) wird `DEV_MAIL_CATCHALL` ignoriert und Mails gehen an die echten Adressen.
+> In Produktion (`NODE_ENV=production`) wird `DEV_MAIL_CATCHALL` ignoriert und Mails gehen an die echten Adressen.
 
 ---
 
@@ -85,15 +85,15 @@ Einstellungen werden in `NotificationPreference` gespeichert (automatisch angele
 
 ## API-Endpunkte
 
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| `GET` | `/api/notifications/stream` | SSE-Stream öffnen (`?token=<jwt>`) |
-| `GET` | `/api/notifications` | Liste der eigenen Benachrichtigungen (paginiert) |
-| `PATCH` | `/api/notifications/:id/read` | Einzelne Benachrichtigung als gelesen markieren |
-| `PATCH` | `/api/notifications/read-all` | Alle als gelesen markieren |
-| `GET` | `/api/notifications/preferences` | Eigene Einstellungen abrufen |
-| `PATCH` | `/api/notifications/preferences` | Einstellungen aktualisieren |
-| `POST` | `/api/admin/broadcast` | System-Benachrichtigung an alle Nutzer senden (Admin) |
+| Methode | Pfad                             | Beschreibung                                          |
+| ------- | -------------------------------- | ----------------------------------------------------- |
+| `GET`   | `/api/notifications/stream`      | SSE-Stream öffnen (`?token=<jwt>`)                    |
+| `GET`   | `/api/notifications`             | Liste der eigenen Benachrichtigungen (paginiert)      |
+| `PATCH` | `/api/notifications/:id/read`    | Einzelne Benachrichtigung als gelesen markieren       |
+| `PATCH` | `/api/notifications/read-all`    | Alle als gelesen markieren                            |
+| `GET`   | `/api/notifications/preferences` | Eigene Einstellungen abrufen                          |
+| `PATCH` | `/api/notifications/preferences` | Einstellungen aktualisieren                           |
+| `POST`  | `/api/admin/broadcast`           | System-Benachrichtigung an alle Nutzer senden (Admin) |
 
 **Paginierung (`GET /api/notifications`):**
 
@@ -102,6 +102,7 @@ GET /api/notifications?limit=30&cursor=<lastId>
 ```
 
 Antwort:
+
 ```json
 {
   "notifications": [...],
@@ -118,13 +119,13 @@ Die Hilfsfunktion `createNotification` in `backend/src/utils/notifications.js` p
 
 ```js
 await createNotification(prisma, {
-  userId: '<empfängerUserId>',
-  type: 'photoCommented',
-  title: 'Neuer Kommentar',
-  body: 'Max hat dein Foto kommentiert.',
-  entityId: '<photoId>',
-  entityType: 'photo',
-  imageUrl: '/api/photos/<photoId>/file?t=…',
-  entityUrl: '/photos/<photoId>',
+  userId: "<empfängerUserId>",
+  type: "photoCommented",
+  title: "Neuer Kommentar",
+  body: "Max hat dein Foto kommentiert.",
+  entityId: "<photoId>",
+  entityType: "photo",
+  imageUrl: "/api/photos/<photoId>/file?t=…",
+  entityUrl: "/photos/<photoId>",
 });
 ```

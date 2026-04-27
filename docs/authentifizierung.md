@@ -34,10 +34,10 @@ Browser                      Backend                        Authentik
 
 ## Token-Konzept
 
-| Token | Typ | Lebensdauer | Speicherort |
-|---|---|---|---|
-| **Access Token** | JWT (signiert mit `JWT_SECRET`) | 15 Minuten | `sessionStorage` im Browser |
-| **Refresh Token** | Opaker String (in DB gespeichert) | 7 Tage | HttpOnly-Cookie (`refreshToken`) |
+| Token             | Typ                               | Lebensdauer | Speicherort                      |
+| ----------------- | --------------------------------- | ----------- | -------------------------------- |
+| **Access Token**  | JWT (signiert mit `JWT_SECRET`)   | 15 Minuten  | `sessionStorage` im Browser      |
+| **Refresh Token** | Opaker String (in DB gespeichert) | 7 Tage      | HttpOnly-Cookie (`refreshToken`) |
 
 **Token erneuern:**
 
@@ -69,12 +69,12 @@ Das Backend extrahiert und verifiziert den Token aus dem `t`-Parameter.
 
 Bei jedem Login wird der User-Datensatz in der Datenbank mit den Daten aus dem OIDC-`userinfo`-Endpunkt aktualisiert:
 
-| Feld | Quelle (Präzedenz) |
-|---|---|
-| `name` | Direkt aus dem `name`-Claim – `null` wenn nicht gesetzt (kein Fallback) |
-| `username` | `preferred_username` → `email.split('@')[0]` |
-| `email` | `email` (Pflicht) |
-| `avatar` | `picture`-URL (wird in MinIO gecacht) |
+| Feld       | Quelle (Präzedenz)                                                      |
+| ---------- | ----------------------------------------------------------------------- |
+| `name`     | Direkt aus dem `name`-Claim – `null` wenn nicht gesetzt (kein Fallback) |
+| `username` | `preferred_username` → `email.split('@')[0]`                            |
+| `email`    | `email` (Pflicht)                                                       |
+| `avatar`   | `picture`-URL (wird in MinIO gecacht)                                   |
 
 ---
 
@@ -82,9 +82,9 @@ Bei jedem Login wird der User-Datensatz in der Datenbank mit den Daten aus dem O
 
 Jeder User hat eine `role` in der Datenbank:
 
-| Rolle | Berechtigungen |
-|---|---|
-| `user` | Eigene Fotos, Gruppen, Alben, Kommentare verwalten |
+| Rolle   | Berechtigungen                                                                                                             |
+| ------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `user`  | Eigene Fotos, Gruppen, Alben, Kommentare verwalten                                                                         |
 | `admin` | Zusätzlich: alle Nutzer sehen, Rollen vergeben, Gruppen löschen, Backups verwalten, Broadcast-Benachrichtigungen versenden |
 
 Die erste Admin-Zuweisung muss manuell in der Datenbank oder über den Admin-Bereich eines bereits existierenden Admins erfolgen.
@@ -95,11 +95,11 @@ Die erste Admin-Zuweisung muss manuell in der Datenbank oder über den Admin-Ber
 
 ## API-Endpunkte (Auth)
 
-| Methode | Pfad | Beschreibung | Auth |
-|---|---|---|---|
-| `GET` | `/api/auth/login` | Startet OIDC-Flow, leitet zu Authentik weiter | Nein |
-| `GET` | `/api/auth/callback` | OIDC-Callback; gibt JWT + setzt Cookie | Nein |
-| `POST` | `/api/auth/refresh` | Erneuert Access Token via Refresh-Cookie | Cookie |
-| `GET` | `/api/auth/me` | Gibt das eigene Nutzerprofil zurück | JWT |
-| `POST` | `/api/auth/logout` | Löscht Refresh Token aus DB und Cookie | JWT |
-| `GET` | `/api/auth/avatar/:userId` | Avatar-Proxy aus MinIO | Öffentlich |
+| Methode | Pfad                       | Beschreibung                                  | Auth       |
+| ------- | -------------------------- | --------------------------------------------- | ---------- |
+| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter | Nein       |
+| `GET`   | `/api/auth/callback`       | OIDC-Callback; gibt JWT + setzt Cookie        | Nein       |
+| `POST`  | `/api/auth/refresh`        | Erneuert Access Token via Refresh-Cookie      | Cookie     |
+| `GET`   | `/api/auth/me`             | Gibt das eigene Nutzerprofil zurück           | JWT        |
+| `POST`  | `/api/auth/logout`         | Löscht Refresh Token aus DB und Cookie        | JWT        |
+| `GET`   | `/api/auth/avatar/:userId` | Avatar-Proxy aus MinIO                        | Öffentlich |

@@ -250,6 +250,7 @@ model Notification {
 Nutzerspezifische Einstellungen, welche Benachrichtigungstypen in-app bzw. per E-Mail zugestellt werden sollen. Wird automatisch beim ersten Zugriff angelegt.
 
 Spalten folgen dem Schema:
+
 - `inApp_<typ>` – Standard: `true`
 - `email_<typ>` – Standard: je nach Typ (`true` bei wichtigen Ereignissen wie `deputyAdded`, `groupDeleted`; sonst `false`)
 
@@ -293,23 +294,22 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 
 ## Migrationen
 
-| Migration | Beschreibung |
-|---|---|
-| `20260416095944_init` | Initiales Schema: User, Group, GroupMember, Photo, Album, PhotoAlbum, Comment, Like |
-| `20260416101506_add_oidc_support` | OIDC-Felder am User, Refresh-Token-Tabelle |
-| `20260417132645_photo_multi_album` | Photo→Album n:m (PhotoAlbum Join-Tabelle ersetzt direkten FK) |
-| `20260419111845_album_contributors` | AlbumContributor (erweiterte Bearbeitungsrechte) |
-| `20260419130737_add_group_deputies` | GroupDeputy + `createdBy` (Owner) an Group |
-| `20260419133307_add_group_backups` | GroupBackup-Modell (ZIP-Archiv-Metadaten) |
-| `20260419143604_add_backup_deleted_by` | `deletedByName` an GroupBackup |
-| `20260419162052_add_notifications` | Notification + NotificationPreference |
-| `20260427194000_add_group_member_limit_lock` | `Group.maxMembers` (optional) + `Group.memberLimitLocked` (default `false`) |
-| `20260419170520_update_notif_defaults` | Standard-Werte für Benachrichtigungs-Präferenzen |
-| `20260420100000_add_imageurl_entityurl_system_notif` | `imageUrl`, `entityUrl` an Notification; `system`-Typ |
-| `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
-| `20260421100000_add_display_name_field` | `displayName` am User |
-| `20260423120000_add_user_migration_metadata` | `migrationStatus`, `migratedAt` am User |
-| `20260427123000_add_group_invite_visibility` | `inviteCodeVisibleToMembers` an Group |
-| `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
-| `20260427201000_add_changelog_entries` | Neue Tabelle `changelog_entries` für Versionseinträge |
-
+| Migration                                            | Beschreibung                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `20260416095944_init`                                | Initiales Schema: User, Group, GroupMember, Photo, Album, PhotoAlbum, Comment, Like |
+| `20260416101506_add_oidc_support`                    | OIDC-Felder am User, Refresh-Token-Tabelle                                          |
+| `20260417132645_photo_multi_album`                   | Photo→Album n:m (PhotoAlbum Join-Tabelle ersetzt direkten FK)                       |
+| `20260419111845_album_contributors`                  | AlbumContributor (erweiterte Bearbeitungsrechte)                                    |
+| `20260419130737_add_group_deputies`                  | GroupDeputy + `createdBy` (Owner) an Group                                          |
+| `20260419133307_add_group_backups`                   | GroupBackup-Modell (ZIP-Archiv-Metadaten)                                           |
+| `20260419143604_add_backup_deleted_by`               | `deletedByName` an GroupBackup                                                      |
+| `20260419162052_add_notifications`                   | Notification + NotificationPreference                                               |
+| `20260427194000_add_group_member_limit_lock`         | `Group.maxMembers` (optional) + `Group.memberLimitLocked` (default `false`)         |
+| `20260419170520_update_notif_defaults`               | Standard-Werte für Benachrichtigungs-Präferenzen                                    |
+| `20260420100000_add_imageurl_entityurl_system_notif` | `imageUrl`, `entityUrl` an Notification; `system`-Typ                               |
+| `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen           |
+| `20260421100000_add_display_name_field`              | `displayName` am User                                                               |
+| `20260423120000_add_user_migration_metadata`         | `migrationStatus`, `migratedAt` am User                                             |
+| `20260427123000_add_group_invite_visibility`         | `inviteCodeVisibleToMembers` an Group                                               |
+| `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen           |
+| `20260427201000_add_changelog_entries`               | Neue Tabelle `changelog_entries` für Versionseinträge                               |
