@@ -59,10 +59,10 @@ Authorization: Bearer <accessToken>
 |---|---|---|
 | `GET` | `/api/groups/my` | Eigene Gruppen (erstellt ggf. Auto-Gruppe) |
 | `POST` | `/api/groups` | Neue Gruppe erstellen (`name`) |
-| `POST` | `/api/groups/join` | Gruppe per Code beitreten (`code`) |
+| `POST` | `/api/groups/join` | Gruppe per Code beitreten (`code`); bei aktivem und erreichtem Limit: `409` |
 | `GET` | `/api/groups/:id/members` | Mitglieder der Gruppe |
 | `PATCH` | `/api/groups/:id` | Gruppe umbenennen (nur Owner) |
-| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin) – Body: `{ "inviteCodeVisibleToMembers": true|false }` |
+| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin) – Body: `{ "inviteCodeVisibleToMembers": true|false, "maxMembers": <int|null> }` |
 | `POST` | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin) |
 | `DELETE` | `/api/groups/:id` | Gruppe löschen (Owner/Admin), erstellt bei vorhandenen Fotos ein ZIP-Backup |
 | `DELETE` | `/api/groups/:id/leave` | Gruppe verlassen (`successorId` bei Owner-Wechsel) |
@@ -75,6 +75,9 @@ Authorization: Bearer <accessToken>
 
 | Methode | Pfad | Beschreibung |
 |---|---|---|
+| `GET` | `/api/groups/admin/all` | Alle Gruppen auflisten (inkl. Member-/Foto-Counts) |
+| `POST` | `/api/groups/admin/create` | Gruppe erstellen – Body: `{ "name": "...", "code": "...", "maxMembers": <int|null>, "memberLimitLocked": <bool> }` |
+| `PATCH` | `/api/groups/admin/:id` | Gruppe bearbeiten – Felder: `name`, `code`, `maxMembers` (`<= 50`, `null` = unbegrenzt), `memberLimitLocked` |
 | `POST` | `/api/groups/admin/:id/backup` | Backup erstellen ohne Gruppe zu löschen |
 | `DELETE` | `/api/groups/admin/:id` | Gruppe löschen + Backup erstellen |
 | `GET` | `/api/groups/admin/:id/stranded-members` | User, die danach in keiner Gruppe mehr wären |
@@ -141,3 +144,7 @@ Authorization: Bearer <accessToken>
 | `410` | Backup-Link abgelaufen |
 | `429` | Rate-Limit überschritten |
 | `500` | Interner Serverfehler |
+
+Hinweise zu `409` bei Gruppen:
+- `POST /api/groups/join`: bereits Mitglied oder Gruppe ist voll (`Diese Gruppe ist voll (x/n)`).
+- `POST/PATCH` in Admin-Gruppenverwaltung: Einladungscode bereits vergeben.

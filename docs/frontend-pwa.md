@@ -75,6 +75,14 @@ await handleOIDCCallback(code, state);
 
 Die App hat keine separate Router-Bibliothek. Navigation erfolgt über **Hash-basiertes Routing** oder durch dynamisches Anzeigen/Verstecken von Sektionen in `index.html`.
 
+## Mobile Sidebar-Verhalten
+
+Bei geöffneter mobiler Sidebar bleibt der Header visuell unverändert (kein globales Abdunkeln des Headers durch das Overlay).
+
+- Das Overlay startet unterhalb des Headers
+- Während die Sidebar offen ist, sind Header-Aktionen für Profil und Benachrichtigungen absichtlich nicht bedienbar
+- Nach dem Schließen der Sidebar sind beide Aktionen wieder normal klickbar
+
 ---
 
 ## Toast-Benachrichtigungen

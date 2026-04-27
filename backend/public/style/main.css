@@ -883,6 +883,12 @@ input,select,textarea { font-family:'Plus Jakarta Sans',sans-serif; font-size:16
 @media(max-width:900px){
   .hamburger-btn { display:flex; }
 
+  body.mobile-sidebar-open #header .notif-bell-btn,
+  body.mobile-sidebar-open #header .profile-btn {
+    pointer-events:none;
+    opacity:.55;
+  }
+
   /* HEADER */
   #header { padding:0 14px; gap:8px; min-height:54px; padding-top:env(safe-area-inset-top); }
   #app.show { padding-top:calc(54px + env(safe-area-inset-top)); }
@@ -916,6 +922,10 @@ input,select,textarea { font-family:'Plus Jakarta Sans',sans-serif; font-size:16
     overflow-y:auto;
   }
   #sidebar.open { transform:translateX(0); }
+
+  #mob-overlay {
+    top:calc(54px + env(safe-area-inset-top));
+  }
 
   /* GRID */
   .grid { grid-template-columns:repeat(2,1fr); gap:8px; }

@@ -3,6 +3,18 @@ import { createGroupBackupZip, deleteGroupPhotoObjects, deleteBackupObject, getB
 import { createNotification } from '../utils/notifications.js';
 
 export default async function groupsRoutes(fastify) {
+  function hasOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  function parseMaxMembers(rawValue) {
+    if (rawValue === null) return { value: null };
+    if (typeof rawValue !== 'number' || !Number.isInteger(rawValue)) {
+      return { error: 'maxMembers muss eine ganze Zahl oder null sein' };
+    }
+    return { value: rawValue };
+  }
+
   // GET /api/groups/my - Gibt die Gruppen des eingeloggten Users zurück.
   // Falls keine existiert, wird automatisch eine erstellt.
   fastify.get('/my', async (request, reply) => {
@@ -81,6 +93,13 @@ export default async function groupsRoutes(fastify) {
       });
       if (existing) return reply.code(409).send({ error: 'Bereits Mitglied' });
 
+      if (group.maxMembers !== null) {
+        const memberCount = await fastify.prisma.groupMember.count({ where: { groupId: group.id } });
+        if (memberCount >= group.maxMembers) {
+          return reply.code(409).send({ error: `Diese Gruppe ist voll (${memberCount}/${group.maxMembers})` });
+        }
+      }
+
       await fastify.prisma.groupMember.create({
         data: { userId: request.user.id, groupId: group.id },
       });
@@ -147,13 +166,22 @@ export default async function groupsRoutes(fastify) {
       await request.jwtVerify();
       const groupId = request.params.id;
       const userId = request.user.id;
-      const { inviteCodeVisibleToMembers } = request.body || {};
+      const body = request.body || {};
+      const hasInviteCodeVisibility = hasOwn(body, 'inviteCodeVisibleToMembers');
+      const hasMaxMembers = hasOwn(body, 'maxMembers');
 
-      if (typeof inviteCodeVisibleToMembers !== 'boolean') {
+      if (!hasInviteCodeVisibility && !hasMaxMembers) {
+        return reply.code(400).send({ error: 'Mindestens eine Einstellung muss angegeben werden' });
+      }
+
+      if (hasInviteCodeVisibility && typeof body.inviteCodeVisibleToMembers !== 'boolean') {
         return reply.code(400).send({ error: 'inviteCodeVisibleToMembers muss boolean sein' });
       }
 
-      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { id: true, createdBy: true } });
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, createdBy: true, memberLimitLocked: true },
+      });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
       const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
@@ -161,9 +189,41 @@ export default async function groupsRoutes(fastify) {
         return reply.code(403).send({ error: 'Nur der Owner kann diese Einstellung ändern' });
       }
 
+      const isAdmin = requester?.role === 'admin';
+      const data = {};
+
+      if (hasInviteCodeVisibility) {
+        data.inviteCodeVisibleToMembers = body.inviteCodeVisibleToMembers;
+      }
+
+      if (hasMaxMembers) {
+        if (group.memberLimitLocked && !isAdmin) {
+          return reply.code(403).send({ error: 'Das Mitgliederlimit wurde von einem Admin gesperrt' });
+        }
+
+        const parsedMaxMembers = parseMaxMembers(body.maxMembers);
+        if (parsedMaxMembers.error) {
+          return reply.code(400).send({ error: parsedMaxMembers.error });
+        }
+
+        const maxMembers = parsedMaxMembers.value;
+        if (maxMembers !== null) {
+          if (maxMembers > 50) {
+            return reply.code(400).send({ error: 'maxMembers darf maximal 50 sein' });
+          }
+
+          const memberCount = await fastify.prisma.groupMember.count({ where: { groupId } });
+          if (maxMembers < memberCount) {
+            return reply.code(400).send({ error: `maxMembers muss mindestens ${memberCount} sein` });
+          }
+        }
+
+        data.maxMembers = maxMembers;
+      }
+
       const updated = await fastify.prisma.group.update({
         where: { id: groupId },
-        data: { inviteCodeVisibleToMembers },
+        data,
       });
 
       return { group: updated };
@@ -471,11 +531,38 @@ export default async function groupsRoutes(fastify) {
     if (!await requireAdmin(request, reply)) return;
     try {
       const { name, code } = request.body;
+      const hasMaxMembers = hasOwn(request.body || {}, 'maxMembers');
+      const hasMemberLimitLocked = hasOwn(request.body || {}, 'memberLimitLocked');
       if (!name || !code) return reply.code(400).send({ error: 'name und code erforderlich' });
       const existing = await fastify.prisma.group.findUnique({ where: { code: code.toUpperCase() } });
       if (existing) return reply.code(409).send({ error: 'Code bereits vergeben' });
+
+      let maxMembers = null;
+      if (hasMaxMembers) {
+        const parsedMaxMembers = parseMaxMembers(request.body.maxMembers);
+        if (parsedMaxMembers.error) return reply.code(400).send({ error: parsedMaxMembers.error });
+        maxMembers = parsedMaxMembers.value;
+        if (maxMembers !== null && (maxMembers < 1 || maxMembers > 50)) {
+          return reply.code(400).send({ error: 'maxMembers muss zwischen 1 und 50 liegen oder null sein' });
+        }
+      }
+
+      let memberLimitLocked = false;
+      if (hasMemberLimitLocked) {
+        if (typeof request.body.memberLimitLocked !== 'boolean') {
+          return reply.code(400).send({ error: 'memberLimitLocked muss boolean sein' });
+        }
+        memberLimitLocked = request.body.memberLimitLocked;
+      }
+
       const group = await fastify.prisma.group.create({
-        data: { name, code: code.toUpperCase(), createdBy: null }
+        data: {
+          name,
+          code: code.toUpperCase(),
+          createdBy: null,
+          maxMembers,
+          memberLimitLocked,
+        }
       });
       return group;
     } catch (err) {
@@ -514,16 +601,50 @@ export default async function groupsRoutes(fastify) {
     if (!await requireAdmin(request, reply)) return;
     try {
       const { name, code } = request.body;
-      if (!name && !code) return reply.code(400).send({ error: 'name oder code erforderlich' });
+      const hasMaxMembers = hasOwn(request.body || {}, 'maxMembers');
+      const hasMemberLimitLocked = hasOwn(request.body || {}, 'memberLimitLocked');
+
+      if (!name && !code && !hasMaxMembers && !hasMemberLimitLocked) {
+        return reply.code(400).send({ error: 'name, code, maxMembers oder memberLimitLocked erforderlich' });
+      }
+
       if (code) {
         const existing = await fastify.prisma.group.findFirst({
           where: { code: code.toUpperCase(), NOT: { id: request.params.id } }
         });
         if (existing) return reply.code(409).send({ error: 'Code bereits vergeben' });
       }
+
       const data = {};
       if (name) data.name = name;
       if (code) data.code = code.toUpperCase();
+
+      if (hasMaxMembers) {
+        const parsedMaxMembers = parseMaxMembers(request.body.maxMembers);
+        if (parsedMaxMembers.error) return reply.code(400).send({ error: parsedMaxMembers.error });
+
+        const maxMembers = parsedMaxMembers.value;
+        if (maxMembers !== null) {
+          if (maxMembers > 50) {
+            return reply.code(400).send({ error: 'maxMembers darf maximal 50 sein' });
+          }
+
+          const memberCount = await fastify.prisma.groupMember.count({ where: { groupId: request.params.id } });
+          if (maxMembers < memberCount) {
+            return reply.code(400).send({ error: `maxMembers muss mindestens ${memberCount} sein` });
+          }
+        }
+
+        data.maxMembers = maxMembers;
+      }
+
+      if (hasMemberLimitLocked) {
+        if (typeof request.body.memberLimitLocked !== 'boolean') {
+          return reply.code(400).send({ error: 'memberLimitLocked muss boolean sein' });
+        }
+        data.memberLimitLocked = request.body.memberLimitLocked;
+      }
+
       const group = await fastify.prisma.group.update({ where: { id: request.params.id }, data });
       return group;
     } catch (err) {

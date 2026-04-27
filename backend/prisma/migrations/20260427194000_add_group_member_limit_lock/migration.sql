@@ -1,0 +1,3 @@
+ALTER TABLE "Group"
+ADD COLUMN "maxMembers" INTEGER,
+ADD COLUMN "memberLimitLocked" BOOLEAN NOT NULL DEFAULT false;

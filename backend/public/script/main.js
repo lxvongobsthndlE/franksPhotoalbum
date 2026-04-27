@@ -363,6 +363,9 @@ function renderSidebar() {
   const isOwnerInCurrentGroup = curGroup?.createdBy === me.id;
   const isDeputyInCurrentGroup = deputyIds.has(me.id);
   const canSeeInviteCode = !!curGroup && (isOwnerInCurrentGroup || isDeputyInCurrentGroup || curGroup.inviteCodeVisibleToMembers);
+  const membersCounter = curGroup?.maxMembers !== null && curGroup?.maxMembers !== undefined
+    ? `${allMembers.length}/${curGroup.maxMembers}`
+    : null;
 
   $('sidebar').innerHTML = `
     <span class="sb-label">Fotos</span>
@@ -404,7 +407,10 @@ function renderSidebar() {
     </button>
     ${allMembers.length ? `
       <div class="sb-div"></div>
-      <span class="sb-label">Mitglieder</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px 4px;gap:8px">
+        <span class="sb-label" style="padding:0">Mitglieder</span>
+        ${membersCounter ? `<span style="font-size:11px;color:var(--muted);font-weight:600">${membersCounter}</span>` : ''}
+      </div>
       ${membersHtml}
     ` : ''}
     <div class="sb-div"></div>
@@ -906,12 +912,120 @@ function openGroupSettingsModal() {
   const renameInp = $('group-settings-rename-input');
   const codeDisplay = $('group-settings-code-display');
   const visibilityChk = $('group-settings-code-visible');
+  const limitEnabled = $('group-settings-limit-enabled');
+  const limitInput = $('group-settings-limit-input');
+  const lockHint = $('group-settings-limit-lock-hint');
+  const limitSaveBtn = $('group-settings-limit-save-btn');
+  const memberCount = Math.max(groupMembers.length, 1);
   if (renameInp) renameInp.value = group.name || '';
   if (codeDisplay) codeDisplay.textContent = group.code || '';
   if (visibilityChk) visibilityChk.checked = !!group.inviteCodeVisibleToMembers;
+  if (limitEnabled) limitEnabled.checked = group.maxMembers !== null && group.maxMembers !== undefined;
+  if (limitInput) {
+    limitInput.min = String(memberCount);
+    limitInput.max = '50';
+    limitInput.value = group.maxMembers !== null && group.maxMembers !== undefined
+      ? String(group.maxMembers)
+      : String(memberCount);
+  }
+
+  if (lockHint) lockHint.classList.toggle('hidden', !group.memberLimitLocked);
+  if (limitSaveBtn) limitSaveBtn.disabled = !!group.memberLimitLocked;
+
+  toggleGroupLimitInputs();
 
   _loadGsDeputies();
   show('group-settings-modal');
+}
+
+function toggleGroupLimitInputs() {
+  const group = myGroups.find(g => g.id === curGroupId);
+  const enabled = !!$('group-settings-limit-enabled')?.checked;
+  const input = $('group-settings-limit-input');
+  const hint = $('group-settings-limit-hint');
+  const lockHint = $('group-settings-limit-lock-hint');
+  const saveBtn = $('group-settings-limit-save-btn');
+  const memberCount = Math.max(groupMembers.length, 1);
+  if (!input || !group) return;
+
+  input.min = String(memberCount);
+  input.max = '50';
+
+  const isLocked = !!group.memberLimitLocked;
+  if (isLocked) {
+    input.disabled = true;
+    const cb = $('group-settings-limit-enabled');
+    if (cb) cb.disabled = true;
+    if (saveBtn) saveBtn.disabled = true;
+    if (lockHint) lockHint.classList.remove('hidden');
+    if (hint) hint.textContent = `Aktuell ${memberCount} Mitglieder in der Gruppe. Das Limit ist von einem Admin gesperrt.`;
+    return;
+  }
+
+  const cb = $('group-settings-limit-enabled');
+  if (cb) cb.disabled = false;
+  if (saveBtn) saveBtn.disabled = false;
+  if (lockHint) lockHint.classList.add('hidden');
+
+  input.disabled = !enabled;
+  if (enabled) {
+    const current = Number(input.value);
+    if (!Number.isInteger(current) || current < memberCount) {
+      input.value = String(memberCount);
+    }
+  }
+  if (hint) hint.textContent = `Erlaubt: mindestens ${memberCount}, maximal 50 Mitglieder.`;
+}
+
+async function saveGroupMemberLimit() {
+  const group = myGroups.find(g => g.id === curGroupId);
+  if (!group) return;
+  if (group.memberLimitLocked) {
+    toast('Dieses Mitgliederlimit wurde von einem Admin gesperrt.', 'error');
+    return;
+  }
+
+  const enabled = !!$('group-settings-limit-enabled')?.checked;
+  const input = $('group-settings-limit-input');
+  const memberCount = Math.max(groupMembers.length, 1);
+
+  let maxMembers = null;
+  if (enabled) {
+    maxMembers = Number(input?.value);
+    if (!Number.isInteger(maxMembers)) {
+      return toast('Bitte eine ganze Zahl für das Mitgliederlimit eingeben.', 'error');
+    }
+    if (maxMembers < memberCount || maxMembers > 50) {
+      return toast(`Das Limit muss zwischen ${memberCount} und 50 liegen.`, 'error');
+    }
+  }
+
+  const btn = $('group-settings-limit-save-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Speichert…';
+  }
+
+  try {
+    const { group: updatedGroup } = await apiCall(`/groups/${curGroupId}/settings`, 'PATCH', { maxMembers });
+    const idx = myGroups.findIndex(g => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...updatedGroup };
+    toggleGroupLimitInputs();
+    renderSidebar();
+    toast(maxMembers === null ? 'Mitgliederlimit deaktiviert' : 'Mitgliederlimit gespeichert', 'success');
+  } catch (e) {
+    const msg = (e.serverMessage || e.message || '').toLowerCase();
+    if (msg.includes('gesperrt')) {
+      toast('Dieses Mitgliederlimit wurde von einem Admin gesperrt.', 'error');
+    } else {
+      toast(e.serverMessage || 'Mitgliederlimit konnte nicht gespeichert werden', 'error');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Limit speichern';
+    }
+  }
 }
 
 async function _loadGsDeputies() {
@@ -1634,11 +1748,13 @@ function toggleSidebar() {
 function openSidebar() {
   $('sidebar').classList.add('open');
   $('mob-overlay').style.display = 'block';
+  document.body.classList.add('mobile-sidebar-open');
   document.body.style.overflow = 'hidden';
 }
 function closeSidebar() {
   $('sidebar').classList.remove('open');
   $('mob-overlay').style.display = 'none';
+  document.body.classList.remove('mobile-sidebar-open');
   document.body.style.overflow = '';
 }
 
@@ -1952,6 +2068,7 @@ function flashInlineMessage(id, type, text, timeout = 5000) {
 }
 
 async function openProfileModal() {
+  if (window.innerWidth <= 900 && document.body.classList.contains('mobile-sidebar-open')) return;
   const av=$('avatar-preview');
   av.style.background=meProfile.color;
   if (meProfile.avatar) {
@@ -2833,12 +2950,13 @@ async function renderAdminGroups() {
       const deputyChips = deputies.map(d =>
         `<span style="font-size:11px;background:var(--accent-l);color:var(--accent);border-radius:10px;padding:2px 8px" title="Vertreter">${esc(d.name||d.username)}</span>`
       ).join(' ');
+      const hasLimit = g.maxMembers !== null && g.maxMembers !== undefined;
       return `
       <div id="ag-row-${g.id}" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
         <div id="ag-view-${g.id}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">Code: <span style="font-family:monospace;font-weight:700;letter-spacing:1px;color:var(--accent)">${esc(g.code)}</span> · <span style="${g._count.members === 0 ? 'color:var(--danger,#e05555);font-weight:700' : ''}">${g._count.members} Mitglieder</span> · ${g._count.photos} Fotos</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Code: <span style="font-family:monospace;font-weight:700;letter-spacing:1px;color:var(--accent)">${esc(g.code)}</span> · <span style="${g._count.members === 0 ? 'color:var(--danger,#e05555);font-weight:700' : ''}">${g._count.members} Mitglieder</span>${hasLimit ? ` · <span style="font-weight:600">${g._count.members}/${g.maxMembers}</span>` : ''}${g.memberLimitLocked ? ' · 🔒 Limit gesperrt' : ''} · ${g._count.photos} Fotos</div>
             <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">
               <span style="font-size:11px;color:var(--muted2);margin-right:2px">Owner:</span>${ownerChip}
               ${deputies.length ? `<span style="font-size:11px;color:var(--muted2);margin-left:6px;margin-right:2px">Vertreter:</span>${deputyChips}` : ''}
@@ -2857,6 +2975,17 @@ async function renderAdminGroups() {
             style="flex:1;min-width:110px;padding:8px 11px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:monospace;text-transform:uppercase;letter-spacing:1px"
             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
             oninput="this.value=this.value.toUpperCase()">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);padding:0 2px;cursor:pointer">
+            <input id="ag-edit-limit-enabled-${g.id}" type="checkbox" ${hasLimit ? 'checked' : ''} onchange="adminToggleEditGroupLimit('${g.id}')" style="accent-color:var(--accent)">
+            Limit aktiv
+          </label>
+          <input id="ag-edit-limit-${g.id}" type="number" min="${Math.max(g._count.members, 1)}" max="50" data-current="${g._count.members}" value="${hasLimit ? g.maxMembers : ''}" ${hasLimit ? '' : 'disabled'}
+            style="width:120px;padding:8px 10px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit"
+            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);padding:0 2px;cursor:pointer">
+            <input id="ag-edit-lock-${g.id}" type="checkbox" ${g.memberLimitLocked ? 'checked' : ''} style="accent-color:var(--accent)">
+            Limit sperren
+          </label>
           <button onclick="adminSaveGroup('${g.id}')" style="background:var(--accent);border:none;color:#fff;padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600">Speichern</button>
           <button onclick="adminCancelEdit('${g.id}')" style="background:none;border:1.5px solid var(--border);color:var(--muted);padding:8px 10px;border-radius:9px;cursor:pointer;font-size:13px">✕</button>
         </div>
@@ -2877,13 +3006,52 @@ function adminCancelEdit(id) {
   document.getElementById(`ag-view-${id}`).classList.remove('hidden');
   document.getElementById(`ag-edit-${id}`).classList.add('hidden');
 }
+
+function adminToggleCreateGroupLimit() {
+  const enabled = !!$('ag-new-limit-enabled')?.checked;
+  const input = $('ag-new-limit');
+  if (!input) return;
+  input.disabled = !enabled;
+  if (enabled && !input.value) input.value = '1';
+  if (!enabled) input.value = '';
+}
+
+function adminToggleEditGroupLimit(id) {
+  const enabled = !!document.getElementById(`ag-edit-limit-enabled-${id}`)?.checked;
+  const input = document.getElementById(`ag-edit-limit-${id}`);
+  if (!input) return;
+  input.disabled = !enabled;
+  if (enabled) {
+    const minValue = Number(input.dataset.current || 1);
+    if (!input.value || Number(input.value) < minValue) input.value = String(minValue);
+  } else {
+    input.value = '';
+  }
+}
+
 async function adminSaveGroup(id) {
   const name = document.getElementById(`ag-edit-name-${id}`)?.value?.trim();
   const code = document.getElementById(`ag-edit-code-${id}`)?.value?.trim();
+  const limitEnabled = !!document.getElementById(`ag-edit-limit-enabled-${id}`)?.checked;
+  const limitInput = document.getElementById(`ag-edit-limit-${id}`);
+  const memberLimitLocked = !!document.getElementById(`ag-edit-lock-${id}`)?.checked;
   const errEl = document.getElementById(`ag-err-${id}`);
   if (!name || !code) { errEl.textContent = '⚠ Name und Code erforderlich'; errEl.classList.remove('hidden'); return; }
+
+  let maxMembers = null;
+  if (limitEnabled) {
+    const minMembers = Number(limitInput?.dataset.current || 1);
+    maxMembers = Number(limitInput?.value);
+    if (!Number.isInteger(maxMembers) || maxMembers < minMembers || maxMembers > 50) {
+      errEl.textContent = `⚠ Limit muss zwischen ${minMembers} und 50 liegen`;
+      errEl.classList.remove('hidden');
+      return;
+    }
+  }
+
   try {
-    await apiCall(`/groups/admin/${id}`, 'PATCH', { name, code });
+    errEl.classList.add('hidden');
+    await apiCall(`/groups/admin/${id}`, 'PATCH', { name, code, maxMembers, memberLimitLocked });
     await renderAdminGroups();
   } catch(e) {
     errEl.textContent = '❌ ' + (e.serverMessage || e.message);
@@ -2893,12 +3061,33 @@ async function adminSaveGroup(id) {
 async function adminCreateGroup() {
   const name = $('ag-new-name')?.value?.trim();
   const code = $('ag-new-code')?.value?.trim();
+  const limitEnabled = !!$('ag-new-limit-enabled')?.checked;
+  const memberLimitLocked = !!$('ag-new-limit-locked')?.checked;
+  const limitInput = $('ag-new-limit');
   const msgEl = $('ag-create-msg');
   if (!name || !code) { msgEl.textContent = '⚠ Name und Code eingeben'; msgEl.className = 'msg msg-error'; msgEl.classList.remove('hidden'); return; }
+
+  let maxMembers = null;
+  if (limitEnabled) {
+    maxMembers = Number(limitInput?.value);
+    if (!Number.isInteger(maxMembers) || maxMembers < 1 || maxMembers > 50) {
+      msgEl.textContent = '⚠ Limit muss zwischen 1 und 50 liegen';
+      msgEl.className = 'msg msg-error';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+  }
+
   try {
-    await apiCall('/groups/admin/create', 'POST', { name, code });
+    await apiCall('/groups/admin/create', 'POST', { name, code, maxMembers, memberLimitLocked });
     $('ag-new-name').value = '';
     $('ag-new-code').value = '';
+    $('ag-new-limit-enabled').checked = false;
+    $('ag-new-limit-locked').checked = false;
+    if (limitInput) {
+      limitInput.value = '';
+      limitInput.disabled = true;
+    }
     msgEl.classList.add('hidden');
     await renderAdminGroups();
     toast('Gruppe angelegt', 'success');
@@ -3423,9 +3612,11 @@ async function doJoinGroup() {
   } catch(e) {
     const status = e.status;
     const msg = e.serverMessage || e.message || '';
+    const msgLc = msg.toLowerCase();
     let display;
     if (status === 404 || msg.toLowerCase().includes('nicht gefunden')) display = '❌ Ungültiger Gruppencode – bitte prüfen.';
-    else if (status === 409 || msg.toLowerCase().includes('bereits')) display = 'ℹ️ Du bist dieser Gruppe bereits beigetreten.';
+    else if (status === 409 && (msgLc.includes('voll') || msgLc.includes('maximal'))) display = `❌ ${msg || 'Diese Gruppe ist bereits voll.'}`;
+    else if (status === 409 || msgLc.includes('bereits')) display = 'ℹ️ Du bist dieser Gruppe bereits beigetreten.';
     else if (status === 400) display = '⚠️ Bitte einen Gruppencode eingeben.';
     else if (msg) display = '❌ ' + msg;
     else display = '❌ Beitritt fehlgeschlagen. Bitte versuche es erneut.';
@@ -4015,6 +4206,7 @@ async function deleteAllNotifications() {
 }
 
 function toggleNotifPanel() {
+  if (window.innerWidth <= 900 && document.body.classList.contains('mobile-sidebar-open')) return;
   const panel = $('notif-panel');
   if (!panel) return;
   _notifPanelOpen = !_notifPanelOpen;
@@ -4310,10 +4502,12 @@ Object.assign(window, {
   openLeaveGroup, closeLeaveGroup, doLeaveGroup, dissolveGroup, _leaveGroupUpdateOwnerUI,
   openGroupSettingsModal, closeGroupSettingsModal,
   saveGroupSettingsRename, rotateGroupInviteCode, saveGroupInviteCodeVisibility, copyGroupSettingsCode, deleteGroupFromSettings,
+  toggleGroupLimitInputs, saveGroupMemberLimit,
   openDeputyModalFromSettings,
   _loadGsDeputies, _renderGsDeputyList, addGsDeputy, removeGsDeputy,
   openDeputyModal, closeDeputyModal, addDeputy, removeDeputy,
   openAdminGroups, closeAdminGroups, adminEditGroup, adminCancelEdit, adminSaveGroup, adminCreateGroup, adminDeleteGroup,
+  adminToggleCreateGroupLimit, adminToggleEditGroupLimit,
   closeAdminGroupDeleteModal, agdmCopyLink, agdmCloseAndCleanup, agdmStrandedCheckChange, adminGroupDoBackup, adminGroupDoDelete, adminGroupConfirmDelete,
   openAdminUsers, closeAdminUsers, adminSetRole, adminToggleUser,
   adminDeleteUser, adminToggleNotifyForm, adminSendUserNotification,
