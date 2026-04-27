@@ -15,6 +15,7 @@ export function createMockPrismaClient(overrides = {}) {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
       ...overrides.user,
     },
     group: {
@@ -31,6 +32,7 @@ export function createMockPrismaClient(overrides = {}) {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
       ...overrides.album,
     },
     photo: {
@@ -39,6 +41,7 @@ export function createMockPrismaClient(overrides = {}) {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
       ...overrides.photo,
     },
     notification: {
@@ -64,12 +67,34 @@ export function createMockPrismaClient(overrides = {}) {
       delete: vi.fn(),
       ...overrides.groupMember,
     },
+    groupDeputy: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+      ...overrides.groupDeputy,
+    },
     albumContributor: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
       ...overrides.albumContributor,
+    },
+    photoAlbum: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      createMany: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+      ...overrides.photoAlbum,
+    },
+    like: {
+      findMany: vi.fn(),
+      ...overrides.like,
     },
     ...overrides,
   };
@@ -99,9 +124,30 @@ export function createMockRequest(overrides = {}) {
  */
 export function createMockReply(overrides = {}) {
   return {
-    code: vi.fn(function() { return this; }),
-    send: vi.fn(function() { return this; }),
-    header: vi.fn(function() { return this; }),
+    payload: undefined,
+    headers: {},
+    cookiesSet: [],
+    cookiesCleared: [],
+    code: vi.fn(function(statusCode) {
+      this.statusCode = statusCode;
+      return this;
+    }),
+    send: vi.fn(function(payload) {
+      this.payload = payload;
+      return this;
+    }),
+    header: vi.fn(function(name, value) {
+      this.headers[name] = value;
+      return this;
+    }),
+    setCookie: vi.fn(function(name, value, options) {
+      this.cookiesSet.push({ name, value, options });
+      return this;
+    }),
+    clearCookie: vi.fn(function(name, options) {
+      this.cookiesCleared.push({ name, options });
+      return this;
+    }),
     raw: {
       write: vi.fn(),
       setHeader: vi.fn(),
@@ -134,6 +180,28 @@ export function createMockFastify(overrides = {}) {
     },
     ...overrides,
   };
+}
+
+/**
+ * Erstellt eine Fastify-ähnliche Instanz, die registrierte Routen für Tests sammelt.
+ */
+export function createMockRouteFastify(overrides = {}) {
+  const routes = {
+    GET: new Map(),
+    POST: new Map(),
+    PATCH: new Map(),
+    DELETE: new Map(),
+  };
+
+  const fastify = createMockFastify(overrides);
+  fastify.prisma = overrides.prisma || createMockPrismaClient();
+  fastify.routes = routes;
+  fastify.get = vi.fn((path, handler) => routes.GET.set(path, handler));
+  fastify.post = vi.fn((path, handler) => routes.POST.set(path, handler));
+  fastify.patch = vi.fn((path, handler) => routes.PATCH.set(path, handler));
+  fastify.delete = vi.fn((path, handler) => routes.DELETE.set(path, handler));
+
+  return fastify;
 }
 
 /**

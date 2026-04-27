@@ -1,258 +1,279 @@
 /**
- * Tests für notifications.js — SSE, E-Mail, Preferences
- * Testet echte Business-Logik für Refactoring-Sicherheit
+ * Tests für notifications.js mit echten SSE-Payloads, Mail-Routing und Schema-Defaults.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  addSseClient,
-  removeSseClient,
-  createNotification,
-} from '../utils/notifications.js';
-import { createMockPrismaClient, createMockSseReply, createMockTransporter } from './mocks/index.js';
-import {
-  createMockUser,
-  createMockNotificationPreference,
-  createMockNotification,
-} from './fixtures/index.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMockPrismaClient, createMockSseReply } from './mocks/index.js';
+import { createMockNotification, createMockUser } from './fixtures/index.js';
+
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn(() => ({
+      sendMail: vi.fn().mockResolvedValue({ messageId: 'mock-message-id' }),
+    })),
+  },
+}));
 
 describe('notifications.js', () => {
-  describe('SSE Client Management', () => {
-    it('should add an SSE client for a user', () => {
-      const reply = createMockSseReply();
-      const userId = 'user-123';
+  const originalEnv = { ...process.env };
+  let notifications;
+  let nodemailer;
+  let prisma;
 
-      addSseClient(userId, reply);
+  async function flushAsyncWork() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 
-      // Prüfe, dass der Client registriert wurde
-      // (Wir können nicht direkt auf die interne Map zugreifen, aber wir können durch createNotification prüfen)
-      expect(reply.raw.write).toBeDefined();
-    });
-
-    it('should remove an SSE client for a user', () => {
-      const reply = createMockSseReply();
-      const userId = 'user-123';
-
-      addSseClient(userId, reply);
-      removeSseClient(userId, reply);
-
-      // Nach Entfernen sollte der Client nicht mehr existieren
-      // (Validierung durch Fehlerverhalten in pushSse)
-      expect(reply.raw.write).toBeDefined();
-    });
-
-    it('should handle multiple SSE clients for the same user', () => {
-      const userId = 'user-123';
-      const reply1 = createMockSseReply();
-      const reply2 = createMockSseReply();
-
-      addSseClient(userId, reply1);
-      addSseClient(userId, reply2);
-
-      // Beide Clients sollten registriert sein
-      expect(reply1.raw.write).toBeDefined();
-      expect(reply2.raw.write).toBeDefined();
-    });
-
-    it('should handle remove on non-existent user gracefully', () => {
-      const reply = createMockSseReply();
-      
-      // Sollte nicht werfen
-      expect(() => removeSseClient('non-existent', reply)).not.toThrow();
-    });
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
+    notifications = await import('../utils/notifications.js');
+    nodemailer = (await import('nodemailer')).default;
+    prisma = createMockPrismaClient();
   });
 
-  describe('createNotification - Business Logic', () => {
-    let prisma;
-    let user;
-    let preferences;
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.restoreAllMocks();
+  });
 
-    beforeEach(() => {
-      user = createMockUser({ id: 'user-456' });
-      preferences = createMockNotificationPreference({ userId: 'user-456' });
-      prisma = createMockPrismaClient();
-
-      // Mock Prisma responses
-      prisma.notificationPreference.findUnique.mockResolvedValue(preferences);
-      prisma.notificationPreference.create.mockResolvedValue(preferences);
-      prisma.notification.create.mockResolvedValue(
-        createMockNotification({ userId: 'user-456' })
-      );
-      prisma.user.findUnique.mockResolvedValue(user);
+  it('pushes a real SSE notification payload to all connected clients', async () => {
+    const replyA = createMockSseReply();
+    const replyB = createMockSseReply();
+    const notification = createMockNotification({
+      id: 'notif-777',
+      userId: 'user-123',
+      createdAt: new Date('2025-01-01T10:00:00.000Z'),
     });
 
-    it('should create in-app notification when preference is enabled', async () => {
-      const params = {
-        userId: 'user-456',
-        type: 'photoCommented',
-        title: 'Photo Comment',
-        body: 'User commented on your photo',
-        entityId: 'photo-123',
-        entityType: 'photo',
-      };
+    prisma.notificationPreference.findUnique.mockResolvedValue({
+      userId: 'user-123',
+      inApp_photoCommented: true,
+      email_photoCommented: false,
+    });
+    prisma.notification.create.mockResolvedValue(notification);
 
-      await createNotification(prisma, params);
+    notifications.addSseClient('user-123', replyA);
+    notifications.addSseClient('user-123', replyB);
 
-      // Prüfe: Notification wurde erstellt
-      expect(prisma.notification.create).toHaveBeenCalledWith(
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'photoCommented',
+      title: 'Kommentar',
+      body: 'Neuer Kommentar',
+      entityId: 'photo-1',
+      entityType: 'photo',
+    });
+
+    for (const reply of [replyA, replyB]) {
+      expect(reply.raw.write).toHaveBeenCalledTimes(1);
+      const payload = reply.raw.write.mock.calls[0][0];
+      expect(payload).toContain('event: notification');
+      const dataLine = payload.split('\n').find((line) => line.startsWith('data: '));
+      const parsed = JSON.parse(dataLine.slice(6));
+      expect(parsed).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 'user-456',
-            type: 'photoCommented',
-            title: 'Photo Comment',
-          }),
-        })
-      );
-    });
-
-    it('should send email notification when preference is enabled', async () => {
-      const prefsWithEmail = createMockNotificationPreference({
-        userId: 'user-456',
-        email_photoCommented: true,
-      });
-      prisma.notificationPreference.findUnique.mockResolvedValue(prefsWithEmail);
-
-      const params = {
-        userId: 'user-456',
-        type: 'photoCommented',
-        title: 'Photo Comment',
-        body: 'User commented on your photo',
-        entityUrl: 'https://example.com/photos/photo-123',
-      };
-
-      // Note: Echte E-Mail wird nur bei konfiguriertem SMTP gesendet
-      // Dieser Test validiert, dass die Logik aufgerufen wird
-      await createNotification(prisma, params);
-
-      expect(prisma.notification.create).toHaveBeenCalled();
-    });
-
-    it('should handle system notifications (always in-app, no email)', async () => {
-      const params = {
-        userId: 'user-456',
-        type: 'system',
-        title: 'System Alert',
-        body: 'System maintenance scheduled',
-      };
-
-      await createNotification(prisma, params);
-
-      // System-Benachrichtigungen sollten immer erstellt werden
-      expect(prisma.notification.create).toHaveBeenCalled();
-    });
-
-    it('should create preferences if they do not exist', async () => {
-      prisma.notificationPreference.findUnique.mockResolvedValueOnce(null);
-      prisma.notificationPreference.create.mockResolvedValueOnce(preferences);
-      prisma.notificationPreference.findUnique.mockResolvedValueOnce(preferences);
-
-      const params = {
-        userId: 'user-789',
-        type: 'photoCommented',
-        title: 'Comment',
-        body: 'Someone commented',
-      };
-
-      await createNotification(prisma, params);
-
-      // Preferences sollten angelegt werden
-      expect(prisma.notificationPreference.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { userId: 'user-789' },
-        })
-      );
-    });
-
-    it('should handle race condition when creating preferences', async () => {
-      // Erste Abfrage: nicht vorhanden
-      // Create schlägt fehl (race condition)
-      // Zweite Abfrage: jetzt vorhanden (vom parallelen Request)
-      prisma.notificationPreference.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null)
-        .mockRejectedValueOnce(new Error('Unique constraint failed'));
-      
-      prisma.notificationPreference.findUnique
-        .mockResolvedValueOnce(preferences);
-
-      // Mock sollte nicht werfen
-      expect(async () => {
-        const params = {
-          userId: 'user-race',
+          id: 'notif-777',
           type: 'photoCommented',
-          title: 'Comment',
-          body: 'Someone commented',
-        };
-        // Da der echte Code error handled, sollte dies nicht werfen
-        try {
-          await createNotification(prisma, params);
-        } catch (e) {
-          // Race condition kann auch zu Error führen — das ist OK
-        }
-      }).toBeDefined();
-    });
-
-    it('should respect preference settings - skip email if disabled', async () => {
-      const prefsNoEmail = createMockNotificationPreference({
-        userId: 'user-456',
-        email_photoCommented: false,
-      });
-      prisma.notificationPreference.findUnique.mockResolvedValue(prefsNoEmail);
-
-      const params = {
-        userId: 'user-456',
-        type: 'photoCommented',
-        title: 'Comment',
-        body: 'Someone commented',
-      };
-
-      await createNotification(prisma, params);
-
-      // Notification sollte erstellt werden
-      expect(prisma.notification.create).toHaveBeenCalled();
-      // Aber kein E-Mail-Versand (wird im Funktion durch resolveEmailAddress behandelt)
-    });
-
-    it('should create notification with all optional fields', async () => {
-      const params = {
-        userId: 'user-456',
-        type: 'albumShared',
-        title: 'Album Shared',
-        body: 'An album was shared with you',
-        entityId: 'album-456',
-        entityType: 'album',
-        entityUrl: 'https://example.com/albums/album-456',
-        imageUrl: 'https://example.com/albums/album-456/thumb.jpg',
-      };
-
-      await createNotification(prisma, params);
-
-      expect(prisma.notification.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 'user-456',
-            type: 'albumShared',
-            entityId: 'album-456',
-            entityType: 'album',
-            entityUrl: 'https://example.com/albums/album-456',
-            imageUrl: 'https://example.com/albums/album-456/thumb.jpg',
-          }),
+          title: 'Kommentar',
+          body: 'Neuer Kommentar',
+          read: false,
         })
       );
-    });
+    }
   });
 
-  describe('Email address resolution (Dev vs Prod)', () => {
-    it('should resolve email correctly in production mode', () => {
-      // Dieser Test validiert, dass die Email-Logik vorhanden ist
-      // Echte Implementierung wird in integration tests getestet
-      expect(true).toBe(true);
+  it('stops sending SSE payloads to removed clients', async () => {
+    const staleReply = createMockSseReply();
+    const activeReply = createMockSseReply();
+
+    prisma.notificationPreference.findUnique.mockResolvedValue({
+      userId: 'user-123',
+      inApp_photoCommented: true,
+      email_photoCommented: false,
+    });
+    prisma.notification.create.mockResolvedValue(createMockNotification({ userId: 'user-123' }));
+
+    notifications.addSseClient('user-123', staleReply);
+    notifications.addSseClient('user-123', activeReply);
+    notifications.removeSseClient('user-123', staleReply);
+
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'photoCommented',
+      title: 'Kommentar',
+      body: 'Neuer Kommentar',
     });
 
-    it('should redirect to catch-all in dev mode', () => {
-      // Dev-Modus sollte catch-all E-Mails verwenden
-      // Wird in integration tests validiert
-      expect(true).toBe(true);
+    expect(staleReply.raw.write).not.toHaveBeenCalled();
+    expect(activeReply.raw.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips email sending in dev mode without a catch-all address', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.SMTP_HOST = 'smtp.test';
+    process.env.SMTP_USER = 'mailer@test';
+
+    prisma.notificationPreference.findUnique.mockResolvedValue({
+      userId: 'user-123',
+      inApp_contributorAdded: false,
+      email_contributorAdded: true,
     });
+    prisma.user.findUnique.mockResolvedValue(createMockUser({ id: 'user-123' }));
+
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'contributorAdded',
+      title: 'Contributor',
+      body: 'Du wurdest hinzugefügt.',
+    });
+    await flushAsyncWork();
+
+    expect(nodemailer.createTransport).not.toHaveBeenCalled();
+  });
+
+  it('routes dev emails through the catch-all mailbox and preserves X-Original-To', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.SMTP_HOST = 'smtp.test';
+    process.env.SMTP_USER = 'mailer@test';
+    process.env.DEV_MAIL_CATCHALL = '${local}@catchall.test';
+
+    prisma.notificationPreference.findUnique.mockResolvedValue({
+      userId: 'user-123',
+      inApp_contributorAdded: false,
+      email_contributorAdded: true,
+    });
+    prisma.user.findUnique.mockResolvedValue(createMockUser({
+      id: 'user-123',
+      email: 'alice@example.com',
+      name: 'Alice',
+    }));
+
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'contributorAdded',
+      title: 'Contributor',
+      body: 'Du wurdest hinzugefügt.',
+      entityUrl: 'https://example.com/albums/1',
+    });
+    await flushAsyncWork();
+
+    const transporter = nodemailer.createTransport.mock.results[0].value;
+    expect(transporter.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'alice@catchall.test',
+        headers: { 'X-Original-To': 'alice@example.com' },
+      })
+    );
+  });
+
+  it('sends production emails to the real recipient without a redirect header', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_HOST = 'smtp.test';
+    process.env.SMTP_USER = 'mailer@test';
+
+    prisma.notificationPreference.findUnique.mockResolvedValue({
+      userId: 'user-123',
+      inApp_deputyAdded: false,
+      email_deputyAdded: true,
+    });
+    prisma.user.findUnique.mockResolvedValue(createMockUser({
+      id: 'user-123',
+      email: 'real.user@example.com',
+    }));
+
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'deputyAdded',
+      title: 'Deputy',
+      body: 'Du bist jetzt Deputy.',
+    });
+    await flushAsyncWork();
+
+    const transporter = nodemailer.createTransport.mock.results[0].value;
+    expect(transporter.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'real.user@example.com',
+        headers: {},
+      })
+    );
+  });
+
+  it('uses schema defaults when a new preference record is created for contributorAdded', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_HOST = 'smtp.test';
+    process.env.SMTP_USER = 'mailer@test';
+
+    const schemaDefaults = {
+      userId: 'user-123',
+      inApp_deputyAdded: true,
+      inApp_deputyRemoved: true,
+      inApp_contributorAdded: true,
+      inApp_contributorRemoved: true,
+      inApp_groupMemberJoined: true,
+      inApp_groupMemberLeft: true,
+      inApp_groupDeleted: true,
+      inApp_photoLiked: true,
+      inApp_photoCommented: true,
+      inApp_newPhoto: true,
+      inApp_newAlbum: true,
+      inApp_system: true,
+      email_deputyAdded: true,
+      email_deputyRemoved: false,
+      email_contributorAdded: true,
+      email_contributorRemoved: false,
+      email_groupMemberJoined: false,
+      email_groupMemberLeft: false,
+      email_groupDeleted: true,
+      email_photoLiked: false,
+      email_photoCommented: false,
+      email_newPhoto: false,
+      email_newAlbum: false,
+      email_system: false,
+    };
+
+    prisma.notificationPreference.findUnique.mockResolvedValueOnce(null);
+    prisma.notificationPreference.create.mockResolvedValue(schemaDefaults);
+    prisma.notification.create.mockResolvedValue(createMockNotification({ userId: 'user-123', type: 'contributorAdded' }));
+    prisma.user.findUnique.mockResolvedValue(createMockUser({ id: 'user-123', email: 'schema@example.com' }));
+
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'contributorAdded',
+      title: 'Contributor',
+      body: 'Schema default active.',
+    });
+    await flushAsyncWork();
+
+    expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+    const transporter = nodemailer.createTransport.mock.results[0].value;
+    expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it('honors schema defaults by not emailing photoCommented notifications', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_HOST = 'smtp.test';
+    process.env.SMTP_USER = 'mailer@test';
+
+    prisma.notificationPreference.findUnique.mockResolvedValueOnce(null);
+    prisma.notificationPreference.create.mockResolvedValue({
+      userId: 'user-123',
+      inApp_photoCommented: true,
+      email_photoCommented: false,
+    });
+    prisma.notification.create.mockResolvedValue(createMockNotification({ userId: 'user-123', type: 'photoCommented' }));
+    prisma.user.findUnique.mockResolvedValue(createMockUser({ id: 'user-123', email: 'schema@example.com' }));
+
+    await notifications.createNotification(prisma, {
+      userId: 'user-123',
+      type: 'photoCommented',
+      title: 'Kommentar',
+      body: 'Kein Mail-Default.',
+    });
+    await flushAsyncWork();
+
+    expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+    expect(nodemailer.createTransport).not.toHaveBeenCalled();
   });
 });

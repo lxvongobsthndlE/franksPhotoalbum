@@ -1,321 +1,336 @@
 /**
- * Integration Test — Reales API-Szenario für Refactoring-Sicherheit
- * Prüft: Auth-Middleware, Permissions, Fehlerbehandlung
+ * Integration-nahe Permission-Tests gegen echte Album- und Photo-Route-Handler.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  createMockPrismaClient,
-  createMockFastify,
-  createMockRequest,
-  createMockReply,
-} from './mocks/index.js';
-import {
-  createMockUser,
-  createMockGroup,
-  createMockAlbum,
-} from './fixtures/index.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMockPrismaClient, createMockReply, createMockRequest, createMockRouteFastify } from './mocks/index.js';
+import { createMockAlbum, createMockGroup, createMockPhoto, createMockUser } from './fixtures/index.js';
 
-describe('Integration: API Permission Checks', () => {
+vi.mock('../utils/notifications.js', () => ({
+  createNotification: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../utils/storage.js', () => ({
+  uploadPhoto: vi.fn(),
+  deletePhoto: vi.fn(),
+  getPhotoStream: vi.fn(),
+  getPhotoStat: vi.fn(),
+}));
+
+describe('route permissions', () => {
+  let albumsRoutes;
+  let photosRoutes;
+  let albumsFastify;
+  let photosFastify;
   let prisma;
-  let fastify;
 
-  beforeEach(() => {
+  async function callAlbumRoute(method, path, requestOverrides = {}) {
+    const handler = albumsFastify.routes[method].get(path);
+    const request = createMockRequest({
+      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      ...requestOverrides,
+    });
+    const reply = createMockReply();
+    const result = await handler(request, reply);
+    return { request, reply, result };
+  }
+
+  async function callPhotoRoute(method, path, requestOverrides = {}) {
+    const handler = photosFastify.routes[method].get(path);
+    const request = createMockRequest({
+      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      ...requestOverrides,
+    });
+    const reply = createMockReply();
+    const result = await handler(request, reply);
+    return { request, reply, result };
+  }
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    albumsRoutes = (await import('../routes/albums.js')).default;
+    photosRoutes = (await import('../routes/photos.js')).default;
     prisma = createMockPrismaClient();
-    fastify = createMockFastify();
+    albumsFastify = createMockRouteFastify({ prisma });
+    photosFastify = createMockRouteFastify({ prisma });
+    await albumsRoutes(albumsFastify);
+    await photosRoutes(photosFastify);
   });
 
-  /**
-   * Szenario: User versucht, Album zu bearbeiten
-   * Erwartet: Zugriff nur wenn Owner, Contributor oder Group-Admin
-   */
-  describe('Album Edit Permission Flow', () => {
-    it('should allow album owner to edit album', async () => {
-      const user = createMockUser({ id: 'user-owner' });
-      const album = createMockAlbum({ id: 'album-1', groupId: 'group-1' });
+  describe('albums routes', () => {
+    it('allows a group member to create an album', async () => {
+      prisma.groupMember.findUnique.mockResolvedValue({ userId: 'member-1', groupId: 'group-1' });
+      prisma.album.create.mockResolvedValue({
+        ...createMockAlbum({ id: 'album-1', name: 'Roadtrip', groupId: 'group-1', createdBy: 'member-1' }),
+        _count: { photos: 0 },
+        contributors: [],
+      });
+      prisma.groupMember.findMany.mockResolvedValue([{ userId: 'member-1' }, { userId: 'member-2' }]);
+      prisma.group.findUnique.mockResolvedValue({ name: 'Team Group' });
+      prisma.user.findUnique.mockResolvedValue({ name: 'Member One', username: 'member1' });
 
-      prisma.album.findUnique.mockResolvedValue(album);
-      prisma.groupMember.findUnique.mockResolvedValue({
-        userId: 'user-owner',
-        groupId: 'group-1',
-        role: 'owner',
+      const { result } = await callAlbumRoute('POST', '/', {
+        user: { id: 'member-1' },
+        body: { name: 'Roadtrip', groupId: 'group-1' },
       });
 
-      const request = createMockRequest({ user });
-      const reply = createMockReply();
-
-      // Simuliere: checkAlbumEditPermission(prisma, user, albumId)
-      const checkEditPermission = async (prisma, user, albumId) => {
-        const album = await prisma.album.findUnique({
-          where: { id: albumId },
-          include: { group: { include: { members: true } } },
-        });
-
-        if (!album) return false;
-
-        const groupMember = await prisma.groupMember.findUnique({
-          where: { userId_groupId: { userId: user.id, groupId: album.groupId } },
-        });
-
-        return groupMember && ['owner', 'admin'].includes(groupMember.role);
-      };
-
-      const canEdit = await checkEditPermission(prisma, user, 'album-1');
-
-      expect(canEdit).toBe(true);
-    });
-
-    it('should deny non-owner non-member access to album', async () => {
-      const user = createMockUser({ id: 'user-stranger' });
-      const album = createMockAlbum({ id: 'album-1', groupId: 'group-1' });
-
-      prisma.album.findUnique.mockResolvedValue(album);
-      prisma.groupMember.findUnique.mockResolvedValue(null);
-
-      const checkEditPermission = async (prisma, user, albumId) => {
-        const album = await prisma.album.findUnique({
-          where: { id: albumId },
-        });
-
-        if (!album) return false;
-
-        const groupMember = await prisma.groupMember.findUnique({
-          where: { userId_groupId: { userId: user.id, groupId: album.groupId } },
-        });
-
-        return groupMember ? ['owner', 'admin'].includes(groupMember.role) : false;
-      };
-
-      const canEdit = await checkEditPermission(prisma, user, 'album-1');
-
-      expect(canEdit).toBe(false);
-    });
-
-    it('should allow group admin to edit album', async () => {
-      const admin = createMockUser({ id: 'user-admin' });
-      const album = createMockAlbum({ id: 'album-1', groupId: 'group-1' });
-
-      prisma.album.findUnique.mockResolvedValue(album);
-      prisma.groupMember.findUnique.mockResolvedValue({
-        userId: 'user-admin',
-        groupId: 'group-1',
-        role: 'admin',
-      });
-
-      const checkEditPermission = async (prisma, user, albumId) => {
-        const album = await prisma.album.findUnique({ where: { id: albumId } });
-        if (!album) return false;
-
-        const groupMember = await prisma.groupMember.findUnique({
-          where: { userId_groupId: { userId: user.id, groupId: album.groupId } },
-        });
-
-        return groupMember && ['owner', 'admin'].includes(groupMember.role);
-      };
-
-      const canEdit = await checkEditPermission(prisma, admin, 'album-1');
-
-      expect(canEdit).toBe(true);
-    });
-  });
-
-  /**
-   * Szenario: User fragt Gruppen ab
-   * Erwartet: Nur Gruppen, in denen User Mitglied ist (wenn Visibility: MEMBERS_ONLY)
-   */
-  describe('Group Visibility & Access Control', () => {
-    it('should list public groups for non-members', async () => {
-      const user = createMockUser({ id: 'user-123' });
-      const publicGroup = createMockGroup({ id: 'group-public', visibility: 'PUBLIC' });
-
-      prisma.group.findMany.mockResolvedValue([publicGroup]);
-
-      // Simuliere: GET /groups (public)
-      const getVisibleGroups = async (prisma, user) => {
-        const groups = await prisma.group.findMany({
-          where: {
-            OR: [
-              { visibility: 'PUBLIC' },
-              { members: { some: { userId: user.id } } },
-            ],
-          },
-        });
-        return groups;
-      };
-
-      const groups = await getVisibleGroups(prisma, user);
-
-      expect(groups.some((g) => g.id === 'group-public')).toBe(true);
-    });
-
-    it('should include private groups only for members', async () => {
-      const user = createMockUser({ id: 'user-member' });
-      const privateGroup = createMockGroup({ id: 'group-private', visibility: 'MEMBERS_ONLY' });
-
-      prisma.group.findMany.mockResolvedValue([privateGroup]);
-      prisma.groupMember.findUnique.mockResolvedValue({ userId: 'user-member', groupId: 'group-private' });
-
-      const getVisibleGroups = async (prisma, user) => {
-        const groups = await prisma.group.findMany({
-          where: {
-            OR: [
-              { visibility: 'PUBLIC' },
-              { members: { some: { userId: user.id } } },
-            ],
-          },
-        });
-        return groups;
-      };
-
-      const groups = await getVisibleGroups(prisma, user);
-
-      expect(groups.length).toBeGreaterThan(0);
-    });
-  });
-
-  /**
-   * Szenario: Fehlerbehandlung bei nicht vorhandenen Ressourcen
-   * Erwartet: 404 bei Missing, 403 bei Permission Denied, 500 bei Server Error
-   */
-  describe('Error Handling & HTTP Status Codes', () => {
-    it('should return 404 when album not found', async () => {
-      prisma.album.findUnique.mockResolvedValue(null);
-
-      const request = createMockRequest({ user: { id: 'user-123' } });
-      const reply = createMockReply();
-
-      // Simuliere: GET /albums/:id
-      const getAlbum = async (prisma, albumId) => {
-        const album = await prisma.album.findUnique({ where: { id: albumId } });
-        return album;
-      };
-
-      const album = await getAlbum(prisma, 'non-existent');
-
-      expect(album).toBeNull();
-      // In Real: reply.code(404).send({ error: 'Not Found' })
-    });
-
-    it('should return 403 when user lacks permissions', async () => {
-      const user = createMockUser({ id: 'user-non-member' });
-      const album = createMockAlbum({ id: 'album-1', groupId: 'group-1' });
-
-      prisma.album.findUnique.mockResolvedValue(album);
-      prisma.groupMember.findUnique.mockResolvedValue(null);
-
-      // Simuliere Permission Check
-      const hasPermission = async (prisma, user, albumId) => {
-        const album = await prisma.album.findUnique({ where: { id: albumId } });
-        if (!album) return false;
-
-        const member = await prisma.groupMember.findUnique({
-          where: { userId_groupId: { userId: user.id, groupId: album.groupId } },
-        });
-
-        return !!member;
-      };
-
-      const permitted = await hasPermission(prisma, user, 'album-1');
-
-      expect(permitted).toBe(false);
-      // In Real: reply.code(403).send({ error: 'Forbidden' })
-    });
-
-    it('should handle database errors gracefully', async () => {
-      prisma.album.findUnique.mockRejectedValue(new Error('Database connection failed'));
-
-      const getAlbum = async (prisma, albumId) => {
-        try {
-          return await prisma.album.findUnique({ where: { id: albumId } });
-        } catch (error) {
-          console.error('Database error:', error);
-          throw error; // Re-throw für 500
-        }
-      };
-
-      await expect(getAlbum(prisma, 'album-1')).rejects.toThrow('Database connection failed');
-    });
-  });
-
-  /**
-   * Szenario: Race Condition bei parallelen Requests
-   * Erwartet: Korrekte Konflikt-Auflösung
-   */
-  describe('Race Condition Handling', () => {
-    it('should handle concurrent album updates', async () => {
-      const album = createMockAlbum({ id: 'album-1' });
-
-      prisma.album.findUnique.mockResolvedValue(album);
-      prisma.album.update.mockResolvedValue({ ...album, name: 'Updated Album' });
-
-      const updateAlbum = async (prisma, albumId, data) => {
-        const album = await prisma.album.findUnique({ where: { id: albumId } });
-        if (!album) throw new Error('Not found');
-
-        return await prisma.album.update({
-          where: { id: albumId },
-          data,
-        });
-      };
-
-      const updated = await updateAlbum(prisma, 'album-1', { name: 'Updated Album' });
-
-      expect(updated.name).toBe('Updated Album');
-      expect(prisma.album.update).toHaveBeenCalled();
-    });
-
-    it('should detect and reject stale updates', async () => {
-      const album = createMockAlbum({ id: 'album-1', updatedAt: new Date('2025-01-15') });
-
-      prisma.album.findUnique.mockResolvedValue(album);
-
-      const updateAlbumWithVersion = async (prisma, albumId, data, expectedVersion) => {
-        const album = await prisma.album.findUnique({ where: { id: albumId } });
-
-        if (album.updatedAt !== expectedVersion) {
-          throw new Error('Stale data - resource was updated');
-        }
-
-        return await prisma.album.update({
-          where: { id: albumId },
-          data,
-        });
-      };
-
-      const staleVersion = new Date('2025-01-14');
-      await expect(
-        updateAlbumWithVersion(prisma, 'album-1', { name: 'Test' }, staleVersion)
-      ).rejects.toThrow('Stale data');
-    });
-  });
-
-  /**
-   * Szenario: Pagination für große Datensätze
-   * Erwartet: Korrekte Limit, Offset, Sortierung
-   */
-  describe('Pagination & Sorting', () => {
-    it('should paginate results correctly', async () => {
-      const albums = Array.from({ length: 25 }, (_, i) => ({
-        id: `album-${i}`,
-        name: `Album ${i}`,
-      }));
-
-      prisma.album.findMany.mockResolvedValue(albums.slice(0, 10));
-
-      const getAlbums = async (prisma, { skip = 0, take = 10 } = {}) => {
-        return await prisma.album.findMany({
-          skip,
-          take,
-          orderBy: { createdAt: 'desc' },
-        });
-      };
-
-      const page1 = await getAlbums(prisma, { skip: 0, take: 10 });
-
-      expect(page1).toHaveLength(10);
-      expect(prisma.album.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 0, take: 10 })
+      expect(prisma.album.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { name: 'Roadtrip', groupId: 'group-1', createdBy: 'member-1' },
+        })
       );
+      expect(result.name).toBe('Roadtrip');
+    });
+
+    it('rejects album creation for non-members who are not admins', async () => {
+      prisma.groupMember.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+
+      const { reply } = await callAlbumRoute('POST', '/', {
+        user: { id: 'outsider' },
+        body: { name: 'Roadtrip', groupId: 'group-1' },
+      });
+
+      expect(reply.statusCode).toBe(403);
+      expect(reply.payload).toEqual({ error: 'Nur Gruppenmitglieder können Alben erstellen' });
+    });
+
+    it('allows app admins to create an album without group membership', async () => {
+      prisma.groupMember.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique
+        .mockResolvedValueOnce({ role: 'admin' })
+        .mockResolvedValueOnce({ name: 'Admin', username: 'admin' });
+      prisma.album.create.mockResolvedValue({
+        ...createMockAlbum({ id: 'album-2', name: 'Admin Album', groupId: 'group-1', createdBy: 'admin-1' }),
+        _count: { photos: 0 },
+        contributors: [],
+      });
+      prisma.groupMember.findMany.mockResolvedValue([{ userId: 'admin-1' }]);
+      prisma.group.findUnique.mockResolvedValue({ name: 'Team Group' });
+
+      const { result } = await callAlbumRoute('POST', '/', {
+        user: { id: 'admin-1' },
+        body: { name: 'Admin Album', groupId: 'group-1' },
+      });
+
+      expect(result.name).toBe('Admin Album');
+    });
+
+    it('allows the album owner to rename an album', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'owner-1' }));
+      prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Renamed Album' });
+
+      const { result } = await callAlbumRoute('PATCH', '/:id', {
+        user: { id: 'owner-1' },
+        params: { id: 'album-1' },
+        body: { name: 'Renamed Album' },
+      });
+
+      expect(result).toEqual({ id: 'album-1', name: 'Renamed Album' });
+    });
+
+    it('allows a group owner to rename an album they did not create', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Group Owner Rename' });
+
+      const { result } = await callAlbumRoute('PATCH', '/:id', {
+        user: { id: 'group-owner' },
+        params: { id: 'album-1' },
+        body: { name: 'Group Owner Rename' },
+      });
+
+      expect(result.name).toBe('Group Owner Rename');
+    });
+
+    it('allows a group deputy to rename an album', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'someone-else' });
+      prisma.groupDeputy.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'deputy-1' });
+      prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Deputy Rename' });
+
+      const { result } = await callAlbumRoute('PATCH', '/:id', {
+        user: { id: 'deputy-1' },
+        params: { id: 'album-1' },
+        body: { name: 'Deputy Rename' },
+      });
+
+      expect(result.name).toBe('Deputy Rename');
+    });
+
+    it('allows an admin to rename an album', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'admin' });
+      prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Admin Rename' });
+
+      const { result } = await callAlbumRoute('PATCH', '/:id', {
+        user: { id: 'admin-1' },
+        params: { id: 'album-1' },
+        body: { name: 'Admin Rename' },
+      });
+
+      expect(result.name).toBe('Admin Rename');
+    });
+
+    it('rejects a plain member when renaming someone else’s album', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.groupDeputy.findUnique.mockResolvedValue(null);
+
+      const { reply } = await callAlbumRoute('PATCH', '/:id', {
+        user: { id: 'member-1' },
+        params: { id: 'album-1' },
+        body: { name: 'Blocked Rename' },
+      });
+
+      expect(reply.statusCode).toBe(403);
+      expect(reply.payload).toEqual({ error: 'Nur der Ersteller kann das Album umbenennen' });
+    });
+
+    it('allows a deputy to add an album contributor but rejects non-members as targets', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', name: 'Shared Album', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.groupDeputy.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'deputy-1' });
+      prisma.groupMember.findUnique.mockResolvedValue({ userId: 'target-user', groupId: 'group-1' });
+      prisma.albumContributor.upsert.mockResolvedValue({});
+      prisma.user.findUnique.mockResolvedValueOnce({ role: 'user' }).mockResolvedValueOnce({ id: 'target-user', username: 'target', name: 'Target User', color: '#fff', avatar: null });
+
+      const success = await callAlbumRoute('POST', '/:id/contributors', {
+        user: { id: 'deputy-1' },
+        params: { id: 'album-1' },
+        body: { userId: 'target-user' },
+      });
+      expect(success.result.id).toBe('target-user');
+
+      prisma.groupMember.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      const failure = await callAlbumRoute('POST', '/:id/contributors', {
+        user: { id: 'deputy-1' },
+        params: { id: 'album-1' },
+        body: { userId: 'outsider' },
+      });
+      expect(failure.reply.statusCode).toBe(400);
+      expect(failure.reply.payload).toEqual({ error: 'User ist kein Mitglied dieser Gruppe' });
+    });
+
+    it('returns 500 when album rename hits a database error', async () => {
+      prisma.album.findUnique.mockRejectedValue(new Error('db down'));
+
+      const { reply } = await callAlbumRoute('PATCH', '/:id', {
+        user: { id: 'owner-1' },
+        params: { id: 'album-1' },
+        body: { name: 'Renamed Album' },
+      });
+
+      expect(reply.statusCode).toBe(500);
+      expect(reply.payload).toEqual({ error: 'Umbenennung fehlgeschlagen' });
+    });
+  });
+
+  describe('photos routes', () => {
+    it('allows an album contributor to batch-assign photos', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.groupDeputy.findUnique.mockResolvedValue(null);
+      prisma.albumContributor.findUnique.mockResolvedValue({ albumId: 'album-1', userId: 'contrib-1' });
+      prisma.photoAlbum.createMany.mockResolvedValue({ count: 2 });
+
+      const { result } = await callPhotoRoute('PATCH', '/batch-album', {
+        user: { id: 'contrib-1' },
+        body: { albumId: 'album-1', photoIds: ['photo-1', 'photo-2'] },
+      });
+
+      expect(result).toEqual({ status: 'updated', count: 2 });
+    });
+
+    it('allows a group deputy to batch-assign photos', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.groupDeputy.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'deputy-1' });
+      prisma.photoAlbum.createMany.mockResolvedValue({ count: 1 });
+
+      const { result } = await callPhotoRoute('PATCH', '/batch-album', {
+        user: { id: 'deputy-1' },
+        body: { albumId: 'album-1', photoIds: ['photo-1'] },
+      });
+
+      expect(result).toEqual({ status: 'updated', count: 1 });
+    });
+
+    it('rejects a plain member without contributor rights for batch updates', async () => {
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.groupDeputy.findUnique.mockResolvedValue(null);
+      prisma.albumContributor.findUnique.mockResolvedValue(null);
+
+      const { reply } = await callPhotoRoute('PATCH', '/batch-album', {
+        user: { id: 'member-1' },
+        body: { albumId: 'album-1', photoIds: ['photo-1'] },
+      });
+
+      expect(reply.statusCode).toBe(403);
+      expect(reply.payload).toEqual({ error: 'Keine Berechtigung für dieses Album' });
+    });
+
+    it('returns 400 for invalid batch payloads', async () => {
+      const { reply } = await callPhotoRoute('PATCH', '/batch-album', {
+        user: { id: 'member-1' },
+        body: { albumId: 'album-1', photoIds: 'not-an-array' },
+      });
+
+      expect(reply.statusCode).toBe(400);
+      expect(reply.payload).toEqual({ error: 'photoIds erforderlich' });
+    });
+
+    it('rejects album reassignment when one target album is not accessible', async () => {
+      prisma.photo.findUnique.mockResolvedValue(createMockPhoto({ id: 'photo-1', uploaderId: 'uploader-1' }));
+      prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-allowed', groupId: 'group-1', createdBy: 'someone-else' }));
+      prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
+      prisma.groupDeputy.findUnique.mockResolvedValue(null);
+      prisma.albumContributor.findUnique.mockResolvedValue(null);
+
+      const { reply } = await callPhotoRoute('PATCH', '/:id', {
+        user: { id: 'member-1' },
+        params: { id: 'photo-1' },
+        body: { albumIds: ['album-allowed'] },
+      });
+
+      expect(reply.statusCode).toBe(403);
+      expect(reply.payload).toEqual({ error: 'Keine Berechtigung für Album album-allowed' });
+    });
+
+    it('returns 404 for missing photos when changing album assignments', async () => {
+      prisma.photo.findUnique.mockResolvedValue(null);
+
+      const { reply } = await callPhotoRoute('PATCH', '/:id', {
+        user: { id: 'member-1' },
+        params: { id: 'photo-404' },
+        body: { albumId: 'album-1' },
+      });
+
+      expect(reply.statusCode).toBe(404);
+      expect(reply.payload).toEqual({ error: 'Foto nicht gefunden' });
+    });
+
+    it('returns 500 when a batch update throws inside the photo route', async () => {
+      prisma.album.findUnique.mockRejectedValue(new Error('db down'));
+
+      const { reply } = await callPhotoRoute('PATCH', '/batch-album', {
+        user: { id: 'member-1' },
+        body: { albumId: 'album-1', photoIds: ['photo-1'] },
+      });
+
+      expect(reply.statusCode).toBe(500);
+      expect(reply.payload).toEqual({ error: 'Batch-Update fehlgeschlagen' });
     });
 
     it('should sort by specified field', async () => {
