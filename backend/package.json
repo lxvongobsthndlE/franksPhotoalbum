@@ -8,6 +8,7 @@
     "start": "node --env-file=.env.local src/app.js",
     "dev": "node scripts/dev-with-minio.mjs",
     "dev:app": "node --env-file=.env.local --watch src/app.js",
+    "generate:infocards": "node scripts/generate-infocards.mjs",
     "migrate": "node --env-file=.env.local db/migrate.js",
     "migrate:supabase": "node --env-file=.env.local scripts/migrate-supabase-to-prisma.mjs",
     "crawl:supabase:anon": "node --env-file=.env.local scripts/crawl-supabase-anon.mjs",

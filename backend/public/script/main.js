@@ -537,7 +537,12 @@ async function switchAlbum(id) { curAlbum=id; curFilter=null; curFilterUserId=nu
 // ── GALLERY ──────────────────────────────────────────────
 function folderTitle() {
   if (curAlbum) { const a=allAlbums.find(x=>x.id===curAlbum); return a?.name??'Album'; }
-  if (curFilterUserId) { const p=allProfiles[curFilterUserId]; return p ? `Fotos von ${p.name}` : 'Fotos'; }
+  if (curFilterUserId) {
+    const p = allProfiles[curFilterUserId];
+    if (!p) return 'Fotos';
+    const visibleName = getVisibleName(p) || p.username || p.email || '?';
+    return `Fotos von ${visibleName}`;
+  }
   if (curFilter==='mine') return 'Meine Fotos';
   return 'Alle Fotos';
 }

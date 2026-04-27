@@ -5,9 +5,15 @@ backend/node_modules/
 .env
 .env.local
 .env.*.local
+backend/.env.local
+backend/.env.*.local
+backend/.env.dev
 
-# Uploads (lokale Entwicklung)
+# Local app data
 backend/uploads/
+backend/dev_tools/
+backend/generated/
+backend/scripts/infocards.json
 
 # Logs
 *.log
