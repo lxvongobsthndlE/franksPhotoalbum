@@ -166,8 +166,8 @@ async function doLogout() {
 function resolveDisplayName(user, preferredField) {
   if (!user) return '';
   const field = preferredField !== undefined ? preferredField : (user.displayNameField || 'name');
-  if (field === 'username') return user.username || '';
-  if (field === 'name') return user.name || '';
+  if (field === 'username') return user.username || user.name || '';
+  if (field === 'name') return user.name || user.username || '';
   return '';
 }
 
@@ -329,7 +329,7 @@ function renderSidebar() {
     ...selfFromMembers,
     ...meProfile,
     id: me.id,
-    displayNameField: me.displayNameField,
+    displayNameField: me.displayNameField ?? selfFromMembers.displayNameField ?? meProfile?.displayNameField,
   };
   const otherMembers = groupMembers
     .filter(m => m.id !== me.id)
