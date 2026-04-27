@@ -287,3 +287,5 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 | `20260421100000_add_display_name_field` | `displayName` am User |
 | `20260423120000_add_user_migration_metadata` | `migrationStatus`, `migratedAt` am User |
 | `20260427123000_add_group_invite_visibility` | `inviteCodeVisibleToMembers` an Group |
+| `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
+
