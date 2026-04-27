@@ -70,12 +70,6 @@ Falls ja:
     * Notifications that actually pop on mobile devices iOS and Android!
     * Note: Modals und co müssen für Devices mit notch nach unten verschoben werden
     * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
-* Toast button unten rechts "+" zum hochladen
-* Versionierung und Changelog
-    * App version am ende der Sidebar
-    * Klick auf version öffnet changelog Modal
-    * Modal kann jeder öffnen
-    * nur Admin kann changelog-Einträge anlegen
 * Logo-Rework
 
 
@@ -87,3 +81,9 @@ Falls ja:
 * Sidebar öffnen on mobile soll header nicht ausgrauen
     * Während die Sidebar offen ist, sind Profil- und Benachrichtigungs-Button nicht klickbar
 * Doku-Update zu Gruppenlimit, Limit-Sperre und mobilem Sidebar/Header-Verhalten
+* Toast button unten rechts "+" zum hochladen
+* Versionierung und Changelog
+    * App version am ende der Sidebar
+    * Klick auf version öffnet changelog Modal
+    * Modal kann jeder öffnen
+    * nur Admin kann changelog-Einträge anlegen

@@ -42,6 +42,7 @@ Teile Fotos mit der Familie, organisiere sie in Alben, kommentiere und like was 
 - **Backup-Management** – Automatische Sicherungen bei Gruppenauflösungen
 - **Benutzerverwaltung** – Überblick über alle Accounts
 - **Broadcast** – Wichtige Mitteilungen an alle Nutzer
+- **Version & Changelog** – Version in der Sidebar, Changelog für alle, Einträge erstellen/bearbeiten/löschen nur für Admins
 
 ---
 

@@ -94,6 +94,20 @@ Der Upload kann zusätzlich über einen schwebenden, runden Plus-Button unten re
 - Accessibility: explizites `aria-label="Fotos hochladen"`
 - Layering: Button liegt unter Overlays/Modals (z. B. Lightbox/Modale bleiben immer darüber)
 
+## Version & Changelog Modal
+
+In der Sidebar wird die aktuelle App-Version als klickbarer Eintrag angezeigt.
+
+- Klick auf die Version öffnet ein Changelog-Modal
+- Alle Nutzer können Changelog-Einträge lesen
+- Admins können im selben Modal Einträge erstellen, bearbeiten und löschen
+- Löschen erfolgt mit Bestätigungsdialog
+
+Technisch:
+- Version laden über `GET /api/changelog/meta`
+- Einträge laden über `GET /api/changelog`
+- Admin-Aktionen über `POST/PATCH/DELETE /api/changelog`
+
 ---
 
 ## Toast-Benachrichtigungen
