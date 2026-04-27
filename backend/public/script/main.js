@@ -543,7 +543,17 @@ function folderTitle() {
   if (curFilter==='mine') return 'Meine Fotos';
   return 'Alle Fotos';
 }
-function canUpload() { return true; }
+function canUpload() {
+  if (curAlbum) return true;
+  if (curFilterUserId) return false;
+  return !curFilter || curFilter === 'mine';
+}
+
+function updateUploadShortcutVisibility() {
+  const btn = $('upload-shortcut-btn');
+  if (!btn) return;
+  btn.classList.toggle('hidden', !canUpload());
+}
 
 // Prüft ob der User Fotos zum aktuell geöffneten Album hinzufügen/entfernen darf
 function canAddToAlbum() {
@@ -580,6 +590,7 @@ async function loadPhotos(reset=false) {
   hide('empty'); hide('more-btn');
   $('gal-title').textContent = folderTitle();
   $('upload-btn').style.display = canUpload()?'':'none';
+  updateUploadShortcutVisibility();
   // Show album action button if in album view
   const albumAddBtn = document.getElementById('album-add-btn');
   if (curAlbum) {

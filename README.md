@@ -36,6 +36,7 @@ Teile Fotos mit der Familie, organisiere sie in Alben, kommentiere und like was 
 - **PWA (App im Browser)** – Funktioniert offline, kein App Store nötig
 - **Dark Mode** – Nachts augenfreundlich
 - **Mobil optimiert** – Perfekt auf dem Handy
+- **Floating Upload-Shortcut** – Runder Plus-Button unten rechts mit Notch/Safe-Area-Support und direktem Upload-Dialog
 
 ### 🎯 **Admin-Features**
 - **Backup-Management** – Automatische Sicherungen bei Gruppenauflösungen
