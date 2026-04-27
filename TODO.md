@@ -69,6 +69,7 @@ Falls ja:
 * PWA Rework
     * Notifications that actually pop on mobile devices iOS and Android!
     * Note: Modals und co müssen für Devices mit notch nach unten verschoben werden
+    * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
 * Toast button unten rechts "+" zum hochladen
 * Versionierung und Changelog
     * App version am ende der Sidebar
