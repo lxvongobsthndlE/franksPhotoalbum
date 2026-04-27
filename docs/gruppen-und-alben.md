@@ -23,6 +23,22 @@ Jede Gruppe hat einen zufälligen **6-stelligen Einladungscode** (z. B. `A3F9KZ`
 **Auto-Erstellung:**  
 Beim allerersten Login wird automatisch eine persönliche Gruppe mit dem Namen `<Anzeigename> Fotoalbum` angelegt.
 
+### Mitgliederlimit (optional)
+
+Gruppen können optional ein **maximales Mitgliederlimit** erhalten.
+
+- Standard bei Erstellung: **kein Limit** (`maxMembers = null`)
+- Wenn ein Limit aktiv ist und erreicht wurde, blockiert `POST /api/groups/join` den Beitritt mit `409`
+- Die Sidebar zeigt den Zähler **`x/n` nur bei aktivem Limit**; ohne Limit bleibt die bisherige Anzeige unverändert
+
+### Sperre des Limits durch Admin
+
+Admins können in der Admin-Gruppenverwaltung das Mitgliederlimit zusätzlich sperren (`memberLimitLocked = true`).
+
+- Owner sehen weiterhin den aktuellen Wert, können ihn dann aber nicht mehr ändern
+- Ein Änderungsversuch durch den Owner wird serverseitig mit `403` abgewiesen
+- Admins können Sperre und Limit jederzeit wieder anpassen
+
 **API:**
 
 | Methode | Pfad | Beschreibung |
@@ -32,7 +48,7 @@ Beim allerersten Login wird automatisch eine persönliche Gruppe mit dem Namen `
 | `POST` | `/api/groups/join` | Gruppe per `code` beitreten |
 | `GET` | `/api/groups/:id/members` | Mitglieder einer Gruppe |
 | `PATCH` | `/api/groups/:id` | Gruppe umbenennen (nur Owner) |
-| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit |
+| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit und `maxMembers` |
 | `POST` | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin) |
 | `DELETE` | `/api/groups/:id` | Gruppe löschen (Owner/Admin, mit ZIP-Backup wenn Fotos vorhanden) |
 | `DELETE` | `/api/groups/:id/leave` | Gruppe verlassen |
@@ -148,6 +164,9 @@ GET /api/groups/admin/backup/:zipKey
 
 | Methode | Pfad | Beschreibung |
 |---|---|---|
+| `GET` | `/api/groups/admin/all` | Alle Gruppen auflisten (inkl. aggregierter Counts) |
+| `POST` | `/api/groups/admin/create` | Gruppe anlegen, optional mit `maxMembers` und `memberLimitLocked` |
+| `PATCH` | `/api/groups/admin/:id` | Gruppe bearbeiten, inkl. Limit und Limit-Sperre |
 | `GET` | `/api/groups/admin/backups` | Alle Backup-Einträge auflisten |
 | `POST` | `/api/groups/admin/backups/:zipKey/refresh` | Backup-Link um 30 Tage verlängern |
 | `DELETE` | `/api/groups/admin/backups/:zipKey` | Backup aus MinIO und DB löschen |

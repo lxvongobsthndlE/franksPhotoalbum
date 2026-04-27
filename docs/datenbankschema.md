@@ -50,6 +50,8 @@ model Group {
   code      String   @unique   // 6-stelliger Einladungscode, Großbuchstaben
   createdBy String?            // userId des aktuellen Owners
   inviteCodeVisibleToMembers Boolean @default(true) // Einladungscode für alle Mitglieder sichtbar
+  maxMembers Int?              // Optionales Mitgliederlimit; null = unbegrenzt
+  memberLimitLocked Boolean @default(false) // Admin-Sperre: Owner darf Limit dann nicht ändern
   createdAt DateTime @default(now())
 }
 ```
@@ -278,6 +280,7 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 | `20260419133307_add_group_backups` | GroupBackup-Modell (ZIP-Archiv-Metadaten) |
 | `20260419143604_add_backup_deleted_by` | `deletedByName` an GroupBackup |
 | `20260419162052_add_notifications` | Notification + NotificationPreference |
+| `20260427194000_add_group_member_limit_lock` | `Group.maxMembers` (optional) + `Group.memberLimitLocked` (default `false`) |
 | `20260419170520_update_notif_defaults` | Standard-Werte für Benachrichtigungs-Präferenzen |
 | `20260420100000_add_imageurl_entityurl_system_notif` | `imageUrl`, `entityUrl` an Notification; `system`-Typ |
 | `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
