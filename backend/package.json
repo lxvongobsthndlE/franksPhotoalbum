@@ -16,8 +16,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "lint": "eslint src routes middleware auth utils scripts",
-    "lint:fix": "eslint src routes middleware auth utils scripts --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate": "npm run format:check && npm run lint && npx prisma validate"
