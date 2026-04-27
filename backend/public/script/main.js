@@ -53,6 +53,9 @@ let allProfiles = {}, photos = [], pgFrom = 0, hasMore = false;
 let allAlbums = [];
 let urlCache = {};
 let lbIdx = 0, delTarget = null, delFromLb = false;
+let appVersion = '...';
+let changelogEntries = [];
+let changelogEditingId = null;
 
 // Hängt den Access-Token als ?t= an Foto-URLs (nötig da <img src> keinen Auth-Header sendet)
 function photoSrc(url) {
@@ -273,6 +276,7 @@ async function startApp() {
   renderGroupSwitcher();
   // Sidebar asynchron rendern (blockiert App-Start nicht)
   setTimeout(() => renderSidebar(), 100);
+  loadAppVersion();
 
   // Fotos laden
   if (curGroupId) await loadPhotos(true);
@@ -461,6 +465,10 @@ function renderSidebar() {
       <span class="fi"><svg id="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
       <span class="fn">Nachtmodus</span>
     </button>
+    <button class="fb sb-version-link" onclick="openChangelogModal()${window.innerWidth<=900?';closeSidebar()':''}" title="Changelog öffnen">
+      <span class="fi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg></span>
+      <span class="fn">Version <span id="sb-version-text">v${esc(appVersion)}</span></span>
+    </button>
   `;
   loadSidebarAvatars();
   // Load counts asynchronously (don't block sidebar rendering)
@@ -485,6 +493,211 @@ function renderSidebar() {
       <button class="sb-logout-btn" onclick="doLogout()">Abmelden</button>
     </div>`;
   sb2.appendChild(footerDiv);
+}
+
+function updateAppVersionUi() {
+  const sbVersionEl = $('sb-version-text');
+  if (sbVersionEl) sbVersionEl.textContent = `v${appVersion}`;
+  const modalVersionEl = $('changelog-current-version');
+  if (modalVersionEl) modalVersionEl.textContent = `Version ${appVersion}`;
+  const inputVersion = $('changelog-version-input');
+  if (inputVersion && !inputVersion.value.trim()) inputVersion.value = appVersion;
+}
+
+async function loadAppVersion() {
+  try {
+    const data = await apiCall('/changelog/meta', 'GET');
+    if (data?.appVersion) {
+      appVersion = String(data.appVersion);
+      updateAppVersionUi();
+    }
+  } catch {
+    // Changelog ist optional; UI bleibt mit Fallback-Version nutzbar
+  }
+}
+
+function closeChangelogModal() {
+  hide('changelog-modal');
+}
+
+function renderChangelogList() {
+  const list = $('changelog-list');
+  if (!list) return;
+
+  if (!changelogEntries.length) {
+    list.innerHTML = '<div class="changelog-empty">Noch keine Einträge vorhanden.</div>';
+    return;
+  }
+
+  list.innerHTML = changelogEntries.map(entry => {
+    const isAdmin = me?.role === 'admin';
+    const isEditing = changelogEditingId === entry.id;
+    const createdAt = new Date(entry.createdAt);
+    const dateLabel = Number.isNaN(createdAt.getTime())
+      ? ''
+      : createdAt.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+    const editVersionId = `changelog-edit-version-${entry.id}`;
+    const editTitleId = `changelog-edit-title-${entry.id}`;
+    const editBodyId = `changelog-edit-body-${entry.id}`;
+    return `
+      <article class="changelog-item">
+        <div class="changelog-item-top">
+          <span class="changelog-badge">v${esc(entry.version || '?')}</span>
+          <span class="changelog-date">${esc(dateLabel)}</span>
+        </div>
+        ${isEditing ? `
+          <div class="changelog-edit-form">
+            <div class="changelog-edit-grid">
+              <input id="${editVersionId}" class="broadcast-input" type="text" maxlength="32" value="${esc(entry.version || '')}">
+              <input id="${editTitleId}" class="broadcast-input" type="text" maxlength="140" value="${esc(entry.title || '')}">
+            </div>
+            <textarea id="${editBodyId}" class="broadcast-input broadcast-textarea" rows="3" maxlength="4000">${esc(entry.body || '')}</textarea>
+            <div class="changelog-item-actions">
+              <button class="btn btn-ghost changelog-item-btn" onclick="cancelEditChangelogEntry()">Abbrechen</button>
+              <button class="btn btn-primary changelog-item-btn" onclick="saveEditChangelogEntry('${entry.id}')">Speichern</button>
+            </div>
+          </div>
+        ` : `
+          <h4>${esc(entry.title || '')}</h4>
+          ${entry.body ? `<p>${esc(entry.body).replace(/\n/g, '<br>')}</p>` : ''}
+        `}
+        ${entry.createdByName ? `<div class="changelog-author">von ${esc(entry.createdByName)}</div>` : ''}
+        ${isAdmin && !isEditing ? `
+          <div class="changelog-item-actions">
+            <button class="btn btn-ghost changelog-item-btn" onclick="startEditChangelogEntry('${entry.id}')">Bearbeiten</button>
+            <button class="btn btn-danger changelog-item-btn" onclick="deleteChangelogEntry('${entry.id}')">Löschen</button>
+          </div>
+        ` : ''}
+      </article>
+    `;
+  }).join('');
+}
+
+function startEditChangelogEntry(id) {
+  changelogEditingId = id;
+  renderChangelogList();
+}
+
+function cancelEditChangelogEntry() {
+  changelogEditingId = null;
+  renderChangelogList();
+}
+
+async function saveEditChangelogEntry(id) {
+  if (me?.role !== 'admin') {
+    toast('Nur Admins können Changelog-Einträge bearbeiten', 'error');
+    return;
+  }
+
+  const version = $(`changelog-edit-version-${id}`)?.value?.trim();
+  const title = $(`changelog-edit-title-${id}`)?.value?.trim();
+  const body = $(`changelog-edit-body-${id}`)?.value?.trim();
+
+  if (!version || !title) {
+    toast('Version und Titel sind Pflichtfelder', 'error');
+    return;
+  }
+
+  try {
+    await apiCall(`/changelog/${id}`, 'PATCH', { version, title, body });
+    changelogEditingId = null;
+    toast('Changelog-Eintrag aktualisiert', 'success');
+    await loadChangelogEntries();
+  } catch (e) {
+    toast(e.serverMessage || 'Aktualisieren fehlgeschlagen', 'error');
+  }
+}
+
+async function deleteChangelogEntry(id) {
+  if (me?.role !== 'admin') {
+    toast('Nur Admins können Changelog-Einträge löschen', 'error');
+    return;
+  }
+
+  const confirmed = await showConfirmDlg(
+    'Changelog löschen?',
+    'Der Eintrag wird dauerhaft gelöscht.',
+    'Löschen',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiCall(`/changelog/${id}`, 'DELETE');
+    if (changelogEditingId === id) changelogEditingId = null;
+    toast('Changelog-Eintrag gelöscht', 'success');
+    await loadChangelogEntries();
+  } catch (e) {
+    toast(e.serverMessage || 'Löschen fehlgeschlagen', 'error');
+  }
+}
+
+function updateChangelogAdminFormVisibility() {
+  const formWrap = $('changelog-admin-form-wrap');
+  if (!formWrap) return;
+  formWrap.classList.toggle('hidden', me?.role !== 'admin');
+}
+
+async function loadChangelogEntries() {
+  const list = $('changelog-list');
+  if (list) list.innerHTML = '<div class="changelog-loading"><div class="spinner"></div></div>';
+
+  const data = await apiCall('/changelog?limit=40', 'GET');
+  if (data?.appVersion) appVersion = String(data.appVersion);
+  changelogEntries = Array.isArray(data?.entries) ? data.entries : [];
+  updateAppVersionUi();
+  renderChangelogList();
+}
+
+async function openChangelogModal() {
+  show('changelog-modal');
+  changelogEditingId = null;
+  updateAppVersionUi();
+  updateChangelogAdminFormVisibility();
+  try {
+    await loadChangelogEntries();
+  } catch {
+    const list = $('changelog-list');
+    if (list) list.innerHTML = '<div class="changelog-empty">Changelog konnte nicht geladen werden.</div>';
+  }
+}
+
+async function createChangelogEntry() {
+  if (me?.role !== 'admin') {
+    toast('Nur Admins können Changelog-Einträge anlegen', 'error');
+    return;
+  }
+
+  const version = $('changelog-version-input')?.value?.trim();
+  const title = $('changelog-title-input')?.value?.trim();
+  const body = $('changelog-body-input')?.value?.trim();
+
+  if (!version || !title) {
+    toast('Version und Titel sind Pflichtfelder', 'error');
+    return;
+  }
+
+  const btn = $('changelog-create-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Speichern...';
+  }
+
+  try {
+    await apiCall('/changelog', 'POST', { version, title, body });
+    toast('Changelog-Eintrag gespeichert', 'success');
+    $('changelog-title-input').value = '';
+    $('changelog-body-input').value = '';
+    await loadChangelogEntries();
+  } catch (e) {
+    toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Eintrag veröffentlichen';
+    }
+  }
 }
 
 async function fetchAlbumCount(albumId) {
@@ -4532,6 +4745,8 @@ Object.assign(window, {
   // Notifications
   toggleNotifPanel, markAllNotificationsRead, deleteAllNotifications, saveNotifPrefs, toggleNotifPrefs, handleNotifPrefToggle, _notifClick, _notifMarkRead, _notifDelete,
   openBroadcastModal, closeBroadcastModal, sendBroadcast, renderBroadcastAttachmentPreview,
+  openChangelogModal, closeChangelogModal, createChangelogEntry,
+  startEditChangelogEntry, cancelEditChangelogEntry, saveEditChangelogEntry, deleteChangelogEntry,
   copyCurrentImageId, toggleLbMenu, closeLbMenu,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)
   $,

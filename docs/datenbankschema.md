@@ -15,6 +15,8 @@ User ──< GroupMember >── Group ──< Album ──< AlbumContributor >�
   │
   ├──< Notification
   └──  NotificationPreference
+
+ChangelogEntry
 ```
 
 ---
@@ -199,6 +201,27 @@ model GroupBackup {
 
 ---
 
+### ChangelogEntry
+
+Speichert Versionseinträge für das in der Sidebar verlinkte Changelog-Modal.
+
+```prisma
+model ChangelogEntry {
+  id            String   @id @default(cuid())
+  version       String
+  title         String
+  body          String?
+  createdById   String?  @map("created_by_id")
+  createdByName String?  @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@map("changelog_entries")
+}
+```
+
+---
+
 ### Notification
 
 ```prisma
@@ -288,4 +311,5 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 | `20260423120000_add_user_migration_metadata` | `migrationStatus`, `migratedAt` am User |
 | `20260427123000_add_group_invite_visibility` | `inviteCodeVisibleToMembers` an Group |
 | `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
+| `20260427201000_add_changelog_entries` | Neue Tabelle `changelog_entries` für Versionseinträge |
 

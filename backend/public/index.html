@@ -199,6 +199,32 @@
   </div>
   <!-- ── END BROADCAST MODAL ── -->
 
+  <!-- ── CHANGELOG MODAL ── -->
+  <div class="modal-bg hidden" id="changelog-modal" onclick="if(event.target===this)closeChangelogModal()">
+    <div class="modal changelog-modal" onclick="event.stopPropagation()">
+      <div class="modal-hdr">
+        <h3>Versionen &amp; Changelog</h3>
+        <button class="modal-x" onclick="closeChangelogModal()">✕</button>
+      </div>
+      <div class="modal-body changelog-body">
+        <div class="changelog-current-version" id="changelog-current-version">Version ...</div>
+        <div id="changelog-admin-form-wrap" class="changelog-admin-form hidden">
+          <h4>Neuen Eintrag erstellen</h4>
+          <div class="changelog-form-grid">
+            <input id="changelog-version-input" class="broadcast-input" type="text" maxlength="32" placeholder="Version (z.B. 1.0.0-beta.2)">
+            <input id="changelog-title-input" class="broadcast-input" type="text" maxlength="140" placeholder="Titel">
+          </div>
+          <textarea id="changelog-body-input" class="broadcast-input broadcast-textarea" rows="3" maxlength="4000" placeholder="Was hat sich geändert?"></textarea>
+          <div class="changelog-form-actions">
+            <button id="changelog-create-btn" class="btn btn-primary" onclick="createChangelogEntry()" style="width:auto;margin-top:0;padding:8px 16px">Eintrag veröffentlichen</button>
+          </div>
+        </div>
+        <div id="changelog-list"></div>
+      </div>
+    </div>
+  </div>
+  <!-- ── END CHANGELOG MODAL ── -->
+
   <div id="body-wrap">
     <nav id="sidebar"></nav>
     <div id="content">

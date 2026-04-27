@@ -119,6 +119,23 @@ Authorization: Bearer <accessToken>
 
 ---
 
+## Changelog (`/api/changelog`)
+
+| Methode | Pfad | Beschreibung |
+|---|---|---|
+| `GET` | `/api/changelog/meta` | Aktuelle App-Version für UI (Sidebar/Modal) |
+| `GET` | `/api/changelog` | Changelog-Einträge laden (`?limit=40`, max. 100) |
+| `POST` | `/api/changelog` | Neuen Eintrag erstellen (nur Admin) – Body: `{ "version", "title", "body" }` |
+| `PATCH` | `/api/changelog/:id` | Eintrag bearbeiten (nur Admin) |
+| `DELETE` | `/api/changelog/:id` | Eintrag löschen (nur Admin) |
+
+Validierung:
+- `version`: Pflicht, max. 32 Zeichen
+- `title`: Pflicht, max. 140 Zeichen
+- `body`: optional, max. 4000 Zeichen
+
+---
+
 ## Admin (`/api/admin`)
 
 | Methode | Pfad | Beschreibung |
