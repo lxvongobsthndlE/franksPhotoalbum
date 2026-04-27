@@ -9,7 +9,7 @@ export default [
       'minio_data/',
       'uploads/',
       'public/media/',
-      'db/'
-    ]
-  }
+      'db/',
+    ],
+  },
 ];
