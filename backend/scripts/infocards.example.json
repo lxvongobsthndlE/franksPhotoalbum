@@ -1,0 +1,46 @@
+{
+  "cards": [
+    {
+      "name": "release-notes-v1-9-0",
+      "variant": "update",
+      "icon": "🚀",
+      "title": "Release Notes v1.9.0",
+      "subtitle": "Mehr Tempo und bessere Zusammenarbeit im Album.",
+      "bullets": [
+        "Schnelleres Laden von Gruppen mit vielen Alben.",
+        "Neue Push-Benachrichtigung bei @Mentions in Kommentaren.",
+        "Fehler behoben: Doppeltes Speichern beim mobilen Upload.",
+        "Verbesserte Lesbarkeit in der Kartenansicht auf kleinen Displays."
+      ],
+      "footer": "Update ist live. Bitte App einmal neu starten, um alle Verbesserungen zu sehen."
+    },
+    {
+      "name": "ankuendigung-wartung",
+      "variant": "announcement",
+      "icon": "📢",
+      "title": "Geplantes Wartungsfenster",
+      "subtitle": "Kurzer Service-Eingriff am Sonntag.",
+      "bullets": [
+        "Zeitraum: Sonntag, 08:00 bis 09:00 Uhr.",
+        "Uploads sind in dieser Zeit kurzzeitig pausiert.",
+        "Bestehende Fotos bleiben sichtbar.",
+        "Nach Abschluss informieren wir direkt in der Gruppe."
+      ],
+      "footer": "Danke für euer Verständnis und eure Geduld."
+    },
+    {
+      "name": "tipps-schneller-upload",
+      "variant": "tip",
+      "icon": "💡",
+      "title": "Tipp: Schnellere Uploads",
+      "subtitle": "Mit diesen drei Schritten klappt es deutlich flüssiger.",
+      "bullets": [
+        "Wähle zunächst ein Album und starte dann den Mehrfach-Upload.",
+        "Nutze WLAN für große Serien mit vielen Bildern.",
+        "Lasse die App während des Uploads im Vordergrund offen.",
+        "Aktiviere auf dem Handy den Energiesparmodus währenddessen nicht."
+      ],
+      "footer": "Kleine Gewohnheit, große Wirkung: so sind neue Bilder schneller sichtbar."
+    }
+  ]
+}

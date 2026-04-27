@@ -66,6 +66,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
 
   // 3) Falls weiterhin nicht gefunden, neuen User erstellen
   const targetUsername = normalizedPreferredUsername || email.split('@')[0];
+  const displayNameFieldForCreate = realName ? 'name' : 'username';
 
   if (!user) {
     // Erstelle neuen User (immer mit role "user")
@@ -74,6 +75,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
         email,
         username: targetUsername,
         name: realName,
+        displayNameField: displayNameFieldForCreate,
         color: `hsl(${Math.random() * 360}, 70%, 70%)`,
         lastLoginAt: new Date(),
       }
@@ -91,11 +93,19 @@ async function syncUserFromOIDC(fastify, userInfo) {
       }
     }
 
+    // Wenn kein echter Name vorhanden ist und der User noch auf "name" steht,
+    // auf "username" umstellen, damit UI nicht mit leerem Anzeigenamen rendert.
+    const displayNameFieldForUpdate =
+      !realName && (user.displayNameField || 'name') === 'name'
+        ? 'username'
+        : user.displayNameField;
+
     user = await fastify.prisma.user.update({
       where: { id: user.id },
       data: {
         name: realName,
         username: usernameForUpdate,
+        displayNameField: displayNameFieldForUpdate,
         email,
         lastLoginAt: new Date(),
       }
