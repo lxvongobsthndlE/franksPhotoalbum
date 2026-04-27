@@ -8,13 +8,13 @@ import {
   addSseClient,
   removeSseClient,
   createNotification,
-} from '../../utils/notifications.js';
-import { createMockPrismaClient, createMockSseReply, createMockTransporter } from '../mocks/index.js';
+} from '../utils/notifications.js';
+import { createMockPrismaClient, createMockSseReply, createMockTransporter } from './mocks/index.js';
 import {
   createMockUser,
   createMockNotificationPreference,
   createMockNotification,
-} from '../fixtures/index.js';
+} from './fixtures/index.js';
 
 describe('notifications.js', () => {
   describe('SSE Client Management', () => {

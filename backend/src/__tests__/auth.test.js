@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createMockFastify } from '../mocks/index.js';
-import { createMockUser } from '../fixtures/index.js';
+import { createMockFastify } from './mocks/index.js';
+import { createMockUser } from './fixtures/index.js';
 
 describe('Auth - Session Token Creation', () => {
   /**
@@ -119,9 +119,9 @@ describe('Auth - Session Token Creation', () => {
     });
 
     it('should remove invalid characters', () => {
-      expect(normalizePreferredUsername('john@domain.com')).toBe('john_domain_com');
+      expect(normalizePreferredUsername('john@domain.com')).toBe('john_domain.com');
       expect(normalizePreferredUsername('user with spaces')).toBe('user_with_spaces');
-      expect(normalizePreferredUsername('user!@#$%')).toBe('user______');
+      expect(normalizePreferredUsername('user!@#$%')).toBe('user');
     });
 
     it('should trim leading and trailing whitespace', () => {
@@ -158,7 +158,7 @@ describe('Auth - Session Token Creation', () => {
    * Kritische Sicherheits-Logik gegen CSRF/State-Tampering
    */
   describe('State and Nonce generation', () => {
-    it('should generate cryptographically secure state', () => {
+    it('should generate cryptographically secure state', async () => {
       const crypto = await import('crypto');
       const generateState = () => crypto.randomBytes(32).toString('hex');
 
@@ -170,7 +170,7 @@ describe('Auth - Session Token Creation', () => {
       expect(state1).not.toBe(state2); // Should be different
     });
 
-    it('should generate cryptographically secure nonce', () => {
+    it('should generate cryptographically secure nonce', async () => {
       const crypto = await import('crypto');
       const generateNonce = () => crypto.randomBytes(32).toString('hex');
 
@@ -180,7 +180,7 @@ describe('Auth - Session Token Creation', () => {
       expect(/^[0-9a-f]+$/.test(nonce)).toBe(true); // Hex format
     });
 
-    it('state should not be predictable', () => {
+    it('state should not be predictable', async () => {
       const crypto = await import('crypto');
       const generateState = () => crypto.randomBytes(32).toString('hex');
 

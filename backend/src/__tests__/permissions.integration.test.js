@@ -9,12 +9,12 @@ import {
   createMockFastify,
   createMockRequest,
   createMockReply,
-} from '../mocks/index.js';
+} from './mocks/index.js';
 import {
   createMockUser,
   createMockGroup,
   createMockAlbum,
-} from '../fixtures/index.js';
+} from './fixtures/index.js';
 
 describe('Integration: API Permission Checks', () => {
   let prisma;
@@ -83,7 +83,7 @@ describe('Integration: API Permission Checks', () => {
           where: { userId_groupId: { userId: user.id, groupId: album.groupId } },
         });
 
-        return groupMember && ['owner', 'admin'].includes(groupMember.role);
+        return groupMember ? ['owner', 'admin'].includes(groupMember.role) : false;
       };
 
       const canEdit = await checkEditPermission(prisma, user, 'album-1');
@@ -145,7 +145,7 @@ describe('Integration: API Permission Checks', () => {
 
       const groups = await getVisibleGroups(prisma, user);
 
-      expect(groups).toContain(expect.objectContaining({ id: 'group-public' }));
+      expect(groups.some((g) => g.id === 'group-public')).toBe(true);
     });
 
     it('should include private groups only for members', async () => {
