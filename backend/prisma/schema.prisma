@@ -35,11 +35,12 @@ model User {
 }
 
 model Group {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  createdBy String?
-  createdAt DateTime @default(now())
+  id                          String   @id @default(cuid())
+  name                        String
+  code                        String   @unique
+  createdBy                   String?
+  inviteCodeVisibleToMembers  Boolean  @default(true)
+  createdAt                   DateTime @default(now())
   
   members   GroupMember[]
   albums    Album[]

@@ -210,7 +210,8 @@ export default async function authRoutes(fastify) {
           name: user.name,
           role: user.role,
           color: user.color,
-          avatar: normalizeAvatarUrl(user.avatar, user.id)
+          avatar: normalizeAvatarUrl(user.avatar, user.id),
+          displayNameField: user.displayNameField || 'name'
         }
       };
     } catch (err) {

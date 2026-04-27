@@ -62,6 +62,9 @@ Authorization: Bearer <accessToken>
 | `POST` | `/api/groups/join` | Gruppe per Code beitreten (`code`) |
 | `GET` | `/api/groups/:id/members` | Mitglieder der Gruppe |
 | `PATCH` | `/api/groups/:id` | Gruppe umbenennen (nur Owner) |
+| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin) – Body: `{ "inviteCodeVisibleToMembers": true|false }` |
+| `POST` | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin) |
+| `DELETE` | `/api/groups/:id` | Gruppe löschen (Owner/Admin), erstellt bei vorhandenen Fotos ein ZIP-Backup |
 | `DELETE` | `/api/groups/:id/leave` | Gruppe verlassen (`successorId` bei Owner-Wechsel) |
 | `DELETE` | `/api/groups/:id/dissolve` | Gruppe auflösen – nur Owner als letztes Mitglied; erstellt ZIP-Backup |
 | `GET` | `/api/groups/:id/deputies` | Vertreter auflisten |

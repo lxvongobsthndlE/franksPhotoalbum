@@ -49,6 +49,7 @@ model Group {
   name      String
   code      String   @unique   // 6-stelliger Einladungscode, Großbuchstaben
   createdBy String?            // userId des aktuellen Owners
+  inviteCodeVisibleToMembers Boolean @default(true) // Einladungscode für alle Mitglieder sichtbar
   createdAt DateTime @default(now())
 }
 ```
@@ -279,4 +280,8 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 | `20260419162052_add_notifications` | Notification + NotificationPreference |
 | `20260419170520_update_notif_defaults` | Standard-Werte für Benachrichtigungs-Präferenzen |
 | `20260420100000_add_imageurl_entityurl_system_notif` | `imageUrl`, `entityUrl` an Notification; `system`-Typ |
+| `20260421100000_add_display_name_field` | `displayName` am User |
+| `20260423120000_add_user_migration_metadata` | `migrationStatus`, `migratedAt` am User |
+| `20260427123000_add_group_invite_visibility` | `inviteCodeVisibleToMembers` an Group |
 | `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
+
