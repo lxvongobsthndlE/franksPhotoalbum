@@ -241,15 +241,13 @@ describe('route permissions', () => {
         groupId: 'group-1',
       });
       prisma.albumContributor.upsert.mockResolvedValue({});
-      prisma.user.findUnique
-        .mockResolvedValueOnce({ role: 'user' })
-        .mockResolvedValueOnce({
-          id: 'target-user',
-          username: 'target',
-          name: 'Target User',
-          color: '#fff',
-          avatar: null,
-        });
+      prisma.user.findUnique.mockResolvedValueOnce({ role: 'user' }).mockResolvedValueOnce({
+        id: 'target-user',
+        username: 'target',
+        name: 'Target User',
+        color: '#fff',
+        avatar: null,
+      });
 
       const success = await callAlbumRoute('POST', '/:id/contributors', {
         user: { id: 'deputy-1' },
