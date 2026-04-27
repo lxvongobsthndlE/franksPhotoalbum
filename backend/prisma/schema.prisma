@@ -40,6 +40,8 @@ model Group {
   code                        String   @unique
   createdBy                   String?
   inviteCodeVisibleToMembers  Boolean  @default(true)
+  maxMembers                  Int?
+  memberLimitLocked           Boolean  @default(false)
   createdAt                   DateTime @default(now())
   
   members   GroupMember[]
