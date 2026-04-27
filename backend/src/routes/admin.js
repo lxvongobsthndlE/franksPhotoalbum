@@ -13,7 +13,10 @@ export default async function adminRoutes(fastify) {
   function withMigrationMeta(user) {
     if (!user) return user;
     if (user.migratedFrom || user.migratedAt) return user;
-    const looksUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user.id || ''));
+    const looksUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        String(user.id || '')
+      );
     if (!looksUuid) return user;
     return {
       ...user,
@@ -61,13 +64,14 @@ export default async function adminRoutes(fastify) {
     });
 
     return {
-      users: users.map(u => {
+      users: users.map((u) => {
         const normalized = withMigrationMeta(u);
         return {
           ...normalized,
-          avatar: normalized.avatar && !normalized.avatar.startsWith('/api/')
-            ? `/api/auth/avatar/${normalized.id}`
-            : normalized.avatar,
+          avatar:
+            normalized.avatar && !normalized.avatar.startsWith('/api/')
+              ? `/api/auth/avatar/${normalized.id}`
+              : normalized.avatar,
         };
       }),
     };
@@ -117,23 +121,24 @@ export default async function adminRoutes(fastify) {
       }),
     ]);
 
-    const deputyGroupIds = new Set(user.groupDeputies.map(d => d.groupId));
+    const deputyGroupIds = new Set(user.groupDeputies.map((d) => d.groupId));
     const groups = user.groups.map(({ group: g }) => {
       let role = 'member';
       if (g.createdBy === userId) role = 'owner';
       else if (deputyGroupIds.has(g.id)) role = 'deputy';
       return { id: g.id, name: g.name, role };
     });
-    const memberGroupIds = new Set(groups.map(g => g.id));
-    const assignableGroups = allGroups.filter(g => !memberGroupIds.has(g.id));
+    const memberGroupIds = new Set(groups.map((g) => g.id));
+    const assignableGroups = allGroups.filter((g) => !memberGroupIds.has(g.id));
 
     const normalizedUser = withMigrationMeta(user);
 
     return {
       ...normalizedUser,
-      avatar: normalizedUser.avatar && !normalizedUser.avatar.startsWith('/api/')
-        ? `/api/auth/avatar/${normalizedUser.id}`
-        : normalizedUser.avatar,
+      avatar:
+        normalizedUser.avatar && !normalizedUser.avatar.startsWith('/api/')
+          ? `/api/auth/avatar/${normalizedUser.id}`
+          : normalizedUser.avatar,
       stats: {
         photos: user._count.photos,
         comments: user._count.comments,
@@ -176,7 +181,7 @@ export default async function adminRoutes(fastify) {
       where: { uploaderId: userId },
       select: { id: true, path: true },
     });
-    const photoIds = photos.map(p => p.id);
+    const photoIds = photos.map((p) => p.id);
 
     // DB-Einträge in korrekter Reihenfolge löschen
     if (photoIds.length > 0) {
@@ -191,12 +196,15 @@ export default async function adminRoutes(fastify) {
     await fastify.prisma.album.deleteMany({ where: { createdBy: userId } });
     await fastify.prisma.groupDeputy.deleteMany({ where: { userId } });
     await fastify.prisma.groupMember.deleteMany({ where: { userId } });
-    await fastify.prisma.group.updateMany({ where: { createdBy: userId }, data: { createdBy: null } });
+    await fastify.prisma.group.updateMany({
+      where: { createdBy: userId },
+      data: { createdBy: null },
+    });
     await fastify.prisma.notificationPreference.deleteMany({ where: { userId } });
     await fastify.prisma.user.delete({ where: { id: userId } });
 
     // MinIO-Cleanup (fire-and-forget)
-    deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean)).catch(() => {});
+    deleteGroupPhotoObjects(photos.map((p) => p.path).filter(Boolean)).catch(() => {});
     deleteAvatar(userId).catch(() => {});
 
     return { ok: true };
@@ -212,7 +220,10 @@ export default async function adminRoutes(fastify) {
       return reply.code(400).send({ error: 'title erforderlich' });
     }
     const userId = request.params.id;
-    const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
     if (!user) return reply.code(404).send({ error: 'User nicht gefunden' });
 
     await createNotification(fastify.prisma, {
@@ -238,7 +249,7 @@ export default async function adminRoutes(fastify) {
 
     const users = await fastify.prisma.user.findMany({ select: { id: true } });
     // System-Benachrichtigungen direkt erstellen (kein Prefs-Check, immer liefern)
-    const uniqueIds = [...new Set(users.map(u => u.id))];
+    const uniqueIds = [...new Set(users.map((u) => u.id))];
     for (const userId of uniqueIds) {
       try {
         await createNotification(fastify.prisma, {
@@ -249,7 +260,7 @@ export default async function adminRoutes(fastify) {
           imageUrl: imageUrl ? String(imageUrl).trim() : undefined,
           entityUrl: entityUrl ? String(entityUrl).trim() : undefined,
         });
-      } catch(e) {
+      } catch (e) {
         fastify.log.warn(`Broadcast an ${userId} fehlgeschlagen: ${e.message}`);
       }
     }
@@ -271,7 +282,9 @@ export default async function adminRoutes(fastify) {
     if (request.params.id === request.user.id && role !== 'admin') {
       const adminCount = await fastify.prisma.user.count({ where: { role: 'admin' } });
       if (adminCount <= 1) {
-        return reply.code(409).send({ error: 'Du bist der letzte Admin und kannst dich nicht selbst degradieren.' });
+        return reply
+          .code(409)
+          .send({ error: 'Du bist der letzte Admin und kannst dich nicht selbst degradieren.' });
       }
     }
 
@@ -321,7 +334,10 @@ export default async function adminRoutes(fastify) {
 
     const [user, group, membership, groupCount] = await Promise.all([
       fastify.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
-      fastify.prisma.group.findUnique({ where: { id: groupId }, select: { id: true, createdBy: true } }),
+      fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, createdBy: true },
+      }),
       fastify.prisma.groupMember.findUnique({ where: { userId_groupId: { userId, groupId } } }),
       fastify.prisma.groupMember.count({ where: { userId } }),
     ]);
@@ -330,10 +346,14 @@ export default async function adminRoutes(fastify) {
     if (!membership) return reply.code(404).send({ error: 'User ist kein Mitglied dieser Gruppe' });
 
     if (groupCount <= 1) {
-      return reply.code(409).send({ error: 'User kann nicht aus der letzten Gruppe entfernt werden' });
+      return reply
+        .code(409)
+        .send({ error: 'User kann nicht aus der letzten Gruppe entfernt werden' });
     }
     if (group.createdBy === userId) {
-      return reply.code(409).send({ error: 'Owner kann nicht direkt aus seiner Gruppe entfernt werden' });
+      return reply
+        .code(409)
+        .send({ error: 'Owner kann nicht direkt aus seiner Gruppe entfernt werden' });
     }
 
     await fastify.prisma.groupMember.delete({ where: { userId_groupId: { userId, groupId } } });

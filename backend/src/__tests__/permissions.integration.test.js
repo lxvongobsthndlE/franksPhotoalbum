@@ -3,8 +3,18 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMockPrismaClient, createMockReply, createMockRequest, createMockRouteFastify } from './mocks/index.js';
-import { createMockAlbum, createMockGroup, createMockPhoto, createMockUser } from './fixtures/index.js';
+import {
+  createMockPrismaClient,
+  createMockReply,
+  createMockRequest,
+  createMockRouteFastify,
+} from './mocks/index.js';
+import {
+  createMockAlbum,
+  createMockGroup,
+  createMockPhoto,
+  createMockUser,
+} from './fixtures/index.js';
 
 vi.mock('../utils/notifications.js', () => ({
   createNotification: vi.fn(() => Promise.resolve()),
@@ -62,11 +72,19 @@ describe('route permissions', () => {
     it('allows a group member to create an album', async () => {
       prisma.groupMember.findUnique.mockResolvedValue({ userId: 'member-1', groupId: 'group-1' });
       prisma.album.create.mockResolvedValue({
-        ...createMockAlbum({ id: 'album-1', name: 'Roadtrip', groupId: 'group-1', createdBy: 'member-1' }),
+        ...createMockAlbum({
+          id: 'album-1',
+          name: 'Roadtrip',
+          groupId: 'group-1',
+          createdBy: 'member-1',
+        }),
         _count: { photos: 0 },
         contributors: [],
       });
-      prisma.groupMember.findMany.mockResolvedValue([{ userId: 'member-1' }, { userId: 'member-2' }]);
+      prisma.groupMember.findMany.mockResolvedValue([
+        { userId: 'member-1' },
+        { userId: 'member-2' },
+      ]);
       prisma.group.findUnique.mockResolvedValue({ name: 'Team Group' });
       prisma.user.findUnique.mockResolvedValue({ name: 'Member One', username: 'member1' });
 
@@ -102,7 +120,12 @@ describe('route permissions', () => {
         .mockResolvedValueOnce({ role: 'admin' })
         .mockResolvedValueOnce({ name: 'Admin', username: 'admin' });
       prisma.album.create.mockResolvedValue({
-        ...createMockAlbum({ id: 'album-2', name: 'Admin Album', groupId: 'group-1', createdBy: 'admin-1' }),
+        ...createMockAlbum({
+          id: 'album-2',
+          name: 'Admin Album',
+          groupId: 'group-1',
+          createdBy: 'admin-1',
+        }),
         _count: { photos: 0 },
         contributors: [],
       });
@@ -118,7 +141,9 @@ describe('route permissions', () => {
     });
 
     it('allows the album owner to rename an album', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'owner-1' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'owner-1' })
+      );
       prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Renamed Album' });
 
       const { result } = await callAlbumRoute('PATCH', '/:id', {
@@ -131,7 +156,9 @@ describe('route permissions', () => {
     });
 
     it('allows a group owner to rename an album they did not create', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Group Owner Rename' });
@@ -146,7 +173,9 @@ describe('route permissions', () => {
     });
 
     it('allows a group deputy to rename an album', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'someone-else' });
       prisma.groupDeputy.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'deputy-1' });
@@ -162,7 +191,9 @@ describe('route permissions', () => {
     });
 
     it('allows an admin to rename an album', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'admin' });
       prisma.album.update.mockResolvedValue({ id: 'album-1', name: 'Admin Rename' });
 
@@ -176,7 +207,9 @@ describe('route permissions', () => {
     });
 
     it('rejects a plain member when renaming someone else’s album', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.groupDeputy.findUnique.mockResolvedValue(null);
@@ -192,13 +225,31 @@ describe('route permissions', () => {
     });
 
     it('allows a deputy to add an album contributor but rejects non-members as targets', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', name: 'Shared Album', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({
+          id: 'album-1',
+          name: 'Shared Album',
+          groupId: 'group-1',
+          createdBy: 'album-owner',
+        })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.groupDeputy.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'deputy-1' });
-      prisma.groupMember.findUnique.mockResolvedValue({ userId: 'target-user', groupId: 'group-1' });
+      prisma.groupMember.findUnique.mockResolvedValue({
+        userId: 'target-user',
+        groupId: 'group-1',
+      });
       prisma.albumContributor.upsert.mockResolvedValue({});
-      prisma.user.findUnique.mockResolvedValueOnce({ role: 'user' }).mockResolvedValueOnce({ id: 'target-user', username: 'target', name: 'Target User', color: '#fff', avatar: null });
+      prisma.user.findUnique
+        .mockResolvedValueOnce({ role: 'user' })
+        .mockResolvedValueOnce({
+          id: 'target-user',
+          username: 'target',
+          name: 'Target User',
+          color: '#fff',
+          avatar: null,
+        });
 
       const success = await callAlbumRoute('POST', '/:id/contributors', {
         user: { id: 'deputy-1' },
@@ -234,11 +285,16 @@ describe('route permissions', () => {
 
   describe('photos routes', () => {
     it('allows an album contributor to batch-assign photos', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.groupDeputy.findUnique.mockResolvedValue(null);
-      prisma.albumContributor.findUnique.mockResolvedValue({ albumId: 'album-1', userId: 'contrib-1' });
+      prisma.albumContributor.findUnique.mockResolvedValue({
+        albumId: 'album-1',
+        userId: 'contrib-1',
+      });
       prisma.photoAlbum.createMany.mockResolvedValue({ count: 2 });
 
       const { result } = await callPhotoRoute('PATCH', '/batch-album', {
@@ -250,7 +306,9 @@ describe('route permissions', () => {
     });
 
     it('allows a group deputy to batch-assign photos', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.groupDeputy.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'deputy-1' });
@@ -265,7 +323,9 @@ describe('route permissions', () => {
     });
 
     it('rejects a plain member without contributor rights for batch updates', async () => {
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-1', groupId: 'group-1', createdBy: 'album-owner' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.groupDeputy.findUnique.mockResolvedValue(null);
@@ -291,9 +351,13 @@ describe('route permissions', () => {
     });
 
     it('rejects album reassignment when one target album is not accessible', async () => {
-      prisma.photo.findUnique.mockResolvedValue(createMockPhoto({ id: 'photo-1', uploaderId: 'uploader-1' }));
+      prisma.photo.findUnique.mockResolvedValue(
+        createMockPhoto({ id: 'photo-1', uploaderId: 'uploader-1' })
+      );
       prisma.user.findUnique.mockResolvedValue({ role: 'user' });
-      prisma.album.findUnique.mockResolvedValue(createMockAlbum({ id: 'album-allowed', groupId: 'group-1', createdBy: 'someone-else' }));
+      prisma.album.findUnique.mockResolvedValue(
+        createMockAlbum({ id: 'album-allowed', groupId: 'group-1', createdBy: 'someone-else' })
+      );
       prisma.group.findUnique.mockResolvedValue({ createdBy: 'group-owner' });
       prisma.groupDeputy.findUnique.mockResolvedValue(null);
       prisma.albumContributor.findUnique.mockResolvedValue(null);

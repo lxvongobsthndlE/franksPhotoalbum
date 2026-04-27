@@ -135,10 +135,17 @@ async function main() {
   const sourceSecretKey = args['source-secret-key'] || process.env.MINIO_SECRET_KEY;
   const sourceUseSSL = toBool(args['source-use-ssl'] || process.env.SOURCE_MINIO_USE_SSL, false);
 
-  const targetEndpoint = args['target-endpoint'] || process.env.SOURCE_MINIO_ENDPOINT || '192.168.178.87';
+  const targetEndpoint =
+    args['target-endpoint'] || process.env.SOURCE_MINIO_ENDPOINT || '192.168.178.87';
   const targetPort = parsePort(args['target-port'] || process.env.SOURCE_MINIO_PORT, 9000);
-  const targetAccessKey = args['target-access-key'] || process.env.SOURCE_MINIO_ACCESS_KEY || process.env.MINIO_ACCESS_KEY;
-  const targetSecretKey = args['target-secret-key'] || process.env.SOURCE_MINIO_SECRET_KEY || process.env.MINIO_SECRET_KEY;
+  const targetAccessKey =
+    args['target-access-key'] ||
+    process.env.SOURCE_MINIO_ACCESS_KEY ||
+    process.env.MINIO_ACCESS_KEY;
+  const targetSecretKey =
+    args['target-secret-key'] ||
+    process.env.SOURCE_MINIO_SECRET_KEY ||
+    process.env.MINIO_SECRET_KEY;
   const targetUseSSL = toBool(args['target-use-ssl'] || process.env.TARGET_MINIO_USE_SSL, false);
 
   const overwrite = toBool(args.overwrite, false);
@@ -148,7 +155,9 @@ async function main() {
     throw new Error('Source Credentials fehlen (MINIO_ACCESS_KEY / MINIO_SECRET_KEY).');
   }
   if (!targetAccessKey || !targetSecretKey) {
-    throw new Error('Target Credentials fehlen (SOURCE_MINIO_* oder --target-access-key/--target-secret-key).');
+    throw new Error(
+      'Target Credentials fehlen (SOURCE_MINIO_* oder --target-access-key/--target-secret-key).'
+    );
   }
 
   const refs = readRefs(csvPath);

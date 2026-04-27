@@ -9,11 +9,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.js'],
-      exclude: [
-        'node_modules/',
-        'src/__tests__/**',
-        '*.config.js',
-      ],
+      exclude: ['node_modules/', 'src/__tests__/**', '*.config.js'],
       lines: 70,
       functions: 70,
       branches: 60,

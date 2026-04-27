@@ -128,23 +128,23 @@ export function createMockReply(overrides = {}) {
     headers: {},
     cookiesSet: [],
     cookiesCleared: [],
-    code: vi.fn(function(statusCode) {
+    code: vi.fn(function (statusCode) {
       this.statusCode = statusCode;
       return this;
     }),
-    send: vi.fn(function(payload) {
+    send: vi.fn(function (payload) {
       this.payload = payload;
       return this;
     }),
-    header: vi.fn(function(name, value) {
+    header: vi.fn(function (name, value) {
       this.headers[name] = value;
       return this;
     }),
-    setCookie: vi.fn(function(name, value, options) {
+    setCookie: vi.fn(function (name, value, options) {
       this.cookiesSet.push({ name, value, options });
       return this;
     }),
-    clearCookie: vi.fn(function(name, options) {
+    clearCookie: vi.fn(function (name, options) {
       this.cookiesCleared.push({ name, options });
       return this;
     }),
@@ -226,8 +226,12 @@ export function createMockSseReply(overrides = {}) {
       statusCode: 200,
       ...overrides.raw,
     },
-    header: vi.fn(function() { return this; }),
-    send: vi.fn(function() { return this; }),
+    header: vi.fn(function () {
+      return this;
+    }),
+    send: vi.fn(function () {
+      return this;
+    }),
   };
 }
 

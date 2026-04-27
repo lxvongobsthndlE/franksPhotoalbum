@@ -24,6 +24,7 @@ npm test -- --watch
 Unsere Tests fokussieren auf **echte Business-Logik**, nicht auf oberflächliche Mocks:
 
 ✅ **Was wir testen:**
+
 - Permissions & Authorization (Owner/Admin/Member)
 - Token-Management (JWT, Expiry, Payload)
 - Notification-System (SSE, Email, Preferences)
@@ -32,6 +33,7 @@ Unsere Tests fokussieren auf **echte Business-Logik**, nicht auf oberflächliche
 - Input Validation & Security
 
 ❌ **Was wir nicht testen:**
+
 - Externe Libraries (jest/vitest/prisma APIs)
 - DB-Queries ohne Kontext (nur mit Mocking)
 - UI/Frontend Logic (gehört zu PWA-Tests)
@@ -60,6 +62,7 @@ const album = createMockAlbum({ groupId: group.id });
 ```
 
 **Verfügbar:**
+
 - `createMockUser()` — User mit Standard-Feldern
 - `createMockGroup()` — Group (owner, description, etc.)
 - `createMockAlbum()` — Album (name, groupId, etc.)
@@ -70,11 +73,11 @@ const album = createMockAlbum({ groupId: group.id });
 ## Mocks — Realistic Test Doubles
 
 ```javascript
-import { 
-  createMockPrismaClient, 
+import {
+  createMockPrismaClient,
   createMockFastify,
   createMockRequest,
-  createMockReply 
+  createMockReply,
 } from '../mocks/index.js';
 
 const prisma = createMockPrismaClient();
@@ -85,6 +88,7 @@ const token = fastify.jwt.sign({ id: 'user-123' }, { expiresIn: '15m' });
 ```
 
 **Verfügbar:**
+
 - `createMockPrismaClient()` — All Prisma Models
 - `createMockFastify()` — JWT Sign/Verify
 - `createMockRequest()` — HTTP Request mit User
@@ -100,11 +104,11 @@ const token = fastify.jwt.sign({ id: 'user-123' }, { expiresIn: '15m' });
 it('should allow group owner to edit album', async () => {
   const owner = createMockUser({ id: 'owner-123' });
   const album = createMockAlbum();
-  
+
   prisma.album.findUnique.mockResolvedValue(album);
   prisma.groupMember.findUnique.mockResolvedValue({
     userId: 'owner-123',
-    role: 'owner'
+    role: 'owner',
   });
 
   const canEdit = await checkEditPermission(prisma, owner, album.id);
@@ -116,16 +120,12 @@ it('should allow group owner to edit album', async () => {
 
 ```javascript
 it('should generate access token with 15m expiry', () => {
-  const token = fastify.jwt.sign(
-    { id: 'user-123', type: 'access' },
-    { expiresIn: '15m' }
-  );
+  const token = fastify.jwt.sign({ id: 'user-123', type: 'access' }, { expiresIn: '15m' });
 
   expect(token).toBeDefined();
-  expect(fastify.jwt.sign).toHaveBeenCalledWith(
-    expect.objectContaining({ type: 'access' }),
-    { expiresIn: '15m' }
-  );
+  expect(fastify.jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ type: 'access' }), {
+    expiresIn: '15m',
+  });
 });
 ```
 
@@ -134,7 +134,7 @@ it('should generate access token with 15m expiry', () => {
 ```javascript
 it('should respect email preference settings', async () => {
   const prefs = createMockNotificationPreference({
-    email_photoCommented: false
+    email_photoCommented: false,
   });
   prisma.notificationPreference.findUnique.mockResolvedValue(prefs);
 
@@ -142,7 +142,7 @@ it('should respect email preference settings', async () => {
     userId: 'user-456',
     type: 'photoCommented',
     title: 'Comment',
-    body: 'Someone commented'
+    body: 'Someone commented',
   });
 
   // Email sollte nicht gesendet werden (wird per resolveEmailAddress geprüft)
@@ -153,6 +153,7 @@ it('should respect email preference settings', async () => {
 ## Running Tests mit Conditions
 
 ### Nur spezifische Tests
+
 ```bash
 npm test -- auth.test.js
 npm test -- --grep "JWT"
@@ -160,11 +161,13 @@ npm test -- --grep "Permission"
 ```
 
 ### Watch Mode (Development)
+
 ```bash
 npm test -- --watch
 ```
 
 ### Coverage Report
+
 ```bash
 npm test -- --coverage
 ```
@@ -172,6 +175,7 @@ npm test -- --coverage
 ## Coverage Ziele
 
 Aktuell angestrebt:
+
 - **Lines:** 70%
 - **Functions:** 70%
 - **Branches:** 60%
@@ -199,6 +203,7 @@ Alle Tests müssen **grün** sein vor Merge.
 ## Häufige Probleme
 
 ### "Module not found"
+
 ```bash
 # Stelle sicher, dass du im backend/ Ordner bist
 cd backend
@@ -206,6 +211,7 @@ npm test
 ```
 
 ### "Prisma Client not instantiated"
+
 ```javascript
 // Richtig: Mock Prisma
 import { createMockPrismaClient } from '../mocks/index.js';
@@ -216,6 +222,7 @@ import { PrismaClient } from '@prisma/client';
 ```
 
 ### "Timeout in async tests"
+
 ```javascript
 // Timeout erhöhen für langsame Operations
 it('should handle slow operations', async () => {
@@ -226,30 +233,33 @@ it('should handle slow operations', async () => {
 ## Best Practices
 
 1. **Verwende Fixtures** — Nicht hart-gecoded Test-Daten
+
    ```javascript
    // ✅ Gut
    const user = createMockUser({ email: 'test@example.com' });
-   
+
    // ❌ Schlecht
    const user = { id: 'user-123', email: 'test@example.com', ... };
    ```
 
 2. **Mock nur External Dependencies** — Nicht Interno-Logik
+
    ```javascript
    // ✅ Gut — Mock Prisma (External)
    prisma.user.findUnique.mockResolvedValue(user);
-   
+
    // ❌ Schlecht — Mock interne Logik
    checkPermission.mockResolvedValue(true);
    ```
 
 3. **Test Real Scenarios** — Nicht Implementation Details
+
    ```javascript
    // ✅ Gut
    it('should allow owner to edit album', async () => {
      // Real permission check
    });
-   
+
    // ❌ Schlecht
    it('should call findUnique', async () => {
      expect(prisma.album.findUnique).toHaveBeenCalled();
@@ -257,10 +267,11 @@ it('should handle slow operations', async () => {
    ```
 
 4. **Beschreibe Expected Behavior** — Nicht "what the code does"
+
    ```javascript
    // ✅ Gut
    it('should deny access to non-members', () => {});
-   
+
    // ❌ Schlecht
    it('should return false when groupMember is null', () => {});
    ```
@@ -270,6 +281,7 @@ it('should handle slow operations', async () => {
 Um neue Tests hinzuzufügen:
 
 1. **Entsprechende Test-Datei wählen** oder neue erstellen
+
    ```bash
    backend/src/__tests__/
    ├── auth.test.js
@@ -279,11 +291,13 @@ Um neue Tests hinzuzufügen:
    ```
 
 2. **Fixtures/Mocks** verwenden
+
    ```javascript
    import { createMockUser, createMockPrismaClient } from '../index.js';
    ```
 
 3. **Real Business Logic testen**
+
    ```javascript
    it('should validate permission rule X', async () => {
      // Your test

@@ -144,11 +144,13 @@ describe('notifications.js', () => {
       inApp_contributorAdded: false,
       email_contributorAdded: true,
     });
-    prisma.user.findUnique.mockResolvedValue(createMockUser({
-      id: 'user-123',
-      email: 'alice@example.com',
-      name: 'Alice',
-    }));
+    prisma.user.findUnique.mockResolvedValue(
+      createMockUser({
+        id: 'user-123',
+        email: 'alice@example.com',
+        name: 'Alice',
+      })
+    );
 
     await notifications.createNotification(prisma, {
       userId: 'user-123',
@@ -178,10 +180,12 @@ describe('notifications.js', () => {
       inApp_deputyAdded: false,
       email_deputyAdded: true,
     });
-    prisma.user.findUnique.mockResolvedValue(createMockUser({
-      id: 'user-123',
-      email: 'real.user@example.com',
-    }));
+    prisma.user.findUnique.mockResolvedValue(
+      createMockUser({
+        id: 'user-123',
+        email: 'real.user@example.com',
+      })
+    );
 
     await notifications.createNotification(prisma, {
       userId: 'user-123',
@@ -235,8 +239,12 @@ describe('notifications.js', () => {
 
     prisma.notificationPreference.findUnique.mockResolvedValueOnce(null);
     prisma.notificationPreference.create.mockResolvedValue(schemaDefaults);
-    prisma.notification.create.mockResolvedValue(createMockNotification({ userId: 'user-123', type: 'contributorAdded' }));
-    prisma.user.findUnique.mockResolvedValue(createMockUser({ id: 'user-123', email: 'schema@example.com' }));
+    prisma.notification.create.mockResolvedValue(
+      createMockNotification({ userId: 'user-123', type: 'contributorAdded' })
+    );
+    prisma.user.findUnique.mockResolvedValue(
+      createMockUser({ id: 'user-123', email: 'schema@example.com' })
+    );
 
     await notifications.createNotification(prisma, {
       userId: 'user-123',
@@ -262,8 +270,12 @@ describe('notifications.js', () => {
       inApp_photoCommented: true,
       email_photoCommented: false,
     });
-    prisma.notification.create.mockResolvedValue(createMockNotification({ userId: 'user-123', type: 'photoCommented' }));
-    prisma.user.findUnique.mockResolvedValue(createMockUser({ id: 'user-123', email: 'schema@example.com' }));
+    prisma.notification.create.mockResolvedValue(
+      createMockNotification({ userId: 'user-123', type: 'photoCommented' })
+    );
+    prisma.user.findUnique.mockResolvedValue(
+      createMockUser({ id: 'user-123', email: 'schema@example.com' })
+    );
 
     await notifications.createNotification(prisma, {
       userId: 'user-123',

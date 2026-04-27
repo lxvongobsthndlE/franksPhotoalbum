@@ -37,12 +37,5 @@
     "jsdoc/require-returns": "warn",
     "jsdoc/check-param-names": "warn"
   },
-  "ignorePatterns": [
-    "node_modules/",
-    "dist/",
-    "*.min.js",
-    ".next",
-    "coverage",
-    "minio_data"
-  ]
+  "ignorePatterns": ["node_modules/", "dist/", "*.min.js", ".next", "coverage", "minio_data"]
 }

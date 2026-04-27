@@ -3,11 +3,18 @@
  */
 
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { createMockPrismaClient, createMockReply, createMockRequest, createMockRouteFastify } from './mocks/index.js';
+import {
+  createMockPrismaClient,
+  createMockReply,
+  createMockRequest,
+  createMockRouteFastify,
+} from './mocks/index.js';
 import { createMockUser } from './fixtures/index.js';
 
 vi.mock('../utils/oidc.js', () => ({
-  getAuthorizationUrl: vi.fn((state, nonce) => `https://oidc.example/auth?state=${state}&nonce=${nonce}`),
+  getAuthorizationUrl: vi.fn(
+    (state, nonce) => `https://oidc.example/auth?state=${state}&nonce=${nonce}`
+  ),
   handleCallback: vi.fn(),
   initializeOIDC: vi.fn(),
   getEndSessionUrl: vi.fn(() => 'https://oidc.example/logout'),
@@ -205,11 +212,13 @@ describe('auth routes', () => {
   describe('mirrored helper invariants', () => {
     const normalizePreferredUsername = (value) => {
       if (!value) return null;
-      return String(value)
-        .trim()
-        .replace(/[^a-zA-Z0-9._-]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 64) || null;
+      return (
+        String(value)
+          .trim()
+          .replace(/[^a-zA-Z0-9._-]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 64) || null
+      );
     };
 
     const normalizeAvatarUrl = (avatar, userId) => {
@@ -225,8 +234,12 @@ describe('auth routes', () => {
     });
 
     it('normalizes avatar URLs exactly like the auth route', () => {
-      expect(normalizeAvatarUrl('https://minio.example/avatar.jpg', 'user-1')).toBe('/api/auth/avatar/user-1');
-      expect(normalizeAvatarUrl('/api/auth/avatar/user-1', 'user-1')).toBe('/api/auth/avatar/user-1');
+      expect(normalizeAvatarUrl('https://minio.example/avatar.jpg', 'user-1')).toBe(
+        '/api/auth/avatar/user-1'
+      );
+      expect(normalizeAvatarUrl('/api/auth/avatar/user-1', 'user-1')).toBe(
+        '/api/auth/avatar/user-1'
+      );
       expect(normalizeAvatarUrl(null, 'user-1')).toBeNull();
     });
 

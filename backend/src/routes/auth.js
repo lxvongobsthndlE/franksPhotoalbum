@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import { getAuthorizationUrl, handleCallback, initializeOIDC, getEndSessionUrl } from '../utils/oidc.js';
+import {
+  getAuthorizationUrl,
+  handleCallback,
+  initializeOIDC,
+  getEndSessionUrl,
+} from '../utils/oidc.js';
 import { uploadAvatar, getAvatarStream, getAvatarStat, deleteAvatar } from '../utils/storage.js';
 
 // Session-Management (In Production: Redis verwenden)
@@ -22,11 +27,13 @@ function generateNonce() {
 
 function normalizePreferredUsername(value) {
   if (!value) return null;
-  return String(value)
-    .trim()
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 64) || null;
+  return (
+    String(value)
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 64) || null
+  );
 }
 
 function createSessionTokens(fastify, userId, email, username) {
@@ -37,10 +44,7 @@ function createSessionTokens(fastify, userId, email, username) {
   );
 
   // Refresh Token: 7 Tage
-  const refreshToken = fastify.jwt.sign(
-    { id: userId, type: 'refresh' },
-    { expiresIn: '7d' }
-  );
+  const refreshToken = fastify.jwt.sign({ id: userId, type: 'refresh' }, { expiresIn: '7d' });
 
   return { accessToken, refreshToken };
 }
@@ -49,18 +53,18 @@ async function syncUserFromOIDC(fastify, userInfo) {
   const { email, preferred_username, name } = userInfo;
   const normalizedPreferredUsername = normalizePreferredUsername(preferred_username);
   // name: nur den echten name-Claim speichern, kein Fallback – null wenn nicht gesetzt
-  const realName = (name && name.trim()) ? name.trim() : null;
+  const realName = name && name.trim() ? name.trim() : null;
 
   // 1) Primär nach E-Mail matchen
   let user = await fastify.prisma.user.findUnique({
-    where: { email }
+    where: { email },
   });
 
   // 2) Falls nicht gefunden, anhand preferred_username matchen
   //    (wichtig für Supabase-Migration: Authentik preferred_username == alter Supabase username)
   if (!user && normalizedPreferredUsername) {
     user = await fastify.prisma.user.findUnique({
-      where: { username: normalizedPreferredUsername }
+      where: { username: normalizedPreferredUsername },
     });
   }
 
@@ -78,7 +82,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
         displayNameField: displayNameFieldForCreate,
         color: `hsl(${Math.random() * 360}, 70%, 70%)`,
         lastLoginAt: new Date(),
-      }
+      },
     });
   } else {
     // Update User mit neuen Daten von Authentik
@@ -86,7 +90,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
     let usernameForUpdate = user.username;
     if (normalizedPreferredUsername && normalizedPreferredUsername !== user.username) {
       const conflict = await fastify.prisma.user.findUnique({
-        where: { username: normalizedPreferredUsername }
+        where: { username: normalizedPreferredUsername },
       });
       if (!conflict || conflict.id === user.id) {
         usernameForUpdate = normalizedPreferredUsername;
@@ -108,7 +112,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
         displayNameField: displayNameFieldForUpdate,
         email,
         lastLoginAt: new Date(),
-      }
+      },
     });
   }
 
@@ -122,7 +126,7 @@ export default async function authRoutes(fastify) {
       fastify.log.info('LOGIN: Initializing OIDC...');
       await initializeOIDC();
       fastify.log.info('LOGIN: OIDC initialized successfully');
-      
+
       const state = generateState();
       const nonce = generateNonce();
 
@@ -143,12 +147,12 @@ export default async function authRoutes(fastify) {
   fastify.get('/callback', async (request, reply) => {
     try {
       await initializeOIDC();
-      
+
       const { code, state, error, error_description } = request.query;
 
       if (error) {
         return reply.code(400).send({
-          error: error_description || 'OIDC error occurred'
+          error: error_description || 'OIDC error occurred',
         });
       }
 
@@ -184,7 +188,7 @@ export default async function authRoutes(fastify) {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 Tage
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 Tage
       });
 
       // Speichere id_token für späteren OIDC-Logout
@@ -193,7 +197,7 @@ export default async function authRoutes(fastify) {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
-          maxAge: 7 * 24 * 60 * 60 * 1000
+          maxAge: 7 * 24 * 60 * 60 * 1000,
         });
       }
 
@@ -211,8 +215,8 @@ export default async function authRoutes(fastify) {
           role: user.role,
           color: user.color,
           avatar: normalizeAvatarUrl(user.avatar, user.id),
-          displayNameField: user.displayNameField || 'name'
-        }
+          displayNameField: user.displayNameField || 'name',
+        },
       };
     } catch (err) {
       fastify.log.error(err);
@@ -238,7 +242,7 @@ export default async function authRoutes(fastify) {
 
       // Hole User aus DB
       const user = await fastify.prisma.user.findUnique({
-        where: { id: decoded.id }
+        where: { id: decoded.id },
       });
 
       if (!user) {
@@ -264,7 +268,7 @@ export default async function authRoutes(fastify) {
 
       const user = await fastify.prisma.user.findUnique({
         where: { id: request.user.id },
-        include: { groups: { include: { group: true } } }
+        include: { groups: { include: { group: true } } },
       });
 
       if (!user) {
@@ -280,9 +284,9 @@ export default async function authRoutes(fastify) {
           role: user.role,
           color: user.color,
           avatar: normalizeAvatarUrl(user.avatar, user.id),
-          displayNameField: user.displayNameField || 'name'
+          displayNameField: user.displayNameField || 'name',
         },
-        groups: user.groups.map(gm => gm.group)
+        groups: user.groups.map((gm) => gm.group),
       };
     } catch (err) {
       return reply.code(401).send({ error: 'Unauthorized' });
@@ -305,7 +309,7 @@ export default async function authRoutes(fastify) {
 
       await fastify.prisma.user.update({
         where: { id: userId },
-        data: { avatar: avatarUrl }
+        data: { avatar: avatarUrl },
       });
 
       return { avatarUrl };
@@ -323,7 +327,7 @@ export default async function authRoutes(fastify) {
       await deleteAvatar(userId);
       await fastify.prisma.user.update({
         where: { id: userId },
-        data: { avatar: null }
+        data: { avatar: null },
       });
       return { ok: true };
     } catch (err) {
@@ -382,9 +386,10 @@ export default async function authRoutes(fastify) {
   // GET /api/auth/logout-url - Gibt die Authentik End-Session-URL zurück
   fastify.get('/logout-url', async (request, reply) => {
     const idToken = request.cookies.oidcIdToken || null;
-    const redirectUri = process.env.NODE_ENV === 'production'
-      ? process.env.OIDC_REDIRECT_URI_PROD
-      : (process.env.OIDC_REDIRECT_URI_DEV || 'http://localhost:3000/auth/callback');
+    const redirectUri =
+      process.env.NODE_ENV === 'production'
+        ? process.env.OIDC_REDIRECT_URI_PROD
+        : process.env.OIDC_REDIRECT_URI_DEV || 'http://localhost:3000/auth/callback';
     // Post-logout redirect zur App-Root (nicht zum Callback)
     const appBase = new URL(redirectUri).origin;
     const endSessionUrl = getEndSessionUrl(idToken, appBase);
@@ -398,13 +403,13 @@ export default async function authRoutes(fastify) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/'
+      path: '/',
     });
     reply.clearCookie('oidcIdToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/'
+      path: '/',
     });
     return { status: 'logged_out' };
   });
