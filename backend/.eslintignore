@@ -1,7 +1,0 @@
-node_modules/
-dist/
-coverage/
-minio_data/
-uploads/
-public/media/
-db/
