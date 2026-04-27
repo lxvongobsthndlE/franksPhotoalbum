@@ -83,6 +83,17 @@ Bei geöffneter mobiler Sidebar bleibt der Header visuell unverändert (kein glo
 - Während die Sidebar offen ist, sind Header-Aktionen für Profil und Benachrichtigungen absichtlich nicht bedienbar
 - Nach dem Schließen der Sidebar sind beide Aktionen wieder normal klickbar
 
+## Floating Upload Shortcut
+
+Der Upload kann zusätzlich über einen schwebenden, runden Plus-Button unten rechts geöffnet werden.
+
+- Trigger: nutzt denselben Upload-Flow wie der reguläre Button (`openModal()`)
+- Sichtbar in: **Alle Fotos**, **Meine Fotos** und **einzelnen Alben**
+- Ausgeblendet in: Nutzer-Filteransichten wie „Fotos von ..."
+- Mobile-Optimierung: Position berücksichtigt `env(safe-area-inset-right)` und `env(safe-area-inset-bottom)` (Notch/Home-Indicator)
+- Accessibility: explizites `aria-label="Fotos hochladen"`
+- Layering: Button liegt unter Overlays/Modals (z. B. Lightbox/Modale bleiben immer darüber)
+
 ---
 
 ## Toast-Benachrichtigungen
