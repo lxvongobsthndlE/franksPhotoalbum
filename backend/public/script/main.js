@@ -166,8 +166,8 @@ async function doLogout() {
 function resolveDisplayName(user, preferredField) {
   if (!user) return '';
   const field = preferredField !== undefined ? preferredField : (user.displayNameField || 'name');
-  if (field === 'username') return user.username || '';
-  if (field === 'name') return user.name || '';
+  if (field === 'username') return user.username || user.name || '';
+  if (field === 'name') return user.name || user.username || '';
   return '';
 }
 
@@ -329,7 +329,7 @@ function renderSidebar() {
     ...selfFromMembers,
     ...meProfile,
     id: me.id,
-    displayNameField: me.displayNameField,
+    displayNameField: me.displayNameField ?? selfFromMembers.displayNameField ?? meProfile?.displayNameField,
   };
   const otherMembers = groupMembers
     .filter(m => m.id !== me.id)
@@ -359,6 +359,10 @@ function renderSidebar() {
       ${badge}
     </button>`;
   }).join('');
+
+  const isOwnerInCurrentGroup = curGroup?.createdBy === me.id;
+  const isDeputyInCurrentGroup = deputyIds.has(me.id);
+  const canSeeInviteCode = !!curGroup && (isOwnerInCurrentGroup || isDeputyInCurrentGroup || curGroup.inviteCodeVisibleToMembers);
 
   $('sidebar').innerHTML = `
     <span class="sb-label">Fotos</span>
@@ -413,28 +417,15 @@ function renderSidebar() {
       <span class="fi" style="color:var(--red)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
       <span class="fn" style="color:var(--red)">Gruppe verlassen</span>
     </button>
+    ${canSeeInviteCode ? `
     <button class="fb" onclick="showGroupCode()">
       <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></svg></span>
       <span class="fn">Einladungscode anzeigen</span>
-    </button>
-    ${(()=>{ const g=myGroups.find(x=>x.id===curGroupId); return g?.createdBy===me.id; })() ? `
-    <button class="fb" onclick="openRenameGroupInline()">
-      <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
-      <span class="fn">Gruppe umbenennen</span>
-    </button>
-    <div id="rename-group-inline" class="hidden" style="padding:6px 10px">
-      <div style="display:flex;gap:6px">
-        <input id="rename-group-input" type="text" maxlength="60"
-          style="flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;outline:none;font-family:inherit"
-          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
-          onkeydown="if(event.key==='Enter')saveGroupRename();if(event.key==='Escape')closeRenameGroupInline()">
-        <button onclick="saveGroupRename()" style="background:var(--accent);border:none;color:#fff;padding:7px 11px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">✓</button>
-        <button onclick="closeRenameGroupInline()" style="background:none;border:1.5px solid var(--border);color:var(--muted);padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13px">✕</button>
-      </div>
-    </div>
-    <button class="fb" onclick="openDeputyModal()${window.innerWidth<=900?';closeSidebar()':''}">
-      <span class="fi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-      <span class="fn">Vertreter verwalten</span>
+    </button>` : ''}
+    ${isOwnerInCurrentGroup ? `
+    <button class="fb" onclick="openGroupSettingsModal()${window.innerWidth<=900?';closeSidebar()':''}">
+      <span class="fi">${ICON_GEAR}</span>
+      <span class="fn">Gruppe verwalten</span>
     </button>` : ''}
     ${window.innerWidth <= 900 && myGroups.length > 1 ? `
     <div class="sb-div"></div>
@@ -903,6 +894,300 @@ async function saveGroupRename() {
     toast('Umbenennen fehlgeschlagen', 'error');
   }
 }
+
+function openGroupSettingsModal() {
+  const group = myGroups.find(g => g.id === curGroupId);
+  if (!group) return;
+  if (group.createdBy !== me.id) {
+    toast('Nur der Owner kann die Gruppe verwalten', 'error');
+    return;
+  }
+
+  const renameInp = $('group-settings-rename-input');
+  const codeDisplay = $('group-settings-code-display');
+  const visibilityChk = $('group-settings-code-visible');
+  if (renameInp) renameInp.value = group.name || '';
+  if (codeDisplay) codeDisplay.textContent = group.code || '';
+  if (visibilityChk) visibilityChk.checked = !!group.inviteCodeVisibleToMembers;
+
+  _loadGsDeputies();
+  show('group-settings-modal');
+}
+
+async function _loadGsDeputies() {
+  try {
+    const { deputies } = await apiCall(`/groups/${curGroupId}/deputies`, 'GET');
+    groupDeputies = deputies || [];
+  } catch(e) { groupDeputies = []; }
+  _renderGsDeputyList();
+
+  const curGroup = myGroups.find(g => g.id === curGroupId);
+  const sel = $('gs-deputy-user-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Mitglied auswählen —</option>';
+  groupMembers
+    .filter(m => m.id !== curGroup?.createdBy && !groupDeputies.some(d => d.id === m.id))
+    .forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name || m.username;
+      sel.appendChild(opt);
+    });
+}
+
+function _renderGsDeputyList() {
+  const el = $('gs-deputy-list');
+  if (!el) return;
+  if (!groupDeputies.length) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--muted2);font-weight:300;margin:0">Noch keine Vertreter ernannt.</p>';
+    return;
+  }
+  el.innerHTML = groupDeputies.map(d => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+      ${avatarHtml(d, 26)}
+      <span style="flex:1;font-size:13px">${esc(d.name||d.username)}</span>
+      <button onclick="removeGsDeputy('${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:18px;line-height:1;padding:2px 6px" title="Entfernen">×</button>
+    </div>`).join('');
+}
+
+async function addGsDeputy() {
+  const userId = $('gs-deputy-user-select')?.value;
+  if (!userId) return;
+  try {
+    const deputy = await apiCall(`/groups/${curGroupId}/deputies`, 'POST', { userId });
+    groupDeputies.push(deputy);
+    _loadGsDeputies();
+    renderSidebar();
+  } catch(e) { toast('Fehler beim Hinzufügen', 'error'); }
+}
+
+async function removeGsDeputy(userId) {
+  try {
+    await apiCall(`/groups/${curGroupId}/deputies/${userId}`, 'DELETE');
+    groupDeputies = groupDeputies.filter(d => d.id !== userId);
+    _renderGsDeputyList();
+    const curGroup = myGroups.find(g => g.id === curGroupId);
+    const sel = $('gs-deputy-user-select');
+    if (sel) {
+      const member = groupMembers.find(m => m.id === userId);
+      if (member && member.id !== curGroup?.createdBy) {
+        const opt = document.createElement('option');
+        opt.value = member.id;
+        opt.textContent = member.name || member.username;
+        sel.appendChild(opt);
+      }
+    }
+    renderSidebar();
+  } catch(e) { toast('Fehler beim Entfernen', 'error'); }
+}
+
+function closeGroupSettingsModal() {
+  hide('group-settings-modal');
+}
+
+async function saveGroupSettingsRename() {
+  const name = $('group-settings-rename-input')?.value?.trim();
+  if (!name) return;
+
+  const btn = $('group-settings-rename-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Speichert…';
+  }
+
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}`, 'PATCH', { name });
+    const idx = myGroups.findIndex(g => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...group };
+    const headerName = $('header-group-name');
+    if (headerName) headerName.textContent = group.name;
+    renderGroupSwitcher();
+    renderSidebar();
+    toast('Gruppenname gespeichert', 'success');
+  } catch (e) {
+    toast('Umbenennen fehlgeschlagen', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Speichern';
+    }
+  }
+}
+
+async function rotateGroupInviteCode() {
+  const btn = $('group-settings-code-rotate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Erzeuge…'; }
+
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}/code/rotate`, 'POST');
+    const idx = myGroups.findIndex(g => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...group };
+    const codeDisplay = $('group-settings-code-display');
+    if (codeDisplay) codeDisplay.textContent = group.code || '';
+    toast('Einladungscode wurde geändert', 'success');
+  } catch (e) {
+    toast('Code konnte nicht geändert werden', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Neu generieren'; }
+  }
+}
+
+async function saveGroupInviteCodeVisibility() {
+  const visible = !!$('group-settings-code-visible')?.checked;
+
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}/settings`, 'PATCH', {
+      inviteCodeVisibleToMembers: visible,
+    });
+    const idx = myGroups.findIndex(g => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...group };
+    renderSidebar();
+    toast(visible ? 'Code für alle Mitglieder sichtbar' : 'Code nur für Owner/Vertreter sichtbar', 'success');
+  } catch (e) {
+    // Checkbox zurücksetzen
+    const chk = $('group-settings-code-visible');
+    if (chk) chk.checked = !visible;
+    toast('Sichtbarkeit konnte nicht gespeichert werden', 'error');
+  }
+}
+
+function copyGroupSettingsCode() {
+  const code = myGroups.find(g => g.id === curGroupId)?.code;
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => toast('Code kopiert', 'success')).catch(() => {
+    toast('Kopieren nicht möglich', 'error');
+  });
+}
+
+let _settingsDeleteGroupId = null;
+let _settingsDeleteGroupName = null;
+
+async function deleteGroupFromSettings() {
+  const group = myGroups.find(g => g.id === curGroupId);
+  if (!group) return;
+
+  _settingsDeleteGroupId = group.id;
+  _settingsDeleteGroupName = group.name;
+  _agdm_pendingCleanup = null;
+
+  closeGroupSettingsModal();
+
+  $('agdm-title').textContent = `Gruppe „${group.name}" löschen`;
+  $('agdm-info').textContent = 'Alle Fotos, Alben und Mitglieder dieser Gruppe werden unwiderruflich gelöscht.';
+
+  hide('agdm-stranded-warning');
+  $('agdm-stranded-confirm').checked = false;
+
+  $('agdm-backup-btn').onclick = () => settingsGroupDoDelete(true);
+  $('agdm-delete-btn').onclick = () => settingsGroupDoDelete(false);
+  $('agdm-backup-btn').innerHTML = `📦 Backup erstellen &amp; herunterladen<div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Alle Fotos als ZIP sichern — Gruppe wird danach gelöscht</div>`;
+  $('agdm-delete-btn').innerHTML = `🗑 Gruppe löschen<div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Kein Backup gewünscht — Gruppe wird sofort gelöscht</div>`;
+
+  $('agdm-result-text').innerHTML = '✅ ZIP-Backup erstellt (30 Tage gültig)';
+  $('agdm-dl-link').href = '#';
+  $('agdm-dl-link').style.display = 'inline-block';
+  $('agdm-copy-link-btn').style.display = 'inline-block';
+
+  show('agdm-actions');
+  hide('agdm-loading');
+  hide('agdm-result');
+  $('agdm-confirm-delete-btn')?.classList.add('hidden');
+  $('agdm-backup-btn').disabled = false;
+  $('agdm-delete-btn').disabled = false;
+
+  show('admin-group-delete-modal');
+}
+
+async function settingsGroupDoDelete(createBackup = false) {
+  $('agdm-backup-btn').disabled = true;
+  $('agdm-delete-btn').disabled = true;
+  hide('agdm-actions');
+  $('agdm-loading-text').textContent = createBackup ? 'ZIP wird erstellt & heruntergeladen…' : 'ZIP wird erstellt & Gruppe wird gelöscht…';
+  show('agdm-loading');
+
+  try {
+    const res = await apiCall(`/groups/${_settingsDeleteGroupId}`, 'DELETE');
+    hide('agdm-loading');
+    $('agdm-confirm-delete-btn')?.classList.add('hidden');
+
+    if (res.backupUrl) {
+      const expiry = res.linkExpiry ? new Date(res.linkExpiry) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const expiryStr = expiry.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      if (createBackup) {
+        $('agdm-result-text').innerHTML = `✅ Backup heruntergeladen — Gruppe gelöscht<br><span style="font-size:11px;opacity:0.7">Der Link ist gültig bis ${expiryStr} — danach werden alle Daten restlos von unserem Server gelöscht.</span>`;
+      } else {
+        $('agdm-result-text').innerHTML = `✅ Gruppe gelöscht — über den Link kannst du alle Bilder noch bis ${expiryStr} herunterladen<br><span style="font-size:11px;opacity:0.7">Nach dem ${expiryStr} werden alle Daten restlos von unserem Server gelöscht.</span>`;
+      }
+
+      $('agdm-dl-link').href = backupSrc(res.backupUrl);
+      $('agdm-dl-link').style.display = 'inline-block';
+      $('agdm-copy-link-btn').style.display = 'inline-block';
+
+      if (createBackup) {
+        const a = document.createElement('a');
+        a.href = backupSrc(res.backupUrl);
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } else {
+      $('agdm-result-text').innerHTML = '✅ Gruppe gelöscht — es waren keine Fotos vorhanden.';
+      $('agdm-dl-link').style.display = 'none';
+      $('agdm-copy-link-btn').style.display = 'none';
+    }
+
+    show('agdm-result');
+    await _afterSettingsGroupDelete();
+  } catch (e) {
+    hide('agdm-loading');
+    show('agdm-actions');
+    $('agdm-backup-btn').disabled = false;
+    $('agdm-delete-btn').disabled = false;
+    toast(e.serverMessage || 'Gruppe konnte nicht gelöscht werden', 'error');
+  }
+}
+
+async function _afterSettingsGroupDelete() {
+  const deletedId = _settingsDeleteGroupId;
+  const deletedName = _settingsDeleteGroupName;
+
+  _agdm_pendingCleanup = async () => {
+    const { groups } = await apiCall('/groups/my', 'GET');
+    myGroups = groups || [];
+
+    if (!myGroups.length) {
+      renderGroupSwitcher();
+      renderSidebar();
+      toast(`Gruppe „${deletedName}" gelöscht.`, 'success');
+      return;
+    }
+
+    const nextGroup = myGroups.find(g => g.id !== deletedId) || myGroups[0];
+    curGroupId = nextGroup.id;
+    try { localStorage.setItem('activeGroup', curGroupId); } catch (e) {}
+
+    await loadGroupMembers();
+    try {
+      const { deputies } = await apiCall(`/groups/${curGroupId}/deputies`, 'GET');
+      groupDeputies = deputies || [];
+    } catch (e) {
+      groupDeputies = [];
+    }
+    await loadAlbums();
+    renderGroupSwitcher();
+    renderSidebar();
+    await loadPhotos(true);
+    toast(`Gruppe „${deletedName}" gelöscht.`, 'success');
+  };
+}
+
+function openDeputyModalFromSettings() {
+  closeGroupSettingsModal();
+  openDeputyModal();
+}
+// kept for potential external use; inline deputy management in group-settings uses addGsDeputy/removeGsDeputy
 
 function _renderStagedPreviews() {
   const grid = $('dz-preview-grid');
@@ -2811,6 +3096,14 @@ async function _agdm_afterDelete(id, name) {
 function showGroupCode() {
   const g = myGroups.find(x => x.id === curGroupId);
   if (!g) return;
+
+  const isOwner = g.createdBy === me.id;
+  const isDeputy = groupDeputies.some(d => d.id === me.id);
+  if (!isOwner && !isDeputy && !g.inviteCodeVisibleToMembers) {
+    toast('Der Einladungscode ist nur für Owner/Vertreter sichtbar', 'error');
+    return;
+  }
+
   // Remove any existing popup
   document.getElementById('group-code-popup')?.remove();
   const pop = document.createElement('div');
@@ -4015,6 +4308,10 @@ Object.assign(window, {
   // Groups
   switchGroup, openJoinGroup, closeJoinGroup, doJoinGroup, showGroupCode,
   openLeaveGroup, closeLeaveGroup, doLeaveGroup, dissolveGroup, _leaveGroupUpdateOwnerUI,
+  openGroupSettingsModal, closeGroupSettingsModal,
+  saveGroupSettingsRename, rotateGroupInviteCode, saveGroupInviteCodeVisibility, copyGroupSettingsCode, deleteGroupFromSettings,
+  openDeputyModalFromSettings,
+  _loadGsDeputies, _renderGsDeputyList, addGsDeputy, removeGsDeputy,
   openDeputyModal, closeDeputyModal, addDeputy, removeDeputy,
   openAdminGroups, closeAdminGroups, adminEditGroup, adminCancelEdit, adminSaveGroup, adminCreateGroup, adminDeleteGroup,
   closeAdminGroupDeleteModal, agdmCopyLink, agdmCloseAndCleanup, agdmStrandedCheckChange, adminGroupDoBackup, adminGroupDoDelete, adminGroupConfirmDelete,

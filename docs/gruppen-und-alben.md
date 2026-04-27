@@ -32,6 +32,9 @@ Beim allerersten Login wird automatisch eine persönliche Gruppe mit dem Namen `
 | `POST` | `/api/groups/join` | Gruppe per `code` beitreten |
 | `GET` | `/api/groups/:id/members` | Mitglieder einer Gruppe |
 | `PATCH` | `/api/groups/:id` | Gruppe umbenennen (nur Owner) |
+| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit |
+| `POST` | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin) |
+| `DELETE` | `/api/groups/:id` | Gruppe löschen (Owner/Admin, mit ZIP-Backup wenn Fotos vorhanden) |
 | `DELETE` | `/api/groups/:id/leave` | Gruppe verlassen |
 
 ---
@@ -118,11 +121,12 @@ Berechtigt zum Verwalten von Contributors ist:
 
 ## Gruppen-Backups
 
-Backups können auf zwei Wegen entstehen:
+Backups können auf mehreren Wegen entstehen:
 
 | Auslöser | Wer | Endpoint |
 |---|---|---|
 | Gruppe auflösen | Owner (letztes Mitglied) | `DELETE /api/groups/:id/dissolve` |
+| Gruppe löschen (Owner) | Owner | `DELETE /api/groups/:id` |
 | Manuelles Backup | Admin | `POST /api/groups/admin/:id/backup` |
 | Gruppe löschen (Admin) | Admin | `DELETE /api/groups/admin/:id` |
 

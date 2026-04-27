@@ -141,6 +141,179 @@ export default async function groupsRoutes(fastify) {
     }
   });
 
+  // PATCH /api/groups/:id/settings - Gruppeneinstellungen (Owner/Admin)
+  fastify.patch('/:id/settings', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const groupId = request.params.id;
+      const userId = request.user.id;
+      const { inviteCodeVisibleToMembers } = request.body || {};
+
+      if (typeof inviteCodeVisibleToMembers !== 'boolean') {
+        return reply.code(400).send({ error: 'inviteCodeVisibleToMembers muss boolean sein' });
+      }
+
+      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { id: true, createdBy: true } });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (group.createdBy !== userId && requester?.role !== 'admin') {
+        return reply.code(403).send({ error: 'Nur der Owner kann diese Einstellung ändern' });
+      }
+
+      const updated = await fastify.prisma.group.update({
+        where: { id: groupId },
+        data: { inviteCodeVisibleToMembers },
+      });
+
+      return { group: updated };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Einstellung speichern fehlgeschlagen' });
+    }
+  });
+
+  // POST /api/groups/:id/code/rotate - Einladungscode neu generieren (Owner/Admin)
+  fastify.post('/:id/code/rotate', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const groupId = request.params.id;
+      const userId = request.user.id;
+
+      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { id: true, createdBy: true } });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (group.createdBy !== userId && requester?.role !== 'admin') {
+        return reply.code(403).send({ error: 'Nur der Owner kann den Einladungscode ändern' });
+      }
+
+      let nextCode = null;
+      for (let i = 0; i < 10; i++) {
+        const candidate = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const exists = await fastify.prisma.group.findUnique({ where: { code: candidate }, select: { id: true } });
+        if (!exists) {
+          nextCode = candidate;
+          break;
+        }
+      }
+
+      if (!nextCode) {
+        return reply.code(500).send({ error: 'Konnte keinen eindeutigen Code erzeugen' });
+      }
+
+      const updated = await fastify.prisma.group.update({
+        where: { id: groupId },
+        data: { code: nextCode },
+      });
+
+      return { group: updated };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Code ändern fehlgeschlagen' });
+    }
+  });
+
+  // DELETE /api/groups/:id - Gruppe löschen inkl. Backup (Owner/Admin)
+  fastify.delete('/:id', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const groupId = request.params.id;
+      const userId = request.user.id;
+
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, name: true, createdBy: true },
+      });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const isAdmin = requester?.role === 'admin';
+      const isOwner = group.createdBy === userId;
+      if (!isOwner && !isAdmin) {
+        return reply.code(403).send({ error: 'Nur der Gruppen-Owner kann die Gruppe löschen' });
+      }
+
+      if (isOwner) {
+        const userGroupCount = await fastify.prisma.groupMember.count({ where: { userId } });
+        if (userGroupCount <= 1) {
+          return reply.code(409).send({ error: 'Du kannst deine letzte Gruppe nicht löschen' });
+        }
+      }
+
+      const photos = await fastify.prisma.photo.findMany({
+        where: { groupId },
+        select: { path: true, filename: true },
+      });
+
+      const actingUser = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { name: true, username: true } });
+      const deletedByName = actingUser?.name || actingUser?.username || null;
+
+      let backupUrl = null;
+      let linkExpiry = null;
+      if (photos.length > 0) {
+        const zipKey = await createGroupBackupZip(groupId, photos);
+        backupUrl = `/api/groups/admin/backup/${encodeURIComponent(zipKey)}`;
+        linkExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        const stat = await getBackupStat(zipKey).catch(() => null);
+        const sizeBytes = stat?.size ?? null;
+        await fastify.prisma.groupBackup.create({
+          data: {
+            zipKey,
+            groupId,
+            groupName: group.name,
+            photoCount: photos.length,
+            linkExpiry,
+            deletedByName,
+            sizeBytes,
+          },
+        });
+      }
+
+      const groupMembers = await fastify.prisma.groupMember.findMany({
+        where: { groupId },
+        select: { userId: true },
+      });
+
+      await fastify.prisma.like.deleteMany({ where: { photo: { groupId } } });
+      await fastify.prisma.comment.deleteMany({ where: { photo: { groupId } } });
+      await fastify.prisma.photo.deleteMany({ where: { groupId } });
+      await fastify.prisma.album.deleteMany({ where: { groupId } });
+      await fastify.prisma.groupDeputy.deleteMany({ where: { groupId } });
+      await fastify.prisma.groupMember.deleteMany({ where: { groupId } });
+      await fastify.prisma.group.delete({ where: { id: groupId } });
+
+      await deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean));
+
+      for (const { userId: memberId } of groupMembers) {
+        const isGroupOwner = memberId === group.createdBy;
+        const body = backupUrl && isGroupOwner
+          ? 'Der Gruppen-Owner hat die Gruppe gelöscht. Deine Fotos wurden gesichert und können heruntergeladen werden.'
+          : backupUrl
+            ? 'Der Gruppen-Owner hat die Gruppe gelöscht. Die Fotos wurden gesichert.'
+            : 'Der Gruppen-Owner hat die Gruppe gelöscht. Es waren keine Fotos vorhanden.';
+        createNotification(fastify.prisma, {
+          userId: memberId,
+          type: 'groupDeleted',
+          title: `Gruppe „${group.name}" wurde gelöscht`,
+          body,
+          entityType: 'group',
+          entityUrl: isGroupOwner ? (backupUrl || undefined) : undefined,
+        }).catch(() => {});
+      }
+
+      return {
+        status: 'deleted',
+        backupUrl,
+        count: photos.length,
+        linkExpiry,
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Löschen fehlgeschlagen' });
+    }
+  });
+
   // DELETE /api/groups/:id/leave - Gruppe verlassen
   fastify.delete('/:id/leave', async (request, reply) => {
     try {
