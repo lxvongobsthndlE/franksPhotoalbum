@@ -242,6 +242,30 @@ model NotificationPreference {
 
 ---
 
+## Reporting-Views
+
+Diese Views liegen bewusst nur als SQL-Migration vor und nicht als Prisma-Modelle im Schema.
+
+### Normale Views
+
+- `vw_user_groups`: Live-Sicht auf User-Gruppen inklusive Owner-/Deputy-Status sowie Gruppen-Counts
+- `vw_user_overview`: Zentrale User-Übersicht mit Stammdaten und aggregierten Counts
+- `vw_user_notifications_stats`: Notification-Statistiken je User, inklusive unread und Typ-Verteilung
+
+### Materialized Views
+
+- `mv_user_activity_stats`: Aktivitätskennzahlen je User, z. B. Uploads, Kommentare, Likes und letzte Aktivität
+- `mv_group_overview`: Aggregierte Gruppenübersicht für Reporting und Admin-Dashboards
+
+Materialized Views müssen manuell aktualisiert werden:
+
+```sql
+REFRESH MATERIALIZED VIEW mv_user_activity_stats;
+REFRESH MATERIALIZED VIEW mv_group_overview;
+```
+
+---
+
 ## Migrationen
 
 | Migration | Beschreibung |
@@ -259,3 +283,5 @@ model NotificationPreference {
 | `20260421100000_add_display_name_field` | `displayName` am User |
 | `20260423120000_add_user_migration_metadata` | `migrationStatus`, `migratedAt` am User |
 | `20260427123000_add_group_invite_visibility` | `inviteCodeVisibleToMembers` an Group |
+| `20260427153000_add_reporting_views` | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen |
+
