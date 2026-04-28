@@ -8,6 +8,8 @@
     "start": "node --env-file=.env.local src/app.js",
     "dev": "node scripts/dev-with-minio.mjs",
     "dev:app": "node --env-file=.env.local --watch src/app.js",
+    "prisma:migrate:dev": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate dev",
+    "prisma:generate": "node --env-file=.env.local ./node_modules/prisma/build/index.js generate",
     "generate:infocards": "node scripts/generate-infocards.mjs",
     "migrate": "node --env-file=.env.local db/migrate.js",
     "migrate:supabase": "node --env-file=.env.local scripts/migrate-supabase-to-prisma.mjs",

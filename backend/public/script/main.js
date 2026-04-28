@@ -2801,6 +2801,32 @@ function closeAdminGroups() { hide('admin-groups-modal'); }
 const _adminUserExpanded = new Set(); // expanded user IDs
 const _adminUserLoaded = {}; // cached detail data per ID
 
+const AUTH_SOURCE_UI = {
+  plex: { label: 'Plex', icon: '/media/icons/auth/plex.svg' },
+  authentik: { label: 'Authentik', icon: '/media/icons/auth/authentik.svg' },
+  github: { label: 'Github', icon: '/media/icons/auth/github.svg' },
+  google: { label: 'Google', icon: '/media/icons/auth/google.svg' },
+};
+
+function normalizeAuthSource(value) {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized || null;
+}
+
+function getAuthSourceLabel(value) {
+  const key = normalizeAuthSource(value);
+  if (!key) return '-';
+  return AUTH_SOURCE_UI[key]?.label || String(value);
+}
+
+function getAuthSourceListIcon(value) {
+  const key = normalizeAuthSource(value);
+  if (!key || !AUTH_SOURCE_UI[key]) return '';
+  const meta = AUTH_SOURCE_UI[key];
+  return `<img src="${esc(meta.icon)}" alt="${esc(meta.label)}" title="Login via ${esc(meta.label)}" style="width:18px;height:18px;object-fit:contain;opacity:.95" loading="lazy">`;
+}
+
 async function openAdminUsers() {
   closeSidebar();
   _adminUserExpanded.clear();
@@ -2825,6 +2851,7 @@ function _adminUserRowHtml(u) {
   const isMe = u.id === me?.id;
   const lastLoginText = fmtRelativeTime(u.lastLoginAt);
   const lastLoginTitle = u.lastLoginAt ? `Letzter Login: ${fmtDateLong(u.lastLoginAt)}` : 'Noch kein Login';
+  const authSourceIcon = getAuthSourceListIcon(u.auth_source);
   const migratedInfo = (u.migratedFrom || u.migratedAt)
     ? `Migriert von ${esc(u.migratedFrom || 'supabase')} am ${esc(fmtDate(u.migratedAt || u.createdAt))}`
     : '';
@@ -2839,6 +2866,7 @@ function _adminUserRowHtml(u) {
           <span class="au-email">${esc(u.email)}</span>
           ${migratedInfo ? `<span class="au-migration-note">${migratedInfo}</span>` : ''}
         </div>
+        ${authSourceIcon ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:0 0 auto">${authSourceIcon}</span>` : ''}
         <span class="au-role-badge ${u.role === 'admin' ? 'au-role-admin' : 'au-role-user'}">${u.role === 'admin' ? 'Admin' : 'Nutzer'}</span>
         <span class="au-since" title="${esc(lastLoginTitle)}">${esc(lastLoginText)}</span>
         <span class="au-chevron" id="au-chev-${u.id}">›</span>
@@ -2901,6 +2929,7 @@ function _renderAdminUserDetail(userId, u) {
   const migrationInfo = (u.migratedFrom || u.migratedAt)
     ? `Migriert von ${esc(u.migratedFrom || 'supabase')} am ${esc(fmtDate(u.migratedAt || u.createdAt))}`
     : '-';
+  const authSourceLabel = getAuthSourceLabel(u.auth_source);
 
   $(`au-detail-${userId}`).innerHTML = `
     <div class="au-stats-grid">
@@ -2917,6 +2946,7 @@ function _renderAdminUserDetail(userId, u) {
       <div class="au-info-row"><span class="au-info-key">Benutzername</span><span class="au-info-val au-mono">${esc(u.username || '-')}</span></div>
       <div class="au-info-row"><span class="au-info-key">Vollst. Name</span><span class="au-info-val">${esc(u.name || '-')}</span></div>
       <div class="au-info-row"><span class="au-info-key">E-Mail</span><span class="au-info-val au-mono">${esc(u.email)}</span></div>
+      <div class="au-info-row"><span class="au-info-key">Login-Quelle</span><span class="au-info-val au-mono">${esc(authSourceLabel)}</span></div>
       <div class="au-info-row"><span class="au-info-key">Last Login</span><span class="au-info-val">${esc(u.lastLoginAt ? fmtDateLong(u.lastLoginAt) : 'Noch nie')}</span></div>
       <div class="au-info-row"><span class="au-info-key">Migration</span><span class="au-info-val">${migrationInfo}</span></div>
     </div>

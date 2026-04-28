@@ -51,11 +51,16 @@ export function getAuthorizationUrl(state, nonce) {
     ? process.env.OIDC_REDIRECT_URI_PROD 
     : process.env.OIDC_REDIRECT_URI_DEV;
   
+  const configuredScope = (process.env.OIDC_SCOPES || 'openid profile email auth_source').trim();
+  const scope = configuredScope.includes('auth_source')
+    ? configuredScope
+    : `${configuredScope} auth_source`;
+
   const params = new URLSearchParams({
     client_id: process.env.OIDC_CLIENT_ID,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'openid profile email',
+    scope,
     state,
     nonce
   });
@@ -89,9 +94,25 @@ export async function handleCallback(code, state) {
   
   // Decode ID Token (ohne Verifizierung für jetzt)
   const idTokenDecoded = jwtDecode(id_token);
+  let userInfoClaims = {};
+
+  if (discoveredConfig.userinfo_endpoint && access_token) {
+    try {
+      const userInfoResponse = await axios.get(discoveredConfig.userinfo_endpoint, {
+        headers: { Authorization: `Bearer ${access_token}` },
+        httpsAgent,
+        timeout: 10000,
+      });
+      userInfoClaims = userInfoResponse.data || {};
+    } catch (err) {
+      console.warn('⚠️ UserInfo request failed:', err.message);
+    }
+  }
+
+  const mergedClaims = { ...idTokenDecoded, ...userInfoClaims };
   
   return {
-    claims: () => idTokenDecoded,
+    claims: () => mergedClaims,
     id_token,
     access_token
   };

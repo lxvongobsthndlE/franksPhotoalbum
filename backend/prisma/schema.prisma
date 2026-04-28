@@ -23,7 +23,8 @@ model User {
   migratedAt DateTime?
   lastLoginAt DateTime?
   createdAt DateTime @default(now())
-  
+  auth_source String? // "authentik", "google", "plex", "github" etc.
+
   groups             GroupMember[]
   photos             Photo[]
   comments           Comment[]
