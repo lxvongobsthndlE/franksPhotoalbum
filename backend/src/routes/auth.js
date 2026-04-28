@@ -48,6 +48,9 @@ function createSessionTokens(fastify, userId, email, username) {
 async function syncUserFromOIDC(fastify, userInfo) {
   const { email, preferred_username, name } = userInfo;
   const normalizedPreferredUsername = normalizePreferredUsername(preferred_username);
+  const authSourceClaim = (typeof userInfo?.auth_source === 'string' && userInfo.auth_source.trim())
+    ? userInfo.auth_source.trim().slice(0, 128)
+    : null;
   // name: nur den echten name-Claim speichern, kein Fallback – null wenn nicht gesetzt
   const realName = (name && name.trim()) ? name.trim() : null;
 
@@ -75,6 +78,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
         email,
         username: targetUsername,
         name: realName,
+        auth_source: authSourceClaim || 'authentik',
         displayNameField: displayNameFieldForCreate,
         color: `hsl(${Math.random() * 360}, 70%, 70%)`,
         lastLoginAt: new Date(),
@@ -107,6 +111,7 @@ async function syncUserFromOIDC(fastify, userInfo) {
         username: usernameForUpdate,
         displayNameField: displayNameFieldForUpdate,
         email,
+        auth_source: authSourceClaim || user.auth_source || 'authentik',
         lastLoginAt: new Date(),
       }
     });
@@ -168,6 +173,9 @@ export default async function authRoutes(fastify) {
       const tokenSet = await handleCallback(code, state);
       const userInfo = tokenSet.claims();
 
+      // TEMP DEBUG: zeigt den von Authentik gelieferten auth_source-Claim.
+      fastify.log.info({ auth_source: userInfo?.auth_source ?? null }, 'OIDC auth_source claim');
+
       // Sync/create user in DB
       const user = await syncUserFromOIDC(fastify, userInfo);
 
@@ -208,6 +216,7 @@ export default async function authRoutes(fastify) {
           email: user.email,
           username: user.username,
           name: user.name,
+          auth_source: user.auth_source,
           role: user.role,
           color: user.color,
           avatar: normalizeAvatarUrl(user.avatar, user.id),
@@ -277,6 +286,7 @@ export default async function authRoutes(fastify) {
           email: user.email,
           username: user.username,
           name: user.name,
+          auth_source: user.auth_source,
           role: user.role,
           color: user.color,
           avatar: normalizeAvatarUrl(user.avatar, user.id),
