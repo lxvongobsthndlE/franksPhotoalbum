@@ -65,7 +65,22 @@ Falls ja:
 - Ziel-Branch (für Push): `<BRANCH_NAME>`
 ```
 
+* Upgrade auf Node 24 !!
 * Zoom in LightBox überarbeiten
+* Auf mobile statt GroupSwitcher Dropdown in Header ein Group-Icon neben die Glocke, das das selbe "switch-group" modal öffnet wie der switcher.
+* Modularisierung des Codes
+    * Wiederverwendbare Komponenten im Frontend bauen.
+        * Modals
+            * Verschiedene Typen? Konfig? Was macht Sinn?
+        * Helper-Funktionen zum rendern von Anzeige-Strings etc. Wo wird das benötigt? Wo ist es sinnvoll?
+        * API Anbindung einheitlich pflegen um zukünftige Changes zu erleichtern
+        * Wo möglich Funktionalitäten kapseln und in eigene files auslagern.
+        * Kommentare! Die JS Teile sollten ordentlich nach standards im code dokumentiert sein (methoden, klassen, etc.)
+        * Weiteres?
+    * Wiederverwendbare Komponenten im Backend bauen.
+        * Wo möglich Funktionalitäten kapseln und in eigene files auslagern.
+        * Kommentare! Die JS Teile sollten ordentlich nach standards im code dokumentiert sein (methoden, klassen, etc.)
+        * Weiteres?
 * PWA Rework
     * Notifications that actually pop on mobile devices iOS and Android!
     * Note: Modals und co müssen für Devices mit notch nach unten verschoben werden

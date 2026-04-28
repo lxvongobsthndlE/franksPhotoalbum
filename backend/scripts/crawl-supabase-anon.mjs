@@ -9,7 +9,7 @@ const DEFAULT_TABLES = [
   'albums',
   'photos',
   'likes',
-  'comments'
+  'comments',
 ];
 
 const DEFAULT_RPCS = [
@@ -18,7 +18,7 @@ const DEFAULT_RPCS = [
   'get_photo_stats',
   'join_group_authenticated',
   'join_group',
-  'notify_batch_upload'
+  'notify_batch_upload',
 ];
 
 function requireEnv(name) {
@@ -52,7 +52,7 @@ function jsonHeaders(anonKey) {
   return {
     apikey: anonKey,
     Authorization: `Bearer ${anonKey}`,
-    Accept: 'application/json'
+    Accept: 'application/json',
   };
 }
 
@@ -71,7 +71,7 @@ async function fetchJson(url, options) {
     ok: res.ok,
     status: res.status,
     statusText: res.statusText,
-    body
+    body,
   };
 }
 
@@ -88,15 +88,15 @@ async function crawlTable(baseUrl, anonKey, table, limit) {
     fetchJson(selectUrl, {
       headers: {
         ...jsonHeaders(anonKey),
-        Prefer: 'count=exact'
-      }
+        Prefer: 'count=exact',
+      },
     }),
     fetch(`${countUrl}`, {
       headers: {
         ...jsonHeaders(anonKey),
-        Prefer: 'count=exact'
-      }
-    })
+        Prefer: 'count=exact',
+      },
+    }),
   ]);
 
   const contentRange = countRes.headers.get('content-range');
@@ -112,7 +112,7 @@ async function crawlTable(baseUrl, anonKey, table, limit) {
     sampleSize: Array.isArray(sampleRes.body) ? sampleRes.body.length : 0,
     sample: Array.isArray(sampleRes.body) ? sampleRes.body : sampleRes.body,
     error: sampleRes.ok ? null : sampleRes.body,
-    countError: countRes.ok ? null : countBodyText
+    countError: countRes.ok ? null : countBodyText,
   };
 }
 
@@ -122,23 +122,23 @@ async function probeRpc(baseUrl, anonKey, rpcName) {
     method: 'POST',
     headers: {
       ...jsonHeaders(anonKey),
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
-    body: '{}'
+    body: '{}',
   });
 
   return {
     rpc: rpcName,
     callable: result.ok,
     status: result.status,
-    response: result.body
+    response: result.body,
   };
 }
 
 async function probeAuth(baseUrl, anonKey) {
   const url = `${baseUrl}/auth/v1/settings`;
   return fetchJson(url, {
-    headers: jsonHeaders(anonKey)
+    headers: jsonHeaders(anonKey),
   });
 }
 
@@ -167,7 +167,9 @@ async function main() {
     tableResults.push(result);
 
     if (result.readable) {
-      console.log(`[ok] ${table}: ${result.sampleSize} sample rows, count=${result.rowCount ?? 'unknown'}`);
+      console.log(
+        `[ok] ${table}: ${result.sampleSize} sample rows, count=${result.rowCount ?? 'unknown'}`
+      );
     } else {
       console.log(`[no] ${table}: HTTP ${result.status}`);
     }
@@ -190,17 +192,24 @@ async function main() {
     authSettings: {
       ok: authSettings.ok,
       status: authSettings.status,
-      body: authSettings.body
+      body: authSettings.body,
     },
     tableResults,
-    rpcResults
+    rpcResults,
   };
 
   await ensureOutputDir(outputPath);
   await fs.writeFile(outputPath, JSON.stringify(payload, null, 2), 'utf8');
 
   console.log('Finished.');
-  console.log(`Readable tables: ${tableResults.filter((x) => x.readable).map((x) => x.table).join(', ') || 'none'}`);
+  console.log(
+    `Readable tables: ${
+      tableResults
+        .filter((x) => x.readable)
+        .map((x) => x.table)
+        .join(', ') || 'none'
+    }`
+  );
 }
 
 main().catch((err) => {

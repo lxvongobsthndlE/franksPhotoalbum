@@ -1,17 +1,22 @@
 // Albums Routes: GET, POST, PATCH, DELETE /api/albums
 import { createNotification } from '../utils/notifications.js';
 export default async function albumsRoutes(fastify) {
-
   // Helper: prüft ob User Admin ist
   async function isAdmin(userId) {
-    const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     return user?.role === 'admin';
   }
 
   // Helper: prüft ob User Gruppen-Ersteller ist (oder Admin)
   async function isGroupOwner(groupId, userId) {
     if (await isAdmin(userId)) return true;
-    const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { createdBy: true } });
+    const group = await fastify.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { createdBy: true },
+    });
     return group?.createdBy === userId;
   }
 
@@ -25,7 +30,7 @@ export default async function albumsRoutes(fastify) {
 
   // Helper: volle Gruppen-Admin-Rechte (Owner, Deputy oder App-Admin)
   async function hasGroupAdminRights(groupId, userId) {
-    return await isGroupOwner(groupId, userId) || await isGroupDeputy(groupId, userId);
+    return (await isGroupOwner(groupId, userId)) || (await isGroupDeputy(groupId, userId));
   }
 
   // GET /api/albums - Liste Alben für eine Gruppe (inkl. contributors)
@@ -47,13 +52,14 @@ export default async function albumsRoutes(fastify) {
         },
       });
 
-      const result = albums.map(a => ({
+      const result = albums.map((a) => ({
         ...a,
-        contributors: a.contributors.map(c => ({
+        contributors: a.contributors.map((c) => ({
           ...c.user,
-          avatar: c.user.avatar && !c.user.avatar.startsWith('/api/')
-            ? `/api/auth/avatar/${c.user.id}`
-            : c.user.avatar,
+          avatar:
+            c.user.avatar && !c.user.avatar.startsWith('/api/')
+              ? `/api/auth/avatar/${c.user.id}`
+              : c.user.avatar,
         })),
       }));
 
@@ -69,12 +75,13 @@ export default async function albumsRoutes(fastify) {
     try {
       await request.jwtVerify();
       const { name, groupId } = request.body;
-      if (!name || !groupId) return reply.code(400).send({ error: 'name und groupId erforderlich' });
+      if (!name || !groupId)
+        return reply.code(400).send({ error: 'name und groupId erforderlich' });
 
       const membership = await fastify.prisma.groupMember.findUnique({
         where: { userId_groupId: { userId: request.user.id, groupId } },
       });
-      if (!membership && !await isAdmin(request.user.id)) {
+      if (!membership && !(await isAdmin(request.user.id))) {
         return reply.code(403).send({ error: 'Nur Gruppenmitglieder können Alben erstellen' });
       }
 
@@ -88,16 +95,24 @@ export default async function albumsRoutes(fastify) {
         where: { groupId },
         select: { userId: true },
       });
-      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
-      const creator = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { name: true },
+      });
+      const creator = await fastify.prisma.user.findUnique({
+        where: { id: request.user.id },
+        select: { name: true, username: true },
+      });
       const creatorName = creator?.name || creator?.username || 'Jemand';
       for (const { userId } of members) {
         if (userId !== request.user.id) {
           createNotification(fastify.prisma, {
-            userId, type: 'newAlbum',
+            userId,
+            type: 'newAlbum',
             title: `Neues Album in „${group?.name || groupId}"`,
             body: `${creatorName} hat das Album „${name}" erstellt.`,
-            entityId: album.id, entityType: 'album',
+            entityId: album.id,
+            entityType: 'album',
           }).catch(() => {});
         }
       }
@@ -119,7 +134,10 @@ export default async function albumsRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
-      if (album.createdBy !== request.user.id && !await hasGroupAdminRights(album.groupId, request.user.id)) {
+      if (
+        album.createdBy !== request.user.id &&
+        !(await hasGroupAdminRights(album.groupId, request.user.id))
+      ) {
         return reply.code(403).send({ error: 'Nur der Ersteller kann das Album umbenennen' });
       }
 
@@ -142,7 +160,10 @@ export default async function albumsRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
-      if (album.createdBy !== request.user.id && !await hasGroupAdminRights(album.groupId, request.user.id)) {
+      if (
+        album.createdBy !== request.user.id &&
+        !(await hasGroupAdminRights(album.groupId, request.user.id))
+      ) {
         return reply.code(403).send({ error: 'Nur der Ersteller kann das Album löschen' });
       }
 
@@ -172,11 +193,12 @@ export default async function albumsRoutes(fastify) {
       });
 
       return {
-        contributors: contributors.map(c => ({
+        contributors: contributors.map((c) => ({
           ...c.user,
-          avatar: c.user.avatar && !c.user.avatar.startsWith('/api/')
-            ? `/api/auth/avatar/${c.user.id}`
-            : c.user.avatar,
+          avatar:
+            c.user.avatar && !c.user.avatar.startsWith('/api/')
+              ? `/api/auth/avatar/${c.user.id}`
+              : c.user.avatar,
         })),
       };
     } catch (err) {
@@ -196,14 +218,16 @@ export default async function albumsRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
-      const canManage = album.createdBy === request.user.id
-        || await hasGroupAdminRights(album.groupId, request.user.id);
+      const canManage =
+        album.createdBy === request.user.id ||
+        (await hasGroupAdminRights(album.groupId, request.user.id));
       if (!canManage) return reply.code(403).send({ error: 'Keine Berechtigung' });
 
       const membership = await fastify.prisma.groupMember.findUnique({
         where: { userId_groupId: { userId, groupId: album.groupId } },
       });
-      if (!membership) return reply.code(400).send({ error: 'User ist kein Mitglied dieser Gruppe' });
+      if (!membership)
+        return reply.code(400).send({ error: 'User ist kein Mitglied dieser Gruppe' });
 
       if (userId === album.createdBy) {
         return reply.code(400).send({ error: 'Der Album-Ersteller ist bereits berechtigt' });
@@ -222,15 +246,20 @@ export default async function albumsRoutes(fastify) {
 
       // Notification an neuen Contributor
       createNotification(fastify.prisma, {
-        userId, type: 'contributorAdded',
+        userId,
+        type: 'contributorAdded',
         title: `Du kannst jetzt zum Album „${album.name}" beitragen`,
         body: `Du wurdest als Contributor hinzugefügt.`,
-        entityId: album.id, entityType: 'album',
+        entityId: album.id,
+        entityType: 'album',
       }).catch(() => {});
 
       return {
         ...user,
-        avatar: user.avatar && !user.avatar.startsWith('/api/') ? `/api/auth/avatar/${user.id}` : user.avatar,
+        avatar:
+          user.avatar && !user.avatar.startsWith('/api/')
+            ? `/api/auth/avatar/${user.id}`
+            : user.avatar,
       };
     } catch (err) {
       fastify.log.error(err);
@@ -247,8 +276,9 @@ export default async function albumsRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
-      const canManage = album.createdBy === request.user.id
-        || await hasGroupAdminRights(album.groupId, request.user.id);
+      const canManage =
+        album.createdBy === request.user.id ||
+        (await hasGroupAdminRights(album.groupId, request.user.id));
       if (!canManage) return reply.code(403).send({ error: 'Keine Berechtigung' });
 
       await fastify.prisma.albumContributor.deleteMany({
@@ -257,10 +287,12 @@ export default async function albumsRoutes(fastify) {
 
       // Notification an entfernten Contributor
       createNotification(fastify.prisma, {
-        userId: request.params.userId, type: 'contributorRemoved',
+        userId: request.params.userId,
+        type: 'contributorRemoved',
         title: `Contributor-Zugang zu „${album.name}" entzogen`,
         body: `Du kannst nicht mehr zum Album beitragen.`,
-        entityId: album.id, entityType: 'album',
+        entityId: album.id,
+        entityType: 'album',
       }).catch(() => {});
 
       return { status: 'removed' };

@@ -9,14 +9,14 @@ const DEFAULT_TABLES = [
   'albums',
   'photos',
   'likes',
-  'comments'
+  'comments',
 ];
 
 const DEFAULT_RPCS = [
   'validate_group_code',
   'get_all_counts',
   'get_photo_stats',
-  'join_group_authenticated'
+  'join_group_authenticated',
 ];
 
 function requireEnv(name) {
@@ -36,7 +36,10 @@ function parseArg(name, fallback = null) {
 function parseListArg(name, fallback) {
   const raw = parseArg(name);
   if (!raw) return fallback;
-  return raw.split(',').map((x) => x.trim()).filter(Boolean);
+  return raw
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
 function hasFlag(name) {
@@ -48,7 +51,9 @@ function getCredentials() {
   const password = parseArg('password', process.env.SUPABASE_LOGIN_PASSWORD || null);
 
   if (!email || !password) {
-    throw new Error('Missing login credentials. Use --email/--password or SUPABASE_LOGIN_EMAIL/SUPABASE_LOGIN_PASSWORD.');
+    throw new Error(
+      'Missing login credentials. Use --email/--password or SUPABASE_LOGIN_EMAIL/SUPABASE_LOGIN_PASSWORD.'
+    );
   }
 
   return { email, password };
@@ -58,7 +63,7 @@ function apiHeaders(apiKey, bearerToken = apiKey) {
   return {
     apikey: apiKey,
     Authorization: `Bearer ${bearerToken}`,
-    Accept: 'application/json'
+    Accept: 'application/json',
   };
 }
 
@@ -78,7 +83,7 @@ async function fetchJson(url, options) {
     status: res.status,
     statusText: res.statusText,
     body,
-    headers: res.headers
+    headers: res.headers,
   };
 }
 
@@ -88,9 +93,9 @@ async function login(baseUrl, anonKey, email, password) {
     method: 'POST',
     headers: {
       ...apiHeaders(anonKey),
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password }),
   });
 
   if (!result.ok) {
@@ -102,7 +107,7 @@ async function login(baseUrl, anonKey, email, password) {
 
 async function probeCurrentUser(baseUrl, anonKey, accessToken) {
   return fetchJson(`${baseUrl}/auth/v1/user`, {
-    headers: apiHeaders(anonKey, accessToken)
+    headers: apiHeaders(anonKey, accessToken),
   });
 }
 
@@ -119,15 +124,15 @@ async function crawlTable(baseUrl, anonKey, accessToken, table, limit) {
     fetchJson(selectUrl, {
       headers: {
         ...apiHeaders(anonKey, accessToken),
-        Prefer: 'count=exact'
-      }
+        Prefer: 'count=exact',
+      },
     }),
     fetchJson(countUrl, {
       headers: {
         ...apiHeaders(anonKey, accessToken),
-        Prefer: 'count=exact'
-      }
-    })
+        Prefer: 'count=exact',
+      },
+    }),
   ]);
 
   const contentRange = countRes.headers.get('content-range');
@@ -142,7 +147,7 @@ async function crawlTable(baseUrl, anonKey, accessToken, table, limit) {
     sampleSize: Array.isArray(sampleRes.body) ? sampleRes.body.length : 0,
     sample: Array.isArray(sampleRes.body) ? sampleRes.body : sampleRes.body,
     error: sampleRes.ok ? null : sampleRes.body,
-    countError: countRes.ok ? null : countRes.body
+    countError: countRes.ok ? null : countRes.body,
   };
 }
 
@@ -151,16 +156,16 @@ async function probeRpc(baseUrl, anonKey, accessToken, rpcName) {
     method: 'POST',
     headers: {
       ...apiHeaders(anonKey, accessToken),
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
-    body: '{}'
+    body: '{}',
   });
 
   return {
     rpc: rpcName,
     callable: result.ok,
     status: result.status,
-    response: result.body
+    response: result.body,
   };
 }
 
@@ -193,7 +198,9 @@ async function main() {
     tableResults.push(result);
 
     if (result.readable) {
-      console.log(`[ok] ${table}: ${result.sampleSize} sample rows, count=${result.rowCount ?? 'unknown'}`);
+      console.log(
+        `[ok] ${table}: ${result.sampleSize} sample rows, count=${result.rowCount ?? 'unknown'}`
+      );
     } else {
       console.log(`[no] ${table}: HTTP ${result.status}`);
     }
@@ -216,14 +223,21 @@ async function main() {
     tables,
     rpcs: skipRpc ? [] : rpcs,
     tableResults,
-    rpcResults
+    rpcResults,
   };
 
   await ensureOutputDir(outputPath);
   await fs.writeFile(outputPath, JSON.stringify(payload, null, 2), 'utf8');
 
   console.log('Finished.');
-  console.log(`Readable tables: ${tableResults.filter((x) => x.readable).map((x) => x.table).join(', ') || 'none'}`);
+  console.log(
+    `Readable tables: ${
+      tableResults
+        .filter((x) => x.readable)
+        .map((x) => x.table)
+        .join(', ') || 'none'
+    }`
+  );
 }
 
 main().catch((err) => {

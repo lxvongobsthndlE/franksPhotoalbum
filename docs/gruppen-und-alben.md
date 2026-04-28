@@ -41,17 +41,17 @@ Admins können in der Admin-Gruppenverwaltung das Mitgliederlimit zusätzlich sp
 
 **API:**
 
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| `GET` | `/api/groups/my` | Eigene Gruppen abrufen (erstellt ggf. Auto-Gruppe) |
-| `POST` | `/api/groups` | Neue Gruppe erstellen |
-| `POST` | `/api/groups/join` | Gruppe per `code` beitreten |
-| `GET` | `/api/groups/:id/members` | Mitglieder einer Gruppe |
-| `PATCH` | `/api/groups/:id` | Gruppe umbenennen (nur Owner) |
-| `PATCH` | `/api/groups/:id/settings` | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit und `maxMembers` |
-| `POST` | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin) |
-| `DELETE` | `/api/groups/:id` | Gruppe löschen (Owner/Admin, mit ZIP-Backup wenn Fotos vorhanden) |
-| `DELETE` | `/api/groups/:id/leave` | Gruppe verlassen |
+| Methode  | Pfad                          | Beschreibung                                                                        |
+| -------- | ----------------------------- | ----------------------------------------------------------------------------------- |
+| `GET`    | `/api/groups/my`              | Eigene Gruppen abrufen (erstellt ggf. Auto-Gruppe)                                  |
+| `POST`   | `/api/groups`                 | Neue Gruppe erstellen                                                               |
+| `POST`   | `/api/groups/join`            | Gruppe per `code` beitreten                                                         |
+| `GET`    | `/api/groups/:id/members`     | Mitglieder einer Gruppe                                                             |
+| `PATCH`  | `/api/groups/:id`             | Gruppe umbenennen (nur Owner)                                                       |
+| `PATCH`  | `/api/groups/:id/settings`    | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit und `maxMembers` |
+| `POST`   | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin)                                         |
+| `DELETE` | `/api/groups/:id`             | Gruppe löschen (Owner/Admin, mit ZIP-Backup wenn Fotos vorhanden)                   |
+| `DELETE` | `/api/groups/:id/leave`       | Gruppe verlassen                                                                    |
 
 ---
 
@@ -60,15 +60,16 @@ Admins können in der Admin-Gruppenverwaltung das Mitgliederlimit zusätzlich sp
 Jede Gruppe hat genau einen **Owner** (gespeichert in `Group.createdBy`). Der Owner kann **Vertreter (Deputies)** ernennen.
 
 **Deputies haben dieselben Rechte wie der Owner**, mit folgenden Ausnahmen:
+
 - Deputies dürfen die Gruppe **nicht umbenennen**
 - Deputies dürfen die Gruppe **nicht löschen / auflösen**
 
 **API:**
 
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| `GET` | `/api/groups/:id/deputies` | Vertreter auflisten |
-| `POST` | `/api/groups/:id/deputies` | Vertreter ernennen (nur Owner) |
+| Methode  | Pfad                               | Beschreibung                    |
+| -------- | ---------------------------------- | ------------------------------- |
+| `GET`    | `/api/groups/:id/deputies`         | Vertreter auflisten             |
+| `POST`   | `/api/groups/:id/deputies`         | Vertreter ernennen (nur Owner)  |
 | `DELETE` | `/api/groups/:id/deputies/:userId` | Vertreter entfernen (nur Owner) |
 
 ---
@@ -97,6 +98,7 @@ DELETE /api/groups/:id/dissolve
 ```
 
 **Was passiert:**
+
 1. Alle Fotos der Gruppe werden in ein **ZIP-Archiv** gepackt (in MinIO unter `backups/`)
 2. Ein `GroupBackup`-Eintrag in der DB wird angelegt (30 Tage gültig)
 3. Alle Fotos, Kommentare, Likes und die Gruppe selbst werden gelöscht
@@ -113,15 +115,15 @@ Alben gehören zu einer Gruppe und dienen zur thematischen Gruppierung von Fotos
 
 **API:**
 
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| `GET` | `/api/albums` | Alben einer Gruppe (`?groupId=…`) |
-| `POST` | `/api/albums` | Neues Album erstellen |
-| `PATCH` | `/api/albums/:id` | Album umbenennen (Ersteller oder Contributor) |
-| `DELETE` | `/api/albums/:id` | Album löschen (Ersteller oder Gruppe Owner/Deputy) |
-| `GET` | `/api/albums/:id/contributors` | Beitragende auflisten |
-| `POST` | `/api/albums/:id/contributors` | Beitragenden hinzufügen |
-| `DELETE` | `/api/albums/:id/contributors/:userId` | Beitragenden entfernen |
+| Methode  | Pfad                                   | Beschreibung                                       |
+| -------- | -------------------------------------- | -------------------------------------------------- |
+| `GET`    | `/api/albums`                          | Alben einer Gruppe (`?groupId=…`)                  |
+| `POST`   | `/api/albums`                          | Neues Album erstellen                              |
+| `PATCH`  | `/api/albums/:id`                      | Album umbenennen (Ersteller oder Contributor)      |
+| `DELETE` | `/api/albums/:id`                      | Album löschen (Ersteller oder Gruppe Owner/Deputy) |
+| `GET`    | `/api/albums/:id/contributors`         | Beitragende auflisten                              |
+| `POST`   | `/api/albums/:id/contributors`         | Beitragenden hinzufügen                            |
+| `DELETE` | `/api/albums/:id/contributors/:userId` | Beitragenden entfernen                             |
 
 ---
 
@@ -130,6 +132,7 @@ Alben gehören zu einer Gruppe und dienen zur thematischen Gruppierung von Fotos
 Normalerweise kann nur der **Album-Ersteller** ein Album bearbeiten. Durch Hinzufügen als **Contributor** erhalten andere Mitglieder Bearbeitungsrechte.
 
 Berechtigt zum Verwalten von Contributors ist:
+
 - Der Album-Ersteller
 - Der Gruppen-Owner oder ein Deputy
 
@@ -139,12 +142,12 @@ Berechtigt zum Verwalten von Contributors ist:
 
 Backups können auf mehreren Wegen entstehen:
 
-| Auslöser | Wer | Endpoint |
-|---|---|---|
-| Gruppe auflösen | Owner (letztes Mitglied) | `DELETE /api/groups/:id/dissolve` |
-| Gruppe löschen (Owner) | Owner | `DELETE /api/groups/:id` |
-| Manuelles Backup | Admin | `POST /api/groups/admin/:id/backup` |
-| Gruppe löschen (Admin) | Admin | `DELETE /api/groups/admin/:id` |
+| Auslöser               | Wer                      | Endpoint                            |
+| ---------------------- | ------------------------ | ----------------------------------- |
+| Gruppe auflösen        | Owner (letztes Mitglied) | `DELETE /api/groups/:id/dissolve`   |
+| Gruppe löschen (Owner) | Owner                    | `DELETE /api/groups/:id`            |
+| Manuelles Backup       | Admin                    | `POST /api/groups/admin/:id/backup` |
+| Gruppe löschen (Admin) | Admin                    | `DELETE /api/groups/admin/:id`      |
 
 **Download:**
 
@@ -162,14 +165,14 @@ GET /api/groups/admin/backup/:zipKey
 
 ## Admin-Funktionen
 
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| `GET` | `/api/groups/admin/all` | Alle Gruppen auflisten (inkl. aggregierter Counts) |
-| `POST` | `/api/groups/admin/create` | Gruppe anlegen, optional mit `maxMembers` und `memberLimitLocked` |
-| `PATCH` | `/api/groups/admin/:id` | Gruppe bearbeiten, inkl. Limit und Limit-Sperre |
-| `GET` | `/api/groups/admin/backups` | Alle Backup-Einträge auflisten |
-| `POST` | `/api/groups/admin/backups/:zipKey/refresh` | Backup-Link um 30 Tage verlängern |
-| `DELETE` | `/api/groups/admin/backups/:zipKey` | Backup aus MinIO und DB löschen |
-| `POST` | `/api/groups/admin/:id/backup` | Backup erstellen ohne Gruppe zu löschen |
-| `DELETE` | `/api/groups/admin/:id` | Gruppe löschen + Backup erstellen |
-| `GET` | `/api/groups/admin/:id/stranded-members` | User anzeigen, die nach dem Löschen in keiner Gruppe mehr wären |
+| Methode  | Pfad                                        | Beschreibung                                                      |
+| -------- | ------------------------------------------- | ----------------------------------------------------------------- |
+| `GET`    | `/api/groups/admin/all`                     | Alle Gruppen auflisten (inkl. aggregierter Counts)                |
+| `POST`   | `/api/groups/admin/create`                  | Gruppe anlegen, optional mit `maxMembers` und `memberLimitLocked` |
+| `PATCH`  | `/api/groups/admin/:id`                     | Gruppe bearbeiten, inkl. Limit und Limit-Sperre                   |
+| `GET`    | `/api/groups/admin/backups`                 | Alle Backup-Einträge auflisten                                    |
+| `POST`   | `/api/groups/admin/backups/:zipKey/refresh` | Backup-Link um 30 Tage verlängern                                 |
+| `DELETE` | `/api/groups/admin/backups/:zipKey`         | Backup aus MinIO und DB löschen                                   |
+| `POST`   | `/api/groups/admin/:id/backup`              | Backup erstellen ohne Gruppe zu löschen                           |
+| `DELETE` | `/api/groups/admin/:id`                     | Gruppe löschen + Backup erstellen                                 |
+| `GET`    | `/api/groups/admin/:id/stranded-members`    | User anzeigen, die nach dem Löschen in keiner Gruppe mehr wären   |

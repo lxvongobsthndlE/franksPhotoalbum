@@ -23,24 +23,24 @@ backend/public/
 
 ### Token-Speicherung
 
-| Token | Speicherort | Lebensdauer |
-|---|---|---|
-| Access Token | `sessionStorage` | 15 Minuten |
-| Refresh Token | HttpOnly-Cookie | 7 Tage (nur serverseitig lesbar) |
+| Token         | Speicherort      | Lebensdauer                      |
+| ------------- | ---------------- | -------------------------------- |
+| Access Token  | `sessionStorage` | 15 Minuten                       |
+| Refresh Token | HttpOnly-Cookie  | 7 Tage (nur serverseitig lesbar) |
 
 ### API-Aufruf-Funktion
 
 ```js
-import { apiCall } from './auth-oidc.js';
+import { apiCall } from "./auth-oidc.js";
 
 // GET
-const data = await apiCall('/api/groups/my');
+const data = await apiCall("/api/groups/my");
 
 // POST mit Body
-const result = await apiCall('/api/groups/join', 'POST', { code: 'A3F9KZ' });
+const result = await apiCall("/api/groups/join", "POST", { code: "A3F9KZ" });
 
 // DELETE
-await apiCall(`/api/comments/${id}`, 'DELETE');
+await apiCall(`/api/comments/${id}`, "DELETE");
 ```
 
 `apiCall` setzt automatisch den `Authorization`-Header und erneuert den Token bei `401`.
@@ -104,6 +104,7 @@ In der Sidebar wird die aktuelle App-Version als klickbarer Eintrag angezeigt.
 - Löschen erfolgt mit Bestätigungsdialog
 
 Technisch:
+
 - Version laden über `GET /api/changelog/meta`
 - Einträge laden über `GET /api/changelog`
 - Admin-Aktionen über `POST/PATCH/DELETE /api/changelog`
@@ -115,11 +116,11 @@ Technisch:
 Kurze Rückmeldungen für eigene Aktionen (z. B. Foto hochgeladen, Gruppe beigetreten):
 
 ```js
-import { toast } from './main.js';
+import { toast } from "./main.js";
 
-toast('Foto erfolgreich hochgeladen', 'success');
-toast('Fehler beim Hochladen', 'error');
-toast('Zur Gruppe hinzugefügt', 'info');
+toast("Foto erfolgreich hochgeladen", "success");
+toast("Fehler beim Hochladen", "error");
+toast("Zur Gruppe hinzugefügt", "info");
 ```
 
 **Darstellung:** Fixiert oben rechts, automatisch nach 3,6 Sekunden ausgeblendet.
@@ -131,9 +132,11 @@ toast('Zur Gruppe hinzugefügt', 'info');
 Das Frontend öffnet beim Login eine SSE-Verbindung und zeigt eingehende Benachrichtigungen als Glocken-Badge an:
 
 ```js
-const source = new EventSource(`/api/notifications/stream?token=${accessToken}`);
+const source = new EventSource(
+  `/api/notifications/stream?token=${accessToken}`,
+);
 
-source.addEventListener('notification', (e) => {
+source.addEventListener("notification", (e) => {
   const notif = JSON.parse(e.data);
   // Badge aktualisieren, Glocken-Icon updaten
 });
@@ -157,7 +160,7 @@ Implementiert eine **Cache-First-Strategie** für statische Assets:
 
 ```js
 // Cache-Name (im Service Worker definiert)
-const CACHE_NAME = 'fotoalbum-v1';
+const CACHE_NAME = "fotoalbum-v1";
 ```
 
 ### Dark Mode
@@ -166,7 +169,10 @@ Automatisch aktiv über CSS-Media-Query:
 
 ```css
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #1a1410; --text: #f0ebe4; /* … */ }
+  :root {
+    --bg: #1a1410;
+    --text: #f0ebe4; /* … */
+  }
 }
 ```
 

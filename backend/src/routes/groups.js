@@ -1,5 +1,11 @@
 // Groups Routes
-import { createGroupBackupZip, deleteGroupPhotoObjects, deleteBackupObject, getBackupStream, getBackupStat } from '../utils/storage.js';
+import {
+  createGroupBackupZip,
+  deleteGroupPhotoObjects,
+  deleteBackupObject,
+  getBackupStream,
+  getBackupStat,
+} from '../utils/storage.js';
 import { createNotification } from '../utils/notifications.js';
 
 export default async function groupsRoutes(fastify) {
@@ -45,7 +51,7 @@ export default async function groupsRoutes(fastify) {
         return { groups: [group] };
       }
 
-      return { groups: memberships.map(m => m.group) };
+      return { groups: memberships.map((m) => m.group) };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Fehler beim Laden der Gruppen' });
@@ -61,17 +67,27 @@ export default async function groupsRoutes(fastify) {
         where: { groupId: request.params.id },
         include: {
           user: {
-            select: { id: true, name: true, username: true, color: true, avatar: true, displayNameField: true },
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              color: true,
+              avatar: true,
+              displayNameField: true,
+            },
           },
         },
       });
 
-      return { members: members.map(m => ({
-        ...m.user,
-        avatar: m.user.avatar && !m.user.avatar.startsWith('/api/')
-          ? `/api/auth/avatar/${m.user.id}`
-          : m.user.avatar,
-      })) };
+      return {
+        members: members.map((m) => ({
+          ...m.user,
+          avatar:
+            m.user.avatar && !m.user.avatar.startsWith('/api/')
+              ? `/api/auth/avatar/${m.user.id}`
+              : m.user.avatar,
+        })),
+      };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Fehler beim Laden der Mitglieder' });
@@ -94,9 +110,13 @@ export default async function groupsRoutes(fastify) {
       if (existing) return reply.code(409).send({ error: 'Bereits Mitglied' });
 
       if (group.maxMembers !== null) {
-        const memberCount = await fastify.prisma.groupMember.count({ where: { groupId: group.id } });
+        const memberCount = await fastify.prisma.groupMember.count({
+          where: { groupId: group.id },
+        });
         if (memberCount >= group.maxMembers) {
-          return reply.code(409).send({ error: `Diese Gruppe ist voll (${memberCount}/${group.maxMembers})` });
+          return reply
+            .code(409)
+            .send({ error: `Diese Gruppe ist voll (${memberCount}/${group.maxMembers})` });
         }
       }
 
@@ -115,13 +135,18 @@ export default async function groupsRoutes(fastify) {
       // Notification an Gruppen-Owner
       const ownerId = group.createdBy;
       if (ownerId && ownerId !== request.user.id) {
-        const joiner = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+        const joiner = await fastify.prisma.user.findUnique({
+          where: { id: request.user.id },
+          select: { name: true, username: true },
+        });
         const joinerName = joiner?.name || joiner?.username || 'Jemand';
         createNotification(fastify.prisma, {
-          userId: ownerId, type: 'groupMemberJoined',
+          userId: ownerId,
+          type: 'groupMemberJoined',
           title: `Neues Mitglied in „${group.name}"`,
           body: `${joinerName} ist der Gruppe beigetreten.`,
-          entityId: group.id, entityType: 'group',
+          entityId: group.id,
+          entityType: 'group',
         }).catch(() => {});
       }
 
@@ -141,10 +166,16 @@ export default async function groupsRoutes(fastify) {
       const { name } = request.body;
       if (!name?.trim()) return reply.code(400).send({ error: 'Name erforderlich' });
 
-      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { createdBy: true } });
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { createdBy: true },
+      });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
-      const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
       if (group.createdBy !== userId && user?.role !== 'admin') {
         return reply.code(403).send({ error: 'Nur der Owner kann die Gruppe umbenennen' });
       }
@@ -184,7 +215,10 @@ export default async function groupsRoutes(fastify) {
       });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
-      const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
       if (group.createdBy !== userId && requester?.role !== 'admin') {
         return reply.code(403).send({ error: 'Nur der Owner kann diese Einstellung ändern' });
       }
@@ -198,7 +232,9 @@ export default async function groupsRoutes(fastify) {
 
       if (hasMaxMembers) {
         if (group.memberLimitLocked && !isAdmin) {
-          return reply.code(403).send({ error: 'Das Mitgliederlimit wurde von einem Admin gesperrt' });
+          return reply
+            .code(403)
+            .send({ error: 'Das Mitgliederlimit wurde von einem Admin gesperrt' });
         }
 
         const parsedMaxMembers = parseMaxMembers(body.maxMembers);
@@ -214,7 +250,9 @@ export default async function groupsRoutes(fastify) {
 
           const memberCount = await fastify.prisma.groupMember.count({ where: { groupId } });
           if (maxMembers < memberCount) {
-            return reply.code(400).send({ error: `maxMembers muss mindestens ${memberCount} sein` });
+            return reply
+              .code(400)
+              .send({ error: `maxMembers muss mindestens ${memberCount} sein` });
           }
         }
 
@@ -240,10 +278,16 @@ export default async function groupsRoutes(fastify) {
       const groupId = request.params.id;
       const userId = request.user.id;
 
-      const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { id: true, createdBy: true } });
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, createdBy: true },
+      });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
-      const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
       if (group.createdBy !== userId && requester?.role !== 'admin') {
         return reply.code(403).send({ error: 'Nur der Owner kann den Einladungscode ändern' });
       }
@@ -251,7 +295,10 @@ export default async function groupsRoutes(fastify) {
       let nextCode = null;
       for (let i = 0; i < 10; i++) {
         const candidate = Math.random().toString(36).slice(2, 8).toUpperCase();
-        const exists = await fastify.prisma.group.findUnique({ where: { code: candidate }, select: { id: true } });
+        const exists = await fastify.prisma.group.findUnique({
+          where: { code: candidate },
+          select: { id: true },
+        });
         if (!exists) {
           nextCode = candidate;
           break;
@@ -287,7 +334,10 @@ export default async function groupsRoutes(fastify) {
       });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
-      const requester = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
       const isAdmin = requester?.role === 'admin';
       const isOwner = group.createdBy === userId;
       if (!isOwner && !isAdmin) {
@@ -306,7 +356,10 @@ export default async function groupsRoutes(fastify) {
         select: { path: true, filename: true },
       });
 
-      const actingUser = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { name: true, username: true } });
+      const actingUser = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, username: true },
+      });
       const deletedByName = actingUser?.name || actingUser?.username || null;
 
       let backupUrl = null;
@@ -343,22 +396,23 @@ export default async function groupsRoutes(fastify) {
       await fastify.prisma.groupMember.deleteMany({ where: { groupId } });
       await fastify.prisma.group.delete({ where: { id: groupId } });
 
-      await deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean));
+      await deleteGroupPhotoObjects(photos.map((p) => p.path).filter(Boolean));
 
       for (const { userId: memberId } of groupMembers) {
         const isGroupOwner = memberId === group.createdBy;
-        const body = backupUrl && isGroupOwner
-          ? 'Der Gruppen-Owner hat die Gruppe gelöscht. Deine Fotos wurden gesichert und können heruntergeladen werden.'
-          : backupUrl
-            ? 'Der Gruppen-Owner hat die Gruppe gelöscht. Die Fotos wurden gesichert.'
-            : 'Der Gruppen-Owner hat die Gruppe gelöscht. Es waren keine Fotos vorhanden.';
+        const body =
+          backupUrl && isGroupOwner
+            ? 'Der Gruppen-Owner hat die Gruppe gelöscht. Deine Fotos wurden gesichert und können heruntergeladen werden.'
+            : backupUrl
+              ? 'Der Gruppen-Owner hat die Gruppe gelöscht. Die Fotos wurden gesichert.'
+              : 'Der Gruppen-Owner hat die Gruppe gelöscht. Es waren keine Fotos vorhanden.';
         createNotification(fastify.prisma, {
           userId: memberId,
           type: 'groupDeleted',
           title: `Gruppe „${group.name}" wurde gelöscht`,
           body,
           entityType: 'group',
-          entityUrl: isGroupOwner ? (backupUrl || undefined) : undefined,
+          entityUrl: isGroupOwner ? backupUrl || undefined : undefined,
         }).catch(() => {});
       }
 
@@ -404,16 +458,22 @@ export default async function groupsRoutes(fastify) {
             return reply.code(400).send({ error: 'Als Owner musst du einen Nachfolger angeben' });
           }
           // Last member → can't leave via this endpoint, use dissolve
-          return reply.code(400).send({ error: 'Du bist das letzte Mitglied. Nutze den "Gruppe auflösen"-Flow.' });
+          return reply
+            .code(400)
+            .send({ error: 'Du bist das letzte Mitglied. Nutze den "Gruppe auflösen"-Flow.' });
         }
         // Nachfolger muss Mitglied sein
         const successorMembership = await fastify.prisma.groupMember.findUnique({
           where: { userId_groupId: { userId: successorId, groupId } },
         });
-        if (!successorMembership) return reply.code(400).send({ error: 'Nachfolger ist kein Mitglied der Gruppe' });
+        if (!successorMembership)
+          return reply.code(400).send({ error: 'Nachfolger ist kein Mitglied der Gruppe' });
 
         // Ownership übertragen + Deputies des alten Owners entfernen
-        await fastify.prisma.group.update({ where: { id: groupId }, data: { createdBy: successorId } });
+        await fastify.prisma.group.update({
+          where: { id: groupId },
+          data: { createdBy: successorId },
+        });
         await fastify.prisma.groupDeputy.deleteMany({ where: { groupId, userId: successorId } }); // Nachfolger war evtl. Deputy
       }
 
@@ -425,13 +485,18 @@ export default async function groupsRoutes(fastify) {
 
       // Notification an Gruppen-Owner
       if (group?.createdBy && group.createdBy !== userId) {
-        const leaver = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { name: true, username: true } });
+        const leaver = await fastify.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, username: true },
+        });
         const leaverName = leaver?.name || leaver?.username || 'Jemand';
         createNotification(fastify.prisma, {
-          userId: group.createdBy, type: 'groupMemberLeft',
+          userId: group.createdBy,
+          type: 'groupMemberLeft',
           title: `Mitglied hat „${group.name}" verlassen`,
           body: `${leaverName} hat die Gruppe verlassen.`,
-          entityId: groupId, entityType: 'group',
+          entityId: groupId,
+          entityType: 'group',
         }).catch(() => {});
       }
 
@@ -451,21 +516,27 @@ export default async function groupsRoutes(fastify) {
 
       const group = await fastify.prisma.group.findUnique({ where: { id: groupId } });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
-      if (group.createdBy !== userId) return reply.code(403).send({ error: 'Nur der Gruppen-Owner kann die Gruppe auflösen' });
+      if (group.createdBy !== userId)
+        return reply.code(403).send({ error: 'Nur der Gruppen-Owner kann die Gruppe auflösen' });
 
       const memberCount = await fastify.prisma.groupMember.count({ where: { groupId } });
-      if (memberCount > 1) return reply.code(409).send({ error: 'Gruppe hat noch weitere Mitglieder' });
+      if (memberCount > 1)
+        return reply.code(409).send({ error: 'Gruppe hat noch weitere Mitglieder' });
 
       // Letzte Gruppe prüfen
       const userGroupCount = await fastify.prisma.groupMember.count({ where: { userId } });
-      if (userGroupCount <= 1) return reply.code(409).send({ error: 'Du kannst deine letzte Gruppe nicht auflösen' });
+      if (userGroupCount <= 1)
+        return reply.code(409).send({ error: 'Du kannst deine letzte Gruppe nicht auflösen' });
 
       // Backup erstellen
       const photos = await fastify.prisma.photo.findMany({
         where: { groupId },
         select: { path: true, filename: true },
       });
-      const actingUser = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { name: true, username: true } });
+      const actingUser = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, username: true },
+      });
       const deletedByName = actingUser?.name || actingUser?.username || null;
       let backupUrl = null;
       let zipKey = null;
@@ -477,7 +548,15 @@ export default async function groupsRoutes(fastify) {
         const stat = await getBackupStat(zipKey).catch(() => null);
         const sizeBytes = stat?.size ?? null;
         await fastify.prisma.groupBackup.create({
-          data: { zipKey, groupId, groupName: group.name, photoCount, linkExpiry, deletedByName, sizeBytes },
+          data: {
+            zipKey,
+            groupId,
+            groupName: group.name,
+            photoCount,
+            linkExpiry,
+            deletedByName,
+            sizeBytes,
+          },
         });
       }
 
@@ -490,9 +569,14 @@ export default async function groupsRoutes(fastify) {
       await fastify.prisma.groupMember.deleteMany({ where: { groupId } });
       await fastify.prisma.group.delete({ where: { id: groupId } });
 
-      await deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean));
+      await deleteGroupPhotoObjects(photos.map((p) => p.path).filter(Boolean));
 
-      return { status: 'dissolved', backupUrl, count: photoCount, linkExpiry: photos.length > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null };
+      return {
+        status: 'dissolved',
+        backupUrl,
+        count: photoCount,
+        linkExpiry: photos.length > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
+      };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Gruppe auflösen fehlgeschlagen' });
@@ -513,11 +597,11 @@ export default async function groupsRoutes(fastify) {
 
   // GET /api/groups/admin/all - Alle Gruppen (Admin)
   fastify.get('/admin/all', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const groups = await fastify.prisma.group.findMany({
         orderBy: { createdAt: 'asc' },
-        include: { _count: { select: { members: true, photos: true } } }
+        include: { _count: { select: { members: true, photos: true } } },
       });
       return { groups };
     } catch (err) {
@@ -528,13 +612,15 @@ export default async function groupsRoutes(fastify) {
 
   // POST /api/groups/admin/create - Neue Gruppe erstellen (Admin)
   fastify.post('/admin/create', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const { name, code } = request.body;
       const hasMaxMembers = hasOwn(request.body || {}, 'maxMembers');
       const hasMemberLimitLocked = hasOwn(request.body || {}, 'memberLimitLocked');
       if (!name || !code) return reply.code(400).send({ error: 'name und code erforderlich' });
-      const existing = await fastify.prisma.group.findUnique({ where: { code: code.toUpperCase() } });
+      const existing = await fastify.prisma.group.findUnique({
+        where: { code: code.toUpperCase() },
+      });
       if (existing) return reply.code(409).send({ error: 'Code bereits vergeben' });
 
       let maxMembers = null;
@@ -543,7 +629,9 @@ export default async function groupsRoutes(fastify) {
         if (parsedMaxMembers.error) return reply.code(400).send({ error: parsedMaxMembers.error });
         maxMembers = parsedMaxMembers.value;
         if (maxMembers !== null && (maxMembers < 1 || maxMembers > 50)) {
-          return reply.code(400).send({ error: 'maxMembers muss zwischen 1 und 50 liegen oder null sein' });
+          return reply
+            .code(400)
+            .send({ error: 'maxMembers muss zwischen 1 und 50 liegen oder null sein' });
         }
       }
 
@@ -562,7 +650,7 @@ export default async function groupsRoutes(fastify) {
           createdBy: null,
           maxMembers,
           memberLimitLocked,
-        }
+        },
       });
       return group;
     } catch (err) {
@@ -573,22 +661,22 @@ export default async function groupsRoutes(fastify) {
 
   // GET /api/groups/admin/:id/stranded-members - User ohne andere Gruppe
   fastify.get('/admin/:id/stranded-members', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const members = await fastify.prisma.groupMember.findMany({
         where: { groupId: request.params.id },
         select: { userId: true, user: { select: { id: true, name: true, username: true } } },
       });
-      const userIds = members.map(m => m.userId);
+      const userIds = members.map((m) => m.userId);
       const counts = await fastify.prisma.groupMember.groupBy({
         by: ['userId'],
         where: { userId: { in: userIds } },
         _count: { groupId: true },
       });
-      const strandedIds = new Set(counts.filter(r => r._count.groupId <= 1).map(r => r.userId));
+      const strandedIds = new Set(counts.filter((r) => r._count.groupId <= 1).map((r) => r.userId));
       const stranded = members
-        .filter(m => strandedIds.has(m.userId))
-        .map(m => ({ id: m.userId, name: m.user.name || m.user.username }));
+        .filter((m) => strandedIds.has(m.userId))
+        .map((m) => ({ id: m.userId, name: m.user.name || m.user.username }));
       return { stranded };
     } catch (err) {
       fastify.log.error(err);
@@ -598,19 +686,21 @@ export default async function groupsRoutes(fastify) {
 
   // PATCH /api/groups/admin/:id - Gruppe bearbeiten (Admin)
   fastify.patch('/admin/:id', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const { name, code } = request.body;
       const hasMaxMembers = hasOwn(request.body || {}, 'maxMembers');
       const hasMemberLimitLocked = hasOwn(request.body || {}, 'memberLimitLocked');
 
       if (!name && !code && !hasMaxMembers && !hasMemberLimitLocked) {
-        return reply.code(400).send({ error: 'name, code, maxMembers oder memberLimitLocked erforderlich' });
+        return reply
+          .code(400)
+          .send({ error: 'name, code, maxMembers oder memberLimitLocked erforderlich' });
       }
 
       if (code) {
         const existing = await fastify.prisma.group.findFirst({
-          where: { code: code.toUpperCase(), NOT: { id: request.params.id } }
+          where: { code: code.toUpperCase(), NOT: { id: request.params.id } },
         });
         if (existing) return reply.code(409).send({ error: 'Code bereits vergeben' });
       }
@@ -629,9 +719,13 @@ export default async function groupsRoutes(fastify) {
             return reply.code(400).send({ error: 'maxMembers darf maximal 50 sein' });
           }
 
-          const memberCount = await fastify.prisma.groupMember.count({ where: { groupId: request.params.id } });
+          const memberCount = await fastify.prisma.groupMember.count({
+            where: { groupId: request.params.id },
+          });
           if (maxMembers < memberCount) {
-            return reply.code(400).send({ error: `maxMembers muss mindestens ${memberCount} sein` });
+            return reply
+              .code(400)
+              .send({ error: `maxMembers muss mindestens ${memberCount} sein` });
           }
         }
 
@@ -655,15 +749,21 @@ export default async function groupsRoutes(fastify) {
 
   // POST /api/groups/admin/:id/backup - ZIP-Backup erstellen ohne Gruppe zu löschen
   fastify.post('/admin/:id/backup', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
-      const group = await fastify.prisma.group.findUnique({ where: { id: request.params.id }, select: { name: true } });
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: request.params.id },
+        select: { name: true },
+      });
       const photos = await fastify.prisma.photo.findMany({
         where: { groupId: request.params.id },
         select: { path: true, filename: true },
       });
       if (!photos.length) return { backupUrl: null, count: 0 };
-      const adminUser = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+      const adminUser = await fastify.prisma.user.findUnique({
+        where: { id: request.user.id },
+        select: { name: true, username: true },
+      });
       const deletedByName = adminUser?.name || adminUser?.username || null;
       const zipKey = await createGroupBackupZip(request.params.id, photos);
       const backupUrl = `/api/groups/admin/backup/${encodeURIComponent(zipKey)}`;
@@ -671,7 +771,15 @@ export default async function groupsRoutes(fastify) {
       const stat = await getBackupStat(zipKey).catch(() => null);
       const sizeBytes = stat?.size ?? null;
       await fastify.prisma.groupBackup.create({
-        data: { zipKey, groupId: request.params.id, groupName: group?.name || '?', photoCount: photos.length, linkExpiry, deletedByName, sizeBytes },
+        data: {
+          zipKey,
+          groupId: request.params.id,
+          groupName: group?.name || '?',
+          photoCount: photos.length,
+          linkExpiry,
+          deletedByName,
+          sizeBytes,
+        },
       });
       return { backupUrl, count: photos.length, linkExpiry };
     } catch (err) {
@@ -682,48 +790,54 @@ export default async function groupsRoutes(fastify) {
 
   // GET /api/groups/admin/backup/:zipKey - ZIP-Datei streamen (proxy zu MinIO)
   // Öffentlich — kein Auth nötig. Der zipKey selbst ist das Geheimnis (unguessable ID).
-  fastify.get('/admin/backup/:zipKey', {
-    config: {
-      rateLimit: {
-        max: 10,
-        timeWindow: '1 minute',
+  fastify.get(
+    '/admin/backup/:zipKey',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+        },
       },
     },
-  }, async (request, reply) => {
-    try {
-      const zipKey = decodeURIComponent(request.params.zipKey);
-      const record = await fastify.prisma.groupBackup.findUnique({ where: { zipKey } });
-      if (!record) return reply.code(404).send({ error: 'Backup nicht gefunden' });
-      if (record.linkExpiry < new Date()) {
-        return reply.code(410).send({ error: 'Dieser Download-Link ist abgelaufen.' });
+    async (request, reply) => {
+      try {
+        const zipKey = decodeURIComponent(request.params.zipKey);
+        const record = await fastify.prisma.groupBackup.findUnique({ where: { zipKey } });
+        if (!record) return reply.code(404).send({ error: 'Backup nicht gefunden' });
+        if (record.linkExpiry < new Date()) {
+          return reply.code(410).send({ error: 'Dieser Download-Link ist abgelaufen.' });
+        }
+        const stat = await getBackupStat(zipKey);
+        const stream = await getBackupStream(zipKey);
+        reply
+          .header('Content-Type', 'application/zip')
+          .header('Content-Length', stat.size)
+          .header('Content-Disposition', `attachment; filename="${zipKey}"`)
+          .header('Cache-Control', 'private, no-store');
+        return reply.send(stream);
+      } catch (err) {
+        fastify.log.error(err);
+        return reply.code(404).send({ error: 'Backup nicht gefunden' });
       }
-      const stat = await getBackupStat(zipKey);
-      const stream = await getBackupStream(zipKey);
-      reply
-        .header('Content-Type', 'application/zip')
-        .header('Content-Length', stat.size)
-        .header('Content-Disposition', `attachment; filename="${zipKey}"`)
-        .header('Cache-Control', 'private, no-store');
-      return reply.send(stream);
-    } catch (err) {
-      fastify.log.error(err);
-      return reply.code(404).send({ error: 'Backup nicht gefunden' });
     }
-  });
+  );
 
   // GET /api/groups/admin/backups - Alle Backups auflisten
   fastify.get('/admin/backups', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const backups = await fastify.prisma.groupBackup.findMany({
         orderBy: { createdAt: 'desc' },
       });
-      return { backups: backups.map(b => ({
-        ...b,
-        sizeBytes: b.sizeBytes ? Number(b.sizeBytes) : null,
-        downloadUrl: `/api/groups/admin/backup/${encodeURIComponent(b.zipKey)}`,
-        expired: b.linkExpiry < new Date(),
-      })) };
+      return {
+        backups: backups.map((b) => ({
+          ...b,
+          sizeBytes: b.sizeBytes ? Number(b.sizeBytes) : null,
+          downloadUrl: `/api/groups/admin/backup/${encodeURIComponent(b.zipKey)}`,
+          expired: b.linkExpiry < new Date(),
+        })),
+      };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Fehler beim Laden der Backups' });
@@ -732,11 +846,14 @@ export default async function groupsRoutes(fastify) {
 
   // POST /api/groups/admin/backups/:zipKey/refresh - Link verlängern (+30 Tage)
   fastify.post('/admin/backups/:zipKey/refresh', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const zipKey = decodeURIComponent(request.params.zipKey);
       const linkExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      const record = await fastify.prisma.groupBackup.update({ where: { zipKey }, data: { linkExpiry } });
+      const record = await fastify.prisma.groupBackup.update({
+        where: { zipKey },
+        data: { linkExpiry },
+      });
       return { linkExpiry: record.linkExpiry };
     } catch (err) {
       fastify.log.error(err);
@@ -746,7 +863,7 @@ export default async function groupsRoutes(fastify) {
 
   // DELETE /api/groups/admin/backups/:zipKey - Backup final löschen (MinIO + DB)
   fastify.delete('/admin/backups/:zipKey', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
       const zipKey = decodeURIComponent(request.params.zipKey);
       await deleteBackupObject(zipKey);
@@ -760,9 +877,12 @@ export default async function groupsRoutes(fastify) {
 
   // DELETE /api/groups/admin/:id - Gruppe löschen (Admin)
   fastify.delete('/admin/:id', async (request, reply) => {
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAdmin(request, reply))) return;
     try {
-      const group = await fastify.prisma.group.findUnique({ where: { id: request.params.id }, select: { name: true, createdBy: true } });
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: request.params.id },
+        select: { name: true, createdBy: true },
+      });
       // Fotos vor dem Löschen laden (für ZIP + MinIO-Cleanup)
       const photos = await fastify.prisma.photo.findMany({
         where: { groupId: request.params.id },
@@ -770,7 +890,10 @@ export default async function groupsRoutes(fastify) {
       });
 
       // ZIP-Backup in MinIO erstellen + DB-Record speichern
-      const adminUser = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+      const adminUser = await fastify.prisma.user.findUnique({
+        where: { id: request.user.id },
+        select: { name: true, username: true },
+      });
       const deletedByName = adminUser?.name || adminUser?.username || null;
       let backupUrl = null;
       if (photos.length > 0) {
@@ -780,7 +903,15 @@ export default async function groupsRoutes(fastify) {
         const stat = await getBackupStat(zipKey).catch(() => null);
         const sizeBytes = stat?.size ?? null;
         await fastify.prisma.groupBackup.create({
-          data: { zipKey, groupId: request.params.id, groupName: group?.name || '?', photoCount: photos.length, linkExpiry, deletedByName, sizeBytes },
+          data: {
+            zipKey,
+            groupId: request.params.id,
+            groupName: group?.name || '?',
+            photoCount: photos.length,
+            linkExpiry,
+            deletedByName,
+            sizeBytes,
+          },
         });
       }
 
@@ -800,28 +931,35 @@ export default async function groupsRoutes(fastify) {
       await fastify.prisma.group.deleteMany({ where: { id: request.params.id } });
 
       // MinIO-Foto-Objekte bereinigen
-      await deleteGroupPhotoObjects(photos.map(p => p.path).filter(Boolean));
+      await deleteGroupPhotoObjects(photos.map((p) => p.path).filter(Boolean));
 
       // Notifications an alle Mitglieder (fire-and-forget)
       const groupNameStr = group?.name || '?';
       const ownerId = group?.createdBy || null;
       for (const { userId } of groupMembers) {
         const isOwner = userId === ownerId;
-        const notifBody = backupUrl && isOwner
-          ? `Ein Administrator hat die Gruppe gelöscht. Deine Fotos wurden gesichert und können heruntergeladen werden.`
-          : backupUrl
-            ? `Ein Administrator hat die Gruppe gelöscht. Die Fotos wurden gesichert.`
-            : `Ein Administrator hat die Gruppe gelöscht. Es waren keine Fotos vorhanden.`;
+        const notifBody =
+          backupUrl && isOwner
+            ? `Ein Administrator hat die Gruppe gelöscht. Deine Fotos wurden gesichert und können heruntergeladen werden.`
+            : backupUrl
+              ? `Ein Administrator hat die Gruppe gelöscht. Die Fotos wurden gesichert.`
+              : `Ein Administrator hat die Gruppe gelöscht. Es waren keine Fotos vorhanden.`;
         createNotification(fastify.prisma, {
-          userId, type: 'groupDeleted',
+          userId,
+          type: 'groupDeleted',
           title: `Gruppe „${groupNameStr}" wurde gelöscht`,
           body: notifBody,
           entityType: 'group',
-          entityUrl: isOwner ? (backupUrl || undefined) : undefined,
+          entityUrl: isOwner ? backupUrl || undefined : undefined,
         }).catch(() => {});
       }
 
-      return { status: 'deleted', backupUrl, count: photos.length, linkExpiry: photos.length > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null };
+      return {
+        status: 'deleted',
+        backupUrl,
+        count: photos.length,
+        linkExpiry: photos.length > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
+      };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Löschen fehlgeschlagen' });
@@ -843,11 +981,12 @@ export default async function groupsRoutes(fastify) {
       });
 
       return {
-        deputies: deputies.map(d => ({
+        deputies: deputies.map((d) => ({
           ...d.user,
-          avatar: d.user.avatar && !d.user.avatar.startsWith('/api/')
-            ? `/api/auth/avatar/${d.user.id}`
-            : d.user.avatar,
+          avatar:
+            d.user.avatar && !d.user.avatar.startsWith('/api/')
+              ? `/api/auth/avatar/${d.user.id}`
+              : d.user.avatar,
         })),
       };
     } catch (err) {
@@ -866,7 +1005,10 @@ export default async function groupsRoutes(fastify) {
       const group = await fastify.prisma.group.findUnique({ where: { id: request.params.id } });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
-      const requester = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { role: true } });
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: request.user.id },
+        select: { role: true },
+      });
       const isAdmin = requester?.role === 'admin';
       if (group.createdBy !== request.user.id && !isAdmin) {
         return reply.code(403).send({ error: 'Nur der Gruppen-Owner kann Vertreter ernennen' });
@@ -879,7 +1021,8 @@ export default async function groupsRoutes(fastify) {
       const membership = await fastify.prisma.groupMember.findUnique({
         where: { userId_groupId: { userId, groupId: request.params.id } },
       });
-      if (!membership) return reply.code(400).send({ error: 'User ist kein Mitglied dieser Gruppe' });
+      if (!membership)
+        return reply.code(400).send({ error: 'User ist kein Mitglied dieser Gruppe' });
 
       await fastify.prisma.groupDeputy.upsert({
         where: { groupId_userId: { groupId: request.params.id, userId } },
@@ -894,15 +1037,20 @@ export default async function groupsRoutes(fastify) {
 
       // Notification an ernannten Deputy
       createNotification(fastify.prisma, {
-        userId, type: 'deputyAdded',
+        userId,
+        type: 'deputyAdded',
         title: `Du bist jetzt Vertreter in „${group.name}"`,
         body: `Du wurdest als Vertreter ernannt und hast erweiterte Rechte in dieser Gruppe.`,
-        entityId: group.id, entityType: 'group',
+        entityId: group.id,
+        entityType: 'group',
       }).catch(() => {});
 
       return {
         ...user,
-        avatar: user.avatar && !user.avatar.startsWith('/api/') ? `/api/auth/avatar/${user.id}` : user.avatar,
+        avatar:
+          user.avatar && !user.avatar.startsWith('/api/')
+            ? `/api/auth/avatar/${user.id}`
+            : user.avatar,
       };
     } catch (err) {
       fastify.log.error(err);
@@ -918,7 +1066,10 @@ export default async function groupsRoutes(fastify) {
       const group = await fastify.prisma.group.findUnique({ where: { id: request.params.id } });
       if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
 
-      const requester = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { role: true } });
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: request.user.id },
+        select: { role: true },
+      });
       const isAdmin = requester?.role === 'admin';
       if (group.createdBy !== request.user.id && !isAdmin) {
         return reply.code(403).send({ error: 'Nur der Gruppen-Owner kann Vertreter entfernen' });
@@ -930,10 +1081,12 @@ export default async function groupsRoutes(fastify) {
 
       // Notification an entfernten Deputy
       createNotification(fastify.prisma, {
-        userId: request.params.userId, type: 'deputyRemoved',
+        userId: request.params.userId,
+        type: 'deputyRemoved',
         title: `Vertreter-Rolle in „${group.name}" entzogen`,
         body: `Du bist nicht mehr Vertreter dieser Gruppe.`,
-        entityId: group.id, entityType: 'group',
+        entityId: group.id,
+        entityType: 'group',
       }).catch(() => {});
 
       return { status: 'removed' };

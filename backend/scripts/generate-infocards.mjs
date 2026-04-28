@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fs from "node:fs/promises";
-import path from "node:path";
-import process from "node:process";
-import sharp from "sharp";
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import process from 'node:process';
+import sharp from 'sharp';
 
 const DEFAULT_SIZE = 1080;
 
@@ -22,76 +22,76 @@ const DESIGN_CONFIG = {
     bulletGap: 16,
   },
   typography: {
-    fontFamily: "Noto Sans, Segoe UI, Arial, sans-serif",
-    title: { size: 58, weight: 700, lineHeight: 1.1, color: "#111827" },
-    subtitle: { size: 33, weight: 500, lineHeight: 1.2, color: "#374151" },
-    bullet: { size: 31, weight: 500, lineHeight: 1.28, color: "#111827" },
-    footer: { size: 25, weight: 600, lineHeight: 1.2, color: "#1f2937" },
-    icon: { size: 70, weight: 700, lineHeight: 1.0, color: "#111827" },
+    fontFamily: 'Noto Sans, Segoe UI, Arial, sans-serif',
+    title: { size: 58, weight: 700, lineHeight: 1.1, color: '#111827' },
+    subtitle: { size: 33, weight: 500, lineHeight: 1.2, color: '#374151' },
+    bullet: { size: 31, weight: 500, lineHeight: 1.28, color: '#111827' },
+    footer: { size: 25, weight: 600, lineHeight: 1.2, color: '#1f2937' },
+    icon: { size: 70, weight: 700, lineHeight: 1.0, color: '#111827' },
   },
   variants: {
     update: {
-      canvasBg: "#EAF2FF",
-      canvasBgTo: "#F8FAFF",
-      cardBg: "#FFFFFF",
-      accent: "#2F6BFF",
-      iconBg: "#DBE8FF",
-      footerBg: "#E5EEFF",
+      canvasBg: '#EAF2FF',
+      canvasBgTo: '#F8FAFF',
+      cardBg: '#FFFFFF',
+      accent: '#2F6BFF',
+      iconBg: '#DBE8FF',
+      footerBg: '#E5EEFF',
     },
     announcement: {
-      canvasBg: "#FFF4E8",
-      canvasBgTo: "#FFF9F1",
-      cardBg: "#FFFFFF",
-      accent: "#E46B21",
-      iconBg: "#FFE8D4",
-      footerBg: "#FFECD9",
+      canvasBg: '#FFF4E8',
+      canvasBgTo: '#FFF9F1',
+      cardBg: '#FFFFFF',
+      accent: '#E46B21',
+      iconBg: '#FFE8D4',
+      footerBg: '#FFECD9',
     },
     tip: {
-      canvasBg: "#EBF8F0",
-      canvasBgTo: "#F7FCF9",
-      cardBg: "#FFFFFF",
-      accent: "#1E8D54",
-      iconBg: "#DDF5E7",
-      footerBg: "#E2F7EA",
+      canvasBg: '#EBF8F0',
+      canvasBgTo: '#F7FCF9',
+      cardBg: '#FFFFFF',
+      accent: '#1E8D54',
+      iconBg: '#DDF5E7',
+      footerBg: '#E2F7EA',
     },
   },
 };
 
 function parseArgs(argv) {
   const args = {
-    input: "scripts/infocards.json",
-    output: "generated/infocards",
+    input: 'scripts/infocards.json',
+    output: 'generated/infocards',
     size: DEFAULT_SIZE,
-    appIcon: "public/media/icon-512x512.png",
+    appIcon: 'public/media/icon-512x512.png',
   };
 
   for (let i = 0; i < argv.length; i += 1) {
     const current = argv[i];
     const next = argv[i + 1];
 
-    if (current === "--input" && next) {
+    if (current === '--input' && next) {
       args.input = next;
       i += 1;
       continue;
     }
 
-    if (current === "--output" && next) {
+    if (current === '--output' && next) {
       args.output = next;
       i += 1;
       continue;
     }
 
-    if (current === "--size" && next) {
+    if (current === '--size' && next) {
       const parsed = Number.parseInt(next, 10);
       if (!Number.isFinite(parsed) || parsed < 320) {
-        throw new Error("--size muss eine Zahl >= 320 sein.");
+        throw new Error('--size muss eine Zahl >= 320 sein.');
       }
       args.size = parsed;
       i += 1;
       continue;
     }
 
-    if (current === "--app-icon" && next) {
+    if (current === '--app-icon' && next) {
       args.appIcon = next;
       i += 1;
       continue;
@@ -102,12 +102,12 @@ function parseArgs(argv) {
 }
 
 function slugifyName(name) {
-  return String(name || "karte")
+  return String(name || 'karte')
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 function normalizeCards(raw) {
@@ -123,7 +123,7 @@ function normalizeCards(raw) {
 }
 
 function validateCard(card, index) {
-  const required = ["name", "variant", "icon", "title", "subtitle", "bullets", "footer"];
+  const required = ['name', 'variant', 'icon', 'title', 'subtitle', 'bullets', 'footer'];
   for (const key of required) {
     if (card[key] === undefined || card[key] === null) {
       throw new Error(`Datensatz #${index + 1}: Feld '${key}' fehlt.`);
@@ -136,7 +136,7 @@ function validateCard(card, index) {
 }
 
 function ensureVariant(variantKey) {
-  const fallback = "update";
+  const fallback = 'update';
   if (DESIGN_CONFIG.variants[variantKey]) {
     return variantKey;
   }
@@ -212,13 +212,13 @@ async function renderTextBlock(text, options) {
 
   const pngBuffer = await sharp({
     text: {
-      text: String(text ?? ""),
+      text: String(text ?? ''),
       rgba: true,
       width,
       font: `${fontFamily} ${fontWeight} ${fontSize}px`,
-      align: "left",
+      align: 'left',
       spacing,
-      wrap: "word",
+      wrap: 'word',
       dpi: 220,
     },
   })
@@ -306,7 +306,7 @@ async function buildLayout({ card, size, variant }) {
       lineHeight: typography.footer.lineHeight,
     });
 
-    const icon = await renderTextBlock(card.icon || "i", {
+    const icon = await renderTextBlock(card.icon || 'i', {
       width: 84,
       fontSize: typography.icon.size,
       fontWeight: typography.icon.weight,
@@ -317,7 +317,7 @@ async function buildLayout({ card, size, variant }) {
 
     const footerHeight = Math.max(
       DESIGN_CONFIG.footerMinHeight,
-      footer.height + DESIGN_CONFIG.footerPaddingY * 2,
+      footer.height + DESIGN_CONFIG.footerPaddingY * 2
     );
 
     const footerY = margin + cardHeight - DESIGN_CONFIG.cardPadding - footerHeight;
@@ -389,7 +389,7 @@ async function buildLayout({ card, size, variant }) {
     lineHeight: typography.footer.lineHeight,
   });
 
-  const icon = await renderTextBlock(card.icon || "i", {
+  const icon = await renderTextBlock(card.icon || 'i', {
     width: 84,
     fontSize: typography.icon.size,
     fontWeight: typography.icon.weight,
@@ -400,7 +400,7 @@ async function buildLayout({ card, size, variant }) {
 
   const footerHeight = Math.max(
     DESIGN_CONFIG.footerMinHeight,
-    footer.height + DESIGN_CONFIG.footerPaddingY * 2,
+    footer.height + DESIGN_CONFIG.footerPaddingY * 2
   );
   const footerY = margin + cardHeight - DESIGN_CONFIG.cardPadding - footerHeight;
 
@@ -426,7 +426,8 @@ async function buildLayout({ card, size, variant }) {
       lineHeight: typography.bullet.lineHeight,
     });
 
-    const next = used + block.height + (bulletBlocks.length > 0 ? DESIGN_CONFIG.contentGap.bulletGap : 0);
+    const next =
+      used + block.height + (bulletBlocks.length > 0 ? DESIGN_CONFIG.contentGap.bulletGap : 0);
     if (next > bulletAreaHeight) {
       break;
     }
@@ -436,7 +437,7 @@ async function buildLayout({ card, size, variant }) {
   }
 
   if (bulletBlocks.length < card.bullets.length) {
-    const ellipsis = await renderTextBlock("• ...", {
+    const ellipsis = await renderTextBlock('• ...', {
       width: contentWidth,
       fontSize: typography.bullet.size,
       fontWeight: typography.bullet.weight,
@@ -445,7 +446,8 @@ async function buildLayout({ card, size, variant }) {
       lineHeight: typography.bullet.lineHeight,
     });
 
-    const next = used + ellipsis.height + (bulletBlocks.length > 0 ? DESIGN_CONFIG.contentGap.bulletGap : 0);
+    const next =
+      used + ellipsis.height + (bulletBlocks.length > 0 ? DESIGN_CONFIG.contentGap.bulletGap : 0);
     if (next <= bulletAreaHeight) {
       bulletBlocks.push(ellipsis);
     }
@@ -484,7 +486,11 @@ async function createCardImage({ card, size, appIconBuffer }) {
 
   const overlays = [];
 
-  overlays.push({ input: makeGradientOverlay(size, variant.canvasBg, variant.canvasBgTo), top: 0, left: 0 });
+  overlays.push({
+    input: makeGradientOverlay(size, variant.canvasBg, variant.canvasBgTo),
+    top: 0,
+    left: 0,
+  });
   overlays.push({ input: makeCardLayer(size, variant), top: 0, left: 0 });
 
   const iconBubble = makeIconBubbleLayer(size, variant);
@@ -492,8 +498,10 @@ async function createCardImage({ card, size, appIconBuffer }) {
 
   const layout = await buildLayout({ card, size, variant });
 
-  const iconTextLeft = iconBubble.x + Math.round((iconBubble.bubbleSize - Math.min(layout.icon.width, 72)) / 2);
-  const iconTextTop = iconBubble.y + Math.round((iconBubble.bubbleSize - layout.icon.height) / 2) - 2;
+  const iconTextLeft =
+    iconBubble.x + Math.round((iconBubble.bubbleSize - Math.min(layout.icon.width, 72)) / 2);
+  const iconTextTop =
+    iconBubble.y + Math.round((iconBubble.bubbleSize - layout.icon.height) / 2) - 2;
   overlays.push({ input: layout.icon.buffer, top: iconTextTop, left: iconTextLeft });
 
   let yCursor = layout.contentTop;
@@ -511,7 +519,14 @@ async function createCardImage({ card, size, appIconBuffer }) {
   }
 
   overlays.push({
-    input: makeFooterLayer(size, variant, layout.footerY, layout.footerHeight, layout.footerX, layout.footerWidth),
+    input: makeFooterLayer(
+      size,
+      variant,
+      layout.footerY,
+      layout.footerHeight,
+      layout.footerX,
+      layout.footerWidth
+    ),
     top: 0,
     left: 0,
   });
@@ -538,7 +553,7 @@ async function createCardImage({ card, size, appIconBuffer }) {
     overlays.push({ input: iconBackground, top: 0, left: 0 });
 
     const resizedAppIcon = await sharp(appIconBuffer)
-      .resize(appIconSize - 18, appIconSize - 18, { fit: "contain" })
+      .resize(appIconSize - 18, appIconSize - 18, { fit: 'contain' })
       .png()
       .toBuffer();
 
@@ -563,7 +578,7 @@ async function main() {
   const outputDir = path.resolve(cwd, args.output);
   const appIconPath = path.resolve(cwd, args.appIcon);
 
-  const raw = await fs.readFile(inputPath, "utf8");
+  const raw = await fs.readFile(inputPath, 'utf8');
   const cards = normalizeCards(JSON.parse(raw));
 
   await fs.mkdir(outputDir, { recursive: true });

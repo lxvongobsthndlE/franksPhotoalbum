@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+*.min.js
+.env*
+minio_data
+uploads
+public/media
+db

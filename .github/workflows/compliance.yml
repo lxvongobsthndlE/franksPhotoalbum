@@ -1,0 +1,161 @@
+
+name: Code Quality & Compliance
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches: [main, develop, feature/**]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Check formatting with Prettier
+        working-directory: backend
+        run: npm run format:check
+
+      - name: Lint with ESLint
+        working-directory: backend
+        run: npm run lint
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run tests with coverage
+        working-directory: backend
+        run: npm run test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  prisma:
+    name: Database Schema Validation
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "postgresql://user:password@localhost:5432/db"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Validate Prisma schema
+        working-directory: backend
+        run: npx prisma validate
+
+  docs-sync:
+    name: Documentation Sync Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if routes changed
+        id: routes_changed
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -qE '^backend/src/routes/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if docs updated when routes changed
+        if: steps.routes_changed.outputs.changed == 'true'
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -qE '^docs/'; then
+            echo "✅ Routes changed and docs updated"
+            exit 0
+          else
+            echo "❌ ERROR: Routes changed but docs NOT updated"
+            echo "Please update docs/ files when changing API routes"
+            exit 1
+          fi
+
+      - name: Check if schema changed
+        id: schema_changed
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -qE '^backend/prisma/schema.prisma'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if migration added when schema changed
+        if: steps.schema_changed.outputs.changed == 'true'
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -qE '^backend/prisma/migrations/'; then
+            echo "✅ Schema changed and migration created"
+            exit 0
+          else
+            echo "❌ ERROR: Schema changed but NO MIGRATION created"
+            echo "Run: npx prisma migrate dev --name <migration_name>"
+            exit 1
+          fi
+
+      - name: Check if datenbankschema.md updated when schema changed
+        if: steps.schema_changed.outputs.changed == 'true'
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -qE '^docs/datenbankschema.md'; then
+            echo "✅ Schema changed and docs/datenbankschema.md updated"
+            exit 0
+          else
+            echo "⚠️  WARNING: Schema changed but docs/datenbankschema.md NOT updated"
+            echo "Consider updating database documentation"
+          fi
+
+  summary:
+    name: Compliance Check Summary
+    runs-on: ubuntu-latest
+    needs: [lint, test, prisma, docs-sync]
+    if: always()
+    steps:
+      - name: Check all checks passed
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.prisma.result }}" != "success" ] || \
+             [ "${{ needs.docs-sync.result }}" != "success" ]; then
+            echo "❌ Some checks failed. See details above."
+            exit 1
+          fi
+          echo "✅ All compliance checks passed"
