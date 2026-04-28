@@ -52,9 +52,10 @@ function createSessionTokens(fastify, userId, email, username) {
 async function syncUserFromOIDC(fastify, userInfo) {
   const { email, preferred_username, name } = userInfo;
   const normalizedPreferredUsername = normalizePreferredUsername(preferred_username);
-  const authSourceClaim = (typeof userInfo?.auth_source === 'string' && userInfo.auth_source.trim())
-    ? userInfo.auth_source.trim().slice(0, 128)
-    : null;
+  const authSourceClaim =
+    typeof userInfo?.auth_source === 'string' && userInfo.auth_source.trim()
+      ? userInfo.auth_source.trim().slice(0, 128)
+      : null;
   // name: nur den echten name-Claim speichern, kein Fallback – null wenn nicht gesetzt
   const realName = name && name.trim() ? name.trim() : null;
 
