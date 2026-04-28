@@ -13,20 +13,29 @@ function _flushPhotoNotif(prisma, key) {
 
   const count = pending.photoIds.length;
   const title = `${count === 1 ? 'Neues Foto' : `${count} neue Fotos`} in „${pending.groupName}"`;
-  const body  = count === 1
-    ? `${pending.uploaderName} hat ein neues Foto hochgeladen.`
-    : `${pending.uploaderName} hat ${count} neue Fotos hochgeladen.`;
-  const entityId   = count === 1 ? pending.photoIds[0] : undefined;
+  const body =
+    count === 1
+      ? `${pending.uploaderName} hat ein neues Foto hochgeladen.`
+      : `${pending.uploaderName} hat ${count} neue Fotos hochgeladen.`;
+  const entityId = count === 1 ? pending.photoIds[0] : undefined;
   const entityType = count === 1 ? 'photo' : undefined;
 
   for (const userId of pending.memberIds) {
     createNotification(prisma, {
-      userId, type: 'newPhoto', title, body, entityId, entityType,
+      userId,
+      type: 'newPhoto',
+      title,
+      body,
+      entityId,
+      entityType,
     }).catch(() => {});
   }
 }
 
-function _schedulePhotoNotif(prisma, { uploaderId, groupId, photoId, uploaderName, groupName, memberIds }) {
+function _schedulePhotoNotif(
+  prisma,
+  { uploaderId, groupId, photoId, uploaderName, groupName, memberIds }
+) {
   const key = `${uploaderId}:${groupId}`;
   const existing = _pendingPhotoNotifs.get(key);
 
@@ -43,9 +52,15 @@ function _schedulePhotoNotif(prisma, { uploaderId, groupId, photoId, uploaderNam
 
 export default async function photosRoutes(fastify) {
   async function isGroupOwner(groupId, userId) {
-    const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     if (user?.role === 'admin') return true;
-    const group = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { createdBy: true } });
+    const group = await fastify.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { createdBy: true },
+    });
     return group?.createdBy === userId;
   }
 
@@ -57,7 +72,7 @@ export default async function photosRoutes(fastify) {
   }
 
   async function hasGroupAdminRights(groupId, userId) {
-    return await isGroupOwner(groupId, userId) || await isGroupDeputy(groupId, userId);
+    return (await isGroupOwner(groupId, userId)) || (await isGroupDeputy(groupId, userId));
   }
 
   // GET /api/photos - Liste Fotos mit Pagination + Likes/Comments-Counts
@@ -73,7 +88,7 @@ export default async function photosRoutes(fastify) {
       }
 
       const where = { groupId };
-      if (albumId)    where.albums = { some: { albumId } };
+      if (albumId) where.albums = { some: { albumId } };
       if (uploaderId) where.uploaderId = uploaderId;
 
       const orderDir = order === 'asc' ? 'asc' : 'desc';
@@ -82,43 +97,48 @@ export default async function photosRoutes(fastify) {
         fastify.prisma.photo.findMany({
           where,
           include: {
-            uploader: { select: { id: true, name: true, username: true, color: true, avatar: true } },
-            albums:   { select: { albumId: true } },
-            _count:   { select: { likes: true, comments: true } },
+            uploader: {
+              select: { id: true, name: true, username: true, color: true, avatar: true },
+            },
+            albums: { select: { albumId: true } },
+            _count: { select: { likes: true, comments: true } },
           },
           orderBy: { createdAt: orderDir },
-          skip:    parseInt(skip),
-          take:    parseInt(limit),
+          skip: parseInt(skip),
+          take: parseInt(limit),
         }),
         fastify.prisma.photo.count({ where }),
       ]);
 
       // Welche Fotos hat der aktuelle User geliked?
-      const photoIds = rawPhotos.map(p => p.id);
-      const myLikes  = photoIds.length
+      const photoIds = rawPhotos.map((p) => p.id);
+      const myLikes = photoIds.length
         ? await fastify.prisma.like.findMany({
             where: { photoId: { in: photoIds }, userId },
             select: { photoId: true },
           })
         : [];
-      const likedSet = new Set(myLikes.map(l => l.photoId));
+      const likedSet = new Set(myLikes.map((l) => l.photoId));
 
       // Proxy-URLs (kein direkter MinIO-Zugriff vom Client)
       const photos = rawPhotos.map((p) => ({
         ...p,
-        uploader: p.uploader ? {
-          ...p.uploader,
-          avatar: p.uploader.avatar && !p.uploader.avatar.startsWith('/api/')
-            ? `/api/auth/avatar/${p.uploader.id}`
-            : p.uploader.avatar,
-        } : p.uploader,
-        albums:    undefined,
-        albumIds:  p.albums.map(a => a.albumId),
-        _count:    undefined,
-        _likes:    p._count.likes,
+        uploader: p.uploader
+          ? {
+              ...p.uploader,
+              avatar:
+                p.uploader.avatar && !p.uploader.avatar.startsWith('/api/')
+                  ? `/api/auth/avatar/${p.uploader.id}`
+                  : p.uploader.avatar,
+            }
+          : p.uploader,
+        albums: undefined,
+        albumIds: p.albums.map((a) => a.albumId),
+        _count: undefined,
+        _likes: p._count.likes,
         _comments: p._count.comments,
-        _liked:    likedSet.has(p.id),
-        url:       `/api/photos/${p.id}/file`,
+        _liked: likedSet.has(p.id),
+        url: `/api/photos/${p.id}/file`,
       }));
 
       return { photos, total, hasMore: parseInt(skip) + photos.length < total };
@@ -168,10 +188,10 @@ export default async function photosRoutes(fastify) {
 
       const photo = await fastify.prisma.photo.create({
         data: {
-          uploaderId:  request.user.id,
+          uploaderId: request.user.id,
           groupId,
           filename,
-          path:        key,
+          path: key,
           description: description || null,
           ...(albumId ? { albums: { create: { albumId } } } : {}),
         },
@@ -185,16 +205,29 @@ export default async function photosRoutes(fastify) {
         where: { groupId },
         select: { userId: true },
       });
-      const uploaderUser = await fastify.prisma.user.findUnique({ where: { id: request.user.id }, select: { name: true, username: true } });
+      const uploaderUser = await fastify.prisma.user.findUnique({
+        where: { id: request.user.id },
+        select: { name: true, username: true },
+      });
       const uploaderName = uploaderUser?.name || uploaderUser?.username || 'Jemand';
-      const photoGroup = await fastify.prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
-      const memberIds = groupMembers.map(m => m.userId).filter(id => id !== request.user.id);
+      const photoGroup = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { name: true },
+      });
+      const memberIds = groupMembers.map((m) => m.userId).filter((id) => id !== request.user.id);
       _schedulePhotoNotif(fastify.prisma, {
-        uploaderId: request.user.id, groupId, photoId: photo.id,
-        uploaderName, groupName: photoGroup?.name || groupId, memberIds,
+        uploaderId: request.user.id,
+        groupId,
+        photoId: photo.id,
+        uploaderName,
+        groupName: photoGroup?.name || groupId,
+        memberIds,
       });
 
-      return { photo: { ...photo, albumIds: photo.albums.map(a => a.albumId), albums: undefined }, url };
+      return {
+        photo: { ...photo, albumIds: photo.albums.map((a) => a.albumId), albums: undefined },
+        url,
+      };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Upload fehlgeschlagen' });
@@ -205,27 +238,27 @@ export default async function photosRoutes(fastify) {
   fastify.delete('/:id', async (request, reply) => {
     try {
       await request.jwtVerify();
-      
+
       const photo = await fastify.prisma.photo.findUnique({
-        where: { id: request.params.id }
+        where: { id: request.params.id },
       });
-      
+
       if (!photo) {
         return reply.code(404).send({ error: 'Foto nicht gefunden' });
       }
-      
+
       // Nur Owner oder Admin kann löschen
       if (photo.uploaderId !== request.user.id) {
         return reply.code(403).send({ error: 'Du kannst nur deine eigenen Fotos löschen' });
       }
-      
+
       // MinIO-Objekt löschen
       try {
         await deletePhoto(photo.path);
       } catch (err) {
         fastify.log.warn('Could not delete object from MinIO:', err.message);
       }
-      
+
       // Lösche DB-Eintrag
       await fastify.prisma.photo.delete({ where: { id: request.params.id } });
 
@@ -249,13 +282,21 @@ export default async function photosRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: albumId } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
-      const user = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
       const isAdmin = user?.role === 'admin';
       const isCreator = album.createdBy === userId;
-      const isGroupAdmin = !isAdmin && !isCreator && await hasGroupAdminRights(album.groupId, userId);
-      const isContrib = !isAdmin && !isCreator && !isGroupAdmin && await fastify.prisma.albumContributor.findUnique({
-        where: { albumId_userId: { albumId, userId } },
-      });
+      const isGroupAdmin =
+        !isAdmin && !isCreator && (await hasGroupAdminRights(album.groupId, userId));
+      const isContrib =
+        !isAdmin &&
+        !isCreator &&
+        !isGroupAdmin &&
+        (await fastify.prisma.albumContributor.findUnique({
+          where: { albumId_userId: { albumId, userId } },
+        }));
       if (!isAdmin && !isCreator && !isGroupAdmin && !isContrib) {
         return reply.code(403).send({ error: 'Keine Berechtigung für dieses Album' });
       }
@@ -266,7 +307,7 @@ export default async function photosRoutes(fastify) {
         });
       } else {
         await fastify.prisma.photoAlbum.createMany({
-          data: photoIds.map(photoId => ({ photoId, albumId })),
+          data: photoIds.map((photoId) => ({ photoId, albumId })),
           skipDuplicates: true,
         });
       }
@@ -287,7 +328,10 @@ export default async function photosRoutes(fastify) {
 
       const { albumId, albumIds, description } = request.body;
       const userId = request.user.id;
-      const userRecord = await fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      const userRecord = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
       const isAdmin = userRecord?.role === 'admin';
 
       // Beschreibung darf nur der Uploader ändern
@@ -310,7 +354,7 @@ export default async function photosRoutes(fastify) {
 
       // albumId: toggle (add if not present, remove if present)
       if (albumId !== undefined) {
-        if (!await checkAlbumAccess(albumId)) {
+        if (!(await checkAlbumAccess(albumId))) {
           return reply.code(403).send({ error: 'Keine Berechtigung für dieses Album' });
         }
         const existing = await fastify.prisma.photoAlbum.findUnique({
@@ -329,14 +373,14 @@ export default async function photosRoutes(fastify) {
       if (albumIds !== undefined) {
         // Alle neuen albumIds auf Berechtigung prüfen
         for (const aid of albumIds) {
-          if (!await checkAlbumAccess(aid)) {
+          if (!(await checkAlbumAccess(aid))) {
             return reply.code(403).send({ error: `Keine Berechtigung für Album ${aid}` });
           }
         }
         await fastify.prisma.photoAlbum.deleteMany({ where: { photoId: photo.id } });
         if (albumIds.length > 0) {
           await fastify.prisma.photoAlbum.createMany({
-            data: albumIds.map(aid => ({ photoId: photo.id, albumId: aid })),
+            data: albumIds.map((aid) => ({ photoId: photo.id, albumId: aid })),
             skipDuplicates: true,
           });
         }
@@ -350,7 +394,7 @@ export default async function photosRoutes(fastify) {
         data: updateData,
         include: { albums: { select: { albumId: true } } },
       });
-      return { ...updated, albumIds: updated.albums.map(a => a.albumId), albums: undefined };
+      return { ...updated, albumIds: updated.albums.map((a) => a.albumId), albums: undefined };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Update fehlgeschlagen' });
@@ -363,7 +407,11 @@ export default async function photosRoutes(fastify) {
     try {
       const token = request.query.t;
       if (!token) return reply.code(401).send({ error: 'Unauthorized' });
-      try { fastify.jwt.verify(token); } catch { return reply.code(401).send({ error: 'Unauthorized' }); }
+      try {
+        fastify.jwt.verify(token);
+      } catch {
+        return reply.code(401).send({ error: 'Unauthorized' });
+      }
 
       const photo = await fastify.prisma.photo.findUnique({
         where: { id: request.params.id },
@@ -394,16 +442,16 @@ export default async function photosRoutes(fastify) {
           uploader: true,
           albums: { select: { albumId: true } },
           comments: { include: { user: true }, orderBy: { createdAt: 'asc' } },
-          likes: { include: { user: true } }
-        }
+          likes: { include: { user: true } },
+        },
       });
-      
+
       if (!photo) {
         return reply.code(404).send({ error: 'Foto nicht gefunden' });
       }
 
       const url = `/api/photos/${photo.id}/file`;
-      return { ...photo, albums: undefined, albumIds: photo.albums.map(a => a.albumId), url };
+      return { ...photo, albums: undefined, albumIds: photo.albums.map((a) => a.albumId), url };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Fehler beim Abrufen des Fotos' });

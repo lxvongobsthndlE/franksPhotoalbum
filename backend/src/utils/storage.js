@@ -1,20 +1,20 @@
 import { Client } from 'minio';
 
 let minioClient = null;
-let BUCKET_PHOTOS   = 'photos';
-let BUCKET_AVATARS  = 'avatars';
-let BUCKET_BACKUPS  = 'backups';
+let BUCKET_PHOTOS = 'photos';
+let BUCKET_AVATARS = 'avatars';
+let BUCKET_BACKUPS = 'backups';
 
 function getClient() {
   if (!minioClient) {
     minioClient = new Client({
-      endPoint:  process.env.MINIO_ENDPOINT,
-      port:      parseInt(process.env.MINIO_PORT) || 9000,
-      useSSL:    false,
+      endPoint: process.env.MINIO_ENDPOINT,
+      port: parseInt(process.env.MINIO_PORT) || 9000,
+      useSSL: false,
       accessKey: process.env.MINIO_ACCESS_KEY,
       secretKey: process.env.MINIO_SECRET_KEY,
     });
-    BUCKET_PHOTOS  = process.env.MINIO_BUCKET_PHOTOS  || 'photos';
+    BUCKET_PHOTOS = process.env.MINIO_BUCKET_PHOTOS || 'photos';
     BUCKET_AVATARS = process.env.MINIO_BUCKET_AVATARS || 'avatars';
     BUCKET_BACKUPS = process.env.MINIO_BUCKET_BACKUPS || 'backups';
   }
@@ -43,8 +43,8 @@ export async function initStorage() {
  * @returns {string} Der Object-Key (Pfad in MinIO).
  */
 export async function uploadPhoto(buffer, mimetype, originalFilename) {
-  const ext  = originalFilename?.split('.').pop()?.toLowerCase() || 'jpg';
-  const key  = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const ext = originalFilename?.split('.').pop()?.toLowerCase() || 'jpg';
+  const key = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   await getClient().putObject(BUCKET_PHOTOS, key, buffer, buffer.length, {
     'Content-Type': mimetype,
   });
@@ -134,7 +134,7 @@ export async function createGroupBackupZip(groupId, photos) {
   const buffer = await new Promise((resolve, reject) => {
     const archive = archiver('zip', { zlib: { level: 5 } });
     const chunks = [];
-    archive.on('data', d => chunks.push(d));
+    archive.on('data', (d) => chunks.push(d));
     archive.on('end', () => resolve(Buffer.concat(chunks)));
     archive.on('error', reject);
 
@@ -202,7 +202,9 @@ export async function listBackupObjects() {
   return new Promise((resolve, reject) => {
     const items = [];
     const stream = client.listObjects(BUCKET_BACKUPS, '', true);
-    stream.on('data', obj => items.push({ name: obj.name, size: obj.size, lastModified: obj.lastModified }));
+    stream.on('data', (obj) =>
+      items.push({ name: obj.name, size: obj.size, lastModified: obj.lastModified })
+    );
     stream.on('end', () => resolve(items));
     stream.on('error', reject);
   });

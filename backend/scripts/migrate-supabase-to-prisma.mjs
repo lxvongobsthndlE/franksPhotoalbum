@@ -52,7 +52,9 @@ function getLoginCredentials() {
   const password = parseArg('password', process.env.SUPABASE_LOGIN_PASSWORD || null);
 
   if (!email || !password) {
-    throw new Error('Missing login credentials. Use --email/--password or SUPABASE_LOGIN_EMAIL/SUPABASE_LOGIN_PASSWORD.');
+    throw new Error(
+      'Missing login credentials. Use --email/--password or SUPABASE_LOGIN_EMAIL/SUPABASE_LOGIN_PASSWORD.'
+    );
   }
 
   return { email, password };
@@ -63,7 +65,7 @@ function apiHeaders(apiKey, bearerToken = apiKey, extraHeaders = {}) {
     apikey: apiKey,
     Authorization: `Bearer ${bearerToken}`,
     Accept: 'application/json',
-    ...extraHeaders
+    ...extraHeaders,
   };
 }
 
@@ -83,7 +85,7 @@ async function fetchJson(url, options) {
     status: res.status,
     statusText: res.statusText,
     body,
-    headers: res.headers
+    headers: res.headers,
   };
 }
 
@@ -99,7 +101,11 @@ function slugify(input) {
 function generateUsername(email, displayName, fallbackId, used, preferredUsername = null) {
   const localPart = String(email || '').split('@')[0];
   const preferred = slugify(preferredUsername);
-  const base = preferred || slugify(localPart) || slugify(displayName) || `user_${String(fallbackId).slice(0, 8)}`;
+  const base =
+    preferred ||
+    slugify(localPart) ||
+    slugify(displayName) ||
+    `user_${String(fallbackId).slice(0, 8)}`;
   let candidate = base;
   let suffix = 1;
   while (used.has(candidate)) {
@@ -123,7 +129,7 @@ async function loginSupabase(baseUrl, anonKey, email, password) {
   const result = await fetchJson(url, {
     method: 'POST',
     headers: apiHeaders(anonKey, anonKey, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password }),
   });
 
   if (!result.ok) {
@@ -135,17 +141,25 @@ async function loginSupabase(baseUrl, anonKey, email, password) {
 
 async function fetchCurrentUser(baseUrl, anonKey, accessToken) {
   const result = await fetchJson(`${baseUrl}/auth/v1/user`, {
-    headers: apiHeaders(anonKey, accessToken)
+    headers: apiHeaders(anonKey, accessToken),
   });
 
   if (!result.ok) {
-    throw new Error(`Fetching current user failed (${result.status}): ${JSON.stringify(result.body)}`);
+    throw new Error(
+      `Fetching current user failed (${result.status}): ${JSON.stringify(result.body)}`
+    );
   }
 
   return result.body;
 }
 
-async function fetchAllVisibleRows(baseUrl, anonKey, accessToken, table, pageSize = DEFAULT_PAGE_SIZE) {
+async function fetchAllVisibleRows(
+  baseUrl,
+  anonKey,
+  accessToken,
+  table,
+  pageSize = DEFAULT_PAGE_SIZE
+) {
   const rows = [];
   let from = 0;
   let totalCount = null;
@@ -157,12 +171,14 @@ async function fetchAllVisibleRows(baseUrl, anonKey, accessToken, table, pageSiz
     const result = await fetchJson(url, {
       headers: apiHeaders(anonKey, accessToken, {
         Prefer: 'count=exact',
-        Range: `${from}-${from + pageSize - 1}`
-      })
+        Range: `${from}-${from + pageSize - 1}`,
+      }),
     });
 
     if (!result.ok) {
-      throw new Error(`Fetching ${table} failed (${result.status}): ${JSON.stringify(result.body)}`);
+      throw new Error(
+        `Fetching ${table} failed (${result.status}): ${JSON.stringify(result.body)}`
+      );
     }
 
     const batch = Array.isArray(result.body) ? result.body : [];
@@ -195,7 +211,7 @@ async function loadVisibleSupabaseData(baseUrl, anonKey, accessToken) {
     fetchAllVisibleRows(baseUrl, anonKey, accessToken, 'albums'),
     fetchAllVisibleRows(baseUrl, anonKey, accessToken, 'photos'),
     fetchAllVisibleRows(baseUrl, anonKey, accessToken, 'likes'),
-    fetchAllVisibleRows(baseUrl, anonKey, accessToken, 'comments')
+    fetchAllVisibleRows(baseUrl, anonKey, accessToken, 'comments'),
   ]);
 
   return {
@@ -206,11 +222,20 @@ async function loadVisibleSupabaseData(baseUrl, anonKey, accessToken) {
     albums,
     photos,
     likes,
-    comments
+    comments,
   };
 }
 
-function buildVisibleUserRows({ currentUser, profiles, groupMembers, albums, photos, likes, comments, usedUsernames }) {
+function buildVisibleUserRows({
+  currentUser,
+  profiles,
+  groupMembers,
+  albums,
+  photos,
+  likes,
+  comments,
+  usedUsernames,
+}) {
   const profileById = new Map(profiles.map((p) => [p.id, p]));
   const referencedUserIds = new Set([currentUser.id]);
 
@@ -225,16 +250,17 @@ function buildVisibleUserRows({ currentUser, profiles, groupMembers, albums, pho
   return [...referencedUserIds].map((userId) => {
     const profile = profileById.get(userId);
     const isCurrentUser = userId === currentUser.id;
-    const email = isCurrentUser
-      ? currentUser.email
-      : `${userId}@${placeholderDomain}`;
-    const displayName = profile?.name || (isCurrentUser ? currentUser.user_metadata?.display_name || currentUser.email : null);
+    const email = isCurrentUser ? currentUser.email : `${userId}@${placeholderDomain}`;
+    const displayName =
+      profile?.name ||
+      (isCurrentUser ? currentUser.user_metadata?.display_name || currentUser.email : null);
     const username = generateUsername(
       email,
       displayName,
       userId,
       usedUsernames,
-      profile?.name_lower || (isCurrentUser ? currentUser.user_metadata?.preferred_username || null : null)
+      profile?.name_lower ||
+        (isCurrentUser ? currentUser.user_metadata?.preferred_username || null : null)
     );
 
     return {
@@ -249,7 +275,7 @@ function buildVisibleUserRows({ currentUser, profiles, groupMembers, albums, pho
       migratedFrom: MIGRATION_SOURCE_HOST,
       migratedAt: MIGRATION_DATE_ISO,
       lastLoginAt: null,
-      createdAt: profile?.created_at || currentUser.created_at || new Date().toISOString()
+      createdAt: profile?.created_at || currentUser.created_at || new Date().toISOString(),
     };
   });
 }
@@ -285,14 +311,16 @@ function normalizeVisibleData(raw, currentUser) {
     photos,
     likes,
     comments,
-    photoAlbums
+    photoAlbums,
   };
 }
 
 function normalizeGroupCodes(groups) {
   return groups.map((group) => ({
     ...group,
-    code: String(group.code || '').trim().toUpperCase()
+    code: String(group.code || '')
+      .trim()
+      .toUpperCase(),
   }));
 }
 
@@ -316,14 +344,18 @@ function validateRefs({ users, groups, photos, albums, groupMembers, likes, comm
   const issues = [];
 
   for (const gm of groupMembers) {
-    if (!userIds.has(gm.user_id)) issues.push(`group_members.user_id missing in users: ${gm.user_id}`);
-    if (!groupIds.has(gm.group_id)) issues.push(`group_members.group_id missing in groups: ${gm.group_id}`);
+    if (!userIds.has(gm.user_id))
+      issues.push(`group_members.user_id missing in users: ${gm.user_id}`);
+    if (!groupIds.has(gm.group_id))
+      issues.push(`group_members.group_id missing in groups: ${gm.group_id}`);
   }
 
   for (const p of photos) {
-    if (!userIds.has(p.uploader_id)) issues.push(`photos.uploader_id missing in users: ${p.uploader_id}`);
+    if (!userIds.has(p.uploader_id))
+      issues.push(`photos.uploader_id missing in users: ${p.uploader_id}`);
     if (!groupIds.has(p.group_id)) issues.push(`photos.group_id missing in groups: ${p.group_id}`);
-    if (p.album_id && !albumIds.has(p.album_id)) issues.push(`photos.album_id missing in albums: ${p.album_id}`);
+    if (p.album_id && !albumIds.has(p.album_id))
+      issues.push(`photos.album_id missing in albums: ${p.album_id}`);
   }
 
   for (const l of likes) {
@@ -332,7 +364,8 @@ function validateRefs({ users, groups, photos, albums, groupMembers, likes, comm
   }
 
   for (const c of comments) {
-    if (!photoIds.has(c.photo_id)) issues.push(`comments.photo_id missing in photos: ${c.photo_id}`);
+    if (!photoIds.has(c.photo_id))
+      issues.push(`comments.photo_id missing in photos: ${c.photo_id}`);
     if (!userIds.has(c.user_id)) issues.push(`comments.user_id missing in users: ${c.user_id}`);
   }
 
@@ -387,7 +420,7 @@ async function getExistingTargetState(target) {
     groupIds: new Set(groups.rows.map((r) => r.id)),
     albumIds: new Set(albums.rows.map((r) => r.id)),
     photoIds: new Set(photos.rows.map((r) => r.id)),
-    photoPaths: new Set(photos.rows.map((r) => r.path))
+    photoPaths: new Set(photos.rows.map((r) => r.path)),
   };
 }
 
@@ -441,7 +474,7 @@ function applyUserIdMapping(raw, users, targetState) {
       email: existingTargetUser?.email || user.email,
       username: existingTargetUser?.username || user.username,
       // Keep existing target display name for mapped users.
-      name: existingTargetUser?.name || user.name
+      name: existingTargetUser?.name || user.name,
     };
     const current = mappedUsersById.get(mappedId);
     mappedUsersById.set(mappedId, pickPreferredUserRecord(current, mappedUser));
@@ -453,11 +486,14 @@ function applyUserIdMapping(raw, users, targetState) {
     users: [...mappedUsersById.values()],
     groups: raw.groups,
     groupMembers: raw.groupMembers.map((gm) => ({ ...gm, user_id: remap(gm.user_id) })),
-    albums: raw.albums.map((a) => ({ ...a, created_by: a.created_by ? remap(a.created_by) : a.created_by })),
+    albums: raw.albums.map((a) => ({
+      ...a,
+      created_by: a.created_by ? remap(a.created_by) : a.created_by,
+    })),
     photos: raw.photos.map((p) => ({ ...p, uploader_id: remap(p.uploader_id) })),
     photoAlbums: raw.photoAlbums,
     likes: raw.likes.map((l) => ({ ...l, user_id: remap(l.user_id) })),
-    comments: raw.comments.map((c) => ({ ...c, user_id: remap(c.user_id) }))
+    comments: raw.comments.map((c) => ({ ...c, user_id: remap(c.user_id) })),
   };
 
   return {
@@ -468,22 +504,13 @@ function applyUserIdMapping(raw, users, targetState) {
       remappedByEmail,
       remappedByUsername,
       sourceUsers: users.length,
-      effectiveUsers: remapped.users.length
-    }
+      effectiveUsers: remapped.users.length,
+    },
   };
 }
 
 async function insertAll(target, data, targetState) {
-  const {
-    users,
-    groups,
-    groupMembers,
-    albums,
-    photos,
-    photoAlbums,
-    likes,
-    comments
-  } = data;
+  const { users, groups, groupMembers, albums, photos, photoAlbums, likes, comments } = data;
 
   const inserted = {
     users: 0,
@@ -494,10 +521,13 @@ async function insertAll(target, data, targetState) {
     photoAlbums: 0,
     likes: 0,
     comments: 0,
-    skipped: 0
+    skipped: 0,
   };
 
-  const shouldAbortTransaction = (err) => String(err?.message || '').toLowerCase().includes('current transaction is aborted');
+  const shouldAbortTransaction = (err) =>
+    String(err?.message || '')
+      .toLowerCase()
+      .includes('current transaction is aborted');
 
   for (const u of users) {
     try {
@@ -513,7 +543,20 @@ async function insertAll(target, data, targetState) {
            "displayNameField" = excluded."displayNameField",
            "migratedFrom" = coalesce("User"."migratedFrom", excluded."migratedFrom"),
            "migratedAt" = coalesce("User"."migratedAt", excluded."migratedAt")`,
-        [u.id, u.email, u.username, u.name, u.color, u.avatar, u.displayNameField, u.role, u.migratedFrom, u.migratedAt, u.lastLoginAt, u.createdAt]
+        [
+          u.id,
+          u.email,
+          u.username,
+          u.name,
+          u.color,
+          u.avatar,
+          u.displayNameField,
+          u.role,
+          u.migratedFrom,
+          u.migratedAt,
+          u.lastLoginAt,
+          u.createdAt,
+        ]
       );
 
       // Create one system inbox message per migrated user (idempotent on reruns).
@@ -532,7 +575,7 @@ async function insertAll(target, data, targetState) {
           randomUUID(),
           u.id,
           'Dein Konto wurde migriert',
-          'Dein Benutzerkonto und deine Daten wurden erfolgreich aus Supabase in das neue Fotoalbum-System übernommen.'
+          'Dein Benutzerkonto und deine Daten wurden erfolgreich aus Supabase in das neue Fotoalbum-System übernommen.',
         ]
       );
 
@@ -614,7 +657,15 @@ async function insertAll(target, data, targetState) {
         `insert into "Photo" (id, "uploaderId", "groupId", filename, path, description, "createdAt")
          values ($1,$2,$3,$4,$5,$6,$7)
          on conflict do nothing`,
-        [p.id, p.uploader_id, p.group_id, p.filename || 'photo.jpg', p.storage_path, p.description, p.created_at || new Date().toISOString()]
+        [
+          p.id,
+          p.uploader_id,
+          p.group_id,
+          p.filename || 'photo.jpg',
+          p.storage_path,
+          p.description,
+          p.created_at || new Date().toISOString(),
+        ]
       );
       targetState.photoIds.add(p.id);
       targetState.photoPaths.add(p.storage_path);
@@ -701,7 +752,7 @@ function getMinioClient() {
     port,
     useSSL,
     accessKey,
-    secretKey
+    secretKey,
   });
 }
 
@@ -712,7 +763,15 @@ function encodePathForUrl(path) {
     .join('/');
 }
 
-async function copyOnePhotoToMinio({ minio, supabaseUrl, apiKey, bearerToken, sourceBucket, targetBucket, objectPath }) {
+async function copyOnePhotoToMinio({
+  minio,
+  supabaseUrl,
+  apiKey,
+  bearerToken,
+  sourceBucket,
+  targetBucket,
+  objectPath,
+}) {
   try {
     await minio.statObject(targetBucket, objectPath);
     return { status: 'exists' };
@@ -723,7 +782,7 @@ async function copyOnePhotoToMinio({ minio, supabaseUrl, apiKey, bearerToken, so
   const encodedPath = encodePathForUrl(objectPath);
   const url = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${sourceBucket}/${encodedPath}`;
   const res = await fetch(url, {
-    headers: apiHeaders(apiKey, bearerToken)
+    headers: apiHeaders(apiKey, bearerToken),
   });
 
   if (!res.ok) {
@@ -735,7 +794,7 @@ async function copyOnePhotoToMinio({ minio, supabaseUrl, apiKey, bearerToken, so
   const contentType = res.headers.get('content-type') || 'application/octet-stream';
 
   await minio.putObject(targetBucket, objectPath, buffer, buffer.length, {
-    'Content-Type': contentType
+    'Content-Type': contentType,
   });
 
   return { status: 'copied' };
@@ -759,7 +818,7 @@ async function migratePhotosToMinio(photos, authContext) {
         bearerToken: authContext.bearerToken,
         sourceBucket,
         targetBucket,
-        objectPath
+        objectPath,
       });
 
       if (result.status === 'copied') stats.copied += 1;
@@ -803,16 +862,7 @@ async function rollbackPhotosFromMinio(photos) {
 }
 
 async function rollbackAll(target, data) {
-  const {
-    users,
-    groups,
-    groupMembers,
-    albums,
-    photos,
-    photoAlbums,
-    likes,
-    comments
-  } = data;
+  const { users, groups, groupMembers, albums, photos, photoAlbums, likes, comments } = data;
 
   const stats = {
     notifications: 0,
@@ -825,7 +875,7 @@ async function rollbackAll(target, data) {
     albums: 0,
     groupDeputies: 0,
     groupMembers: 0,
-    groups: 0
+    groups: 0,
   };
 
   const userIds = [...new Set(users.map((u) => u.id))];
@@ -855,16 +905,18 @@ async function rollbackAll(target, data) {
   }
 
   for (const l of likes) {
-    const res = await target.query(
-      `delete from "Like" where "photoId" = $1 and "userId" = $2`,
-      [l.photo_id, l.user_id]
-    );
+    const res = await target.query(`delete from "Like" where "photoId" = $1 and "userId" = $2`, [
+      l.photo_id,
+      l.user_id,
+    ]);
     stats.likes += res.rowCount || 0;
   }
 
   if (comments.length) {
     const commentIds = comments.map((c) => c.id);
-    const res = await target.query(`delete from "Comment" where id = any($1::text[])`, [commentIds]);
+    const res = await target.query(`delete from "Comment" where id = any($1::text[])`, [
+      commentIds,
+    ]);
     stats.comments += res.rowCount || 0;
   }
 
@@ -882,15 +934,23 @@ async function rollbackAll(target, data) {
   }
 
   if (albumIds.length) {
-    const contribRes = await target.query(`delete from "AlbumContributor" where "albumId" = any($1::text[])`, [albumIds]);
+    const contribRes = await target.query(
+      `delete from "AlbumContributor" where "albumId" = any($1::text[])`,
+      [albumIds]
+    );
     stats.albumContributors += contribRes.rowCount || 0;
 
-    const albumRes = await target.query(`delete from "Album" where id = any($1::text[])`, [albumIds]);
+    const albumRes = await target.query(`delete from "Album" where id = any($1::text[])`, [
+      albumIds,
+    ]);
     stats.albums += albumRes.rowCount || 0;
   }
 
   if (groupIds.length) {
-    const deputyRes = await target.query(`delete from "GroupDeputy" where "groupId" = any($1::text[])`, [groupIds]);
+    const deputyRes = await target.query(
+      `delete from "GroupDeputy" where "groupId" = any($1::text[])`,
+      [groupIds]
+    );
     stats.groupDeputies += deputyRes.rowCount || 0;
   }
 
@@ -937,12 +997,27 @@ function sampleLines(items, formatter, limit = 10) {
   return items.slice(0, limit).map(formatter);
 }
 
-function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photoAlbums, likes, comments, issues, targetState, replaceMode, skipStorage }) {
+function buildDryRunDetails({
+  users,
+  groups,
+  groupMembers,
+  albums,
+  photos,
+  photoAlbums,
+  likes,
+  comments,
+  issues,
+  targetState,
+  replaceMode,
+  skipStorage,
+}) {
   const existingUserCount = users.filter((u) => targetState.userIds.has(u.id)).length;
   const existingGroupCount = groups.filter((g) => targetState.groupIds.has(g.id)).length;
   const existingAlbumCount = albums.filter((a) => targetState.albumIds.has(a.id)).length;
   const existingPhotoIdCount = photos.filter((p) => targetState.photoIds.has(p.id)).length;
-  const existingPhotoPathCount = photos.filter((p) => targetState.photoPaths.has(p.storage_path)).length;
+  const existingPhotoPathCount = photos.filter((p) =>
+    targetState.photoPaths.has(p.storage_path)
+  ).length;
 
   const photosPerGroup = new Map();
   for (const photo of photos) {
@@ -954,12 +1029,14 @@ function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photo
     albumCounts.set(rel.albumId, (albumCounts.get(rel.albumId) || 0) + 1);
   }
 
-  const usersWithoutRealEmail = users.filter((u) => u.email.endsWith(`@${getOptionalEnv('VISIBLE_IMPORT_EMAIL_DOMAIN', 'visible-import.local')}`));
+  const usersWithoutRealEmail = users.filter((u) =>
+    u.email.endsWith(`@${getOptionalEnv('VISIBLE_IMPORT_EMAIL_DOMAIN', 'visible-import.local')}`)
+  );
 
   printSection('Dry-run mode:', [
     `mode: login-visible-import`,
     `target strategy: ${replaceMode ? 'replace existing target data' : 'merge into existing target data'}`,
-    `storage step: ${skipStorage ? 'skipped' : 'would copy visible photos to MinIO'}`
+    `storage step: ${skipStorage ? 'skipped' : 'would copy visible photos to MinIO'}`,
   ]);
 
   printSection('Target overlap:', [
@@ -967,34 +1044,61 @@ function buildDryRunDetails({ users, groups, groupMembers, albums, photos, photo
     `existing groups by id: ${existingGroupCount}/${groups.length}`,
     `existing albums by id: ${existingAlbumCount}/${albums.length}`,
     `existing photos by id: ${existingPhotoIdCount}/${photos.length}`,
-    `existing photos by path: ${existingPhotoPathCount}/${photos.length}`
+    `existing photos by path: ${existingPhotoPathCount}/${photos.length}`,
   ]);
 
-  printSection('Groups:', sampleLines(groups, (g) => `${g.name} (${g.id}) code=${g.code} photos=${photosPerGroup.get(g.id) || 0}`));
-  printSection('Users:', sampleLines(users, (u) => `${u.name || '(no name)'} <${u.email}> username=${u.username}`));
-  printSection('Albums:', sampleLines(albums, (a) => `${a.name} (${a.id}) group=${a.group_id} photos=${albumCounts.get(a.id) || 0}`));
-  printSection('Photos:', sampleLines(photos, (p) => `${p.filename || 'photo.jpg'} id=${p.id} group=${p.group_id} path=${p.storage_path}`));
+  printSection(
+    'Groups:',
+    sampleLines(
+      groups,
+      (g) => `${g.name} (${g.id}) code=${g.code} photos=${photosPerGroup.get(g.id) || 0}`
+    )
+  );
+  printSection(
+    'Users:',
+    sampleLines(users, (u) => `${u.name || '(no name)'} <${u.email}> username=${u.username}`)
+  );
+  printSection(
+    'Albums:',
+    sampleLines(
+      albums,
+      (a) => `${a.name} (${a.id}) group=${a.group_id} photos=${albumCounts.get(a.id) || 0}`
+    )
+  );
+  printSection(
+    'Photos:',
+    sampleLines(
+      photos,
+      (p) => `${p.filename || 'photo.jpg'} id=${p.id} group=${p.group_id} path=${p.storage_path}`
+    )
+  );
 
   printSection('Relations:', [
     `group memberships: ${groupMembers.length}`,
     `photo-album links: ${photoAlbums.length}`,
     `likes: ${likes.length}`,
-    `comments: ${comments.length}`
+    `comments: ${comments.length}`,
   ]);
 
   if (usersWithoutRealEmail.length) {
-    printSection('Users with placeholder emails:', sampleLines(usersWithoutRealEmail, (u) => `${u.id} -> ${u.email}`));
+    printSection(
+      'Users with placeholder emails:',
+      sampleLines(usersWithoutRealEmail, (u) => `${u.id} -> ${u.email}`)
+    );
   }
 
   if (issues.length) {
-    printSection('Reference warnings:', sampleLines(issues, (issue) => issue, 20));
+    printSection(
+      'Reference warnings:',
+      sampleLines(issues, (issue) => issue, 20)
+    );
   }
 
   if (!skipStorage) {
     const uniquePaths = [...new Set(photos.map((p) => p.storage_path).filter(Boolean))];
     printSection('Storage preview:', [
       `objects considered: ${uniquePaths.length}`,
-      ...sampleLines(uniquePaths, (p) => p, 10)
+      ...sampleLines(uniquePaths, (p) => p, 10),
     ]);
   }
 }
@@ -1040,7 +1144,7 @@ async function main() {
 
     raw = {
       ...normalized,
-      authUsers: []
+      authUsers: [],
     };
     photoAlbums = normalized.photoAlbums;
     users = buildVisibleUserRows({
@@ -1051,11 +1155,11 @@ async function main() {
       photos: normalized.photos,
       likes: normalized.likes,
       comments: normalized.comments,
-      usedUsernames
+      usedUsernames,
     });
     storageAuthContext = {
       apiKey: anonKey,
-      bearerToken: session.access_token
+      bearerToken: session.access_token,
     };
 
     raw.groups = normalizeGroupCodes(raw.groups);
@@ -1071,15 +1175,19 @@ async function main() {
       }
     }
 
-    const { remapped, userMappingStats: mappingStats } = applyUserIdMapping({
-      groups: raw.groups,
-      groupMembers: raw.groupMembers,
-      albums: raw.albums,
-      photos: raw.photos,
-      photoAlbums,
-      likes: raw.likes,
-      comments: raw.comments
-    }, users, targetState);
+    const { remapped, userMappingStats: mappingStats } = applyUserIdMapping(
+      {
+        groups: raw.groups,
+        groupMembers: raw.groupMembers,
+        albums: raw.albums,
+        photos: raw.photos,
+        photoAlbums,
+        likes: raw.likes,
+        comments: raw.comments,
+      },
+      users,
+      targetState
+    );
     userMappingStats = mappingStats;
 
     users = remapped.users;
@@ -1090,7 +1198,7 @@ async function main() {
       albums: remapped.albums,
       photos: remapped.photos,
       likes: remapped.likes,
-      comments: remapped.comments
+      comments: remapped.comments,
     };
     photoAlbums = remapped.photoAlbums;
 
@@ -1101,7 +1209,7 @@ async function main() {
       albums: remapped.albums,
       groupMembers: remapped.groupMembers,
       likes: remapped.likes,
-      comments: remapped.comments
+      comments: remapped.comments,
     });
 
     if (issues.length > 0) {
@@ -1120,7 +1228,7 @@ async function main() {
       photos: raw.photos.length,
       photoAlbums: photoAlbums.length,
       likes: raw.likes.length,
-      comments: raw.comments.length
+      comments: raw.comments.length,
     };
 
     if (ROLLBACK_MODE) {
@@ -1137,7 +1245,7 @@ async function main() {
           `remapped to different existing user id by email: ${userMappingStats.remappedByEmail}`,
           `remapped to different existing user id by username: ${userMappingStats.remappedByUsername}`,
           `source users: ${userMappingStats.sourceUsers}`,
-          `effective users after merge: ${userMappingStats.effectiveUsers}`
+          `effective users after merge: ${userMappingStats.effectiveUsers}`,
         ]);
       }
       buildDryRunDetails({
@@ -1152,7 +1260,7 @@ async function main() {
         issues,
         targetState,
         replaceMode: REPLACE_MODE,
-        skipStorage: SKIP_STORAGE
+        skipStorage: SKIP_STORAGE,
       });
       if (ROLLBACK_MODE) {
         console.log('Dry-run mode enabled. Kein Rollback wurde ausgefuehrt.');
@@ -1178,19 +1286,23 @@ async function main() {
         photos: raw.photos,
         photoAlbums,
         likes: raw.likes,
-        comments: raw.comments
+        comments: raw.comments,
       });
     } else {
-      inserted = await insertAll(target, {
-        users,
-        groups: raw.groups,
-        groupMembers: raw.groupMembers,
-        albums: raw.albums,
-        photos: raw.photos,
-        photoAlbums,
-        likes: raw.likes,
-        comments: raw.comments
-      }, targetState);
+      inserted = await insertAll(
+        target,
+        {
+          users,
+          groups: raw.groups,
+          groupMembers: raw.groupMembers,
+          albums: raw.albums,
+          photos: raw.photos,
+          photoAlbums,
+          likes: raw.likes,
+          comments: raw.comments,
+        },
+        targetState
+      );
     }
 
     await target.query('commit');

@@ -54,13 +54,13 @@ export default async function changelogRoutes(fastify) {
 
   // GET /api/changelog/meta - App-Version für Sidebar
   fastify.get('/meta', async (request, reply) => {
-    if (!await requireAuth(request, reply)) return;
+    if (!(await requireAuth(request, reply))) return;
     return { appVersion: cachedAppVersion };
   });
 
   // GET /api/changelog - Changelog-Liste
   fastify.get('/', async (request, reply) => {
-    if (!await requireAuth(request, reply)) return;
+    if (!(await requireAuth(request, reply))) return;
 
     const parsedLimit = Number(request.query?.limit ?? 25);
     const limit = Number.isFinite(parsedLimit)
@@ -80,8 +80,8 @@ export default async function changelogRoutes(fastify) {
 
   // POST /api/changelog - Neuer Changelog-Eintrag (nur Admin)
   fastify.post('/', async (request, reply) => {
-    if (!await requireAuth(request, reply)) return;
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAuth(request, reply))) return;
+    if (!(await requireAdmin(request, reply))) return;
 
     const version = String(request.body?.version || '').trim();
     const title = String(request.body?.title || '').trim();
@@ -108,8 +108,8 @@ export default async function changelogRoutes(fastify) {
 
   // PATCH /api/changelog/:id - Changelog-Eintrag bearbeiten (nur Admin)
   fastify.patch('/:id', async (request, reply) => {
-    if (!await requireAuth(request, reply)) return;
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAuth(request, reply))) return;
+    if (!(await requireAdmin(request, reply))) return;
 
     const id = String(request.params?.id || '');
     const version = String(request.body?.version || '').trim();
@@ -136,8 +136,8 @@ export default async function changelogRoutes(fastify) {
 
   // DELETE /api/changelog/:id - Changelog-Eintrag löschen (nur Admin)
   fastify.delete('/:id', async (request, reply) => {
-    if (!await requireAuth(request, reply)) return;
-    if (!await requireAdmin(request, reply)) return;
+    if (!(await requireAuth(request, reply))) return;
+    if (!(await requireAdmin(request, reply))) return;
 
     const id = String(request.params?.id || '');
     const existing = await fastify.prisma.changelogEntry.findUnique({ where: { id } });

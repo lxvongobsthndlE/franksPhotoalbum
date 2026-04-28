@@ -21,7 +21,11 @@ function pushSse(userId, event, data) {
   if (!set) return;
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const reply of set) {
-    try { reply.raw.write(payload); } catch (_) { /* Tab geschlossen */ }
+    try {
+      reply.raw.write(payload);
+    } catch (_) {
+      /* Tab geschlossen */
+    }
   }
 }
 
@@ -30,8 +34,8 @@ let _transporter = null;
 function getTransporter() {
   if (_transporter) return _transporter;
   _transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST,
-    port:   Number(process.env.SMTP_PORT  || 587),
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
@@ -50,9 +54,7 @@ function resolveEmailAddress(email) {
   const catchAll = process.env.DEV_MAIL_CATCHALL; // z.B. "dev@example.de" oder "${local}@catchall.example.de"
   if (!catchAll) return null; // DEV ohne Catch-All → kein Versand
   const localPart = email.split('@')[0];
-  return catchAll.includes('${local}')
-    ? catchAll.replace('${local}', localPart)
-    : catchAll;
+  return catchAll.includes('${local}') ? catchAll.replace('${local}', localPart) : catchAll;
 }
 
 async function sendNotificationEmail(user, { title, body, entityUrl }) {
@@ -62,7 +64,7 @@ async function sendNotificationEmail(user, { title, body, entityUrl }) {
   if (!to) return; // DEV ohne Catch-All → kein Versand
   const isRedirected = !isProd && to !== user.email;
   const fromEmail = process.env.SMTP_USER;
-  const fromName  = process.env.SMTP_FROM || 'Franks Fotoalbum';
+  const fromName = process.env.SMTP_FROM || 'Franks Fotoalbum';
   const from = `"${fromName}" <${fromEmail}>`;
   const html = `
 <!DOCTYPE html>
@@ -125,7 +127,10 @@ async function sendNotificationEmail(user, { title, body, entityUrl }) {
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {{ userId: string, type: string, title: string, body: string, entityId?: string, entityType?: string, entityUrl?: string, imageUrl?: string }} params
  */
-export async function createNotification(prisma, { userId, type, title, body, entityId, entityType, entityUrl, imageUrl }) {
+export async function createNotification(
+  prisma,
+  { userId, type, title, body, entityId, entityType, entityUrl, imageUrl }
+) {
   // Präferenzen laden — falls noch kein Eintrag existiert, jetzt anlegen damit
   // die Prisma-Schema-Defaults (z.B. email_photoCommented=true) greifen.
   let prefs = await prisma.notificationPreference.findUnique({ where: { userId } });
@@ -168,7 +173,10 @@ export async function createNotification(prisma, { userId, type, title, body, en
   }
 
   if (doEmail) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true, username: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true, username: true },
+    });
     if (user) {
       // fire-and-forget
       sendNotificationEmail(user, { title, body, entityUrl }).catch(() => {});

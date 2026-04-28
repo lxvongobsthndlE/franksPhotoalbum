@@ -16,13 +16,13 @@
 
 ## Voraussetzungen
 
-| Dienst | Mindestversion | Zweck |
-|---|---|---|
-| Node.js | 22 | Backend-Runtime |
-| PostgreSQL | 14 | Primäre Datenbank |
-| MinIO | aktuell | Objektspeicher (Fotos, Avatare, Backups) |
-| Authentik | aktuell | OIDC-Provider |
-| Docker + Compose | v2 | Containerisierung (optional lokal, Pflicht Produktion) |
+| Dienst           | Mindestversion | Zweck                                                  |
+| ---------------- | -------------- | ------------------------------------------------------ |
+| Node.js          | 22             | Backend-Runtime                                        |
+| PostgreSQL       | 14             | Primäre Datenbank                                      |
+| MinIO            | aktuell        | Objektspeicher (Fotos, Avatare, Backups)               |
+| Authentik        | aktuell        | OIDC-Provider                                          |
+| Docker + Compose | v2             | Containerisierung (optional lokal, Pflicht Produktion) |
 
 ---
 
@@ -72,11 +72,11 @@ Wichtig: Der Dev-Runner maskiert MinIO-Credentials (`RootUser`, `RootPass`, `mc 
 
 Das Projekt enthält eine fertige `docker-compose.yml` mit drei Services:
 
-| Service | Image | Port (Host → Container) |
-|---|---|---|
-| `app` | Eigener Build (`./backend/Dockerfile`) | `3001 → 3000` |
-| `postgres` | `postgres:16-alpine` | `5433 → 5432` |
-| `minio` | `minio/minio:latest` | `9000 → 9000`, `9001 → 9001` |
+| Service    | Image                                  | Port (Host → Container)      |
+| ---------- | -------------------------------------- | ---------------------------- |
+| `app`      | Eigener Build (`./backend/Dockerfile`) | `3001 → 3000`                |
+| `postgres` | `postgres:16-alpine`                   | `5433 → 5432`                |
+| `minio`    | `minio/minio:latest`                   | `9000 → 9000`, `9001 → 9001` |
 
 ```bash
 # 1. Umgebungsvariablen vorbereiten
@@ -94,6 +94,7 @@ docker compose restart app
 ```
 
 **Startablauf:**
+
 1. `postgres` startet und meldet sich per Health-Check als bereit
 2. `app` wartet auf Postgres, führt dann automatisch `prisma migrate deploy` aus
 3. Fastify-Server lauscht intern auf Port 3000
@@ -141,59 +142,59 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker Compose)
 
 ### Datenbank
 
-| Variable | Beschreibung | Beispiel |
-|---|---|---|
+| Variable       | Beschreibung                 | Beispiel                                           |
+| -------------- | ---------------------------- | -------------------------------------------------- |
 | `DATABASE_URL` | PostgreSQL-Verbindungsstring | `postgresql://user:pass@localhost:5432/photoalbum` |
 
 ### JWT
 
-| Variable | Beschreibung | Hinweis |
-|---|---|---|
+| Variable     | Beschreibung                       | Hinweis                                    |
+| ------------ | ---------------------------------- | ------------------------------------------ |
 | `JWT_SECRET` | Signierschlüssel für Access Tokens | Mindestens 32 Zeichen, zufällig generieren |
 
 ### OIDC
 
-| Variable | Beschreibung | Beispiel |
-|---|---|---|
-| `OIDC_ISSUER` | Issuer-URL des OIDC-Providers | `https://auth.example.de/application/o/fotoalbum/` |
-| `OIDC_CLIENT_ID` | Client-ID in Authentik | `franks-fotoalbum` |
-| `OIDC_CLIENT_SECRET` | Client-Secret aus Authentik | – |
-| `OIDC_REDIRECT_URI_PROD` | Callback-URL (Produktion) | `https://photoalbum.example.de/auth/callback` |
-| `OIDC_REDIRECT_URI_DEV` | Callback-URL (Entwicklung) | `http://localhost:3000/auth/callback` |
+| Variable                 | Beschreibung                  | Beispiel                                           |
+| ------------------------ | ----------------------------- | -------------------------------------------------- |
+| `OIDC_ISSUER`            | Issuer-URL des OIDC-Providers | `https://auth.example.de/application/o/fotoalbum/` |
+| `OIDC_CLIENT_ID`         | Client-ID in Authentik        | `franks-fotoalbum`                                 |
+| `OIDC_CLIENT_SECRET`     | Client-Secret aus Authentik   | –                                                  |
+| `OIDC_REDIRECT_URI_PROD` | Callback-URL (Produktion)     | `https://photoalbum.example.de/auth/callback`      |
+| `OIDC_REDIRECT_URI_DEV`  | Callback-URL (Entwicklung)    | `http://localhost:3000/auth/callback`              |
 
 ### MinIO
 
-| Variable | Beschreibung | Standard |
-|---|---|---|
-| `MINIO_ENDPOINT` | Hostname ohne Protokoll | `192.168.1.10` |
-| `MINIO_PORT` | Port | `9000` |
-| `MINIO_ACCESS_KEY` | Access Key | – |
-| `MINIO_SECRET_KEY` | Secret Key | – |
-| `MINIO_BUCKET_PHOTOS` | Bucket für Fotos | `photos` |
-| `MINIO_BUCKET_AVATARS` | Bucket für Avatare | `avatars` |
-| `MINIO_BUCKET_BACKUPS` | Bucket für ZIP-Backups | `backups` |
-| `MINIO_BINARY_PATH` | Optionaler Pfad zu `minio.exe` für `npm run dev` | `backend/dev_tools/minio.exe` |
-| `MINIO_DATA_DIR` | Optionales lokales MinIO-Datenverzeichnis für `npm run dev` | `backend/dev_tools/minio_data` |
+| Variable               | Beschreibung                                                | Standard                       |
+| ---------------------- | ----------------------------------------------------------- | ------------------------------ |
+| `MINIO_ENDPOINT`       | Hostname ohne Protokoll                                     | `192.168.1.10`                 |
+| `MINIO_PORT`           | Port                                                        | `9000`                         |
+| `MINIO_ACCESS_KEY`     | Access Key                                                  | –                              |
+| `MINIO_SECRET_KEY`     | Secret Key                                                  | –                              |
+| `MINIO_BUCKET_PHOTOS`  | Bucket für Fotos                                            | `photos`                       |
+| `MINIO_BUCKET_AVATARS` | Bucket für Avatare                                          | `avatars`                      |
+| `MINIO_BUCKET_BACKUPS` | Bucket für ZIP-Backups                                      | `backups`                      |
+| `MINIO_BINARY_PATH`    | Optionaler Pfad zu `minio.exe` für `npm run dev`            | `backend/dev_tools/minio.exe`  |
+| `MINIO_DATA_DIR`       | Optionales lokales MinIO-Datenverzeichnis für `npm run dev` | `backend/dev_tools/minio_data` |
 
 ### SMTP (optional – für E-Mail-Benachrichtigungen)
 
-| Variable | Beschreibung | Standard |
-|---|---|---|
-| `SMTP_HOST` | SMTP-Server-Hostname | – |
-| `SMTP_PORT` | SMTP-Port | `587` |
-| `SMTP_SECURE` | TLS: `true` oder `false` | `false` |
-| `SMTP_USER` | Benutzername / Absende-Adresse | – |
-| `SMTP_PASS` | Passwort | – |
-| `SMTP_FROM` | Anzeigename des Absenders | `Franks Fotoalbum` |
+| Variable            | Beschreibung                                                                                                                                                      | Standard                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `SMTP_HOST`         | SMTP-Server-Hostname                                                                                                                                              | –                                  |
+| `SMTP_PORT`         | SMTP-Port                                                                                                                                                         | `587`                              |
+| `SMTP_SECURE`       | TLS: `true` oder `false`                                                                                                                                          | `false`                            |
+| `SMTP_USER`         | Benutzername / Absende-Adresse                                                                                                                                    | –                                  |
+| `SMTP_PASS`         | Passwort                                                                                                                                                          | –                                  |
+| `SMTP_FROM`         | Anzeigename des Absenders                                                                                                                                         | `Franks Fotoalbum`                 |
 | `DEV_MAIL_CATCHALL` | Catch-All-Adresse für DEV-Modus (optional). Ohne Wert: kein E-Mail-Versand im DEV-Modus. Mit `${local}` als Platzhalter für den lokalen Teil der Originaladresse. | `${local}-dev@catchall.example.de` |
 
 > Falls `SMTP_HOST` nicht gesetzt ist, wird kein E-Mail-Versand versucht.
 
 ### Server
 
-| Variable | Beschreibung | Standard |
-|---|---|---|
-| `PORT` | Port des Fastify-Servers | `3000` |
+| Variable   | Beschreibung                    | Standard     |
+| ---------- | ------------------------------- | ------------ |
+| `PORT`     | Port des Fastify-Servers        | `3000`       |
 | `NODE_ENV` | `development` oder `production` | `production` |
 
 ---
@@ -231,13 +232,13 @@ Alternativ über die MinIO-Konsole unter [http://localhost:9001](http://localhos
 
 Der Backend-Auth-Flow liest folgende Claims aus dem `userinfo`-Endpunkt:
 
-| Claim | Verwendung |
-|---|---|
-| `sub` | Eindeutige Nutzer-ID (wird intern als OIDC-ID gespeichert) |
-| `email` | Pflichtfeld |
-| `name` | Anzeigename (Fallback: `preferred_username` → `email`) |
-| `preferred_username` | Benutzername |
-| `picture` | Avatar-URL (wird über Backend-Proxy gecacht) |
+| Claim                | Verwendung                                                 |
+| -------------------- | ---------------------------------------------------------- |
+| `sub`                | Eindeutige Nutzer-ID (wird intern als OIDC-ID gespeichert) |
+| `email`              | Pflichtfeld                                                |
+| `name`               | Anzeigename (Fallback: `preferred_username` → `email`)     |
+| `preferred_username` | Benutzername                                               |
+| `picture`            | Avatar-URL (wird über Backend-Proxy gecacht)               |
 
 ---
 
@@ -309,14 +310,14 @@ Noetige Variablen zusaetzlich zu den normalen Backend-Variablen:
 
 Login-Mode (immer aktiv):
 
-| Variable | Beschreibung |
-|---|---|
-| `TARGET_DATABASE_URL` | Optionale Ziel-DB fuer Migration; Fallback ist `DATABASE_URL` |
-| `SUPABASE_STORAGE_BUCKET` | Quell-Bucket in Supabase (Standard: `photos`) |
-| `SUPABASE_URL` | Supabase Projekt-URL, z.B. `https://xyz.supabase.co` |
-| `SUPABASE_ANON_KEY` | Anon Key fuer Login + Rest-API |
-| `SUPABASE_LOGIN_EMAIL` | Login-E-Mail (alternativ `--email=...`) |
-| `SUPABASE_LOGIN_PASSWORD` | Login-Passwort (alternativ `--password=...`) |
+| Variable                      | Beschreibung                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `TARGET_DATABASE_URL`         | Optionale Ziel-DB fuer Migration; Fallback ist `DATABASE_URL`                       |
+| `SUPABASE_STORAGE_BUCKET`     | Quell-Bucket in Supabase (Standard: `photos`)                                       |
+| `SUPABASE_URL`                | Supabase Projekt-URL, z.B. `https://xyz.supabase.co`                                |
+| `SUPABASE_ANON_KEY`           | Anon Key fuer Login + Rest-API                                                      |
+| `SUPABASE_LOGIN_EMAIL`        | Login-E-Mail (alternativ `--email=...`)                                             |
+| `SUPABASE_LOGIN_PASSWORD`     | Login-Passwort (alternativ `--password=...`)                                        |
 | `VISIBLE_IMPORT_EMAIL_DOMAIN` | Optionales Domain-Suffix fuer Platzhalter-E-Mails (Default: `visible-import.local`) |
 
 Typische Befehle:

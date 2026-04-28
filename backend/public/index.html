@@ -1,858 +1,2409 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Franks Fotoalbum</title>
-<link rel="icon" type="image/x-icon" href="/media/favicon.ico">
-<link rel="icon" type="image/png" sizes="96x96" href="/media/icon-96x96.png">
-<!-- PWA -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#8a6a4a">
-<meta name="mobile-web-app-capable" content="yes">
-<!-- iOS PWA -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Fotoalbum">
-<link rel="apple-touch-icon" sizes="180x180" href="./media/icon-180x180.png">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./style/main.css">
-<script>
-  window.APP_CONFIG = {
-    authentikBase: 'https://auth.lx-derpi-cloud.de'
-  };
-</script>
-<script type="module" src="./script/auth-oidc.js"></script>
-<script type="module" src="./script/main.js"></script>
-</head>
-<body>
-<div class="toast-container" id="toast-container"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Franks Fotoalbum</title>
+    <link rel="icon" type="image/x-icon" href="/media/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/media/icon-96x96.png" />
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#8a6a4a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Fotoalbum" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./media/icon-180x180.png" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style/main.css" />
+    <script>
+      window.APP_CONFIG = {
+        authentikBase: 'https://auth.lx-derpi-cloud.de',
+      };
+    </script>
+    <script type="module" src="./script/auth-oidc.js"></script>
+    <script type="module" src="./script/main.js"></script>
+  </head>
+  <body>
+    <div class="toast-container" id="toast-container"></div>
 
-<div id="loading">
-  <h2>Franks Fotoalbum</h2>
-  <div class="spinner"></div>
-  <p>Verbinde mit Cloud…</p>
-</div>
-
-<!-- AUTH -->
-<div id="auth-page" class="hidden">
-  <div class="auth-wrap">
-
-    <!-- Brand -->
-    <div class="auth-brand">
-      <div class="auth-brand-icon">
-        <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <g transform="rotate(-8 36 38)">
-            <rect x="14" y="14" width="34" height="42" rx="3" fill="#ede4d8" stroke="#c4a882" stroke-width="1.4"/>
-            <rect x="18" y="18" width="26" height="26" rx="1.5" fill="#e0d5c6"/>
-            <path d="M18 38 l8-8 6 5 5-4 7 7v2H18z" fill="#c4a882" opacity=".35"/>
-            <circle cx="24" cy="24" r="3" fill="#c4a882" opacity=".25"/>
-          </g>
-          <g transform="rotate(6 36 38)">
-            <rect x="24" y="12" width="34" height="42" rx="3" fill="#fff" stroke="#c4a882" stroke-width="1.4"/>
-            <rect x="28" y="16" width="26" height="26" rx="1.5" fill="#f5ede3"/>
-            <path d="M28 36 l7-9 5 4 6-6 8 11v2H28z" fill="#8a6a4a" opacity=".3"/>
-            <circle cx="46" cy="22" r="3.5" fill="#c4a882" opacity=".35"/>
-            <path d="M38 49 c-1.5-1.5-4-3.5-4-5.5a2.5 2.5 0 0 1 4-2 2.5 2.5 0 0 1 4 2c0 2-2.5 4-4 5.5z" fill="#c4a882" opacity=".45"/>
-          </g>
-        </svg>
-      </div>
-      <h1>Franks <span>Fotoalbum</span></h1>
-      <p>Gemeinsame Erinnerungen · Privat &amp; Sicher</p>
+    <div id="loading">
+      <h2>Franks Fotoalbum</h2>
+      <div class="spinner"></div>
+      <p>Verbinde mit Cloud…</p>
     </div>
 
-    <!-- Login Card -->
-    <div class="auth-card" id="login-card">
-      <h2 class="auth-card-title">Willkommen zurück</h2>
-      <p class="auth-card-welcome-sub">Schön, dass du da bist — deine Erinnerungen warten auf dich.</p>
+    <!-- AUTH -->
+    <div id="auth-page" class="hidden">
+      <div class="auth-wrap">
+        <!-- Brand -->
+        <div class="auth-brand">
+          <div class="auth-brand-icon">
+            <svg
+              width="72"
+              height="72"
+              viewBox="0 0 72 72"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <g transform="rotate(-8 36 38)">
+                <rect
+                  x="14"
+                  y="14"
+                  width="34"
+                  height="42"
+                  rx="3"
+                  fill="#ede4d8"
+                  stroke="#c4a882"
+                  stroke-width="1.4"
+                />
+                <rect x="18" y="18" width="26" height="26" rx="1.5" fill="#e0d5c6" />
+                <path d="M18 38 l8-8 6 5 5-4 7 7v2H18z" fill="#c4a882" opacity=".35" />
+                <circle cx="24" cy="24" r="3" fill="#c4a882" opacity=".25" />
+              </g>
+              <g transform="rotate(6 36 38)">
+                <rect
+                  x="24"
+                  y="12"
+                  width="34"
+                  height="42"
+                  rx="3"
+                  fill="#fff"
+                  stroke="#c4a882"
+                  stroke-width="1.4"
+                />
+                <rect x="28" y="16" width="26" height="26" rx="1.5" fill="#f5ede3" />
+                <path d="M28 36 l7-9 5 4 6-6 8 11v2H28z" fill="#8a6a4a" opacity=".3" />
+                <circle cx="46" cy="22" r="3.5" fill="#c4a882" opacity=".35" />
+                <path
+                  d="M38 49 c-1.5-1.5-4-3.5-4-5.5a2.5 2.5 0 0 1 4-2 2.5 2.5 0 0 1 4 2c0 2-2.5 4-4 5.5z"
+                  fill="#c4a882"
+                  opacity=".45"
+                />
+              </g>
+            </svg>
+          </div>
+          <h1>Franks <span>Fotoalbum</span></h1>
+          <p>Gemeinsame Erinnerungen · Privat &amp; Sicher</p>
+        </div>
 
-      <div id="login-msg" class="msg hidden" style="margin-bottom:4px"></div>
+        <!-- Login Card -->
+        <div class="auth-card" id="login-card">
+          <h2 class="auth-card-title">Willkommen zurück</h2>
+          <p class="auth-card-welcome-sub">
+            Schön, dass du da bist — deine Erinnerungen warten auf dich.
+          </p>
 
-      <!-- CTA-Buttons -->
-      <div class="auth-actions">
-        <button class="auth-login-btn" id="login-btn" onclick="window.startOIDCLogin()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Anmelden
+          <div id="login-msg" class="msg hidden" style="margin-bottom: 4px"></div>
+
+          <!-- CTA-Buttons -->
+          <div class="auth-actions">
+            <button class="auth-login-btn" id="login-btn" onclick="window.startOIDCLogin()">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Anmelden
+            </button>
+            <a
+              href="#"
+              onclick="
+                event.preventDefault();
+                window.open(
+                  window.APP_CONFIG.authentikBase + '/if/flow/default-enrollment-flow/',
+                  '_blank',
+                  'noopener'
+                );
+              "
+              class="auth-register-btn"
+            >
+              Registrieren
+            </a>
+          </div>
+
+          <!-- Trennlinie -->
+          <div class="auth-sep"></div>
+
+          <!-- Features -->
+          <div class="auth-card-features">
+            <span class="auth-card-feature">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="flex-shrink: 0"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+              Fotos &amp; Alben
+            </span>
+            <span class="auth-card-feature">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="flex-shrink: 0"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Kommentare
+            </span>
+            <span class="auth-card-feature">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="flex-shrink: 0"
+              >
+                <path
+                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+                />
+              </svg>
+              Reaktionen
+            </span>
+            <span class="auth-card-feature">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="flex-shrink: 0"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Selfhosted &amp; privat
+            </span>
+            <span class="auth-card-feature">
+              <img
+                src="https://upload.wikimedia.org/wikipedia/commons/0/0f/Lesser_coat_of_arms_of_Baden-W%C3%BCrttemberg.svg"
+                alt="BW"
+                style="height: 16px; width: auto; flex-shrink: 0"
+              />
+              Hosted in BW
+            </span>
+          </div>
+
+          <!-- SSO-Hinweis -->
+          <div class="auth-sso-hint">
+            <img
+              src="https://lx-derpi-cloud.de/web_images/dashboard/authentik.png"
+              alt="Authentik"
+              style="width: 13px; height: 13px; object-fit: contain; opacity: 0.55"
+            />
+            <span>Anmeldung via Authentik Single Sign-On</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APP -->
+    <div id="app">
+      <header id="header">
+        <button
+          class="hamburger-btn"
+          onclick="toggleSidebar()"
+          id="hamburger-btn"
+          aria-label="Menü"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          >
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
         </button>
-        <a href="#" onclick="event.preventDefault();window.open(window.APP_CONFIG.authentikBase+'/if/flow/default-enrollment-flow/','_blank','noopener')" class="auth-register-btn">
-          Registrieren
-        </a>
+        <div class="logo-text">
+          <span class="logo-icon">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+              <!-- open book / album -->
+              <path
+                d="M4 7c0-1.1.9-2 2-2h7c1.7 0 3 1.3 3 3v18c-1.2-1-2.8-1.5-4.5-1.5H6a2 2 0 0 1-2-2V7z"
+                fill="#f0e8de"
+                stroke="#c4a882"
+                stroke-width="1.2"
+              />
+              <path
+                d="M28 7c0-1.1-.9-2-2-2h-7c-1.7 0-3 1.3-3 3v18c1.2-1 2.8-1.5 4.5-1.5H26a2 2 0 0 0 2-2V7z"
+                fill="#f5ede3"
+                stroke="#c4a882"
+                stroke-width="1.2"
+              />
+              <!-- center spine -->
+              <line x1="16" y1="8" x2="16" y2="26" stroke="#c4a882" stroke-width="1" opacity=".5" />
+              <!-- little heart on left page -->
+              <path
+                d="M10 13.5c0-1 .8-1.8 1.8-1.8.5 0 1 .2 1.2.6.2-.4.7-.6 1.2-.6 1 0 1.8.8 1.8 1.8 0 2-3 3.5-3 3.5s-3-1.5-3-3.5z"
+                fill="#c4a882"
+                opacity=".45"
+              />
+              <!-- lines on right page -->
+              <line
+                x1="19.5"
+                y1="12"
+                x2="24.5"
+                y2="12"
+                stroke="#c4a882"
+                stroke-width=".9"
+                stroke-linecap="round"
+                opacity=".35"
+              />
+              <line
+                x1="19.5"
+                y1="14.5"
+                x2="23"
+                y2="14.5"
+                stroke="#c4a882"
+                stroke-width=".9"
+                stroke-linecap="round"
+                opacity=".25"
+              />
+              <line
+                x1="19.5"
+                y1="17"
+                x2="24"
+                y2="17"
+                stroke="#c4a882"
+                stroke-width=".9"
+                stroke-linecap="round"
+                opacity=".3"
+              />
+            </svg>
+          </span>
+          Franks <span>Fotoalbum</span><small id="header-group-name">Gemeinsame Erinnerungen</small>
+        </div>
+        <span id="hname" style="display: none"></span>
+        <div class="user-pill">
+          <div id="group-switcher-wrap"></div>
+          <!-- Bell Notification Button -->
+          <button
+            class="notif-bell-btn"
+            id="notif-bell-btn"
+            onclick="toggleNotifPanel()"
+            aria-label="Benachrichtigungen"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span class="notif-badge" id="notif-badge" style="display: none">0</span>
+          </button>
+          <button class="profile-btn" onclick="openProfileModal()">
+            <div class="av" id="hav"></div>
+          </button>
+        </div>
+      </header>
+
+      <!-- ── NOTIFICATION PANEL ── -->
+      <div id="notif-panel" class="notif-panel" style="display: none" aria-live="polite">
+        <div class="notif-panel-hdr">
+          <span>Benachrichtigungen</span>
+          <div class="notif-panel-actions">
+            <button
+              id="notif-broadcast-btn"
+              class="notif-mark-all-btn"
+              onclick="openBroadcastModal()"
+              title="System-Benachrichtigung senden"
+              style="display: none"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 11l19-9-9 19-2-8-8-2z" />
+              </svg>
+            </button>
+            <button
+              class="notif-mark-all-btn"
+              onclick="markAllNotificationsRead()"
+              title="Alle als gelesen markieren"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+            <button
+              class="notif-mark-all-btn"
+              onclick="deleteAllNotifications()"
+              title="Alle löschen"
+              style="color: var(--danger, #c0392b)"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+            </button>
+            <button class="notif-close-btn" onclick="toggleNotifPanel()" aria-label="Schließen">
+              ✕
+            </button>
+          </div>
+        </div>
+        <ul id="notif-list" class="notif-list">
+          <li class="notif-empty" id="notif-empty">Keine Benachrichtigungen</li>
+        </ul>
+      </div>
+      <!-- ── END NOTIFICATION PANEL ── -->
+
+      <!-- ── BROADCAST MODAL ── -->
+      <div
+        id="broadcast-modal"
+        class="modal-overlay"
+        style="display: none"
+        onclick="if (event.target === this) closeBroadcastModal();"
+      >
+        <div class="modal-box broadcast-modal-box" onclick="event.stopPropagation()">
+          <div class="modal-hdr">
+            <span>System-Benachrichtigung senden</span>
+            <button class="modal-close" onclick="closeBroadcastModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="broadcast-hint">
+              Diese Nachricht wird an <strong>alle</strong> Nutzer gesendet.
+            </p>
+            <label class="broadcast-label">Titel <span class="broadcast-req">*</span></label>
+            <input
+              id="broadcast-title"
+              class="broadcast-input"
+              type="text"
+              maxlength="120"
+              placeholder="z.B. Wartung am Samstag"
+            />
+            <label class="broadcast-label" style="margin-top: 10px">Nachricht (optional)</label>
+            <textarea
+              id="broadcast-body"
+              class="broadcast-input broadcast-textarea"
+              maxlength="500"
+              rows="3"
+              placeholder="Weitere Details..."
+            ></textarea>
+            <label class="broadcast-label" style="margin-top: 10px"
+              >Bild-ID oder Link (optional)</label
+            >
+            <input
+              id="broadcast-attachment"
+              class="broadcast-input"
+              type="text"
+              maxlength="500"
+              placeholder="Bild-ID (z.B. abc123) oder https://…"
+              oninput="renderBroadcastAttachmentPreview()"
+            />
+            <div id="broadcast-attachment-preview" style="margin-top: 8px; min-height: 0"></div>
+          </div>
+          <div class="modal-footer">
+            <button
+              class="btn btn-ghost"
+              onclick="closeBroadcastModal()"
+              style="padding: 8px 16px; font-size: 13px"
+            >
+              Abbrechen
+            </button>
+            <button
+              class="btn btn-primary"
+              id="broadcast-send-btn"
+              onclick="sendBroadcast()"
+              style="width: auto; padding: 8px 20px; margin-top: 0"
+            >
+              Senden
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- ── END BROADCAST MODAL ── -->
+
+      <!-- ── CHANGELOG MODAL ── -->
+      <div
+        class="modal-bg hidden"
+        id="changelog-modal"
+        onclick="if (event.target === this) closeChangelogModal();"
+      >
+        <div class="modal changelog-modal" onclick="event.stopPropagation()">
+          <div class="modal-hdr">
+            <h3>Versionen &amp; Changelog</h3>
+            <button class="modal-x" onclick="closeChangelogModal()">✕</button>
+          </div>
+          <div class="modal-body changelog-body">
+            <div class="changelog-current-version" id="changelog-current-version">Version ...</div>
+            <div id="changelog-admin-form-wrap" class="changelog-admin-form hidden">
+              <h4>Neuen Eintrag erstellen</h4>
+              <div class="changelog-form-grid">
+                <input
+                  id="changelog-version-input"
+                  class="broadcast-input"
+                  type="text"
+                  maxlength="32"
+                  placeholder="Version (z.B. 1.0.0-beta.2)"
+                />
+                <input
+                  id="changelog-title-input"
+                  class="broadcast-input"
+                  type="text"
+                  maxlength="140"
+                  placeholder="Titel"
+                />
+              </div>
+              <textarea
+                id="changelog-body-input"
+                class="broadcast-input broadcast-textarea"
+                rows="3"
+                maxlength="4000"
+                placeholder="Was hat sich geändert?"
+              ></textarea>
+              <div class="changelog-form-actions">
+                <button
+                  id="changelog-create-btn"
+                  class="btn btn-primary"
+                  onclick="createChangelogEntry()"
+                  style="width: auto; margin-top: 0; padding: 8px 16px"
+                >
+                  Eintrag veröffentlichen
+                </button>
+              </div>
+            </div>
+            <div id="changelog-list"></div>
+          </div>
+        </div>
+      </div>
+      <!-- ── END CHANGELOG MODAL ── -->
+
+      <div id="body-wrap">
+        <nav id="sidebar"></nav>
+        <div id="content">
+          <div class="gal-hdr">
+            <div class="gal-row1">
+              <h2 class="gal-title" id="gal-title">Gemeinsamer Ordner</h2>
+              <button class="upload-fab" id="upload-btn" onclick="openModal()">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Hochladen
+              </button>
+            </div>
+            <div class="gal-row2">
+              <div class="select-wrap" data-label="Sortieren">
+                <select
+                  class="sort-select"
+                  id="sort-select"
+                  onchange="changeSort(this.value)"
+                  title="Sortierung"
+                >
+                  <option value="newest">Sortieren: Neueste</option>
+                  <option value="oldest">Sortieren: Älteste</option>
+                  <option value="most-likes">Sortieren: Beliebteste</option>
+                  <option value="most-comments">Sortieren: Meiste Kommentare</option>
+                </select>
+              </div>
+              <div class="select-wrap" data-label="Ansicht">
+                <select
+                  class="sort-select"
+                  id="view-select"
+                  onchange="switchView(this.value)"
+                  title="Ansicht"
+                >
+                  <option value="small">Ansicht: Klein</option>
+                  <option value="medium" selected>Ansicht: Mittel</option>
+                  <option value="large">Ansicht: Groß</option>
+                  <option value="list">Ansicht: Liste</option>
+                </select>
+              </div>
+              <div style="flex: 1"></div>
+              <button class="sel-toggle" id="sel-toggle" onclick="toggleSelectMode()">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <polyline points="9 11 12 14 22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+                Auswählen
+              </button>
+            </div>
+          </div>
+          <div id="grid" class="grid"></div>
+          <div id="empty" class="empty hidden">
+            <div class="empty-icon" id="empty-icon">🌿</div>
+            <p id="empty-text">Noch keine Fotos in diesem Ordner</p>
+            <div id="empty-actions"></div>
+          </div>
+          <button id="more-btn" class="more-btn hidden" onclick="loadMore()">
+            Weitere Fotos laden…
+          </button>
+        </div>
       </div>
 
-      <!-- Trennlinie -->
-      <div class="auth-sep"></div>
-
-      <!-- Features -->
-      <div class="auth-card-features">
-        <span class="auth-card-feature">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-          Fotos &amp; Alben
-        </span>
-        <span class="auth-card-feature">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Kommentare
-        </span>
-        <span class="auth-card-feature">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          Reaktionen
-        </span>
-        <span class="auth-card-feature">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Selfhosted &amp; privat
-        </span>
-        <span class="auth-card-feature">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/0/0f/Lesser_coat_of_arms_of_Baden-W%C3%BCrttemberg.svg" alt="BW" style="height:16px;width:auto;flex-shrink:0" />
-          Hosted in BW
-        </span>
-      </div>
-
-      <!-- SSO-Hinweis -->
-      <div class="auth-sso-hint">
-        <img src="https://lx-derpi-cloud.de/web_images/dashboard/authentik.png" alt="Authentik" style="width:13px;height:13px;object-fit:contain;opacity:.55" />
-        <span>Anmeldung via Authentik Single Sign-On</span>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app">
-  <header id="header">
-    <button class="hamburger-btn" onclick="toggleSidebar()" id="hamburger-btn" aria-label="Menü">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </button>
-    <div class="logo-text">
-      <span class="logo-icon">
-        <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
-          <!-- open book / album -->
-          <path d="M4 7c0-1.1.9-2 2-2h7c1.7 0 3 1.3 3 3v18c-1.2-1-2.8-1.5-4.5-1.5H6a2 2 0 0 1-2-2V7z" fill="#f0e8de" stroke="#c4a882" stroke-width="1.2"/>
-          <path d="M28 7c0-1.1-.9-2-2-2h-7c-1.7 0-3 1.3-3 3v18c1.2-1 2.8-1.5 4.5-1.5H26a2 2 0 0 0 2-2V7z" fill="#f5ede3" stroke="#c4a882" stroke-width="1.2"/>
-          <!-- center spine -->
-          <line x1="16" y1="8" x2="16" y2="26" stroke="#c4a882" stroke-width="1" opacity=".5"/>
-          <!-- little heart on left page -->
-          <path d="M10 13.5c0-1 .8-1.8 1.8-1.8.5 0 1 .2 1.2.6.2-.4.7-.6 1.2-.6 1 0 1.8.8 1.8 1.8 0 2-3 3.5-3 3.5s-3-1.5-3-3.5z" fill="#c4a882" opacity=".45"/>
-          <!-- lines on right page -->
-          <line x1="19.5" y1="12" x2="24.5" y2="12" stroke="#c4a882" stroke-width=".9" stroke-linecap="round" opacity=".35"/>
-          <line x1="19.5" y1="14.5" x2="23" y2="14.5" stroke="#c4a882" stroke-width=".9" stroke-linecap="round" opacity=".25"/>
-          <line x1="19.5" y1="17" x2="24" y2="17" stroke="#c4a882" stroke-width=".9" stroke-linecap="round" opacity=".3"/>
+      <button
+        class="upload-shortcut hidden"
+        id="upload-shortcut-btn"
+        onclick="openModal()"
+        aria-label="Fotos hochladen"
+        title="Fotos hochladen"
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.6"
+          stroke-linecap="round"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-      </span>
-      Franks <span>Fotoalbum</span><small id="header-group-name">Gemeinsame Erinnerungen</small>
-    </div>
-    <span id="hname" style="display:none"></span>
-    <div class="user-pill">
-      <div id="group-switcher-wrap"></div>
-      <!-- Bell Notification Button -->
-      <button class="notif-bell-btn" id="notif-bell-btn" onclick="toggleNotifPanel()" aria-label="Benachrichtigungen">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <span class="notif-badge" id="notif-badge" style="display:none">0</span>
       </button>
-      <button class="profile-btn" onclick="openProfileModal()">
-        <div class="av" id="hav"></div>
+    </div>
+
+    <!-- UPLOAD MODAL -->
+    <div class="modal-bg hidden" id="up-modal" onclick="if (event.target === this) closeModal();">
+      <div class="modal">
+        <div class="modal-hdr">
+          <h3>Fotos hochladen</h3>
+          <button class="modal-x" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="dz-wrap">
+            <!-- Dropzone: kompakt wenn Vorschau vorhanden -->
+            <div class="dz" id="dz">
+              <div class="dz-ico">📸</div>
+              <p class="dz-ttl">Fotos hier ablegen</p>
+              <p class="dz-sub">oder klicken · JPG, PNG, GIF, WebP · Mehrere möglich</p>
+            </div>
+
+            <!-- Vorschau-Bereich -->
+            <div id="dz-preview-wrap" style="display: none">
+              <div id="dz-preview-grid" class="dz-preview-grid"></div>
+              <button class="dz-add-more" onclick="$('fi').click()">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Weitere hinzufügen
+              </button>
+            </div>
+
+            <div class="field" style="margin-top: 12px">
+              <label>Album (optional)</label>
+              <select id="asel" class="modal-sel">
+                <option value="">— Kein Album —</option>
+              </select>
+            </div>
+            <div class="field" style="margin-top: 12px">
+              <label>Beschreibung (optional)</label>
+              <input
+                type="text"
+                id="desc-input"
+                placeholder="Z.B. Urlaub in Italien, Sommer 2024…"
+                maxlength="200"
+                style="
+                  width: 100%;
+                  padding: 10px 13px;
+                  border-radius: 10px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg);
+                  color: var(--text);
+                  font-size: 14px;
+                  outline: none;
+                "
+              />
+            </div>
+
+            <!-- Upload-Button -->
+            <button
+              class="btn btn-primary"
+              id="do-upload-btn"
+              onclick="startUpload()"
+              style="display: none; margin-top: 16px; width: 100%; padding: 12px"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                style="margin-right: 6px"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span id="do-upload-label">Hochladen</span>
+            </button>
+          </div>
+          <div id="prog-wrap" class="up-prog hidden">
+            <div class="spinner"></div>
+            <p id="prog-txt">Wird hochgeladen…</p>
+            <div class="prog-track">
+              <div class="prog-fill" id="prog-fill" style="width: 0%"></div>
+            </div>
+          </div>
+          <input
+            type="file"
+            id="fi"
+            accept="image/*"
+            multiple
+            style="display: none"
+            onchange="handleFiles(this.files)"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- LIGHTBOX -->
+    <div class="lb-bg hidden" id="lb" onclick="handleLbBgClick(event)">
+      <button class="lb-x" onclick="closeLB()">✕</button>
+      <div class="lb-layout">
+        <div class="lb-img-side" onclick="if (event.target === this) closeLB();">
+          <button class="lb-arr" id="lb-prv" onclick="lbNav(-1)">‹</button>
+          <img id="lb-img" class="lb-img" src="" alt="" />
+          <button class="lb-arr" id="lb-nxt" onclick="lbNav(1)">›</button>
+        </div>
+        <div class="lb-panel">
+          <div class="lb-panel-top">
+            <div class="lb-who-row">
+              <div class="lb-av" id="lb-av"></div>
+              <div>
+                <div class="lb-who" id="lb-who"></div>
+                <div class="lb-dt" id="lb-dt"></div>
+              </div>
+            </div>
+            <div class="lb-cnt" id="lb-cnt"></div>
+            <button class="lb-like-btn" id="lb-like-btn" onclick="toggleLike()">
+              <span class="lheart">🤍</span>
+              <span id="lb-like-count">0</span> Gefällt mir
+            </button>
+            <div
+              id="lb-likers"
+              onclick="showLikersList()"
+              style="
+                font-size: 12px;
+                color: var(--muted);
+                margin-top: 4px;
+                line-height: 1.5;
+                cursor: pointer;
+              "
+            ></div>
+            <div class="lb-action-btns" id="lb-action-btns">
+              <button
+                class="lb-act-btn"
+                id="lb-down-btn"
+                onclick="downloadPhoto()"
+                title="Herunterladen"
+              ></button>
+              <button
+                class="lb-act-btn"
+                id="lb-album-btn"
+                onclick="openAlbumPicker()"
+                title="Album"
+              ></button>
+              <button
+                class="lb-act-btn"
+                id="lb-full-btn"
+                onclick="toggleFullview()"
+                title="Vollbild"
+              ></button>
+              <button
+                class="lb-act-btn del hidden"
+                id="lb-del-btn"
+                onclick="askDel(null, true)"
+                title="Löschen"
+              ></button>
+              <button
+                class="lb-act-btn lb-copy-id hidden"
+                id="lb-copy-id-btn"
+                onclick="copyCurrentImageId()"
+                title="Bild-ID kopieren"
+              ></button>
+            </div>
+            <div id="lb-album-tag" style="margin-top: 8px; display: none"></div>
+          </div>
+          <div class="lb-comments" id="lb-comments">
+            <div class="no-comments">Noch keine Kommentare</div>
+          </div>
+          <div class="lb-input-row">
+            <textarea
+              id="comment-input"
+              placeholder="Kommentar schreiben…"
+              rows="1"
+              onkeydown="
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  sendComment();
+                }
+              "
+              oninput="
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+              "
+            ></textarea>
+            <button class="send-btn" id="send-btn" onclick="sendComment()"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOBILE SIDEBAR OVERLAY -->
+    <div id="mob-overlay" onclick="closeSidebar()"></div>
+
+    <!-- SLIDESHOW BAR (shown inside lightbox) -->
+    <div class="ss-bar hidden" id="ss-bar">
+      <button class="ss-btn" onclick="ssChangeSpeed()" title="Geschwindigkeit">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      </button>
+      <span class="ss-speed" id="ss-speed">4s</span>
+      <button class="ss-btn" onclick="toggleSS()" id="ss-play-btn">
+        <svg
+          id="ss-play-icon"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          stroke="none"
+        >
+          <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+      </button>
+      <span class="ss-counter" id="ss-counter">1 / 1</span>
+      <button
+        class="ss-btn"
+        onclick="closeLB()"
+        title="Schließen"
+        style="background: rgba(255, 255, 255, 0.15)"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
       </button>
     </div>
-  </header>
 
-  <!-- ── NOTIFICATION PANEL ── -->
-  <div id="notif-panel" class="notif-panel" style="display:none" aria-live="polite">
-    <div class="notif-panel-hdr">
-      <span>Benachrichtigungen</span>
-      <div class="notif-panel-actions">
-        <button id="notif-broadcast-btn" class="notif-mark-all-btn" onclick="openBroadcastModal()" title="System-Benachrichtigung senden" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg></button>
-        <button class="notif-mark-all-btn" onclick="markAllNotificationsRead()" title="Alle als gelesen markieren"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
-        <button class="notif-mark-all-btn" onclick="deleteAllNotifications()" title="Alle löschen" style="color:var(--danger,#c0392b)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-        <button class="notif-close-btn" onclick="toggleNotifPanel()" aria-label="Schließen">✕</button>
-      </div>
-    </div>
-    <ul id="notif-list" class="notif-list">
-      <li class="notif-empty" id="notif-empty">Keine Benachrichtigungen</li>
-    </ul>
-  </div>
-  <!-- ── END NOTIFICATION PANEL ── -->
-
-  <!-- ── BROADCAST MODAL ── -->
-  <div id="broadcast-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeBroadcastModal()">
-    <div class="modal-box broadcast-modal-box" onclick="event.stopPropagation()">
-      <div class="modal-hdr">
-        <span>System-Benachrichtigung senden</span>
-        <button class="modal-close" onclick="closeBroadcastModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="broadcast-hint">Diese Nachricht wird an <strong>alle</strong> Nutzer gesendet.</p>
-        <label class="broadcast-label">Titel <span class="broadcast-req">*</span></label>
-        <input id="broadcast-title" class="broadcast-input" type="text" maxlength="120" placeholder="z.B. Wartung am Samstag" />
-        <label class="broadcast-label" style="margin-top:10px">Nachricht (optional)</label>
-        <textarea id="broadcast-body" class="broadcast-input broadcast-textarea" maxlength="500" rows="3" placeholder="Weitere Details..."></textarea>
-        <label class="broadcast-label" style="margin-top:10px">Bild-ID oder Link (optional)</label>
-        <input id="broadcast-attachment" class="broadcast-input" type="text" maxlength="500" placeholder="Bild-ID (z.B. abc123) oder https://…" oninput="renderBroadcastAttachmentPreview()" />
-        <div id="broadcast-attachment-preview" style="margin-top:8px;min-height:0"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeBroadcastModal()" style="padding:8px 16px;font-size:13px">Abbrechen</button>
-        <button class="btn btn-primary" id="broadcast-send-btn" onclick="sendBroadcast()" style="width:auto;padding:8px 20px;margin-top:0">Senden</button>
-      </div>
-    </div>
-  </div>
-  <!-- ── END BROADCAST MODAL ── -->
-
-  <!-- ── CHANGELOG MODAL ── -->
-  <div class="modal-bg hidden" id="changelog-modal" onclick="if(event.target===this)closeChangelogModal()">
-    <div class="modal changelog-modal" onclick="event.stopPropagation()">
-      <div class="modal-hdr">
-        <h3>Versionen &amp; Changelog</h3>
-        <button class="modal-x" onclick="closeChangelogModal()">✕</button>
-      </div>
-      <div class="modal-body changelog-body">
-        <div class="changelog-current-version" id="changelog-current-version">Version ...</div>
-        <div id="changelog-admin-form-wrap" class="changelog-admin-form hidden">
-          <h4>Neuen Eintrag erstellen</h4>
-          <div class="changelog-form-grid">
-            <input id="changelog-version-input" class="broadcast-input" type="text" maxlength="32" placeholder="Version (z.B. 1.0.0-beta.2)">
-            <input id="changelog-title-input" class="broadcast-input" type="text" maxlength="140" placeholder="Titel">
-          </div>
-          <textarea id="changelog-body-input" class="broadcast-input broadcast-textarea" rows="3" maxlength="4000" placeholder="Was hat sich geändert?"></textarea>
-          <div class="changelog-form-actions">
-            <button id="changelog-create-btn" class="btn btn-primary" onclick="createChangelogEntry()" style="width:auto;margin-top:0;padding:8px 16px">Eintrag veröffentlichen</button>
+    <!-- ALBUM MANAGE MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="album-modal"
+      onclick="if (event.target === this) closeAlbumModal();"
+    >
+      <div class="modal">
+        <div class="modal-hdr">
+          <h3>Alben verwalten</h3>
+          <button class="modal-x" onclick="closeAlbumModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="album-list" id="album-list"></div>
+          <div class="new-album-row">
+            <input
+              type="text"
+              id="new-album-name"
+              placeholder="Neues Album benennen…"
+              maxlength="40"
+              onkeydown="if (event.key === 'Enter') createAlbum();"
+            />
+            <button onclick="createAlbum()">＋ Erstellen</button>
           </div>
         </div>
-        <div id="changelog-list"></div>
       </div>
     </div>
-  </div>
-  <!-- ── END CHANGELOG MODAL ── -->
 
-  <div id="body-wrap">
-    <nav id="sidebar"></nav>
-    <div id="content">
-      <div class="gal-hdr">
-        <div class="gal-row1">
-          <h2 class="gal-title" id="gal-title">Gemeinsamer Ordner</h2>
-          <button class="upload-fab" id="upload-btn" onclick="openModal()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Hochladen
+    <!-- PROFILE MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="profile-modal"
+      onclick="if (event.target === this) closeProfileModal();"
+    >
+      <div class="modal">
+        <div class="modal-hdr">
+          <h3>Mein Profil</h3>
+          <button class="modal-x" onclick="closeProfileModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="avatar-upload-area">
+            <div
+              class="avatar-preview"
+              id="avatar-preview"
+              onclick="$('avatar-fi').click()"
+              title="Klicken zum Ändern"
+            ></div>
+            <div style="display: flex; gap: 8px; justify-content: center; margin-top: 8px">
+              <button
+                class="btn btn-ghost"
+                style="font-size: 12px; padding: 6px 14px"
+                onclick="$('avatar-fi').click()"
+              >
+                📷 Ändern
+              </button>
+              <button
+                class="btn btn-danger"
+                id="clear-avatar-btn"
+                style="font-size: 12px; padding: 6px 14px"
+                onclick="clearAvatar()"
+              >
+                🗑 Entfernen
+              </button>
+            </div>
+            <p
+              style="
+                font-size: 12px;
+                color: var(--muted);
+                text-align: center;
+                font-weight: 300;
+                margin-top: 6px;
+              "
+            >
+              Klicke auf das Bild oder „Ändern" um ein neues Foto hochzuladen
+            </p>
+          </div>
+          <input
+            type="file"
+            id="avatar-fi"
+            accept="image/*"
+            style="display: none"
+            onchange="uploadAvatar(this.files[0])"
+          />
+          <div id="avatar-msg" class="msg hidden"></div>
+          <!-- ── ANZEIGENAME ── -->
+          <div style="padding-top: 14px; border-top: 1px solid var(--border); margin-top: 4px">
+            <label
+              style="
+                display: block;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 1.2px;
+                text-transform: uppercase;
+                color: var(--muted2);
+                margin-bottom: 10px;
+              "
+              >Anzeigename</label
+            >
+            <div id="displayname-msg" class="msg hidden" style="margin-bottom: 8px"></div>
+            <div id="displayname-btns"></div>
+            <p
+              id="displayname-hint"
+              style="
+                font-size: 11px;
+                color: var(--muted);
+                margin-top: 6px;
+                font-weight: 300;
+                text-align: center;
+              "
+            >
+              Wähle, welcher Name in der App für dich angezeigt wird.
+            </p>
+            <a
+              href="#"
+              onclick="
+                event.preventDefault();
+                window.open(
+                  window.APP_CONFIG.authentikBase + '/if/user/#/settings',
+                  '_blank',
+                  'noopener noreferrer'
+                );
+              "
+              rel="noopener noreferrer"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-size: 12px;
+                color: var(--accent);
+                text-decoration: none;
+                font-weight: 500;
+                margin-top: 8px;
+              "
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="8" r="4" />
+                <path d="M20 21a8 8 0 1 0-16 0" />
+              </svg>
+              Name, Benutzername oder E-Mail in Authentik ändern
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="opacity: 0.5"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+            <p
+              style="
+                font-size: 10px;
+                color: var(--muted);
+                margin-top: 4px;
+                font-weight: 300;
+                text-align: center;
+              "
+            >
+              Änderungen werden beim nächsten Login übernommen.
+            </p>
+          </div>
+          <div class="profile-color-section">
+            <label
+              style="
+                display: block;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 1.2px;
+                text-transform: uppercase;
+                color: var(--muted2);
+                margin-bottom: 10px;
+              "
+              >Meine Farbe</label
+            >
+            <div id="color-msg" class="msg hidden" style="margin-bottom: 8px"></div>
+            <div class="color-swatches" id="color-swatches"></div>
+          </div>
+
+          <!-- ── NOTIFICATION PREFERENCES ── -->
+          <div style="padding-top: 14px; border-top: 1px solid var(--border); margin-top: 14px">
+            <button
+              onclick="toggleNotifPrefs()"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0;
+                margin-bottom: 0;
+              "
+              aria-expanded="false"
+              id="notif-prefs-toggle"
+            >
+              <label
+                style="
+                  display: block;
+                  font-size: 11px;
+                  font-weight: 600;
+                  letter-spacing: 1.2px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  pointer-events: none;
+                "
+                >Benachrichtigungen</label
+              >
+              <svg
+                id="notif-prefs-chevron"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--muted2)"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                style="transition: transform 0.2s"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            <div id="notif-prefs-msg" class="msg hidden" style="margin-top: 8px"></div>
+            <div id="notif-prefs-collapsible" style="display: none; margin-top: 12px">
+              <div
+                id="notif-prefs-loading"
+                style="font-size: 13px; color: var(--muted); text-align: center; padding: 8px"
+              >
+                Laden…
+              </div>
+              <div id="notif-prefs-body" class="hidden">
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse">
+                  <thead>
+                    <tr>
+                      <th
+                        style="
+                          text-align: left;
+                          padding: 4px 6px;
+                          color: var(--muted2);
+                          font-weight: 600;
+                          font-size: 11px;
+                          letter-spacing: 0.8px;
+                        "
+                      >
+                        Ereignis
+                      </th>
+                      <th
+                        style="
+                          text-align: center;
+                          padding: 4px 6px;
+                          color: var(--muted2);
+                          font-weight: 600;
+                          font-size: 11px;
+                          letter-spacing: 0.8px;
+                        "
+                      >
+                        In-App
+                      </th>
+                      <th
+                        style="
+                          text-align: center;
+                          padding: 4px 6px;
+                          color: var(--muted2);
+                          font-weight: 600;
+                          font-size: 11px;
+                          letter-spacing: 0.8px;
+                        "
+                      >
+                        E-Mail
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody id="notif-prefs-table"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- ── END NOTIFICATION PREFERENCES ── -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD FROM ALL PHOTOS MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="add-photos-modal"
+      onclick="if (event.target === this) closeAddModal();"
+    >
+      <div class="modal" style="max-width: 680px">
+        <div class="modal-hdr">
+          <h3>Fotos zum Album hinzufügen</h3>
+          <button class="modal-x" onclick="closeAddModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px; font-weight: 300">
+            Wähle Fotos aus, die du dem Album hinzufügen möchtest. Sie bleiben weiterhin in „Alle
+            Fotos" sichtbar.
+          </p>
+          <div
+            id="add-photos-grid"
+            style="
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+              gap: 8px;
+              max-height: 380px;
+              overflow-y: auto;
+              padding: 2px;
+            "
+          ></div>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-top: 16px;
+              padding-top: 14px;
+              border-top: 1px solid var(--border);
+            "
+          >
+            <span
+              id="add-photos-count"
+              style="font-size: 13px; color: var(--muted); font-weight: 400"
+              >0 ausgewählt</span
+            >
+            <div style="display: flex; gap: 10px">
+              <button class="btn btn-ghost" onclick="closeAddModal()">Abbrechen</button>
+              <button
+                class="btn btn-primary"
+                style="width: auto; padding: 10px 22px"
+                onclick="confirmAddToAlbum()"
+              >
+                Hinzufügen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JOIN GROUP MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="join-group-modal"
+      onclick="if (event.target === this) closeJoinGroup();"
+    >
+      <div class="modal" style="max-width: 400px">
+        <div class="modal-hdr">
+          <h3>Gruppe beitreten</h3>
+          <button class="modal-x" onclick="closeJoinGroup()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px; font-weight: 300">
+            Gib den Einladungscode ein, den du erhalten hast.
+          </p>
+          <div id="join-group-msg" class="msg hidden"></div>
+          <div class="field">
+            <label>Gruppencode</label>
+            <input
+              type="text"
+              id="join-group-code"
+              placeholder="z.B. FAMILIE24"
+              maxlength="40"
+              style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px"
+              oninput="this.value = this.value.toUpperCase()"
+              onkeydown="if (event.key === 'Enter') doJoinGroup();"
+            />
+          </div>
+          <button class="btn btn-primary" id="join-group-btn" onclick="doJoinGroup()">
+            Beitreten →
           </button>
         </div>
-        <div class="gal-row2">
-          <div class="select-wrap" data-label="Sortieren">
-            <select class="sort-select" id="sort-select" onchange="changeSort(this.value)" title="Sortierung">
-              <option value="newest">Sortieren: Neueste</option>
-              <option value="oldest">Sortieren: Älteste</option>
-              <option value="most-likes">Sortieren: Beliebteste</option>
-              <option value="most-comments">Sortieren: Meiste Kommentare</option>
+      </div>
+    </div>
+
+    <!-- LEAVE GROUP MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="leave-group-modal"
+      onclick="if (event.target === this) closeLeaveGroup();"
+    >
+      <div class="modal" style="max-width: 420px">
+        <div class="modal-hdr">
+          <h3>Gruppe verlassen</h3>
+          <button class="modal-x" onclick="closeLeaveGroup()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px; font-weight: 300">
+            Wähle die Gruppe, die du verlassen möchtest.
+          </p>
+          <div id="leave-group-msg" class="msg hidden"></div>
+          <div class="field">
+            <label>Gruppe</label>
+            <select
+              id="leave-group-select"
+              onchange="_leaveGroupUpdateOwnerUI()"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: var(--card);
+                color: var(--text);
+                font-size: 14px;
+              "
+            ></select>
+          </div>
+
+          <!-- Owner-Hinweis (wird dynamisch eingeblendet) -->
+          <div
+            id="leave-owner-section"
+            class="hidden"
+            style="
+              background: rgba(255, 160, 0, 0.1);
+              border: 1px solid rgba(255, 160, 0, 0.35);
+              border-radius: 10px;
+              padding: 12px 14px;
+              margin-top: 14px;
+            "
+          >
+            <div style="font-size: 13px; font-weight: 700; color: #c87700; margin-bottom: 6px">
+              ⚠️ Du bist Gruppen-Owner
+            </div>
+
+            <!-- Nachfolger wählen -->
+            <div id="leave-successor-section" class="hidden">
+              <p style="font-size: 12px; color: var(--text2); margin: 0 0 10px">
+                Bitte wähle einen Nachfolger. Die Ownership wird übertragen, bevor du die Gruppe
+                verlässt.
+              </p>
+              <select
+                id="leave-successor-select"
+                style="
+                  width: 100%;
+                  padding: 9px 11px;
+                  border-radius: 9px;
+                  border: 1px solid var(--border);
+                  background: var(--bg);
+                  color: var(--text);
+                  font-size: 13px;
+                "
+              ></select>
+            </div>
+
+            <!-- Letztes Mitglied → Auflösen -->
+            <div id="leave-dissolve-section" class="hidden">
+              <p style="font-size: 12px; color: var(--text2); margin: 0 0 10px">
+                Du bist das einzige Mitglied. Das Verlassen wird die Gruppe
+                <strong>endgültig löschen</strong>. Vorher wird automatisch ein ZIP-Backup erstellt.
+              </p>
+              <div
+                id="leave-dissolve-last-group-hint"
+                class="hidden"
+                style="font-size: 13px; color: var(--muted); text-align: center; padding: 8px 0"
+              >
+                Du kannst deine letzte Gruppe nicht auflösen.<br />Tritt zuerst einer anderen Gruppe
+                bei.
+              </div>
+              <button
+                id="leave-dissolve-btn"
+                class="btn btn-danger"
+                style="width: 100%"
+                onclick="dissolveGroup()"
+              >
+                🗑 Gruppe auflösen &amp; Backup erstellen
+              </button>
+            </div>
+          </div>
+
+          <div
+            id="leave-last-group-hint"
+            class="hidden"
+            style="
+              font-size: 13px;
+              color: var(--muted);
+              text-align: center;
+              padding: 8px 0;
+              margin-top: 16px;
+            "
+          >
+            Du kannst deine letzte Gruppe nicht verlassen.<br />Tritt zuerst einer anderen Gruppe
+            bei.
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 20px">
+            <button class="btn btn-ghost" style="flex: 1" onclick="closeLeaveGroup()">
+              Abbrechen
+            </button>
+            <button
+              class="btn btn-danger"
+              style="flex: 1"
+              id="leave-group-btn"
+              onclick="doLeaveGroup()"
+            >
+              Verlassen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN GROUPS MODAL -->
+    <div
+      class="modal-bg modal-bg--top hidden"
+      id="admin-group-delete-modal"
+      onclick="if (event.target === this) agdmCloseAndCleanup();"
+    >
+      <div class="modal" style="max-width: 460px">
+        <div class="modal-hdr">
+          <h3 id="agdm-title">Gruppe löschen</h3>
+          <button class="modal-x" onclick="agdmCloseAndCleanup()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p id="agdm-info" style="color: var(--text2); font-size: 14px; margin: 0 0 12px"></p>
+
+          <!-- Warnung: User verlieren Zugriff -->
+          <div
+            id="agdm-stranded-warning"
+            class="hidden"
+            style="
+              background: rgba(224, 85, 85, 0.09);
+              border: 1px solid rgba(224, 85, 85, 0.3);
+              border-radius: 10px;
+              padding: 12px 14px;
+              margin-bottom: 14px;
+            "
+          >
+            <p
+              style="
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--danger, #e05555);
+                margin: 0 0 6px;
+              "
+            >
+              ⚠️ Diese Nutzer verlieren nach dem Löschen ihren kompletten Zugriff:
+            </p>
+            <p
+              id="agdm-stranded-names"
+              style="font-size: 13px; color: var(--text2); margin: 0 0 10px"
+            ></p>
+            <label
+              style="
+                display: flex;
+                align-items: flex-start;
+                gap: 8px;
+                cursor: pointer;
+                font-size: 13px;
+                color: var(--text);
+              "
+            >
+              <input
+                type="checkbox"
+                id="agdm-stranded-confirm"
+                onchange="agdmStrandedCheckChange()"
+                style="margin-top: 2px; flex-shrink: 0"
+              />
+              Ich bestätige, dass diese Nutzer ihren Zugriff verlieren.
+            </label>
+          </div>
+
+          <!-- Action Buttons -->
+          <div id="agdm-actions" style="display: flex; flex-direction: column; gap: 10px">
+            <button
+              id="agdm-backup-btn"
+              onclick="adminGroupDoBackup()"
+              style="
+                background: var(--accent);
+                border: none;
+                color: #fff;
+                padding: 12px 16px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                text-align: left;
+              "
+            >
+              📦 ZIP-Backup erstellen &amp; herunterladen
+              <div style="font-size: 11px; font-weight: 400; opacity: 0.85; margin-top: 2px">
+                Gruppe bleibt bestehen — danach separat löschen
+              </div>
+            </button>
+            <button
+              id="agdm-delete-btn"
+              onclick="adminGroupDoDelete()"
+              style="
+                background: none;
+                border: 1.5px solid var(--danger, #e05555);
+                color: var(--danger, #e05555);
+                padding: 12px 16px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                text-align: left;
+              "
+            >
+              🗑 Direkt löschen
+              <div style="font-size: 11px; font-weight: 400; opacity: 0.85; margin-top: 2px">
+                ZIP-Backup wird automatisch erstellt
+              </div>
+            </button>
+          </div>
+
+          <!-- Loading state -->
+          <div id="agdm-loading" class="hidden" style="text-align: center; padding: 24px 0">
+            <div class="spinner" style="margin: 0 auto 12px"></div>
+            <p id="agdm-loading-text" style="color: var(--text2); font-size: 14px; margin: 0"></p>
+          </div>
+
+          <!-- Result: download link + optional confirm delete -->
+          <div id="agdm-result" class="hidden" style="margin-top: 4px">
+            <div
+              style="
+                background: rgba(109, 204, 112, 0.12);
+                border: 1px solid rgba(109, 204, 112, 0.3);
+                border-radius: 10px;
+                padding: 14px;
+                margin-bottom: 14px;
+              "
+            >
+              <p
+                id="agdm-result-text"
+                style="color: #6dcc70; font-size: 13px; font-weight: 600; margin: 0 0 8px"
+              >
+                ✅ ZIP-Backup erstellt (30 Tage gültig)
+              </p>
+              <a
+                id="agdm-dl-link"
+                href="#"
+                target="_blank"
+                rel="noopener"
+                style="
+                  display: inline-block;
+                  background: var(--accent);
+                  color: #fff;
+                  padding: 8px 16px;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  font-weight: 600;
+                  text-decoration: none;
+                "
+              >
+                📥 ZIP herunterladen
+              </a>
+              <button
+                id="agdm-copy-link-btn"
+                onclick="agdmCopyLink()"
+                title="Link kopieren"
+                style="
+                  margin-left: 8px;
+                  background: var(--accent-l);
+                  border: none;
+                  color: var(--accent);
+                  padding: 8px 12px;
+                  border-radius: 8px;
+                  cursor: pointer;
+                  font-size: 13px;
+                  font-weight: 600;
+                  vertical-align: middle;
+                "
+              >
+                🔗 Link kopieren
+              </button>
+            </div>
+            <button
+              id="agdm-confirm-delete-btn"
+              class="hidden"
+              onclick="adminGroupConfirmDelete()"
+              style="
+                width: 100%;
+                background: var(--danger, #e05555);
+                border: none;
+                color: #fff;
+                padding: 11px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              "
+            >
+              🗑 Gruppe jetzt endgültig löschen
+            </button>
+            <button
+              id="agdm-close-result-btn"
+              onclick="agdmCloseAndCleanup()"
+              style="
+                width: 100%;
+                margin-top: 10px;
+                background: none;
+                border: 1.5px solid var(--border);
+                color: var(--muted);
+                padding: 10px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+              "
+            >
+              Schließen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN BACKUPS MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="admin-backups-modal"
+      onclick="if (event.target === this) closeAdminBackups();"
+    >
+      <div
+        class="modal"
+        style="max-width: 720px; max-height: 85vh; display: flex; flex-direction: column"
+      >
+        <div class="modal-hdr">
+          <h3>📦 Backups verwalten</h3>
+          <button class="modal-x" onclick="closeAdminBackups()">✕</button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; padding: 12px 20px">
+          <p style="font-size: 13px; color: var(--muted); margin: 0 0 16px">
+            Alle gespeicherten Gruppen-Backups. Links können bei Bedarf verlängert werden. Backups
+            werden <strong>nicht</strong> automatisch gelöscht.
+          </p>
+          <div
+            id="admin-backups-list"
+            style="display: flex; flex-direction: column; gap: 10px"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN USERS MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="admin-users-modal"
+      onclick="if (event.target === this) closeAdminUsers();"
+    >
+      <div
+        class="modal"
+        style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column"
+      >
+        <div class="modal-hdr">
+          <h3>👥 Benutzer verwalten</h3>
+          <button class="modal-x" onclick="closeAdminUsers()">✕</button>
+        </div>
+        <div class="modal-body" style="flex: 1; min-height: 0; overflow-y: auto; padding: 0">
+          <div id="admin-users-list" style="padding: 8px 0"></div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal-bg hidden"
+      id="admin-groups-modal"
+      onclick="if (event.target === this) closeAdminGroups();"
+    >
+      <div
+        class="modal"
+        style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column"
+      >
+        <div class="modal-hdr">
+          <h3>⚙️ Gruppen verwalten</h3>
+          <button class="modal-x" onclick="closeAdminGroups()">✕</button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto; padding-bottom: 0">
+          <div
+            style="
+              background: var(--card);
+              border: 1px solid var(--border);
+              border-radius: 12px;
+              padding: 16px;
+              margin-bottom: 20px;
+            "
+          >
+            <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px">
+              Neue Gruppe anlegen
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <input
+                id="ag-new-name"
+                type="text"
+                placeholder="Gruppenname"
+                maxlength="60"
+                style="
+                  flex: 2;
+                  min-width: 140px;
+                  padding: 9px 12px;
+                  border-radius: 9px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg);
+                  font-size: 13px;
+                  color: var(--text);
+                  font-family: inherit;
+                "
+                onfocus="this.style.borderColor = 'var(--accent)'"
+                onblur="this.style.borderColor = 'var(--border)'"
+              />
+              <input
+                id="ag-new-code"
+                type="text"
+                placeholder="Code (z.B. FAMILIE24)"
+                maxlength="20"
+                style="
+                  flex: 1;
+                  min-width: 110px;
+                  padding: 9px 12px;
+                  border-radius: 9px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg);
+                  font-size: 13px;
+                  color: var(--text);
+                  font-family: monospace;
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                "
+                onfocus="this.style.borderColor = 'var(--accent)'"
+                onblur="this.style.borderColor = 'var(--border)'"
+                oninput="this.value = this.value.toUpperCase()"
+              />
+              <button
+                class="btn btn-primary"
+                style="padding: 9px 18px; white-space: nowrap"
+                onclick="adminCreateGroup()"
+              >
+                Anlegen
+              </button>
+            </div>
+            <div
+              style="
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px dashed var(--border);
+              "
+            >
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 7px;
+                  font-size: 12px;
+                  color: var(--text);
+                  cursor: pointer;
+                "
+              >
+                <input
+                  id="ag-new-limit-enabled"
+                  type="checkbox"
+                  onchange="adminToggleCreateGroupLimit()"
+                  style="accent-color: var(--accent)"
+                />
+                Mitgliederlimit aktivieren
+              </label>
+              <input
+                id="ag-new-limit"
+                type="number"
+                min="1"
+                max="50"
+                disabled
+                placeholder="Max (1-50)"
+                style="
+                  width: 120px;
+                  padding: 8px 10px;
+                  border-radius: 8px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg);
+                  font-size: 13px;
+                  color: var(--text);
+                  font-family: inherit;
+                "
+              />
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 7px;
+                  font-size: 12px;
+                  color: var(--text);
+                  cursor: pointer;
+                "
+              >
+                <input
+                  id="ag-new-limit-locked"
+                  type="checkbox"
+                  style="accent-color: var(--accent)"
+                />
+                Limit sperren
+              </label>
+            </div>
+            <div id="ag-create-msg" class="msg hidden" style="margin-top: 8px"></div>
+          </div>
+          <div
+            id="ag-list"
+            style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 16px"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BULK ACTION BAR -->
+    <div class="bulk-bar hidden" id="bulk-bar">
+      <span class="bulk-count" id="bulk-count">0 ausgewählt</span>
+      <button class="btn btn-ghost" onclick="bulkDownload()" id="bulk-down-btn">
+        Herunterladen
+      </button>
+      <button class="btn btn-ghost" onclick="bulkMoveToAlbum()" id="bulk-album-btn">
+        Zum Album
+      </button>
+      <button class="btn btn-danger" onclick="bulkDelete()">Löschen</button>
+      <button class="btn btn-ghost" onclick="toggleSelectMode()" style="padding: 8px 12px">
+        ✕
+      </button>
+    </div>
+
+    <!-- BULK ALBUM PICKER MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="bulk-album-modal"
+      onclick="if (event.target === this) closeBulkAlbumModal();"
+    >
+      <div class="modal" style="max-width: 360px">
+        <div class="modal-hdr">
+          <h3>Zum Album verschieben</h3>
+          <button class="modal-x" onclick="closeBulkAlbumModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label>Album auswählen</label>
+            <select
+              id="bulk-album-select"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: var(--card);
+                color: var(--text);
+                font-size: 14px;
+              "
+            ></select>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 20px">
+            <button class="btn btn-ghost" style="flex: 1" onclick="closeBulkAlbumModal()">
+              Abbrechen
+            </button>
+            <button class="btn btn-primary" style="flex: 1" onclick="execBulkMoveToAlbum()">
+              Verschieben
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTRIBUTOR MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="contrib-modal"
+      onclick="if (event.target === this) closeContributorModal();"
+    >
+      <div class="modal" style="max-width: 420px">
+        <div class="modal-hdr">
+          <h3 id="contrib-modal-title">Album verwalten</h3>
+          <button class="modal-x" onclick="closeContributorModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Umbenennen -->
+          <div
+            id="contrib-rename-row"
+            style="
+              margin-bottom: 18px;
+              padding-bottom: 18px;
+              border-bottom: 1px solid var(--border);
+            "
+          >
+            <label
+              style="
+                display: block;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 1.1px;
+                text-transform: uppercase;
+                color: var(--muted2);
+                margin-bottom: 8px;
+              "
+              >Album umbenennen</label
+            >
+            <div style="display: flex; gap: 8px">
+              <input
+                type="text"
+                id="contrib-rename-input"
+                maxlength="40"
+                placeholder="Albumname…"
+                style="
+                  flex: 1;
+                  padding: 9px 12px;
+                  border-radius: 9px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg);
+                  font-size: 13px;
+                  color: var(--text);
+                  outline: none;
+                  font-family: inherit;
+                "
+                onfocus="this.style.borderColor = 'var(--accent)'"
+                onblur="this.style.borderColor = 'var(--border)'"
+                onkeydown="if (event.key === 'Enter') saveAlbumRename();"
+              />
+              <button
+                class="btn btn-primary"
+                style="padding: 9px 14px; white-space: nowrap"
+                onclick="saveAlbumRename()"
+              >
+                Speichern
+              </button>
+            </div>
+          </div>
+          <!-- Contributors -->
+          <label
+            style="
+              display: block;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 1.1px;
+              text-transform: uppercase;
+              color: var(--muted2);
+              margin-bottom: 10px;
+            "
+            >Bearbeitungsrechte — wer darf Fotos hinzufügen &amp; entfernen?</label
+          >
+          <div id="contrib-list" style="margin-bottom: 14px; min-height: 32px"></div>
+          <div style="display: flex; gap: 8px">
+            <select
+              id="contrib-user-select"
+              style="
+                flex: 1;
+                padding: 9px 12px;
+                border-radius: 9px;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                font-size: 13px;
+                color: var(--text);
+                font-family: inherit;
+              "
+            >
+              <option value="">— Mitglied auswählen —</option>
             </select>
+            <button
+              class="btn btn-primary"
+              style="padding: 9px 14px; white-space: nowrap"
+              onclick="addContributor()"
+            >
+              Hinzufügen
+            </button>
           </div>
-          <div class="select-wrap" data-label="Ansicht">
-            <select class="sort-select" id="view-select" onchange="switchView(this.value)" title="Ansicht">
-              <option value="small">Ansicht: Klein</option>
-              <option value="medium" selected>Ansicht: Mittel</option>
-              <option value="large">Ansicht: Groß</option>
-              <option value="list">Ansicht: Liste</option>
+          <!-- Löschen -->
+          <div
+            id="contrib-delete-row"
+            style="margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border)"
+          >
+            <button class="btn btn-danger" style="width: 100%" onclick="deleteAlbumFromModal()">
+              Album löschen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GROUP SETTINGS MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="group-settings-modal"
+      onclick="if (event.target === this) closeGroupSettingsModal();"
+    >
+      <div class="modal" style="max-width: 460px">
+        <div class="modal-hdr">
+          <h3>Gruppe verwalten</h3>
+          <button class="modal-x" onclick="closeGroupSettingsModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <label
+            style="
+              display: block;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 1.1px;
+              text-transform: uppercase;
+              color: var(--muted2);
+              margin-bottom: 8px;
+            "
+            >Gruppenname</label
+          >
+          <div style="display: flex; gap: 8px; margin-bottom: 20px">
+            <input
+              id="group-settings-rename-input"
+              type="text"
+              maxlength="60"
+              placeholder="Gruppenname…"
+              style="
+                flex: 1;
+                padding: 9px 12px;
+                border-radius: 9px;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                font-size: 13px;
+                color: var(--text);
+                outline: none;
+                font-family: inherit;
+              "
+              onfocus="this.style.borderColor = 'var(--accent)'"
+              onblur="this.style.borderColor = 'var(--border)'"
+              onkeydown="if (event.key === 'Enter') saveGroupSettingsRename();"
+            />
+            <button
+              class="btn btn-primary"
+              id="group-settings-rename-btn"
+              style="padding: 9px 14px; white-space: nowrap"
+              onclick="saveGroupSettingsRename()"
+            >
+              Speichern
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px">
+            <label
+              style="
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 1.1px;
+                text-transform: uppercase;
+                color: var(--muted2);
+              "
+              >Einladungscode</label
+            >
+            <div style="position: relative; display: inline-flex; align-items: center">
+              <span
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  cursor: default;
+                  line-height: 1;
+                  user-select: none;
+                "
+                onmouseenter="$('gs-code-hint').style.display = 'block'"
+                onmouseleave="$('gs-code-hint').style.display = 'none'"
+                >ℹ️</span
+              >
+              <div
+                id="gs-code-hint"
+                style="
+                  display: none;
+                  position: absolute;
+                  left: 0;
+                  top: 130%;
+                  width: 220px;
+                  white-space: normal;
+                  background: var(--surface);
+                  border: 1px solid var(--border);
+                  border-radius: 8px;
+                  padding: 8px 10px;
+                  font-size: 11px;
+                  color: var(--muted);
+                  z-index: 10;
+                  box-shadow: var(--shadow2);
+                "
+              >
+                Für einen individuellen Code wende dich bitte an einen Admin.
+              </div>
+            </div>
+          </div>
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              padding: 12px 16px;
+              background: var(--accent-l);
+              border: 1.5px solid var(--accent);
+              border-radius: 10px;
+              margin-bottom: 10px;
+            "
+          >
+            <span
+              id="group-settings-code-display"
+              style="
+                flex: 1;
+                font-size: 22px;
+                font-weight: 800;
+                letter-spacing: 5px;
+                color: var(--accent);
+                font-family: monospace;
+              "
+            ></span>
+            <button
+              onclick="copyGroupSettingsCode()"
+              title="Kopieren"
+              style="
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: var(--accent);
+                padding: 4px;
+                display: flex;
+                align-items: center;
+                border-radius: 6px;
+                transition: background 0.15s;
+              "
+              onmouseover="this.style.background = 'rgba(0,0,0,.07)'"
+              onmouseout="this.style.background = 'none'"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
+          </div>
+          <button
+            class="btn btn-ghost"
+            id="group-settings-code-rotate-btn"
+            style="width: 100%; margin-bottom: 20px"
+            onclick="rotateGroupInviteCode()"
+          >
+            Neu generieren
+          </button>
+
+          <label
+            style="
+              display: block;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 1.1px;
+              text-transform: uppercase;
+              color: var(--muted2);
+              margin-bottom: 8px;
+            "
+            >Code-Sichtbarkeit</label
+          >
+          <label
+            for="group-settings-code-visible"
+            style="
+              display: flex;
+              align-items: flex-start;
+              gap: 10px;
+              padding: 10px 12px;
+              border: 1px solid var(--border);
+              border-radius: 10px;
+              background: var(--bg);
+              margin-bottom: 20px;
+              cursor: pointer;
+            "
+          >
+            <input
+              id="group-settings-code-visible"
+              type="checkbox"
+              style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
+              onchange="saveGroupInviteCodeVisibility()"
+            />
+            <div style="font-size: 13px; color: var(--text)">
+              Mitglieder dürfen den Einladungscode sehen
+              <div style="font-size: 11px; color: var(--muted); margin-top: 2px">
+                Wenn deaktiviert, sehen nur Owner und Vertreter den Code.
+              </div>
+            </div>
+          </label>
+
+          <label
+            style="
+              display: block;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 1.1px;
+              text-transform: uppercase;
+              color: var(--muted2);
+              margin-bottom: 8px;
+            "
+            >Mitgliederlimit</label
+          >
+          <label
+            for="group-settings-limit-enabled"
+            style="
+              display: flex;
+              align-items: flex-start;
+              gap: 10px;
+              padding: 10px 12px;
+              border: 1px solid var(--border);
+              border-radius: 10px;
+              background: var(--bg);
+              margin-bottom: 10px;
+              cursor: pointer;
+            "
+          >
+            <input
+              id="group-settings-limit-enabled"
+              type="checkbox"
+              style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
+              onchange="toggleGroupLimitInputs()"
+            />
+            <div style="font-size: 13px; color: var(--text)">
+              Mitgliederlimit aktivieren
+              <div
+                id="group-settings-limit-hint"
+                style="font-size: 11px; color: var(--muted); margin-top: 2px"
+              >
+                Optional: Begrenze die maximale Mitgliederanzahl dieser Gruppe.
+              </div>
+            </div>
+          </label>
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px">
+            <input
+              id="group-settings-limit-input"
+              type="number"
+              min="1"
+              max="50"
+              disabled
+              style="
+                width: 130px;
+                padding: 9px 11px;
+                border-radius: 9px;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                font-size: 13px;
+                color: var(--text);
+                font-family: inherit;
+              "
+              onkeydown="if (event.key === 'Enter') saveGroupMemberLimit();"
+            />
+            <button
+              class="btn btn-primary"
+              id="group-settings-limit-save-btn"
+              style="padding: 9px 14px; white-space: nowrap"
+              onclick="saveGroupMemberLimit()"
+            >
+              Limit speichern
+            </button>
+          </div>
+          <div
+            id="group-settings-limit-lock-hint"
+            class="hidden"
+            style="font-size: 12px; color: var(--danger, #e05555); margin: 0 0 20px"
+          >
+            Dieses Limit wurde von einem Admin gesperrt und kann von dir nicht geändert werden.
+          </div>
+
+          <label
+            style="
+              display: block;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 1.1px;
+              text-transform: uppercase;
+              color: var(--muted2);
+              margin-bottom: 6px;
+            "
+            >Vertreter</label
+          >
+          <p style="font-size: 12px; color: var(--muted); margin: 0 0 10px; font-weight: 300">
+            Vertreter haben dieselben Rechte wie du – außer Umbenennen und Löschen.
+          </p>
+          <div id="gs-deputy-list" style="margin-bottom: 10px; min-height: 24px"></div>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr auto;
+              gap: 8px;
+              align-items: center;
+              margin-bottom: 20px;
+            "
+          >
+            <select
+              id="gs-deputy-user-select"
+              style="
+                width: 100%;
+                padding: 9px 12px;
+                border-radius: 9px;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                font-size: 13px;
+                color: var(--text);
+                font-family: inherit;
+                box-sizing: border-box;
+              "
+            >
+              <option value="">— Mitglied auswählen —</option>
             </select>
+            <button
+              class="btn btn-primary"
+              style="padding: 9px 14px; white-space: nowrap"
+              onclick="addGsDeputy()"
+            >
+              Ernennen
+            </button>
           </div>
-          <div style="flex:1"></div>
-          <button class="sel-toggle" id="sel-toggle" onclick="toggleSelectMode()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            Auswählen
-          </button>
-        </div>
-      </div>
-      <div id="grid" class="grid"></div>
-      <div id="empty" class="empty hidden">
-        <div class="empty-icon" id="empty-icon">🌿</div>
-        <p id="empty-text">Noch keine Fotos in diesem Ordner</p>
-        <div id="empty-actions"></div>
-      </div>
-      <button id="more-btn" class="more-btn hidden" onclick="loadMore()">Weitere Fotos laden…</button>
-    </div>
-  </div>
 
-  <button
-    class="upload-shortcut hidden"
-    id="upload-shortcut-btn"
-    onclick="openModal()"
-    aria-label="Fotos hochladen"
-    title="Fotos hochladen"
-  >
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  </button>
-</div>
-
-<!-- UPLOAD MODAL -->
-<div class="modal-bg hidden" id="up-modal" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-hdr"><h3>Fotos hochladen</h3><button class="modal-x" onclick="closeModal()">✕</button></div>
-    <div class="modal-body">
-      <div id="dz-wrap">
-        <!-- Dropzone: kompakt wenn Vorschau vorhanden -->
-        <div class="dz" id="dz">
-          <div class="dz-ico">📸</div>
-          <p class="dz-ttl">Fotos hier ablegen</p>
-          <p class="dz-sub">oder klicken · JPG, PNG, GIF, WebP · Mehrere möglich</p>
-        </div>
-
-        <!-- Vorschau-Bereich -->
-        <div id="dz-preview-wrap" style="display:none">
-          <div id="dz-preview-grid" class="dz-preview-grid"></div>
-          <button class="dz-add-more" onclick="$('fi').click()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Weitere hinzufügen
-          </button>
-        </div>
-
-        <div class="field" style="margin-top:12px">
-          <label>Album (optional)</label>
-          <select id="asel" class="modal-sel"><option value="">— Kein Album —</option></select>
-        </div>
-        <div class="field" style="margin-top:12px">
-          <label>Beschreibung (optional)</label>
-          <input type="text" id="desc-input" placeholder="Z.B. Urlaub in Italien, Sommer 2024…" maxlength="200" style="width:100%;padding:10px 13px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;outline:none">
-        </div>
-
-        <!-- Upload-Button -->
-        <button class="btn btn-primary" id="do-upload-btn" onclick="startUpload()" style="display:none;margin-top:16px;width:100%;padding:12px">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <span id="do-upload-label">Hochladen</span>
-        </button>
-      </div>
-      <div id="prog-wrap" class="up-prog hidden">
-        <div class="spinner"></div>
-        <p id="prog-txt">Wird hochgeladen…</p>
-        <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
-      </div>
-      <input type="file" id="fi" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
-    </div>
-  </div>
-</div>
-
-<!-- LIGHTBOX -->
-<div class="lb-bg hidden" id="lb" onclick="handleLbBgClick(event)">
-  <button class="lb-x" onclick="closeLB()">✕</button>
-  <div class="lb-layout">
-    <div class="lb-img-side" onclick="if(event.target===this)closeLB()">
-      <button class="lb-arr" id="lb-prv" onclick="lbNav(-1)">‹</button>
-      <img id="lb-img" class="lb-img" src="" alt="">
-      <button class="lb-arr" id="lb-nxt" onclick="lbNav(1)">›</button>
-    </div>
-    <div class="lb-panel">
-      <div class="lb-panel-top">
-        <div class="lb-who-row">
-          <div class="lb-av" id="lb-av"></div>
-          <div>
-            <div class="lb-who" id="lb-who"></div>
-            <div class="lb-dt"  id="lb-dt"></div>
-          </div>
-        </div>
-        <div class="lb-cnt" id="lb-cnt"></div>
-        <button class="lb-like-btn" id="lb-like-btn" onclick="toggleLike()">
-          <span class="lheart">🤍</span>
-          <span id="lb-like-count">0</span> Gefällt mir
-        </button>
-        <div id="lb-likers" onclick="showLikersList()" style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5;cursor:pointer"></div>
-        <div class="lb-action-btns" id="lb-action-btns">
-          <button class="lb-act-btn" id="lb-down-btn" onclick="downloadPhoto()" title="Herunterladen"></button>
-          <button class="lb-act-btn" id="lb-album-btn" onclick="openAlbumPicker()" title="Album"></button>
-          <button class="lb-act-btn" id="lb-full-btn" onclick="toggleFullview()" title="Vollbild"></button>
-          <button class="lb-act-btn del hidden" id="lb-del-btn" onclick="askDel(null,true)" title="Löschen"></button>
-          <button class="lb-act-btn lb-copy-id hidden" id="lb-copy-id-btn" onclick="copyCurrentImageId()" title="Bild-ID kopieren"></button>
-        </div>
-        <div id="lb-album-tag" style="margin-top:8px;display:none"></div>
-      </div>
-      <div class="lb-comments" id="lb-comments">
-        <div class="no-comments">Noch keine Kommentare</div>
-      </div>
-      <div class="lb-input-row">
-        <textarea id="comment-input" placeholder="Kommentar schreiben…" rows="1"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendComment()}"
-          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
-        <button class="send-btn" id="send-btn" onclick="sendComment()"></button>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<!-- MOBILE SIDEBAR OVERLAY -->
-<div id="mob-overlay" onclick="closeSidebar()"></div>
-
-<!-- SLIDESHOW BAR (shown inside lightbox) -->
-<div class="ss-bar hidden" id="ss-bar">
-  <button class="ss-btn" onclick="ssChangeSpeed()" title="Geschwindigkeit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
-  <span class="ss-speed" id="ss-speed">4s</span>
-  <button class="ss-btn" onclick="toggleSS()" id="ss-play-btn">
-    <svg id="ss-play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-  </button>
-  <span class="ss-counter" id="ss-counter">1 / 1</span>
-  <button class="ss-btn" onclick="closeLB()" title="Schließen" style="background:rgba(255,255,255,.15)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-</div>
-
-<!-- ALBUM MANAGE MODAL -->
-<div class="modal-bg hidden" id="album-modal" onclick="if(event.target===this)closeAlbumModal()">
-  <div class="modal">
-    <div class="modal-hdr"><h3>Alben verwalten</h3><button class="modal-x" onclick="closeAlbumModal()">✕</button></div>
-    <div class="modal-body">
-      <div class="album-list" id="album-list"></div>
-      <div class="new-album-row">
-        <input type="text" id="new-album-name" placeholder="Neues Album benennen…" maxlength="40" onkeydown="if(event.key==='Enter')createAlbum()">
-        <button onclick="createAlbum()">＋ Erstellen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- PROFILE MODAL -->
-<div class="modal-bg hidden" id="profile-modal" onclick="if(event.target===this)closeProfileModal()">
-  <div class="modal">
-    <div class="modal-hdr"><h3>Mein Profil</h3><button class="modal-x" onclick="closeProfileModal()">✕</button></div>
-    <div class="modal-body">
-      <div class="avatar-upload-area">
-        <div class="avatar-preview" id="avatar-preview" onclick="$('avatar-fi').click()" title="Klicken zum Ändern"></div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
-          <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px" onclick="$('avatar-fi').click()">📷 Ändern</button>
-          <button class="btn btn-danger" id="clear-avatar-btn" style="font-size:12px;padding:6px 14px" onclick="clearAvatar()">🗑 Entfernen</button>
-        </div>
-        <p style="font-size:12px;color:var(--muted);text-align:center;font-weight:300;margin-top:6px">Klicke auf das Bild oder „Ändern" um ein neues Foto hochzuladen</p>
-      </div>
-      <input type="file" id="avatar-fi" accept="image/*" style="display:none" onchange="uploadAvatar(this.files[0])">
-      <div id="avatar-msg" class="msg hidden"></div>
-      <!-- ── ANZEIGENAME ── -->
-      <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:4px">
-        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Anzeigename</label>
-        <div id="displayname-msg" class="msg hidden" style="margin-bottom:8px"></div>
-        <div id="displayname-btns"></div>
-        <p id="displayname-hint" style="font-size:11px;color:var(--muted);margin-top:6px;font-weight:300;text-align:center">Wähle, welcher Name in der App für dich angezeigt wird.</p>
-        <a href="#" onclick="event.preventDefault();window.open(window.APP_CONFIG.authentikBase+'/if/user/#/settings','_blank','noopener noreferrer')" rel="noopener noreferrer"
-          style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--accent);text-decoration:none;font-weight:500;margin-top:8px">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
-          Name, Benutzername oder E-Mail in Authentik ändern
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        </a>
-        <p style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:300;text-align:center">Änderungen werden beim nächsten Login übernommen.</p>
-      </div>
-      <div class="profile-color-section">
-        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Meine Farbe</label>
-        <div id="color-msg" class="msg hidden" style="margin-bottom:8px"></div>
-        <div class="color-swatches" id="color-swatches"></div>
-      </div>
-
-      <!-- ── NOTIFICATION PREFERENCES ── -->
-      <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:14px">
-        <button onclick="toggleNotifPrefs()" style="display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;cursor:pointer;padding:0;margin-bottom:0" aria-expanded="false" id="notif-prefs-toggle">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);pointer-events:none">Benachrichtigungen</label>
-          <svg id="notif-prefs-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted2)" stroke-width="2.5" stroke-linecap="round" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div id="notif-prefs-msg" class="msg hidden" style="margin-top:8px"></div>
-        <div id="notif-prefs-collapsible" style="display:none;margin-top:12px">
-          <div id="notif-prefs-loading" style="font-size:13px;color:var(--muted);text-align:center;padding:8px">Laden…</div>
-          <div id="notif-prefs-body" class="hidden">
-            <table style="width:100%;font-size:12px;border-collapse:collapse">
-              <thead>
-                <tr>
-                  <th style="text-align:left;padding:4px 6px;color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.8px">Ereignis</th>
-                  <th style="text-align:center;padding:4px 6px;color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.8px">In-App</th>
-                  <th style="text-align:center;padding:4px 6px;color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.8px">E-Mail</th>
-                </tr>
-              </thead>
-              <tbody id="notif-prefs-table"></tbody>
-            </table>
+          <div style="border-top: 1px solid var(--border); padding-top: 14px">
+            <button
+              class="btn btn-danger"
+              id="group-settings-delete-btn"
+              style="width: 100%"
+              onclick="deleteGroupFromSettings()"
+            >
+              Gruppe löschen
+            </button>
           </div>
         </div>
       </div>
-      <!-- ── END NOTIFICATION PREFERENCES ── -->
     </div>
-  </div>
-</div>
 
-<!-- ADD FROM ALL PHOTOS MODAL -->
-<div class="modal-bg hidden" id="add-photos-modal" onclick="if(event.target===this)closeAddModal()">
-  <div class="modal" style="max-width:680px">
-    <div class="modal-hdr">
-      <h3>Fotos zum Album hinzufügen</h3>
-      <button class="modal-x" onclick="closeAddModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:300">Wähle Fotos aus, die du dem Album hinzufügen möchtest. Sie bleiben weiterhin in „Alle Fotos" sichtbar.</p>
-      <div id="add-photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:380px;overflow-y:auto;padding:2px"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-        <span id="add-photos-count" style="font-size:13px;color:var(--muted);font-weight:400">0 ausgewählt</span>
-        <div style="display:flex;gap:10px">
-          <button class="btn btn-ghost" onclick="closeAddModal()">Abbrechen</button>
-          <button class="btn btn-primary" style="width:auto;padding:10px 22px" onclick="confirmAddToAlbum()">Hinzufügen</button>
+    <!-- DEPUTY MODAL -->
+    <div
+      class="modal-bg hidden"
+      id="deputy-modal"
+      onclick="if (event.target === this) closeDeputyModal();"
+    >
+      <div class="modal" style="max-width: 420px">
+        <div class="modal-hdr">
+          <h3>Vertreter verwalten</h3>
+          <button class="modal-x" onclick="closeDeputyModal()">✕</button>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- JOIN GROUP MODAL -->
-<div class="modal-bg hidden" id="join-group-modal" onclick="if(event.target===this)closeJoinGroup()">
-  <div class="modal" style="max-width:400px">
-    <div class="modal-hdr"><h3>Gruppe beitreten</h3><button class="modal-x" onclick="closeJoinGroup()">✕</button></div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:300">Gib den Einladungscode ein, den du erhalten hast.</p>
-      <div id="join-group-msg" class="msg hidden"></div>
-      <div class="field">
-        <label>Gruppencode</label>
-        <input type="text" id="join-group-code" placeholder="z.B. FAMILIE24" maxlength="40" style="text-transform:uppercase;font-family:monospace;letter-spacing:1px" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')doJoinGroup()">
-      </div>
-      <button class="btn btn-primary" id="join-group-btn" onclick="doJoinGroup()">Beitreten →</button>
-    </div>
-  </div>
-</div>
-
-<!-- LEAVE GROUP MODAL -->
-<div class="modal-bg hidden" id="leave-group-modal" onclick="if(event.target===this)closeLeaveGroup()">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-hdr"><h3>Gruppe verlassen</h3><button class="modal-x" onclick="closeLeaveGroup()">✕</button></div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:300">Wähle die Gruppe, die du verlassen möchtest.</p>
-      <div id="leave-group-msg" class="msg hidden"></div>
-      <div class="field">
-        <label>Gruppe</label>
-        <select id="leave-group-select" onchange="_leaveGroupUpdateOwnerUI()" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px"></select>
-      </div>
-
-      <!-- Owner-Hinweis (wird dynamisch eingeblendet) -->
-      <div id="leave-owner-section" class="hidden" style="background:rgba(255,160,0,0.1);border:1px solid rgba(255,160,0,0.35);border-radius:10px;padding:12px 14px;margin-top:14px">
-        <div style="font-size:13px;font-weight:700;color:#c87700;margin-bottom:6px">⚠️ Du bist Gruppen-Owner</div>
-
-        <!-- Nachfolger wählen -->
-        <div id="leave-successor-section" class="hidden">
-          <p style="font-size:12px;color:var(--text2);margin:0 0 10px">Bitte wähle einen Nachfolger. Die Ownership wird übertragen, bevor du die Gruppe verlässt.</p>
-          <select id="leave-successor-select" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px"></select>
-        </div>
-
-        <!-- Letztes Mitglied → Auflösen -->
-        <div id="leave-dissolve-section" class="hidden">
-          <p style="font-size:12px;color:var(--text2);margin:0 0 10px">Du bist das einzige Mitglied. Das Verlassen wird die Gruppe <strong>endgültig löschen</strong>. Vorher wird automatisch ein ZIP-Backup erstellt.</p>
-          <div id="leave-dissolve-last-group-hint" class="hidden" style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0">
-            Du kannst deine letzte Gruppe nicht auflösen.<br>Tritt zuerst einer anderen Gruppe bei.
-          </div>
-          <button id="leave-dissolve-btn" class="btn btn-danger" style="width:100%" onclick="dissolveGroup()">🗑 Gruppe auflösen &amp; Backup erstellen</button>
-        </div>
-      </div>
-
-      <div id="leave-last-group-hint" class="hidden" style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0;margin-top:16px">
-        Du kannst deine letzte Gruppe nicht verlassen.<br>Tritt zuerst einer anderen Gruppe bei.
-      </div>
-      <div style="display:flex;gap:10px;margin-top:20px">
-        <button class="btn btn-ghost" style="flex:1" onclick="closeLeaveGroup()">Abbrechen</button>
-        <button class="btn btn-danger" style="flex:1" id="leave-group-btn" onclick="doLeaveGroup()">Verlassen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ADMIN GROUPS MODAL -->
-<div class="modal-bg modal-bg--top hidden" id="admin-group-delete-modal" onclick="if(event.target===this)agdmCloseAndCleanup()">
-  <div class="modal" style="max-width:460px">
-    <div class="modal-hdr">
-      <h3 id="agdm-title">Gruppe löschen</h3>
-      <button class="modal-x" onclick="agdmCloseAndCleanup()">✕</button>
-    </div>
-    <div class="modal-body">
-      <p id="agdm-info" style="color:var(--text2);font-size:14px;margin:0 0 12px"></p>
-
-      <!-- Warnung: User verlieren Zugriff -->
-      <div id="agdm-stranded-warning" class="hidden" style="background:rgba(224,85,85,0.09);border:1px solid rgba(224,85,85,0.3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-        <p style="font-size:13px;font-weight:600;color:var(--danger,#e05555);margin:0 0 6px">⚠️ Diese Nutzer verlieren nach dem Löschen ihren kompletten Zugriff:</p>
-        <p id="agdm-stranded-names" style="font-size:13px;color:var(--text2);margin:0 0 10px"></p>
-        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
-          <input type="checkbox" id="agdm-stranded-confirm" onchange="agdmStrandedCheckChange()" style="margin-top:2px;flex-shrink:0">
-          Ich bestätige, dass diese Nutzer ihren Zugriff verlieren.
-        </label>
-      </div>
-
-      <!-- Action Buttons -->
-      <div id="agdm-actions" style="display:flex;flex-direction:column;gap:10px">
-        <button id="agdm-backup-btn" onclick="adminGroupDoBackup()"
-          style="background:var(--accent);border:none;color:#fff;padding:12px 16px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;text-align:left">
-          📦 ZIP-Backup erstellen &amp; herunterladen
-          <div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">Gruppe bleibt bestehen — danach separat löschen</div>
-        </button>
-        <button id="agdm-delete-btn" onclick="adminGroupDoDelete()"
-          style="background:none;border:1.5px solid var(--danger,#e05555);color:var(--danger,#e05555);padding:12px 16px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;text-align:left">
-          🗑 Direkt löschen
-          <div style="font-size:11px;font-weight:400;opacity:0.85;margin-top:2px">ZIP-Backup wird automatisch erstellt</div>
-        </button>
-      </div>
-
-      <!-- Loading state -->
-      <div id="agdm-loading" class="hidden" style="text-align:center;padding:24px 0">
-        <div class="spinner" style="margin:0 auto 12px"></div>
-        <p id="agdm-loading-text" style="color:var(--text2);font-size:14px;margin:0"></p>
-      </div>
-
-      <!-- Result: download link + optional confirm delete -->
-      <div id="agdm-result" class="hidden" style="margin-top:4px">
-        <div style="background:rgba(109,204,112,0.12);border:1px solid rgba(109,204,112,0.3);border-radius:10px;padding:14px;margin-bottom:14px">
-          <p id="agdm-result-text" style="color:#6dcc70;font-size:13px;font-weight:600;margin:0 0 8px">✅ ZIP-Backup erstellt (30 Tage gültig)</p>
-          <a id="agdm-dl-link" href="#" target="_blank" rel="noopener"
-            style="display:inline-block;background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none">
-            📥 ZIP herunterladen
-          </a>
-          <button id="agdm-copy-link-btn" onclick="agdmCopyLink()" title="Link kopieren"
-            style="margin-left:8px;background:var(--accent-l);border:none;color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;vertical-align:middle">
-            🔗 Link kopieren
-          </button>
-        </div>
-        <button id="agdm-confirm-delete-btn" class="hidden" onclick="adminGroupConfirmDelete()"
-          style="width:100%;background:var(--danger,#e05555);border:none;color:#fff;padding:11px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600">
-          🗑 Gruppe jetzt endgültig löschen
-        </button>
-        <button id="agdm-close-result-btn" onclick="agdmCloseAndCleanup()"
-          style="width:100%;margin-top:10px;background:none;border:1.5px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500">
-          Schließen
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ADMIN BACKUPS MODAL -->
-<div class="modal-bg hidden" id="admin-backups-modal" onclick="if(event.target===this)closeAdminBackups()">
-  <div class="modal" style="max-width:720px;max-height:85vh;display:flex;flex-direction:column">
-    <div class="modal-hdr">
-      <h3>📦 Backups verwalten</h3>
-      <button class="modal-x" onclick="closeAdminBackups()">✕</button>
-    </div>
-    <div class="modal-body" style="overflow-y:auto;padding:12px 20px">
-      <p style="font-size:13px;color:var(--muted);margin:0 0 16px">Alle gespeicherten Gruppen-Backups. Links können bei Bedarf verlängert werden. Backups werden <strong>nicht</strong> automatisch gelöscht.</p>
-      <div id="admin-backups-list" style="display:flex;flex-direction:column;gap:10px"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ADMIN USERS MODAL -->
-<div class="modal-bg hidden" id="admin-users-modal" onclick="if(event.target===this)closeAdminUsers()">
-  <div class="modal" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column">
-    <div class="modal-hdr">
-      <h3>👥 Benutzer verwalten</h3>
-      <button class="modal-x" onclick="closeAdminUsers()">✕</button>
-    </div>
-    <div class="modal-body" style="flex:1;min-height:0;overflow-y:auto;padding:0">
-      <div id="admin-users-list" style="padding:8px 0"></div>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg hidden" id="admin-groups-modal" onclick="if(event.target===this)closeAdminGroups()">
-  <div class="modal" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column">
-    <div class="modal-hdr">
-      <h3>⚙️ Gruppen verwalten</h3>
-      <button class="modal-x" onclick="closeAdminGroups()">✕</button>
-    </div>
-    <div class="modal-body" style="flex:1;overflow-y:auto;padding-bottom:0">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">Neue Gruppe anlegen</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input id="ag-new-name" type="text" placeholder="Gruppenname" maxlength="60"
-            style="flex:2;min-width:140px;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit"
-            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-          <input id="ag-new-code" type="text" placeholder="Code (z.B. FAMILIE24)" maxlength="20"
-            style="flex:1;min-width:110px;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:monospace;text-transform:uppercase;letter-spacing:1px"
-            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
-            oninput="this.value=this.value.toUpperCase()">
-          <button class="btn btn-primary" style="padding:9px 18px;white-space:nowrap" onclick="adminCreateGroup()">Anlegen</button>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
-          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text);cursor:pointer">
-            <input id="ag-new-limit-enabled" type="checkbox" onchange="adminToggleCreateGroupLimit()" style="accent-color:var(--accent)">
-            Mitgliederlimit aktivieren
-          </label>
-          <input id="ag-new-limit" type="number" min="1" max="50" disabled placeholder="Max (1-50)"
-            style="width:120px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit">
-          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text);cursor:pointer">
-            <input id="ag-new-limit-locked" type="checkbox" style="accent-color:var(--accent)">
-            Limit sperren
-          </label>
-        </div>
-        <div id="ag-create-msg" class="msg hidden" style="margin-top:8px"></div>
-      </div>
-      <div id="ag-list" style="display:flex;flex-direction:column;gap:8px;padding-bottom:16px"></div>
-    </div>
-  </div>
-</div>
-
-<!-- BULK ACTION BAR -->
-<div class="bulk-bar hidden" id="bulk-bar">
-  <span class="bulk-count" id="bulk-count">0 ausgewählt</span>
-  <button class="btn btn-ghost" onclick="bulkDownload()" id="bulk-down-btn">Herunterladen</button>
-  <button class="btn btn-ghost" onclick="bulkMoveToAlbum()" id="bulk-album-btn">Zum Album</button>
-  <button class="btn btn-danger" onclick="bulkDelete()">Löschen</button>
-  <button class="btn btn-ghost" onclick="toggleSelectMode()" style="padding:8px 12px">✕</button>
-</div>
-
-<!-- BULK ALBUM PICKER MODAL -->
-<div class="modal-bg hidden" id="bulk-album-modal" onclick="if(event.target===this)closeBulkAlbumModal()">
-  <div class="modal" style="max-width:360px">
-    <div class="modal-hdr"><h3>Zum Album verschieben</h3><button class="modal-x" onclick="closeBulkAlbumModal()">✕</button></div>
-    <div class="modal-body">
-      <div class="field">
-        <label>Album auswählen</label>
-        <select id="bulk-album-select" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px"></select>
-      </div>
-      <div style="display:flex;gap:10px;margin-top:20px">
-        <button class="btn btn-ghost" style="flex:1" onclick="closeBulkAlbumModal()">Abbrechen</button>
-        <button class="btn btn-primary" style="flex:1" onclick="execBulkMoveToAlbum()">Verschieben</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- CONTRIBUTOR MODAL -->
-<div class="modal-bg hidden" id="contrib-modal" onclick="if(event.target===this)closeContributorModal()">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-hdr">
-      <h3 id="contrib-modal-title">Album verwalten</h3>
-      <button class="modal-x" onclick="closeContributorModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <!-- Umbenennen -->
-      <div id="contrib-rename-row" style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Album umbenennen</label>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="contrib-rename-input" maxlength="40" placeholder="Albumname…"
-            style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);outline:none;font-family:inherit"
-            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
-            onkeydown="if(event.key==='Enter')saveAlbumRename()">
-          <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="saveAlbumRename()">Speichern</button>
-        </div>
-      </div>
-      <!-- Contributors -->
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Bearbeitungsrechte — wer darf Fotos hinzufügen &amp; entfernen?</label>
-      <div id="contrib-list" style="margin-bottom:14px;min-height:32px"></div>
-      <div style="display:flex;gap:8px">
-        <select id="contrib-user-select"
-          style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit">
-          <option value="">— Mitglied auswählen —</option>
-        </select>
-        <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="addContributor()">Hinzufügen</button>
-      </div>
-      <!-- Löschen -->
-      <div id="contrib-delete-row" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
-        <button class="btn btn-danger" style="width:100%" onclick="deleteAlbumFromModal()">Album löschen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- GROUP SETTINGS MODAL -->
-<div class="modal-bg hidden" id="group-settings-modal" onclick="if(event.target===this)closeGroupSettingsModal()">
-  <div class="modal" style="max-width:460px">
-    <div class="modal-hdr">
-      <h3>Gruppe verwalten</h3>
-      <button class="modal-x" onclick="closeGroupSettingsModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Gruppenname</label>
-      <div style="display:flex;gap:8px;margin-bottom:20px">
-        <input id="group-settings-rename-input" type="text" maxlength="60" placeholder="Gruppenname…"
-          style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);outline:none;font-family:inherit"
-          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
-          onkeydown="if(event.key==='Enter')saveGroupSettingsRename()">
-        <button class="btn btn-primary" id="group-settings-rename-btn" style="padding:9px 14px;white-space:nowrap" onclick="saveGroupSettingsRename()">Speichern</button>
-      </div>
-
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2)">Einladungscode</label>
-        <div style="position:relative;display:inline-flex;align-items:center">
-          <span style="font-size:11px;color:var(--muted);cursor:default;line-height:1;user-select:none"
-                onmouseenter="$('gs-code-hint').style.display='block'"
-                onmouseleave="$('gs-code-hint').style.display='none'">ℹ️</span>
-          <div id="gs-code-hint" style="display:none;position:absolute;left:0;top:130%;width:220px;white-space:normal;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--muted);z-index:10;box-shadow:var(--shadow2)">
-            Für einen individuellen Code wende dich bitte an einen Admin.
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px; font-weight: 300">
+            Vertreter haben dieselben Rechte wie du in dieser Gruppe – außer die Gruppe selbst
+            umzubenennen oder zu löschen.
+          </p>
+          <label
+            style="
+              display: block;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 1.1px;
+              text-transform: uppercase;
+              color: var(--muted2);
+              margin-bottom: 10px;
+            "
+            >Aktuelle Vertreter</label
+          >
+          <div id="deputy-list" style="margin-bottom: 16px; min-height: 32px"></div>
+          <div
+            style="display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center"
+          >
+            <select
+              id="deputy-user-select"
+              style="
+                width: 100%;
+                padding: 9px 12px;
+                border-radius: 9px;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                font-size: 13px;
+                color: var(--text);
+                font-family: inherit;
+                box-sizing: border-box;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              "
+            >
+              <option value="">— Mitglied auswählen —</option>
+            </select>
+            <button
+              class="btn btn-primary"
+              style="padding: 9px 14px; white-space: nowrap"
+              onclick="addDeputy()"
+            >
+              Ernennen
+            </button>
           </div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--accent-l);border:1.5px solid var(--accent);border-radius:10px;margin-bottom:10px">
-        <span id="group-settings-code-display" style="flex:1;font-size:22px;font-weight:800;letter-spacing:5px;color:var(--accent);font-family:monospace"></span>
-        <button onclick="copyGroupSettingsCode()" title="Kopieren" style="background:none;border:none;cursor:pointer;color:var(--accent);padding:4px;display:flex;align-items:center;border-radius:6px;transition:background .15s" onmouseover="this.style.background='rgba(0,0,0,.07)'" onmouseout="this.style.background='none'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-      </div>
-      <button class="btn btn-ghost" id="group-settings-code-rotate-btn" style="width:100%;margin-bottom:20px" onclick="rotateGroupInviteCode()">Neu generieren</button>
+    </div>
 
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Code-Sichtbarkeit</label>
-      <label for="group-settings-code-visible" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);margin-bottom:20px;cursor:pointer">
-        <input id="group-settings-code-visible" type="checkbox" style="margin-top:2px;accent-color:var(--accent);cursor:pointer" onchange="saveGroupInviteCodeVisibility()">
-        <div style="font-size:13px;color:var(--text)">
-          Mitglieder dürfen den Einladungscode sehen
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Wenn deaktiviert, sehen nur Owner und Vertreter den Code.</div>
+    <!-- DELETE DIALOG -->
+    <div class="dlg-bg hidden" id="del-dlg">
+      <div class="dlg">
+        <div class="dlg-ico">🗑</div>
+        <p>Dieses Foto wirklich unwiderruflich löschen?</p>
+        <div class="dlg-btns">
+          <button class="btn btn-ghost" onclick="cancelDel()">Abbrechen</button>
+          <button class="btn btn-danger" onclick="execDel()">Löschen</button>
         </div>
-      </label>
-
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Mitgliederlimit</label>
-      <label for="group-settings-limit-enabled" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);margin-bottom:10px;cursor:pointer">
-        <input id="group-settings-limit-enabled" type="checkbox" style="margin-top:2px;accent-color:var(--accent);cursor:pointer" onchange="toggleGroupLimitInputs()">
-        <div style="font-size:13px;color:var(--text)">
-          Mitgliederlimit aktivieren
-          <div id="group-settings-limit-hint" style="font-size:11px;color:var(--muted);margin-top:2px">Optional: Begrenze die maximale Mitgliederanzahl dieser Gruppe.</div>
-        </div>
-      </label>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <input id="group-settings-limit-input" type="number" min="1" max="50" disabled
-          style="width:130px;padding:9px 11px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit"
-          onkeydown="if(event.key==='Enter')saveGroupMemberLimit()">
-        <button class="btn btn-primary" id="group-settings-limit-save-btn" style="padding:9px 14px;white-space:nowrap" onclick="saveGroupMemberLimit()">Limit speichern</button>
-      </div>
-      <div id="group-settings-limit-lock-hint" class="hidden" style="font-size:12px;color:var(--danger,#e05555);margin:0 0 20px">Dieses Limit wurde von einem Admin gesperrt und kann von dir nicht geändert werden.</div>
-
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:6px">Vertreter</label>
-      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;font-weight:300">Vertreter haben dieselben Rechte wie du – außer Umbenennen und Löschen.</p>
-      <div id="gs-deputy-list" style="margin-bottom:10px;min-height:24px"></div>
-      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-bottom:20px">
-        <select id="gs-deputy-user-select"
-          style="width:100%;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box">
-          <option value="">— Mitglied auswählen —</option>
-        </select>
-        <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="addGsDeputy()">Ernennen</button>
-      </div>
-
-      <div style="border-top:1px solid var(--border);padding-top:14px">
-        <button class="btn btn-danger" id="group-settings-delete-btn" style="width:100%" onclick="deleteGroupFromSettings()">Gruppe löschen</button>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- DEPUTY MODAL -->
-<div class="modal-bg hidden" id="deputy-modal" onclick="if(event.target===this)closeDeputyModal()">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-hdr">
-      <h3>Vertreter verwalten</h3>
-      <button class="modal-x" onclick="closeDeputyModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:300">Vertreter haben dieselben Rechte wie du in dieser Gruppe – außer die Gruppe selbst umzubenennen oder zu löschen.</p>
-      <label style="display:block;font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">Aktuelle Vertreter</label>
-      <div id="deputy-list" style="margin-bottom:16px;min-height:32px"></div>
-      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
-        <select id="deputy-user-select"
-          style="width:100%;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis">
-          <option value="">— Mitglied auswählen —</option>
-        </select>
-        <button class="btn btn-primary" style="padding:9px 14px;white-space:nowrap" onclick="addDeputy()">Ernennen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- DELETE DIALOG -->
-<div class="dlg-bg hidden" id="del-dlg">
-  <div class="dlg">
-    <div class="dlg-ico">🗑</div>
-    <p>Dieses Foto wirklich unwiderruflich löschen?</p>
-    <div class="dlg-btns">
-      <button class="btn btn-ghost" onclick="cancelDel()">Abbrechen</button>
-      <button class="btn btn-danger" onclick="execDel()">Löschen</button>
-    </div>
-  </div>
-</div>
-
-</body>
+  </body>
 </html>

@@ -16,7 +16,8 @@ dotenv.config({ path: envPath });
 const minioEndpoint = process.env.MINIO_ENDPOINT || 'localhost';
 const minioPort = Number.parseInt(process.env.MINIO_PORT || '9000', 10);
 const minioExe = process.env.MINIO_BINARY_PATH || path.join(backendRoot, 'dev_tools', 'minio.exe');
-const minioDataDir = process.env.MINIO_DATA_DIR || path.join(backendRoot, 'dev_tools', 'minio_data');
+const minioDataDir =
+  process.env.MINIO_DATA_DIR || path.join(backendRoot, 'dev_tools', 'minio_data');
 
 const minioAccessKey = process.env.MINIO_ACCESS_KEY;
 const minioSecretKey = process.env.MINIO_SECRET_KEY;
@@ -31,7 +32,10 @@ function redactMinioLine(line) {
   let redacted = line;
   redacted = redacted.replace(/(RootUser\s*:\s*).*/i, '$1[redacted]');
   redacted = redacted.replace(/(RootPass\s*:\s*).*/i, '$1[redacted]');
-  redacted = redacted.replace(/(mc alias set\s+'[^']+'\s+'[^']+'\s+)'[^']+'\s+'[^']+'/i, "$1'[redacted]' '[redacted]'");
+  redacted = redacted.replace(
+    /(mc alias set\s+'[^']+'\s+'[^']+'\s+)'[^']+'\s+'[^']+'/i,
+    "$1'[redacted]' '[redacted]'"
+  );
 
   return redacted;
 }
@@ -139,7 +143,9 @@ async function main() {
   const localMinio = isLocalEndpoint(minioEndpoint);
 
   if (!localMinio) {
-    console.log(`[dev] MINIO_ENDPOINT=${minioEndpoint} ist extern. MinIO wird nicht lokal gestartet.`);
+    console.log(
+      `[dev] MINIO_ENDPOINT=${minioEndpoint} ist extern. MinIO wird nicht lokal gestartet.`
+    );
     startBackend();
     return;
   }

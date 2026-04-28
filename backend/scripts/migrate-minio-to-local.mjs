@@ -37,7 +37,14 @@ function parsePort(value, fallback) {
 }
 
 function uniqueNonEmpty(values) {
-  return [...new Set(values.filter(Boolean).map((v) => String(v).trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      values
+        .filter(Boolean)
+        .map((v) => String(v).trim())
+        .filter(Boolean)
+    ),
+  ];
 }
 
 function isLikelyObjectKey(value) {
@@ -146,16 +153,31 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
 
   const sourceEndpoint = args['source-endpoint'] || process.env.SOURCE_MINIO_ENDPOINT;
-  const sourcePort = parsePort(args['source-port'] || process.env.SOURCE_MINIO_PORT, parsePort(process.env.MINIO_PORT, 9000));
+  const sourcePort = parsePort(
+    args['source-port'] || process.env.SOURCE_MINIO_PORT,
+    parsePort(process.env.MINIO_PORT, 9000)
+  );
   const sourceUseSSL = toBool(args['source-use-ssl'] || process.env.SOURCE_MINIO_USE_SSL, false);
-  const sourceAccessKey = args['source-access-key'] || process.env.SOURCE_MINIO_ACCESS_KEY || process.env.MINIO_ACCESS_KEY;
-  const sourceSecretKey = args['source-secret-key'] || process.env.SOURCE_MINIO_SECRET_KEY || process.env.MINIO_SECRET_KEY;
+  const sourceAccessKey =
+    args['source-access-key'] ||
+    process.env.SOURCE_MINIO_ACCESS_KEY ||
+    process.env.MINIO_ACCESS_KEY;
+  const sourceSecretKey =
+    args['source-secret-key'] ||
+    process.env.SOURCE_MINIO_SECRET_KEY ||
+    process.env.MINIO_SECRET_KEY;
 
   const targetEndpoint = args['target-endpoint'] || process.env.MINIO_ENDPOINT || 'localhost';
   const targetPort = parsePort(args['target-port'] || process.env.MINIO_PORT, 9000);
   const targetUseSSL = toBool(args['target-use-ssl'] || process.env.TARGET_MINIO_USE_SSL, false);
-  const targetAccessKey = args['target-access-key'] || process.env.TARGET_MINIO_ACCESS_KEY || process.env.MINIO_ACCESS_KEY;
-  const targetSecretKey = args['target-secret-key'] || process.env.TARGET_MINIO_SECRET_KEY || process.env.MINIO_SECRET_KEY;
+  const targetAccessKey =
+    args['target-access-key'] ||
+    process.env.TARGET_MINIO_ACCESS_KEY ||
+    process.env.MINIO_ACCESS_KEY;
+  const targetSecretKey =
+    args['target-secret-key'] ||
+    process.env.TARGET_MINIO_SECRET_KEY ||
+    process.env.MINIO_SECRET_KEY;
 
   const dryRun = toBool(args['dry-run'], false);
   const deleteSource = toBool(args['delete-source'], false);
@@ -172,7 +194,9 @@ async function main() {
     throw new Error('Source Credentials fehlen (MINIO/SOURCE_MINIO_ACCESS_KEY und ...SECRET_KEY).');
   }
   if (!targetAccessKey || !targetSecretKey) {
-    throw new Error('Target Credentials fehlen (TARGET_MINIO_... oder MINIO_ACCESS_KEY/MINIO_SECRET_KEY).');
+    throw new Error(
+      'Target Credentials fehlen (TARGET_MINIO_... oder MINIO_ACCESS_KEY/MINIO_SECRET_KEY).'
+    );
   }
 
   console.log('MinIO Migration gestartet');
@@ -211,9 +235,7 @@ async function main() {
 
     const photoKeys = uniqueNonEmpty(photos.map((p) => p.path).filter(isLikelyObjectKey));
     const avatarKeys = uniqueNonEmpty(
-      users
-        .map((u) => normalizeAvatarKey(u.avatar))
-        .filter(isLikelyObjectKey)
+      users.map((u) => normalizeAvatarKey(u.avatar)).filter(isLikelyObjectKey)
     );
     const backupKeys = uniqueNonEmpty(backups.map((b) => b.zipKey).filter(isLikelyObjectKey));
 
