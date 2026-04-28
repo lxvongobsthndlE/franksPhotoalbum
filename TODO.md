@@ -65,6 +65,7 @@ Falls ja:
 - Ziel-Branch (für Push): `<BRANCH_NAME>`
 ```
 
+* Upgrade auf Node 24 !!
 * Zoom in LightBox überarbeiten
 * Auf mobile statt GroupSwitcher Dropdown in Header ein Group-Icon neben die Glocke, das das selbe "switch-group" modal öffnet wie der switcher.
 * Modularisierung des Codes
