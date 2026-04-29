@@ -67,7 +67,6 @@ Falls ja:
 
 * Upgrade auf Node 24 !!
 * Zoom in LightBox überarbeiten
-* Auf mobile statt GroupSwitcher Dropdown in Header ein Group-Icon neben die Glocke, das das selbe "switch-group" modal öffnet wie der switcher.
 * Modularisierung des Codes
     * Wiederverwendbare Komponenten im Frontend bauen.
         * Modals
@@ -89,16 +88,17 @@ Falls ja:
 
 
 ### DONE
-* Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)
-    * Admins bekommen im Gruppen verwalten Modal die Möglichkeit das Gruppenlimit zu ändern und zu sperren
-    * Join wird bei voller Gruppe mit Hinweis blockiert
-    * Sidebar zeigt Mitgliederstand `x/n` nur bei aktivem Limit
-* Sidebar öffnen on mobile soll header nicht ausgrauen
-    * Während die Sidebar offen ist, sind Profil- und Benachrichtigungs-Button nicht klickbar
-* Doku-Update zu Gruppenlimit, Limit-Sperre und mobilem Sidebar/Header-Verhalten
-* Toast button unten rechts "+" zum hochladen
-* Versionierung und Changelog
-    * App version am ende der Sidebar
-    * Klick auf version öffnet changelog Modal
-    * Modal kann jeder öffnen
-    * nur Admin kann changelog-Einträge anlegen
+* ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~
+    * ~~Admins bekommen im Gruppen verwalten Modal die Möglichkeit das Gruppenlimit zu ändern und zu sperren~~
+    * ~~Join wird bei voller Gruppe mit Hinweis blockiert~~
+    * ~~Sidebar zeigt Mitgliederstand `x/n` nur bei aktivem Limit~~
+* ~~Sidebar öffnen on mobile soll header nicht ausgrauen~~
+    * ~~Während die Sidebar offen ist, sind Profil- und Benachrichtigungs-Button nicht klickbar~~
+* ~~Doku-Update zu Gruppenlimit, Limit-Sperre und mobilem Sidebar/Header-Verhalten~~
+* ~~Toast button unten rechts "+" zum hochladen~~
+* ~~Versionierung und Changelog~~
+    * ~~App version am ende der Sidebar~~
+    * ~~Klick auf version öffnet changelog Modal~~
+    * ~~Modal kann jeder öffnen~~
+    * ~~nur Admin kann changelog-Einträge anlegen~~
+* ~~Auf mobile statt GroupSwitcher Dropdown in Header ein Group-Icon neben die Glocke, das das selbe "switch-group" modal öffnet wie der switcher.~~

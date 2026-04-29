@@ -3244,9 +3244,12 @@ function renderGroupSwitcher() {
   // Update header subtitle
   const sub = $('header-group-name');
   if (sub) sub.textContent = active?.name || 'Gruppe';
-  // Auf Mobile keinen Header-Switcher zeigen (Gruppe wird in der Sidebar gewechselt)
+  // Auf Mobile: Icon-Button statt Dropdown (Sheet wird per openMobileGroupSwitcherSheet geöffnet)
   if (window.innerWidth <= 900) {
-    wrap.innerHTML = '';
+    wrap.innerHTML = `
+      <button class="gsw-mob-btn" id="gsw-mob-btn" onclick="openMobileGroupSwitcherSheet()" aria-label="Gruppe wechseln">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </button>`;
     return;
   }
   // Only show switcher if multiple groups
@@ -3298,6 +3301,48 @@ function toggleGroupDropdown() {
       }
     });
   }, 10);
+}
+
+function openMobileGroupSwitcherSheet() {
+  document.getElementById('gsw-mob-sheet')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'gsw-mob-sheet';
+  overlay.className = 'gsw-mob-overlay';
+  overlay.innerHTML = `
+    <div class="gsw-mob-panel" id="gsw-mob-panel">
+      <div class="gsw-mob-hdr">
+        <span>Gruppe wechseln</span>
+        <button class="gsw-mob-close" onclick="closeMobileGroupSwitcherSheet()">✕</button>
+      </div>
+      <div class="gsw-mob-list">
+        ${myGroups
+          .map(
+            (g) => `
+        <div class="gsw-mob-item${g.id === curGroupId ? ' active' : ''}" onclick="switchGroup('${g.id}');closeMobileGroupSwitcherSheet()">
+          <span class="g-dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0"></span>
+          <span class="gsw-mob-name">${esc(g.name)}</span>
+          ${g.id === curGroupId ? '<span class="gsw-mob-check">✓</span>' : ''}
+        </div>`
+          )
+          .join('')}
+        <div class="gsw-mob-divider"></div>
+        <div class="gsw-mob-item gsw-mob-join" onclick="openJoinGroup();closeMobileGroupSwitcherSheet()">
+          ${ICON_PLUS} Weiterer Gruppe beitreten
+        </div>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeMobileGroupSwitcherSheet();
+  });
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('visible'));
+}
+
+function closeMobileGroupSwitcherSheet() {
+  const el = document.getElementById('gsw-mob-sheet');
+  if (!el) return;
+  el.classList.remove('visible');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
 
 async function switchGroup(groupId) {
@@ -5780,6 +5825,8 @@ Object.assign(window, {
   adminRefreshBackupLink,
   adminDeleteBackupEntry,
   toggleGroupDropdown,
+  openMobileGroupSwitcherSheet,
+  closeMobileGroupSwitcherSheet,
   // Slideshow
   openSS,
   toggleSS,
