@@ -196,10 +196,22 @@ export function createMockRouteFastify(overrides = {}) {
   const fastify = createMockFastify(overrides);
   fastify.prisma = overrides.prisma || createMockPrismaClient();
   fastify.routes = routes;
-  fastify.get = vi.fn((path, handler) => routes.GET.set(path, handler));
-  fastify.post = vi.fn((path, handler) => routes.POST.set(path, handler));
-  fastify.patch = vi.fn((path, handler) => routes.PATCH.set(path, handler));
-  fastify.delete = vi.fn((path, handler) => routes.DELETE.set(path, handler));
+  fastify.get = vi.fn((path, optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    routes.GET.set(path, handler);
+  });
+  fastify.post = vi.fn((path, optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    routes.POST.set(path, handler);
+  });
+  fastify.patch = vi.fn((path, optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    routes.PATCH.set(path, handler);
+  });
+  fastify.delete = vi.fn((path, optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    routes.DELETE.set(path, handler);
+  });
 
   return fastify;
 }

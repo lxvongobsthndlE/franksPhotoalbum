@@ -83,6 +83,32 @@ Bei geöffneter mobiler Sidebar bleibt der Header visuell unverändert (kein glo
 - Während die Sidebar offen ist, sind Header-Aktionen für Profil und Benachrichtigungen absichtlich nicht bedienbar
 - Nach dem Schließen der Sidebar sind beide Aktionen wieder normal klickbar
 
+## Mobile Gruppenwechsel (Bottom Sheet)
+
+Auf Mobilgeräten wird der Gruppenwechsel über ein eigenes Bottom Sheet geöffnet.
+
+- Trigger: Icon-Button im Header
+- Darstellung: Sheet von unten mit Gruppenliste
+- Auswahl: `switchGroup(...)` mit direktem Kontextwechsel
+- Schließen: per Overlay, Close-Button oder nach erfolgreicher Auswahl
+- Ziel: schneller Gruppenwechsel ohne die Sidebar vollständig öffnen zu müssen
+
+## Feedback- und Meldungs-UI
+
+Das Frontend enthält einen vollständigen Ticket-Flow für Hilfe/Feedback/Nutzer-Meldungen.
+
+- User-Modal mit Tabs: "Neues Feedback" und "Meine Meldungen"
+- Admin-Modal mit Filtern (`status`, `category`) und Ticket-ID-Suche (`TKT-...`)
+- Konversationsmodal für Nachrichtenverlauf und Antworten
+- Bestätigungsdialoge für Schließen/Löschen/Entscheidung
+
+Sidebar-Badges:
+
+- Admin-Feedback-Badge wird unabhängig von der aktuellen Listenfilterung berechnet
+- Badge zeigt nur Tickets mit `status=open` und `waitingFor=support`
+- Bei Wert `0` wird der Badge ausgeblendet
+- Auf Mobile schließt das Öffnen des Admin-Feedback-Modals die Sidebar automatisch
+
 ## Floating Upload Shortcut
 
 Der Upload kann zusätzlich über einen schwebenden, runden Plus-Button unten rechts geöffnet werden.
