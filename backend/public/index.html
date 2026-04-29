@@ -933,64 +933,151 @@
       id="feedback-modal"
       onclick="if (event.target === this) closeSupportModal();"
     >
-      <div class="modal" style="max-width:700px;max-height:85vh;display:flex;flex-direction:column">
+      <div
+        class="modal"
+        style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column"
+      >
         <div class="modal-hdr">
           <h3>Hilfe &amp; Feedback</h3>
           <button class="modal-x" onclick="closeSupportModal()">✕</button>
         </div>
-        <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; overflow: hidden">
+        <div
+          class="modal-body"
+          style="padding: 0; display: flex; flex-direction: column; overflow: hidden"
+        >
           <!-- Tab switcher -->
           <div class="fb-tabs">
-            <button class="fb-tab active" id="fb-tab-new" onclick="switchFeedbackTab('new')">Neues Feedback</button>
-            <button class="fb-tab" id="fb-tab-mine" onclick="switchFeedbackTab('mine')">Meine Meldungen</button>
+            <button class="fb-tab active" id="fb-tab-new" onclick="switchFeedbackTab('new')">
+              Neues Feedback
+            </button>
+            <button class="fb-tab" id="fb-tab-mine" onclick="switchFeedbackTab('mine')">
+              Meine Meldungen
+            </button>
           </div>
           <!-- ── Panel: Neues Feedback ── -->
-          <div id="fb-panel-new" style="display:flex;flex-direction:column;gap:14px;padding:16px 20px 20px;overflow-y:auto;flex:1;min-height:0">
-          <p style="font-size: 13px; color: var(--muted); margin: 0">
-            Hast du ein Problem entdeckt, eine Idee oder brauchst Hilfe? Schreib uns!
-          </p>
-          <div id="feedback-msg" class="msg hidden"></div>
-          <div class="field">
-            <label>Kategorie</label>
-            <select id="feedback-category" onchange="onFeedbackCategoryChange()"
-              style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px">
-              <option value="">— Bitte wählen —</option>
-              <option value="bug">🐛 Bug melden</option>
-              <option value="feature">💡 Feature vorschlagen</option>
-              <option value="help">❓ Hilfe / Frage</option>
-              <option value="report_user">⚠️ Nutzer melden</option>
-              <option value="other">💬 Sonstiges</option>
-            </select>
-          </div>
-          <div class="field hidden" id="feedback-reported-user-wrap">
-            <label>Welcher Nutzer?</label>
-            <select id="feedback-reported-user"
-              style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px">
-              <option value="">— Wird geladen… —</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Betreff <span style="color:var(--muted);font-weight:400">(max. 140 Zeichen)</span></label>
-            <input type="text" id="feedback-subject" maxlength="140" placeholder="Kurze Zusammenfassung…" />
-          </div>
-          <div class="field">
-            <label>Nachricht <span style="color:var(--muted);font-weight:400">(max. 4000 Zeichen)</span></label>
-            <textarea id="feedback-body" rows="5" maxlength="4000" placeholder="Beschreibe dein Anliegen möglichst genau…"
-              style="resize:vertical;min-height:140px;height:min(22vh,210px);max-height:38vh"></textarea>
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
-            <input type="checkbox" id="feedback-anonymous" style="flex-shrink:0" />
-            Anonym einreichen (kein Name in der Nachricht an Admins)
-          </label>
-          <div style="display:flex;gap:10px;margin-top:4px">
-            <button class="btn btn-ghost" style="flex:1" onclick="closeSupportModal()">Abbrechen</button>
-            <button class="btn btn-primary" style="flex:1" id="feedback-submit-btn" onclick="submitFeedback()">Senden →</button>
-          </div>
+          <div
+            id="fb-panel-new"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 14px;
+              padding: 16px 20px 20px;
+              overflow-y: auto;
+              flex: 1;
+              min-height: 0;
+            "
+          >
+            <p style="font-size: 13px; color: var(--muted); margin: 0">
+              Hast du ein Problem entdeckt, eine Idee oder brauchst Hilfe? Schreib uns!
+            </p>
+            <div id="feedback-msg" class="msg hidden"></div>
+            <div class="field">
+              <label>Kategorie</label>
+              <select
+                id="feedback-category"
+                onchange="onFeedbackCategoryChange()"
+                style="
+                  width: 100%;
+                  padding: 10px 12px;
+                  border-radius: 10px;
+                  border: 1px solid var(--border);
+                  background: var(--card);
+                  color: var(--text);
+                  font-size: 14px;
+                "
+              >
+                <option value="">— Bitte wählen —</option>
+                <option value="bug">🐛 Bug melden</option>
+                <option value="feature">💡 Feature vorschlagen</option>
+                <option value="help">❓ Hilfe / Frage</option>
+                <option value="report_user">⚠️ Nutzer melden</option>
+                <option value="other">💬 Sonstiges</option>
+              </select>
+            </div>
+            <div class="field hidden" id="feedback-reported-user-wrap">
+              <label>Welcher Nutzer?</label>
+              <select
+                id="feedback-reported-user"
+                style="
+                  width: 100%;
+                  padding: 10px 12px;
+                  border-radius: 10px;
+                  border: 1px solid var(--border);
+                  background: var(--card);
+                  color: var(--text);
+                  font-size: 14px;
+                "
+              >
+                <option value="">— Wird geladen… —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label
+                >Betreff
+                <span style="color: var(--muted); font-weight: 400">(max. 140 Zeichen)</span></label
+              >
+              <input
+                type="text"
+                id="feedback-subject"
+                maxlength="140"
+                placeholder="Kurze Zusammenfassung…"
+              />
+            </div>
+            <div class="field">
+              <label
+                >Nachricht
+                <span style="color: var(--muted); font-weight: 400"
+                  >(max. 4000 Zeichen)</span
+                ></label
+              >
+              <textarea
+                id="feedback-body"
+                rows="5"
+                maxlength="4000"
+                placeholder="Beschreibe dein Anliegen möglichst genau…"
+                style="
+                  resize: vertical;
+                  min-height: 140px;
+                  height: min(22vh, 210px);
+                  max-height: 38vh;
+                "
+              ></textarea>
+            </div>
+            <label
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                font-size: 13px;
+                color: var(--text);
+              "
+            >
+              <input type="checkbox" id="feedback-anonymous" style="flex-shrink: 0" />
+              Anonym einreichen (kein Name in der Nachricht an Admins)
+            </label>
+            <div style="display: flex; gap: 10px; margin-top: 4px">
+              <button class="btn btn-ghost" style="flex: 1" onclick="closeSupportModal()">
+                Abbrechen
+              </button>
+              <button
+                class="btn btn-primary"
+                style="flex: 1"
+                id="feedback-submit-btn"
+                onclick="submitFeedback()"
+              >
+                Senden →
+              </button>
+            </div>
           </div>
           <!-- ── Panel: Meine Meldungen ── -->
-          <div id="fb-panel-mine" class="hidden" style="padding: 16px 20px 20px; overflow-y: auto; max-height: 60vh">
+          <div
+            id="fb-panel-mine"
+            class="hidden"
+            style="padding: 16px 20px 20px; overflow-y: auto; max-height: 60vh"
+          >
             <div id="my-feedback-list">
-              <div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>
+              <div style="color: var(--muted); font-size: 13px; padding: 8px 0">Wird geladen…</div>
             </div>
           </div>
         </div>
@@ -1004,23 +1091,44 @@
       id="admin-feedback-modal"
       onclick="if (event.target === this) closeAdminFeedback();"
     >
-      <div class="modal" style="max-width:700px;max-height:85vh;display:flex;flex-direction:column">
+      <div
+        class="modal"
+        style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column"
+      >
         <div class="modal-hdr">
           <h3>📥 Feedback &amp; Meldungen</h3>
           <button class="modal-x" onclick="closeAdminFeedback()">✕</button>
         </div>
-        <div class="modal-body" style="flex:1;overflow-y:auto;padding:12px 20px 20px">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-            <select id="af-filter-status"
+        <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 12px 20px 20px">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px">
+            <select
+              id="af-filter-status"
               onchange="renderAdminFeedbackList()"
-              style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px">
+              style="
+                padding: 7px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                background: var(--card);
+                color: var(--text);
+                font-size: 13px;
+              "
+            >
               <option value="">Alle Status</option>
               <option value="open">Offen</option>
               <option value="closed">Geschlossen</option>
             </select>
-            <select id="af-filter-category"
+            <select
+              id="af-filter-category"
               onchange="renderAdminFeedbackList()"
-              style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px">
+              style="
+                padding: 7px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                background: var(--card);
+                color: var(--text);
+                font-size: 13px;
+              "
+            >
               <option value="">Alle Kategorien</option>
               <option value="bug">🐛 Bug</option>
               <option value="feature">💡 Feature</option>
@@ -1033,10 +1141,21 @@
               type="text"
               oninput="renderAdminFeedbackList()"
               placeholder="Suche TKT-Nr. (z. B. TKT-1A2B3C4D)"
-              style="min-width:230px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px"
+              style="
+                min-width: 230px;
+                padding: 7px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                background: var(--card);
+                color: var(--text);
+                font-size: 13px;
+              "
             />
           </div>
-          <div id="admin-feedback-list" style="display:flex;flex-direction:column;gap:10px"></div>
+          <div
+            id="admin-feedback-list"
+            style="display: flex; flex-direction: column; gap: 10px"
+          ></div>
         </div>
       </div>
     </div>
@@ -1048,20 +1167,53 @@
       id="af-conv-modal"
       onclick="if (event.target === this) closeAfConvModal();"
     >
-      <div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column">
+      <div
+        class="modal"
+        style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column"
+      >
         <div class="modal-hdr">
           <h3 id="af-conv-title">Konversation</h3>
           <button class="modal-x" onclick="closeAfConvModal()">✕</button>
         </div>
-        <div class="modal-body" style="flex:1;overflow-y:auto;padding:12px 20px 16px;display:flex;flex-direction:column;gap:10px">
-          <div id="af-conv-thread" style="display:flex;flex-direction:column;gap:8px"></div>
-          <div id="af-conv-reply-wrap" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
-            <textarea id="af-conv-reply-input" rows="3" maxlength="4000"
+        <div
+          class="modal-body"
+          style="
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 20px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+          "
+        >
+          <div id="af-conv-thread" style="display: flex; flex-direction: column; gap: 8px"></div>
+          <div
+            id="af-conv-reply-wrap"
+            style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px"
+          >
+            <textarea
+              id="af-conv-reply-input"
+              rows="3"
+              maxlength="4000"
               placeholder="Antwort schreiben…"
-              style="resize:vertical;min-height:72px;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;box-sizing:border-box"></textarea>
-            <div style="display:flex;gap:8px;justify-content:flex-end">
+              style="
+                resize: vertical;
+                min-height: 72px;
+                width: 100%;
+                padding: 10px 12px;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: var(--card);
+                color: var(--text);
+                font-size: 14px;
+                box-sizing: border-box;
+              "
+            ></textarea>
+            <div style="display: flex; gap: 8px; justify-content: flex-end">
               <button class="btn btn-ghost" onclick="closeAfConvModal()">Schließen</button>
-              <button class="btn btn-primary" id="af-conv-reply-btn" onclick="adminSubmitReply()">Antworten →</button>
+              <button class="btn btn-primary" id="af-conv-reply-btn" onclick="adminSubmitReply()">
+                Antworten →
+              </button>
             </div>
           </div>
         </div>

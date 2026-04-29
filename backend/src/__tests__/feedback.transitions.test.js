@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMockPrismaClient, createMockReply, createMockRequest, createMockRouteFastify } from './mocks/index.js';
+import {
+  createMockPrismaClient,
+  createMockReply,
+  createMockRequest,
+  createMockRouteFastify,
+} from './mocks/index.js';
 
 vi.mock('../utils/notifications.js', () => ({
   createNotification: vi.fn(() => Promise.resolve()),
@@ -83,7 +88,11 @@ describe('feedback transition rules', () => {
     );
     expect(prisma.feedbackMessage.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ reportId: createdReport.id, authorId: 'user-1', body: 'Beschreibung' }),
+        data: expect.objectContaining({
+          reportId: createdReport.id,
+          authorId: 'user-1',
+          body: 'Beschreibung',
+        }),
       })
     );
     expect(reply.statusCode).toBe(201);
@@ -91,7 +100,12 @@ describe('feedback transition rules', () => {
 
   it('marks unreadAdmin=false when admin explicitly marks ticket as read', async () => {
     prisma.user.findUnique.mockResolvedValue({ role: 'admin' });
-    prisma.feedbackReport.findUnique.mockResolvedValue({ id: 'rep-1', status: 'open', category: 'bug', waitingFor: 'support' });
+    prisma.feedbackReport.findUnique.mockResolvedValue({
+      id: 'rep-1',
+      status: 'open',
+      category: 'bug',
+      waitingFor: 'support',
+    });
     prisma.feedbackReport.update.mockResolvedValue({ id: 'rep-1', unreadAdmin: false });
 
     await callRoute('PATCH', '/:id', {

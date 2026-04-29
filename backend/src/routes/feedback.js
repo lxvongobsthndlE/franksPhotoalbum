@@ -262,7 +262,9 @@ export default async function feedbackRoutes(fastify) {
           orderBy: { createdAt: 'desc' },
           take: 1,
           include: {
-            author: { select: { id: true, name: true, username: true, displayNameField: true, role: true } },
+            author: {
+              select: { id: true, name: true, username: true, displayNameField: true, role: true },
+            },
           },
         },
         _count: { select: { messages: true } },
@@ -322,7 +324,9 @@ export default async function feedbackRoutes(fastify) {
       where: { reportId: id },
       orderBy: { createdAt: 'asc' },
       include: {
-        author: { select: { id: true, name: true, username: true, displayNameField: true, role: true } },
+        author: {
+          select: { id: true, name: true, username: true, displayNameField: true, role: true },
+        },
       },
     });
 
@@ -348,7 +352,9 @@ export default async function feedbackRoutes(fastify) {
       const body = String(request.body?.body || '').trim();
 
       if (!body || body.length > 4000) {
-        return reply.code(400).send({ error: 'Nachricht fehlt oder ist zu lang (max. 4000 Zeichen).' });
+        return reply
+          .code(400)
+          .send({ error: 'Nachricht fehlt oder ist zu lang (max. 4000 Zeichen).' });
       }
 
       const report = await fastify.prisma.feedbackReport.findUnique({
@@ -379,7 +385,9 @@ export default async function feedbackRoutes(fastify) {
       const message = await fastify.prisma.feedbackMessage.create({
         data: { reportId: id, authorId: request.user.id, body },
         include: {
-          author: { select: { id: true, name: true, username: true, displayNameField: true, role: true } },
+          author: {
+            select: { id: true, name: true, username: true, displayNameField: true, role: true },
+          },
         },
       });
 
@@ -486,7 +494,9 @@ export default async function feedbackRoutes(fastify) {
         if (isSupportWaiting(existing) && !closeReason) {
           return reply
             .code(400)
-            .send({ error: 'Beim Schließen während "Wartet auf Support" ist ein Grund erforderlich.' });
+            .send({
+              error: 'Beim Schließen während "Wartet auf Support" ist ein Grund erforderlich.',
+            });
         }
 
         updateData.status = 'closed';
@@ -521,7 +531,8 @@ export default async function feedbackRoutes(fastify) {
 
       // Reporter benachrichtigen
       const { createNotification } = await import('../utils/notifications.js');
-      const resolutionLabel = resolution === 'action_taken' ? 'Maßnahme getroffen' : 'Keine Maßnahme';
+      const resolutionLabel =
+        resolution === 'action_taken' ? 'Maßnahme getroffen' : 'Keine Maßnahme';
       await createNotification(fastify.prisma, {
         userId: existing.userId,
         type: 'system',
@@ -586,7 +597,9 @@ export default async function feedbackRoutes(fastify) {
     if (existing.category === 'report_user') {
       return reply
         .code(403)
-        .send({ error: 'Nutzer-Meldungen können nur durch Admin-Entscheidung geschlossen werden.' });
+        .send({
+          error: 'Nutzer-Meldungen können nur durch Admin-Entscheidung geschlossen werden.',
+        });
     }
 
     const updated = await fastify.prisma.feedbackReport.update({
@@ -618,7 +631,10 @@ export default async function feedbackRoutes(fastify) {
   });
 }
 
-async function sendFeedbackEmail(adminEmail, { categoryLabel, senderLabel, subject, body, anonymous }) {
+async function sendFeedbackEmail(
+  adminEmail,
+  { categoryLabel, senderLabel, subject, body, anonymous }
+) {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return;
 
   const transporter = nodemailer.createTransport({

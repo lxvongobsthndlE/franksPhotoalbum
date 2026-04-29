@@ -3358,176 +3358,190 @@ function closeMobileGroupSwitcherSheet() {
   el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
 
-  // ── SUPPORT / FEEDBACK MODAL ─────────────────────────────────────────────
+// ── SUPPORT / FEEDBACK MODAL ─────────────────────────────────────────────
 
-  async function openSupportModal() {
-    document.getElementById('feedback-modal')?.classList.remove('hidden');
-    // Always open on "new" tab
-    switchFeedbackTab('new');
-    document.getElementById('feedback-msg')?.classList.add('hidden');
-    const cat = document.getElementById('feedback-category');
-    if (cat) cat.value = '';
-    const subj = document.getElementById('feedback-subject');
-    if (subj) subj.value = '';
-    const bod = document.getElementById('feedback-body');
-    if (bod) bod.value = '';
-    const anon = document.getElementById('feedback-anonymous');
-    if (anon) anon.checked = false;
-    document.getElementById('feedback-reported-user-wrap')?.classList.add('hidden');
-    try {
-      const payload = await apiCall('/feedback/eligible-users', 'GET');
-      const users = Array.isArray(payload?.users) ? payload.users : [];
-      const sel = document.getElementById('feedback-reported-user');
-      if (sel) {
-        sel.innerHTML = '<option value="">— Nutzer wählen —</option>' +
-          users
-            .map(
-              (u) =>
-                `<option value="${esc(u.id)}">${esc(getVisibleName(u, u.displayNameField) || u.name || u.username)}</option>`
-            )
-            .join('');
-      }
-    } catch (e) {}
-  }
-
-  function closeSupportModal() {
-    document.getElementById('feedback-modal')?.classList.add('hidden');
-  }
-
-  function onFeedbackCategoryChange() {
-    const cat = document.getElementById('feedback-category')?.value;
-    const wrap = document.getElementById('feedback-reported-user-wrap');
-    if (wrap) wrap.classList.toggle('hidden', cat !== 'report_user');
-  }
-
-  async function submitFeedback() {
-    const category = document.getElementById('feedback-category')?.value;
-    const subject = document.getElementById('feedback-subject')?.value?.trim();
-    const body = document.getElementById('feedback-body')?.value?.trim();
-    const anonymous = document.getElementById('feedback-anonymous')?.checked ?? false;
-    const reportedUserId = category === 'report_user'
-      ? (document.getElementById('feedback-reported-user')?.value || null)
-      : null;
-    const msgEl = document.getElementById('feedback-msg');
-    const btn = document.getElementById('feedback-submit-btn');
-    const showMsg = (text, isError, asHtml = false) => {
-      if (!msgEl) return;
-      if (asHtml) msgEl.innerHTML = text;
-      else msgEl.textContent = text;
-      msgEl.className = 'msg ' + (isError ? 'msg-error' : 'msg-success');
-      if (!isError) msgEl.classList.add('feedback-msg-success');
-      msgEl.classList.remove('hidden');
-    };
-    if (!category) return showMsg('Bitte eine Kategorie wählen.', true);
-    if (!subject) return showMsg('Bitte einen Betreff eingeben.', true);
-    if (!body) return showMsg('Bitte eine Nachricht eingeben.', true);
-    if (category === 'report_user' && !reportedUserId) return showMsg('Bitte einen Nutzer auswählen.', true);
-    if (btn) btn.disabled = true;
-    try {
-      await apiCall('/feedback', 'POST', { category, subject, body, anonymous, reportedUserId });
-      showMsg(
-        '<strong>Danke, angekommen!</strong><br><span>Wir haben dein Feedback erhalten und schauen es uns an.</span>',
-        false,
-        true
-      );
-      toast('Feedback erfolgreich gesendet', 'success');
-      document.getElementById('feedback-subject').value = '';
-      document.getElementById('feedback-body').value = '';
-      document.getElementById('feedback-category').value = '';
-      document.getElementById('feedback-anonymous').checked = false;
-      document.getElementById('feedback-reported-user-wrap')?.classList.add('hidden');
-      setTimeout(() => closeSupportModal(), 1400);
-    } catch (e) {
-      showMsg(e.serverMessage || 'Netzwerkfehler. Bitte versuche es später erneut.', true);
-    } finally {
-      if (btn) btn.disabled = false;
+async function openSupportModal() {
+  document.getElementById('feedback-modal')?.classList.remove('hidden');
+  // Always open on "new" tab
+  switchFeedbackTab('new');
+  document.getElementById('feedback-msg')?.classList.add('hidden');
+  const cat = document.getElementById('feedback-category');
+  if (cat) cat.value = '';
+  const subj = document.getElementById('feedback-subject');
+  if (subj) subj.value = '';
+  const bod = document.getElementById('feedback-body');
+  if (bod) bod.value = '';
+  const anon = document.getElementById('feedback-anonymous');
+  if (anon) anon.checked = false;
+  document.getElementById('feedback-reported-user-wrap')?.classList.add('hidden');
+  try {
+    const payload = await apiCall('/feedback/eligible-users', 'GET');
+    const users = Array.isArray(payload?.users) ? payload.users : [];
+    const sel = document.getElementById('feedback-reported-user');
+    if (sel) {
+      sel.innerHTML =
+        '<option value="">— Nutzer wählen —</option>' +
+        users
+          .map(
+            (u) =>
+              `<option value="${esc(u.id)}">${esc(getVisibleName(u, u.displayNameField) || u.name || u.username)}</option>`
+          )
+          .join('');
     }
+  } catch (e) {}
+}
+
+function closeSupportModal() {
+  document.getElementById('feedback-modal')?.classList.add('hidden');
+}
+
+function onFeedbackCategoryChange() {
+  const cat = document.getElementById('feedback-category')?.value;
+  const wrap = document.getElementById('feedback-reported-user-wrap');
+  if (wrap) wrap.classList.toggle('hidden', cat !== 'report_user');
+}
+
+async function submitFeedback() {
+  const category = document.getElementById('feedback-category')?.value;
+  const subject = document.getElementById('feedback-subject')?.value?.trim();
+  const body = document.getElementById('feedback-body')?.value?.trim();
+  const anonymous = document.getElementById('feedback-anonymous')?.checked ?? false;
+  const reportedUserId =
+    category === 'report_user'
+      ? document.getElementById('feedback-reported-user')?.value || null
+      : null;
+  const msgEl = document.getElementById('feedback-msg');
+  const btn = document.getElementById('feedback-submit-btn');
+  const showMsg = (text, isError, asHtml = false) => {
+    if (!msgEl) return;
+    if (asHtml) msgEl.innerHTML = text;
+    else msgEl.textContent = text;
+    msgEl.className = 'msg ' + (isError ? 'msg-error' : 'msg-success');
+    if (!isError) msgEl.classList.add('feedback-msg-success');
+    msgEl.classList.remove('hidden');
+  };
+  if (!category) return showMsg('Bitte eine Kategorie wählen.', true);
+  if (!subject) return showMsg('Bitte einen Betreff eingeben.', true);
+  if (!body) return showMsg('Bitte eine Nachricht eingeben.', true);
+  if (category === 'report_user' && !reportedUserId)
+    return showMsg('Bitte einen Nutzer auswählen.', true);
+  if (btn) btn.disabled = true;
+  try {
+    await apiCall('/feedback', 'POST', { category, subject, body, anonymous, reportedUserId });
+    showMsg(
+      '<strong>Danke, angekommen!</strong><br><span>Wir haben dein Feedback erhalten und schauen es uns an.</span>',
+      false,
+      true
+    );
+    toast('Feedback erfolgreich gesendet', 'success');
+    document.getElementById('feedback-subject').value = '';
+    document.getElementById('feedback-body').value = '';
+    document.getElementById('feedback-category').value = '';
+    document.getElementById('feedback-anonymous').checked = false;
+    document.getElementById('feedback-reported-user-wrap')?.classList.add('hidden');
+    setTimeout(() => closeSupportModal(), 1400);
+  } catch (e) {
+    showMsg(e.serverMessage || 'Netzwerkfehler. Bitte versuche es später erneut.', true);
+  } finally {
+    if (btn) btn.disabled = false;
   }
+}
 
-  // ── ADMIN FEEDBACK PANEL ─────────────────────────────────────────────────
+// ── ADMIN FEEDBACK PANEL ─────────────────────────────────────────────────
 
-  function openAdminFeedback() {
-    document.getElementById('admin-feedback-modal')?.classList.remove('hidden');
-    renderAdminFeedbackList();
+function openAdminFeedback() {
+  document.getElementById('admin-feedback-modal')?.classList.remove('hidden');
+  renderAdminFeedbackList();
+}
+
+function setAdminFeedbackBadge(openCount) {
+  const badge = document.getElementById('admin-feedback-badge');
+  if (!badge) return;
+  if (Number(openCount) > 0) {
+    badge.textContent = String(openCount);
+    badge.classList.remove('hidden');
+    return;
   }
+  badge.classList.add('hidden');
+  badge.textContent = '';
+}
 
-  function setAdminFeedbackBadge(openCount) {
-    const badge = document.getElementById('admin-feedback-badge');
-    if (!badge) return;
-    if (Number(openCount) > 0) {
-      badge.textContent = String(openCount);
-      badge.classList.remove('hidden');
+function countFeedbackWaitingForSupport(reports) {
+  if (!Array.isArray(reports)) return 0;
+  return reports.filter((r) => r?.status === 'open' && r?.waitingFor === 'support').length;
+}
+
+async function refreshAdminFeedbackBadge() {
+  if (me?.role !== 'admin') return;
+  try {
+    const { reports } = await apiCall('/feedback?status=open', 'GET');
+    setAdminFeedbackBadge(countFeedbackWaitingForSupport(reports));
+  } catch {
+    // Sidebar rendering should stay stable even if feedback count cannot be loaded.
+  }
+}
+
+function closeAdminFeedback() {
+  document.getElementById('admin-feedback-modal')?.classList.add('hidden');
+}
+
+function formatFeedbackTicketId(rawId) {
+  const compact = String(rawId || '').replace(/[^a-zA-Z0-9]/g, '');
+  return `TKT-${compact.slice(-8).toUpperCase() || 'UNKNOWN'}`;
+}
+
+function getResolutionReasonFromLatestMessage(report) {
+  const lastMsg = report?.messages?.[0];
+  const prefix = 'Admin-Begründung zur Entscheidung: ';
+  if (!lastMsg?.body || lastMsg.author?.role !== 'admin') return '';
+  if (lastMsg.body.startsWith(prefix)) {
+    return `Begründung: ${lastMsg.body.slice(prefix.length).trim()}`;
+  }
+  if (lastMsg.body.startsWith('Vielen Dank für deine Meldung.')) {
+    return lastMsg.body.replace(/\s+/g, ' ').trim();
+  }
+  return '';
+}
+
+async function renderAdminFeedbackList() {
+  const list = document.getElementById('admin-feedback-list');
+  if (!list) return;
+  const status = document.getElementById('af-filter-status')?.value || '';
+  const category = document.getElementById('af-filter-category')?.value || '';
+  const ticketQuery = (document.getElementById('af-filter-ticket')?.value || '')
+    .trim()
+    .toUpperCase();
+  list.innerHTML =
+    '<div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>';
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (category) params.set('category', category);
+  try {
+    const qs = params.toString();
+    const { reports } = await apiCall(`/feedback${qs ? `?${qs}` : ''}`, 'GET');
+    const filteredReports = ticketQuery
+      ? reports.filter((r) => formatFeedbackTicketId(r.id).includes(ticketQuery))
+      : reports;
+    refreshAdminFeedbackBadge();
+    if (!filteredReports.length) {
+      list.innerHTML =
+        '<div style="color:var(--muted);font-size:13px;padding:8px 0">Keine Einträge gefunden.</div>';
       return;
     }
-    badge.classList.add('hidden');
-    badge.textContent = '';
-  }
-
-  function countFeedbackWaitingForSupport(reports) {
-    if (!Array.isArray(reports)) return 0;
-    return reports.filter((r) => r?.status === 'open' && r?.waitingFor === 'support').length;
-  }
-
-  async function refreshAdminFeedbackBadge() {
-    if (me?.role !== 'admin') return;
-    try {
-      const { reports } = await apiCall('/feedback?status=open', 'GET');
-      setAdminFeedbackBadge(countFeedbackWaitingForSupport(reports));
-    } catch {
-      // Sidebar rendering should stay stable even if feedback count cannot be loaded.
-    }
-  }
-
-  function closeAdminFeedback() {
-    document.getElementById('admin-feedback-modal')?.classList.add('hidden');
-  }
-
-  function formatFeedbackTicketId(rawId) {
-    const compact = String(rawId || '').replace(/[^a-zA-Z0-9]/g, '');
-    return `TKT-${compact.slice(-8).toUpperCase() || 'UNKNOWN'}`;
-  }
-
-  function getResolutionReasonFromLatestMessage(report) {
-    const lastMsg = report?.messages?.[0];
-    const prefix = 'Admin-Begründung zur Entscheidung: ';
-    if (!lastMsg?.body || lastMsg.author?.role !== 'admin') return '';
-    if (lastMsg.body.startsWith(prefix)) {
-      return `Begründung: ${lastMsg.body.slice(prefix.length).trim()}`;
-    }
-    if (lastMsg.body.startsWith('Vielen Dank für deine Meldung.')) {
-      return lastMsg.body.replace(/\s+/g, ' ').trim();
-    }
-    return '';
-  }
-
-  async function renderAdminFeedbackList() {
-    const list = document.getElementById('admin-feedback-list');
-    if (!list) return;
-    const status = document.getElementById('af-filter-status')?.value || '';
-    const category = document.getElementById('af-filter-category')?.value || '';
-    const ticketQuery = (document.getElementById('af-filter-ticket')?.value || '').trim().toUpperCase();
-    list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>';
-    const params = new URLSearchParams();
-    if (status) params.set('status', status);
-    if (category) params.set('category', category);
-    try {
-      const qs = params.toString();
-      const { reports } = await apiCall(`/feedback${qs ? `?${qs}` : ''}`, 'GET');
-      const filteredReports = ticketQuery
-        ? reports.filter((r) => formatFeedbackTicketId(r.id).includes(ticketQuery))
-        : reports;
-      refreshAdminFeedbackBadge();
-      if (!filteredReports.length) {
-        list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Keine Einträge gefunden.</div>';
-        return;
-      }
-      const catLabel = { bug: '🐛 Bug', feature: '💡 Feature', help: '❓ Hilfe', report_user: '⚠️ Nutzer', other: '💬 Sonstiges' };
-      const statusLabel = {
-        closed: 'Geschlossen',
-        open_support: 'Offen - Wartet auf Support',
-        open_user: 'Offen - Wartet auf User',
-      };
-      list.innerHTML = filteredReports.map(r => {
+    const catLabel = {
+      bug: '🐛 Bug',
+      feature: '💡 Feature',
+      help: '❓ Hilfe',
+      report_user: '⚠️ Nutzer',
+      other: '💬 Sonstiges',
+    };
+    const statusLabel = {
+      closed: 'Geschlossen',
+      open_support: 'Offen - Wartet auf Support',
+      open_user: 'Offen - Wartet auf User',
+    };
+    list.innerHTML = filteredReports
+      .map((r) => {
         const resolutionReason = getResolutionReasonFromLatestMessage(r);
         return `
         <div class="af-item ${
@@ -3555,9 +3569,11 @@ function closeMobileGroupSwitcherSheet() {
           </div>
           <div class="af-item-subject">${esc(r.subject)}</div>
           <div class="af-item-body">${esc(r.body)}</div>
-          ${r.anonymous
-            ? '<div style="font-size:12px;color:var(--muted)">Von: anonym</div>'
-            : `<div style="font-size:12px;color:var(--muted)">Von: ${esc(getVisibleName(r.user, r.user?.displayNameField) || r.user?.name || r.user?.username || '–')}</div>`}
+          ${
+            r.anonymous
+              ? '<div style="font-size:12px;color:var(--muted)">Von: anonym</div>'
+              : `<div style="font-size:12px;color:var(--muted)">Von: ${esc(getVisibleName(r.user, r.user?.displayNameField) || r.user?.name || r.user?.username || '–')}</div>`
+          }
           ${
             r.reportedUser
               ? `<div style="font-size:12px;color:var(--accent)">Gemeldeter Nutzer: ${esc(getVisibleName(r.reportedUser, r.reportedUser?.displayNameField) || r.reportedUser.name || r.reportedUser.username)}</div>`
@@ -3604,139 +3620,145 @@ function closeMobileGroupSwitcherSheet() {
           </div>
         </div>
       `;
-      }).join('');
-    } catch (e) {
-      list.innerHTML = '<div class="msg msg-error">Netzwerkfehler.</div>';
-    }
+      })
+      .join('');
+  } catch (e) {
+    list.innerHTML = '<div class="msg msg-error">Netzwerkfehler.</div>';
   }
+}
 
-  async function setFeedbackStatus(id, status) {
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', { status });
-      renderAdminFeedbackList();
-    } catch (e) {}
+async function setFeedbackStatus(id, status) {
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', { status });
+    renderAdminFeedbackList();
+  } catch (e) {}
+}
+
+async function markFeedbackAdminRead(id) {
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', { markReadAdmin: true });
+    renderAdminFeedbackList();
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Markieren.', 'error');
   }
+}
 
-  async function markFeedbackAdminRead(id) {
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', { markReadAdmin: true });
-      renderAdminFeedbackList();
-    } catch (e) {
-      toast(e.serverMessage || 'Fehler beim Markieren.', 'error');
+async function closeFeedbackTicket(id, waitingFor) {
+  let closeReason = '';
+  if (waitingFor === 'support') {
+    const result = await showTextConfirmDlg(
+      'Ticket schließen',
+      'Dieses Ticket wartet aktuell auf Support. Bitte gib einen Schließungsgrund an. Der Grund wird als letzte Nachricht an den Nutzer gesendet.',
+      'Schließen',
+      'Abbrechen',
+      true,
+      'Schließungsgrund eingeben…'
+    );
+    if (!result?.confirmed) return;
+    closeReason = (result.text || '').trim();
+    if (!closeReason) {
+      toast('Bitte einen Schließungsgrund angeben.', 'error');
+      return;
     }
-  }
-
-  async function closeFeedbackTicket(id, waitingFor) {
-    let closeReason = '';
-    if (waitingFor === 'support') {
-      const result = await showTextConfirmDlg(
-        'Ticket schließen',
-        'Dieses Ticket wartet aktuell auf Support. Bitte gib einen Schließungsgrund an. Der Grund wird als letzte Nachricht an den Nutzer gesendet.',
-        'Schließen',
-        'Abbrechen',
-        true,
-        'Schließungsgrund eingeben…'
-      );
-      if (!result?.confirmed) return;
-      closeReason = (result.text || '').trim();
-      if (!closeReason) {
-        toast('Bitte einen Schließungsgrund angeben.', 'error');
-        return;
-      }
-    } else {
-      const confirmed = await showConfirmDlg(
-        'Ticket schließen?',
-        'Das Ticket wird geschlossen und der Nutzer wird benachrichtigt.',
-        'Schließen',
-        'Abbrechen',
-        false
-      );
-      if (!confirmed) return;
-    }
-
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', {
-        status: 'closed',
-        closeReason,
-      });
-      renderAdminFeedbackList();
-      toast('Ticket geschlossen.', 'success');
-    } catch (e) {
-      toast(e.serverMessage || 'Fehler beim Schließen.', 'error');
-    }
-  }
-
-  async function closeOwnFeedbackTicket(id) {
+  } else {
     const confirmed = await showConfirmDlg(
       'Ticket schließen?',
-      'Du schließt dieses Ticket endgültig. Danach sind keine weiteren Antworten möglich.',
+      'Das Ticket wird geschlossen und der Nutzer wird benachrichtigt.',
       'Schließen',
       'Abbrechen',
       false
     );
     if (!confirmed) return;
-
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(id)}/close-by-user`, 'PATCH');
-      renderMyFeedbackList();
-      toast('Ticket geschlossen.', 'success');
-    } catch (e) {
-      toast(e.serverMessage || 'Fehler beim Schließen.', 'error');
-    }
   }
 
-  async function deleteFeedbackEntry(id) {
-    const confirmed = await showConfirmDlg(
-      'Ticket endgültig löschen?',
-      'Dieses Ticket wird unwiderruflich gelöscht und ist danach auch für den meldenden Nutzer nicht mehr sichtbar. Dieser Vorgang kann nicht rückgängig gemacht werden.',
-      'Endgültig löschen',
-      'Abbrechen',
-      true
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', {
+      status: 'closed',
+      closeReason,
+    });
+    renderAdminFeedbackList();
+    toast('Ticket geschlossen.', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Schließen.', 'error');
+  }
+}
+
+async function closeOwnFeedbackTicket(id) {
+  const confirmed = await showConfirmDlg(
+    'Ticket schließen?',
+    'Du schließt dieses Ticket endgültig. Danach sind keine weiteren Antworten möglich.',
+    'Schließen',
+    'Abbrechen',
+    false
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}/close-by-user`, 'PATCH');
+    renderMyFeedbackList();
+    toast('Ticket geschlossen.', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Schließen.', 'error');
+  }
+}
+
+async function deleteFeedbackEntry(id) {
+  const confirmed = await showConfirmDlg(
+    'Ticket endgültig löschen?',
+    'Dieses Ticket wird unwiderruflich gelöscht und ist danach auch für den meldenden Nutzer nicht mehr sichtbar. Dieser Vorgang kann nicht rückgängig gemacht werden.',
+    'Endgültig löschen',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}`, 'DELETE');
+    renderAdminFeedbackList();
+  } catch (e) {}
+}
+
+// ── ADMIN: KONVERSATION (Popup-Modal) ────────────────────────────────────
+
+let _afConvReportId = null;
+
+async function adminOpenConversation(reportId, subject) {
+  _afConvReportId = reportId;
+  const title = document.getElementById('af-conv-title');
+  if (title) title.textContent = subject || 'Konversation';
+  const input = document.getElementById('af-conv-reply-input');
+  if (input) input.value = '';
+  // Ensure reply area visible + wired to admin submit
+  const replyWrap = document.getElementById('af-conv-reply-wrap');
+  if (replyWrap) replyWrap.style.display = 'flex';
+  const btn = document.getElementById('af-conv-reply-btn');
+  if (btn) btn.setAttribute('onclick', 'adminSubmitReply()');
+  document.getElementById('af-conv-modal')?.classList.remove('hidden');
+  await _afConvLoad();
+}
+
+function closeAfConvModal() {
+  document.getElementById('af-conv-modal')?.classList.add('hidden');
+  _afConvReportId = null;
+}
+
+async function _afConvLoad() {
+  if (!_afConvReportId) return;
+  const thread = document.getElementById('af-conv-thread');
+  if (!thread) return;
+  thread.innerHTML = '<div style="color:var(--muted);font-size:13px">Wird geladen…</div>';
+  try {
+    const { messages, anonymous, reportOwnerId } = await apiCall(
+      `/feedback/${encodeURIComponent(_afConvReportId)}/messages`,
+      'GET'
     );
-    if (!confirmed) return;
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(id)}`, 'DELETE');
-      renderAdminFeedbackList();
-    } catch (e) {}
-  }
-
-  // ── ADMIN: KONVERSATION (Popup-Modal) ────────────────────────────────────
-
-  let _afConvReportId = null;
-
-  async function adminOpenConversation(reportId, subject) {
-    _afConvReportId = reportId;
-    const title = document.getElementById('af-conv-title');
-    if (title) title.textContent = subject || 'Konversation';
-    const input = document.getElementById('af-conv-reply-input');
-    if (input) input.value = '';
-    // Ensure reply area visible + wired to admin submit
-    const replyWrap = document.getElementById('af-conv-reply-wrap');
-    if (replyWrap) replyWrap.style.display = 'flex';
-    const btn = document.getElementById('af-conv-reply-btn');
-    if (btn) btn.setAttribute('onclick', 'adminSubmitReply()');
-    document.getElementById('af-conv-modal')?.classList.remove('hidden');
-    await _afConvLoad();
-  }
-
-  function closeAfConvModal() {
-    document.getElementById('af-conv-modal')?.classList.add('hidden');
-    _afConvReportId = null;
-  }
-
-  async function _afConvLoad() {
-    if (!_afConvReportId) return;
-    const thread = document.getElementById('af-conv-thread');
-    if (!thread) return;
-    thread.innerHTML = '<div style="color:var(--muted);font-size:13px">Wird geladen…</div>';
-    try {
-      const { messages, anonymous, reportOwnerId } = await apiCall(`/feedback/${encodeURIComponent(_afConvReportId)}/messages`, 'GET');
-      if (!messages.length) {
-        thread.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:8px 0">Noch keine Nachrichten in dieser Konversation.</div>';
-        return;
-      }
-      const viewerIsAdmin = me?.role === 'admin';
-      thread.innerHTML = messages.map(m => {
+    if (!messages.length) {
+      thread.innerHTML =
+        '<div style="color:var(--muted);font-size:13px;text-align:center;padding:8px 0">Noch keine Nachrichten in dieser Konversation.</div>';
+      return;
+    }
+    const viewerIsAdmin = me?.role === 'admin';
+    thread.innerHTML = messages
+      .map((m) => {
         const isAdmin = m.author?.role === 'admin';
         const isReportOwner = m.author?.id === reportOwnerId;
         let displayName;
@@ -3745,110 +3767,123 @@ function closeMobileGroupSwitcherSheet() {
           if (viewerIsAdmin) {
             displayName = 'Anonym';
           } else {
-            displayName = getVisibleName(m.author, m.author?.displayNameField) || m.author?.username || '–';
-            anonHint = ' <span class="fb-anon-hint" title="Du hast anonym gemeldet — Admins sehen deinen Namen nicht">🕵️ anonym</span>';
+            displayName =
+              getVisibleName(m.author, m.author?.displayNameField) || m.author?.username || '–';
+            anonHint =
+              ' <span class="fb-anon-hint" title="Du hast anonym gemeldet — Admins sehen deinen Namen nicht">🕵️ anonym</span>';
           }
         } else {
-          displayName = getVisibleName(m.author, m.author?.displayNameField) || m.author?.username || '–';
+          displayName =
+            getVisibleName(m.author, m.author?.displayNameField) || m.author?.username || '–';
         }
         const time = new Date(m.createdAt).toLocaleString('de-DE');
         return `<div class="fb-msg ${isAdmin ? 'fb-msg-admin' : 'fb-msg-user'}">
           <div class="fb-msg-meta"><strong>${esc(displayName)}</strong>${isAdmin ? ' <span class="fb-admin-badge">Admin</span>' : ''}${anonHint} · <span>${esc(time)}</span></div>
           <div class="fb-msg-body">${esc(m.body)}</div>
         </div>`;
-      }).join('');
-    } catch (e) {
-      thread.innerHTML = '<div class="msg msg-error">Netzwerkfehler.</div>';
-    }
+      })
+      .join('');
+  } catch (e) {
+    thread.innerHTML = '<div class="msg msg-error">Netzwerkfehler.</div>';
   }
+}
 
-  async function adminSubmitReply() {
-    if (!_afConvReportId) return;
-    const input = document.getElementById('af-conv-reply-input');
-    const btn = document.getElementById('af-conv-reply-btn');
-    const body = input?.value?.trim();
-    if (!body) return;
-    if (btn) btn.disabled = true;
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(_afConvReportId)}/messages`, 'POST', { body });
-      if (input) input.value = '';
-      await _afConvLoad();
-      renderAdminFeedbackList();
-    } catch (e) {
-      toast(e.serverMessage || 'Fehler beim Senden.', 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
+async function adminSubmitReply() {
+  if (!_afConvReportId) return;
+  const input = document.getElementById('af-conv-reply-input');
+  const btn = document.getElementById('af-conv-reply-btn');
+  const body = input?.value?.trim();
+  if (!body) return;
+  if (btn) btn.disabled = true;
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(_afConvReportId)}/messages`, 'POST', { body });
+    if (input) input.value = '';
+    await _afConvLoad();
+    renderAdminFeedbackList();
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Senden.', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
+}
 
-  // ── ADMIN: RESOLUTION (Nutzer-Meldungen) ─────────────────────────────────
+// ── ADMIN: RESOLUTION (Nutzer-Meldungen) ─────────────────────────────────
 
-  async function setFeedbackResolution(id, resolution) {
-    const label = resolution === 'action_taken' ? 'Maßnahme getroffen' : 'Keine Maßnahme';
-    const result = await showTextConfirmDlg(
-      'Entscheidung speichern?',
-      `Die Entscheidung „${label}" wird für dieses Ticket gespeichert. Optional kannst du eine Begründung angeben, die dem Nutzer als Nachricht zugestellt wird.`,
-      'Speichern',
-      'Abbrechen',
-      false,
-      'Optionale Begründung für den Nutzer…'
-    );
-    if (!result?.confirmed) return;
-    const resolutionReason = String(result.text || '').trim();
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', {
-        resolution,
-        resolutionReason,
-      });
-      renderAdminFeedbackList();
-      toast(`Entscheidung gespeichert: ${label}`, 'success');
-    } catch (e) {
-      toast(e.serverMessage || 'Fehler beim Speichern.', 'error');
-    }
+async function setFeedbackResolution(id, resolution) {
+  const label = resolution === 'action_taken' ? 'Maßnahme getroffen' : 'Keine Maßnahme';
+  const result = await showTextConfirmDlg(
+    'Entscheidung speichern?',
+    `Die Entscheidung „${label}" wird für dieses Ticket gespeichert. Optional kannst du eine Begründung angeben, die dem Nutzer als Nachricht zugestellt wird.`,
+    'Speichern',
+    'Abbrechen',
+    false,
+    'Optionale Begründung für den Nutzer…'
+  );
+  if (!result?.confirmed) return;
+  const resolutionReason = String(result.text || '').trim();
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}`, 'PATCH', {
+      resolution,
+      resolutionReason,
+    });
+    renderAdminFeedbackList();
+    toast(`Entscheidung gespeichert: ${label}`, 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Speichern.', 'error');
   }
+}
 
-  // ── USER: TAB-SWITCHER ────────────────────────────────────────────────────
+// ── USER: TAB-SWITCHER ────────────────────────────────────────────────────
 
-  function switchFeedbackTab(tab) {
-    const panelNew = document.getElementById('fb-panel-new');
-    const panelMine = document.getElementById('fb-panel-mine');
-    const tabNew = document.getElementById('fb-tab-new');
-    const tabMine = document.getElementById('fb-tab-mine');
-    if (tab === 'mine') {
-      panelNew?.classList.add('hidden');
-      panelMine?.classList.remove('hidden');
-      tabNew?.classList.remove('active');
-      tabMine?.classList.add('active');
-      renderMyFeedbackList();
-    } else {
-      panelNew?.classList.remove('hidden');
-      panelMine?.classList.add('hidden');
-      tabNew?.classList.add('active');
-      tabMine?.classList.remove('active');
-    }
+function switchFeedbackTab(tab) {
+  const panelNew = document.getElementById('fb-panel-new');
+  const panelMine = document.getElementById('fb-panel-mine');
+  const tabNew = document.getElementById('fb-tab-new');
+  const tabMine = document.getElementById('fb-tab-mine');
+  if (tab === 'mine') {
+    panelNew?.classList.add('hidden');
+    panelMine?.classList.remove('hidden');
+    tabNew?.classList.remove('active');
+    tabMine?.classList.add('active');
+    renderMyFeedbackList();
+  } else {
+    panelNew?.classList.remove('hidden');
+    panelMine?.classList.add('hidden');
+    tabNew?.classList.add('active');
+    tabMine?.classList.remove('active');
   }
+}
 
-  // ── USER: MEINE MELDUNGEN ─────────────────────────────────────────────────
+// ── USER: MEINE MELDUNGEN ─────────────────────────────────────────────────
 
-  async function renderMyFeedbackList() {
-    const list = document.getElementById('my-feedback-list');
-    if (!list) return;
-    list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>';
-    try {
-      const { reports } = await apiCall('/feedback/mine', 'GET');
-      if (!reports.length) {
-        list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;text-align:center">Du hast noch keine Meldungen eingereicht.</div>';
-        return;
-      }
-      const catLabel = { bug: '🐛 Bug', feature: '💡 Feature', help: '❓ Hilfe', report_user: '⚠️ Nutzer', other: '💬 Sonstiges' };
-      const statusLabel = {
-        closed: 'Geschlossen',
-        open_support: 'Offen - Wartet auf Support',
-        open_user: 'Offen - Wartet auf dich',
-      };
-      const resolutionLabel = { no_action: 'Keine Maßnahme', action_taken: 'Maßnahme getroffen' };
-      const canReply = (r) => r.category !== 'report_user' && r.status !== 'closed';
-      list.innerHTML = reports.map(r => {
+async function renderMyFeedbackList() {
+  const list = document.getElementById('my-feedback-list');
+  if (!list) return;
+  list.innerHTML =
+    '<div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>';
+  try {
+    const { reports } = await apiCall('/feedback/mine', 'GET');
+    if (!reports.length) {
+      list.innerHTML =
+        '<div style="color:var(--muted);font-size:13px;padding:8px 0;text-align:center">Du hast noch keine Meldungen eingereicht.</div>';
+      return;
+    }
+    const catLabel = {
+      bug: '🐛 Bug',
+      feature: '💡 Feature',
+      help: '❓ Hilfe',
+      report_user: '⚠️ Nutzer',
+      other: '💬 Sonstiges',
+    };
+    const statusLabel = {
+      closed: 'Geschlossen',
+      open_support: 'Offen - Wartet auf Support',
+      open_user: 'Offen - Wartet auf dich',
+    };
+    const resolutionLabel = { no_action: 'Keine Maßnahme', action_taken: 'Maßnahme getroffen' };
+    const canReply = (r) => r.category !== 'report_user' && r.status !== 'closed';
+    list.innerHTML = reports
+      .map((r) => {
         const msgCount = r._count?.messages || 0;
         const lastMsg = r.messages?.[0];
         const resolutionReason = getResolutionReasonFromLatestMessage(r);
@@ -3888,74 +3923,85 @@ function closeMobileGroupSwitcherSheet() {
               : ''
           }
           ${msgCount > 0 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">💬 ${msgCount} Nachricht${msgCount !== 1 ? 'en' : ''}</div>` : ''}
-          ${lastMsg ? (() => {
-            const isOwnAnonMsg = r.anonymous && lastMsg.author?.id === r.userId && lastMsg.author?.role !== 'admin';
-            const authorLabel = isOwnAnonMsg ? 'Du (anonym)' : (esc(getVisibleName(lastMsg.author, lastMsg.author?.displayNameField) || '–') + (lastMsg.author?.role === 'admin' ? ' (Admin)' : ''));
-            return `<div class="fb-last-msg"><span class="fb-msg-meta-name">${authorLabel}:</span> ${esc(lastMsg.body.slice(0, 80))}${lastMsg.body.length > 80 ? '…' : ''}</div>`;
-          })() : ''}
+          ${
+            lastMsg
+              ? (() => {
+                  const isOwnAnonMsg =
+                    r.anonymous &&
+                    lastMsg.author?.id === r.userId &&
+                    lastMsg.author?.role !== 'admin';
+                  const authorLabel = isOwnAnonMsg
+                    ? 'Du (anonym)'
+                    : esc(getVisibleName(lastMsg.author, lastMsg.author?.displayNameField) || '–') +
+                      (lastMsg.author?.role === 'admin' ? ' (Admin)' : '');
+                  return `<div class="fb-last-msg"><span class="fb-msg-meta-name">${authorLabel}:</span> ${esc(lastMsg.body.slice(0, 80))}${lastMsg.body.length > 80 ? '…' : ''}</div>`;
+                })()
+              : ''
+          }
           <div class="af-item-actions" style="margin-top:6px">
             ${msgCount > 0 || canReply(r) ? `<button class="btn btn-sm btn-ghost" onclick="openMyConversation('${esc(r.id)}','${esc(r.subject)}')">Konversation ansehen</button>` : ''}
             ${r.status === 'open' && r.category !== 'report_user' ? `<button class="btn btn-sm btn-ghost af-action-close" onclick="closeOwnFeedbackTicket('${esc(r.id)}')">Ticket schließen</button>` : ''}
           </div>
         </div>`;
-      }).join('');
-    } catch (e) {
-      list.innerHTML = '<div class="msg msg-error">Netzwerkfehler.</div>';
-    }
+      })
+      .join('');
+  } catch (e) {
+    list.innerHTML = '<div class="msg msg-error">Netzwerkfehler.</div>';
   }
+}
 
-  // ── USER: KONVERSATION ────────────────────────────────────────────────────
+// ── USER: KONVERSATION ────────────────────────────────────────────────────
 
-  let _myConvReportId = null;
-  let _myConvCanReply = false;
+let _myConvReportId = null;
+let _myConvCanReply = false;
 
-  async function openMyConversation(reportId, subject) {
-    _myConvReportId = reportId;
-    // Determine if reply is allowed by checking report status from my-feedback-list
-    const item = document.querySelector(`[data-id="${CSS.escape(reportId)}"]`);
-    _myConvCanReply = !item?.classList.contains('af-status-closed');
+async function openMyConversation(reportId, subject) {
+  _myConvReportId = reportId;
+  // Determine if reply is allowed by checking report status from my-feedback-list
+  const item = document.querySelector(`[data-id="${CSS.escape(reportId)}"]`);
+  _myConvCanReply = !item?.classList.contains('af-status-closed');
 
-    // Reuse admin conv modal for user too
-    const title = document.getElementById('af-conv-title');
-    if (title) title.textContent = subject || 'Konversation';
-    const input = document.getElementById('af-conv-reply-input');
+  // Reuse admin conv modal for user too
+  const title = document.getElementById('af-conv-title');
+  if (title) title.textContent = subject || 'Konversation';
+  const input = document.getElementById('af-conv-reply-input');
+  if (input) input.value = '';
+
+  // Hide reply area if closed or report_user
+  const replyWrap = document.getElementById('af-conv-reply-wrap');
+  const catEl = item?.querySelector('.af-cat-badge');
+  const isReportUser = catEl?.classList.contains('af-cat-report_user');
+  if (replyWrap) replyWrap.style.display = isReportUser || !_myConvCanReply ? 'none' : 'flex';
+
+  // Override reply button to use user submit
+  const btn = document.getElementById('af-conv-reply-btn');
+  if (btn) btn.setAttribute('onclick', 'submitMyMessage()');
+
+  document.getElementById('af-conv-modal')?.classList.remove('hidden');
+
+  // Set context so _afConvLoad loads correctly
+  _afConvReportId = reportId;
+  await _afConvLoad();
+}
+
+async function submitMyMessage() {
+  if (!_afConvReportId) return;
+  const input = document.getElementById('af-conv-reply-input');
+  const btn = document.getElementById('af-conv-reply-btn');
+  const body = input?.value?.trim();
+  if (!body) return;
+  if (btn) btn.disabled = true;
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(_afConvReportId)}/messages`, 'POST', { body });
     if (input) input.value = '';
-
-    // Hide reply area if closed or report_user
-    const replyWrap = document.getElementById('af-conv-reply-wrap');
-    const catEl = item?.querySelector('.af-cat-badge');
-    const isReportUser = catEl?.classList.contains('af-cat-report_user');
-    if (replyWrap) replyWrap.style.display = (isReportUser || !_myConvCanReply) ? 'none' : 'flex';
-
-    // Override reply button to use user submit
-    const btn = document.getElementById('af-conv-reply-btn');
-    if (btn) btn.setAttribute('onclick', 'submitMyMessage()');
-
-    document.getElementById('af-conv-modal')?.classList.remove('hidden');
-
-    // Set context so _afConvLoad loads correctly
-    _afConvReportId = reportId;
     await _afConvLoad();
+    renderMyFeedbackList();
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Senden.', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
-
-  async function submitMyMessage() {
-    if (!_afConvReportId) return;
-    const input = document.getElementById('af-conv-reply-input');
-    const btn = document.getElementById('af-conv-reply-btn');
-    const body = input?.value?.trim();
-    if (!body) return;
-    if (btn) btn.disabled = true;
-    try {
-      await apiCall(`/feedback/${encodeURIComponent(_afConvReportId)}/messages`, 'POST', { body });
-      if (input) input.value = '';
-      await _afConvLoad();
-      renderMyFeedbackList();
-    } catch (e) {
-      toast(e.serverMessage || 'Fehler beim Senden.', 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
+}
 
 async function switchGroup(groupId) {
   document.getElementById('group-dd')?.remove();
@@ -6488,28 +6534,28 @@ Object.assign(window, {
   openMobileGroupSwitcherSheet,
   closeMobileGroupSwitcherSheet,
   // Slideshow
-    // Feedback / Support
-    openSupportModal,
-    closeSupportModal,
-    onFeedbackCategoryChange,
-    submitFeedback,
-    switchFeedbackTab,
-    renderMyFeedbackList,
-    openMyConversation,
-    submitMyMessage,
-    openAdminFeedback,
-    closeAdminFeedback,
-    renderAdminFeedbackList,
-    setFeedbackStatus,
-    markFeedbackAdminRead,
-    closeFeedbackTicket,
-    closeOwnFeedbackTicket,
-    deleteFeedbackEntry,
-    adminOpenConversation,
-    closeAfConvModal,
-    adminSubmitReply,
-    setFeedbackResolution,
-    // Slideshow
+  // Feedback / Support
+  openSupportModal,
+  closeSupportModal,
+  onFeedbackCategoryChange,
+  submitFeedback,
+  switchFeedbackTab,
+  renderMyFeedbackList,
+  openMyConversation,
+  submitMyMessage,
+  openAdminFeedback,
+  closeAdminFeedback,
+  renderAdminFeedbackList,
+  setFeedbackStatus,
+  markFeedbackAdminRead,
+  closeFeedbackTicket,
+  closeOwnFeedbackTicket,
+  deleteFeedbackEntry,
+  adminOpenConversation,
+  closeAfConvModal,
+  adminSubmitReply,
+  setFeedbackResolution,
+  // Slideshow
   openSS,
   toggleSS,
   ssChangeSpeed,
