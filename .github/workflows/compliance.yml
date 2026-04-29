@@ -90,10 +90,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Build changed file list
+        id: changed_files
+        run: |
+          BASE_REF="${{ github.base_ref || github.event.repository.default_branch }}"
+          git fetch origin "$BASE_REF" --depth=1
+          git diff --name-only "origin/$BASE_REF...HEAD" > /tmp/changed_files.txt
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+
       - name: Check if routes changed
         id: routes_changed
         run: |
-          if git diff --name-only origin/main...HEAD | grep -qE '^backend/src/routes/'; then
+          if grep -qE '^backend/src/routes/' /tmp/changed_files.txt; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -102,7 +114,7 @@ jobs:
       - name: Check if docs updated when routes changed
         if: steps.routes_changed.outputs.changed == 'true'
         run: |
-          if git diff --name-only origin/main...HEAD | grep -qE '^docs/'; then
+          if grep -qE '^docs/' /tmp/changed_files.txt; then
             echo "✅ Routes changed and docs updated"
             exit 0
           else
@@ -114,7 +126,7 @@ jobs:
       - name: Check if schema changed
         id: schema_changed
         run: |
-          if git diff --name-only origin/main...HEAD | grep -qE '^backend/prisma/schema.prisma'; then
+          if grep -qE '^backend/prisma/schema.prisma' /tmp/changed_files.txt; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -123,7 +135,7 @@ jobs:
       - name: Check if migration added when schema changed
         if: steps.schema_changed.outputs.changed == 'true'
         run: |
-          if git diff --name-only origin/main...HEAD | grep -qE '^backend/prisma/migrations/'; then
+          if grep -qE '^backend/prisma/migrations/' /tmp/changed_files.txt; then
             echo "✅ Schema changed and migration created"
             exit 0
           else
@@ -135,13 +147,59 @@ jobs:
       - name: Check if datenbankschema.md updated when schema changed
         if: steps.schema_changed.outputs.changed == 'true'
         run: |
-          if git diff --name-only origin/main...HEAD | grep -qE '^docs/datenbankschema.md'; then
+          if grep -qE '^docs/datenbankschema.md' /tmp/changed_files.txt; then
             echo "✅ Schema changed and docs/datenbankschema.md updated"
             exit 0
           else
             echo "⚠️  WARNING: Schema changed but docs/datenbankschema.md NOT updated"
             echo "Consider updating database documentation"
           fi
+
+      - name: Check if release-relevant files changed
+        id: release_changed
+        run: |
+          if grep -qE '^backend/(src|public/script|prisma|scripts)/' /tmp/changed_files.txt; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce package version bump for release-relevant changes
+        if: steps.release_changed.outputs.changed == 'true'
+        run: |
+          BASE_REF="${{ steps.changed_files.outputs.base_ref }}"
+
+          BASE_VERSION=$(git show "origin/$BASE_REF:backend/package.json" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>process.stdout.write(JSON.parse(d).version||''));")
+          HEAD_VERSION=$(node -e "const fs=require('fs');process.stdout.write(JSON.parse(fs.readFileSync('backend/package.json','utf8')).version||'');")
+
+          if [ -z "$BASE_VERSION" ] || [ -z "$HEAD_VERSION" ]; then
+            echo "❌ ERROR: Could not read backend/package.json version"
+            exit 1
+          fi
+
+          echo "Base version: $BASE_VERSION"
+          echo "Head version: $HEAD_VERSION"
+
+          if [ "$BASE_VERSION" = "$HEAD_VERSION" ]; then
+            echo "❌ ERROR: Release-relevant changes detected, but backend/package.json version was not bumped."
+            echo "Please run one of: npm version patch | npm version minor | npm version major (in backend/)"
+            exit 1
+          fi
+
+          if ! grep -qE '^backend/package-lock.json$' /tmp/changed_files.txt; then
+            echo "❌ ERROR: backend/package.json version changed, but backend/package-lock.json was not updated."
+            echo "Please run npm install or npm version in backend/ and commit backend/package-lock.json."
+            exit 1
+          fi
+
+          LOCK_VERSION=$(node -e "const fs=require('fs');const l=JSON.parse(fs.readFileSync('backend/package-lock.json','utf8'));process.stdout.write(l.version||'');")
+          if [ "$HEAD_VERSION" != "$LOCK_VERSION" ]; then
+            echo "❌ ERROR: Version mismatch between backend/package.json ($HEAD_VERSION) and backend/package-lock.json ($LOCK_VERSION)."
+            exit 1
+          fi
+
+          echo "✅ Version bump check passed."
+          echo "::notice::Remember to create/update a changelog entry with version $HEAD_VERSION in the app changelog UI."
 
   summary:
     name: Compliance Check Summary
