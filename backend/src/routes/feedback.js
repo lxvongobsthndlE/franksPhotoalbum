@@ -492,11 +492,9 @@ export default async function feedbackRoutes(fastify) {
       }
       if (status === 'closed') {
         if (isSupportWaiting(existing) && !closeReason) {
-          return reply
-            .code(400)
-            .send({
-              error: 'Beim Schließen während "Wartet auf Support" ist ein Grund erforderlich.',
-            });
+          return reply.code(400).send({
+            error: 'Beim Schließen während "Wartet auf Support" ist ein Grund erforderlich.',
+          });
         }
 
         updateData.status = 'closed';
@@ -595,11 +593,9 @@ export default async function feedbackRoutes(fastify) {
       return reply.code(403).send({ error: 'Kein Zugriff.' });
     }
     if (existing.category === 'report_user') {
-      return reply
-        .code(403)
-        .send({
-          error: 'Nutzer-Meldungen können nur durch Admin-Entscheidung geschlossen werden.',
-        });
+      return reply.code(403).send({
+        error: 'Nutzer-Meldungen können nur durch Admin-Entscheidung geschlossen werden.',
+      });
     }
 
     const updated = await fastify.prisma.feedbackReport.update({
