@@ -13,6 +13,10 @@ User ──< GroupMember >── Group ──< Album ──< AlbumContributor >�
   │                                   │
   │                                   └──< Like
   │
+  ├──< FeedbackReport ──< FeedbackMessage
+  │          │
+  │          └──(optional) reportedUser -> User
+  │
   ├──< Notification
   └──  NotificationPreference
 
@@ -268,6 +272,46 @@ model NotificationPreference {
 
 ---
 
+### FeedbackReport
+
+Ticket für Hilfe/Feedback/Meldungen inklusive Workflow-Status.
+
+```prisma
+model FeedbackReport {
+  id             String   @id @default(cuid())
+  userId         String
+  category       String   // bug | feature | help | report_user | other
+  subject        String
+  body           String
+  anonymous      Boolean  @default(false)
+  reportedUserId String?
+  status         String   @default("open")      // open | closed
+  waitingFor     String   @default("support")   // support | user | none
+  unreadAdmin    Boolean  @default(true)
+  unreadUser     Boolean  @default(false)
+  resolution     String?  // no_action | action_taken (nur report_user)
+  createdAt      DateTime @default(now())
+}
+```
+
+---
+
+### FeedbackMessage
+
+Nachrichtenverlauf zu einem FeedbackReport.
+
+```prisma
+model FeedbackMessage {
+  id        String   @id @default(cuid())
+  reportId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+}
+```
+
+---
+
 ## Reporting-Views
 
 Diese Views liegen bewusst nur als SQL-Migration vor und nicht als Prisma-Modelle im Schema.
@@ -313,3 +357,6 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 | `20260427123000_add_group_invite_visibility`         | `inviteCodeVisibleToMembers` an Group                                               |
 | `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen           |
 | `20260427201000_add_changelog_entries`               | Neue Tabelle `changelog_entries` für Versionseinträge                               |
+| `20260429200000_add_feedback_reports`                | Neue Tabelle `feedback_reports`                                                     |
+| `20260429210000_add_feedback_messages`               | Neue Tabelle `feedback_messages` + `resolution` an `feedback_reports`               |
+| `20260429223000_add_feedback_waiting_unread_flags`   | Workflow-Felder `waitingFor`, `unreadAdmin`, `unreadUser` an `feedback_reports`     |

@@ -120,6 +120,29 @@ Authorization: Bearer <accessToken>
 
 ---
 
+## Feedback & Meldungen (`/api/feedback`)
+
+| Methode  | Pfad                            | Beschreibung                                                                 |
+| -------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `GET`    | `/api/feedback/eligible-users`  | Nutzerliste für "Nutzer melden" (gleiche Gruppen wie der aufrufende User) |
+| `POST`   | `/api/feedback`                 | Neues Ticket erstellen (`category`, `subject`, `body`, optional `anonymous`, `reportedUserId`) |
+| `GET`    | `/api/feedback`                 | Admin: Tickets auflisten (`?status=open|closed`, `?category=...`)          |
+| `GET`    | `/api/feedback/mine`            | Eigene Tickets des eingeloggten Users                                        |
+| `GET`    | `/api/feedback/:id/messages`    | Konversationsverlauf eines Tickets laden                                     |
+| `POST`   | `/api/feedback/:id/messages`    | Nachricht in bestehender Ticket-Konversation senden                          |
+| `PATCH`  | `/api/feedback/:id`             | Admin: Ticket aktualisieren (`markReadAdmin`, `status`, `resolution`)       |
+| `PATCH`  | `/api/feedback/:id/close-by-user` | User: eigenes Ticket schließen (nicht bei `report_user`)                   |
+| `DELETE` | `/api/feedback/:id`             | Admin: Ticket endgültig löschen                                              |
+
+Hinweise:
+
+- `POST /api/feedback`: Rate-Limit `5` Requests / `10 Minuten`
+- `POST /api/feedback/:id/messages`: Rate-Limit `20` Requests / `5 Minuten`
+- `resolution` ist nur für Kategorie `report_user` erlaubt (`no_action` oder `action_taken`)
+- Beim Admin-Schließen während `waitingFor=support` ist ein Schließungsgrund erforderlich
+
+---
+
 ## Changelog (`/api/changelog`)
 
 | Methode  | Pfad                  | Beschreibung                                                                 |
