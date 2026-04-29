@@ -32,7 +32,10 @@ model User {
   albumContributions AlbumContributor[]
   groupDeputies      GroupDeputy[]
   notifications      Notification[]
-  notifPreference    NotificationPreference?
+    notifPreference    NotificationPreference?
+    feedbackReports    FeedbackReport[]
+    reportedInFeedback FeedbackReport[] @relation("ReportedUser")
+  feedbackMessages   FeedbackMessage[]
 }
 
 model Group {
@@ -220,4 +223,41 @@ model NotificationPreference {
   email_system               Boolean @default(false)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FeedbackReport {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category       String   // "bug" | "feature" | "help" | "report_user" | "other"
+  subject        String
+  body           String
+  anonymous      Boolean  @default(false)
+  reportedUserId String?
+  reportedUser   User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  status         String   @default("open") // "open" | "closed"
+  waitingFor     String   @default("support") // "support" | "user" | "none"
+  unreadAdmin    Boolean  @default(true)
+  unreadUser     Boolean  @default(false)
+  resolution     String?  // "no_action" | "action_taken" — nur für report_user
+  createdAt      DateTime @default(now())
+
+  messages  FeedbackMessage[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("feedback_reports")
+}
+
+model FeedbackMessage {
+  id        String         @id @default(cuid())
+  reportId  String
+  report    FeedbackReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime       @default(now())
+
+  @@index([reportId])
+  @@map("feedback_messages")
 }
