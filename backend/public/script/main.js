@@ -88,6 +88,7 @@ let appVersion = '...';
 let changelogEntries = [];
 let changelogEditingId = null;
 let pendingInviteToken = null;
+let pendingLoggedInInviteToken = null;
 let adminGroupsCache = [];
 
 async function loadInvitePreview(token) {
@@ -241,20 +242,18 @@ window.addEventListener('load', async () => {
   if (session && session.id) {
     me = session;
     try {
-      if (inviteTokenFromUrl) {
-        const inviteRedeem = await redeemInviteViaApi(inviteTokenFromUrl);
-        if (inviteRedeem.ok) {
-          const status = inviteRedeem.result?.status;
-          if (status === 'joined') toast('Einladung erfolgreich eingeloest.', 'success');
-          else if (status === 'partial') toast('Einladung teilweise eingeloest.', 'info');
-          else if (status === 'already_member') toast('Du bist bereits in der Zielgruppe.', 'info');
-        } else {
-          toast(inviteRedeem.error, 'error');
-        }
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-
       await startApp();
+
+      if (inviteTokenFromUrl) {
+        const preview = await loadInvitePreview(inviteTokenFromUrl);
+        if (preview.ok) {
+          pendingLoggedInInviteToken = inviteTokenFromUrl;
+          showInviteBanner(preview.invite);
+        } else {
+          toast(preview.error || 'Einladungslink ist ungültig.', 'error');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
       return;
     } catch (e) {
       console.error('App start failed:', e);
@@ -277,6 +276,59 @@ window.addEventListener('load', async () => {
 
 // Make startOIDCLogin available globally for the HTML onclick handler
 window.startOIDCLogin = () => startOIDCLogin(pendingInviteToken);
+
+function showInviteBanner(invite) {
+  const groupNames = (invite?.groups || []).map((g) => g?.name).filter(Boolean);
+  const expiry = invite?.expiresAt ? ` (bis ${fmtInviteDate(invite.expiresAt)})` : '';
+  const msg =
+    groupNames.length > 0
+      ? `Du wurdest zu ${groupNames.join(', ')} eingeladen${expiry}.`
+      : `Du wurdest eingeladen${expiry}.`;
+  $('invite-banner-msg').textContent = msg;
+  show('invite-banner');
+}
+
+async function confirmInviteJoin() {
+  if (!pendingLoggedInInviteToken) return;
+  $('invite-banner-btn').disabled = true;
+  const token = pendingLoggedInInviteToken;
+  const inviteRedeem = await redeemInviteViaApi(token);
+  hide('invite-banner');
+  pendingLoggedInInviteToken = null;
+  window.history.replaceState({}, document.title, window.location.pathname);
+  if (inviteRedeem.ok) {
+    const status = inviteRedeem.result?.status;
+    if (status === 'joined') toast('Einladung erfolgreich eingelöst.', 'success');
+    else if (status === 'partial') toast('Einladung teilweise eingelöst.', 'info');
+    else if (status === 'already_member') toast('Du bist bereits in der Zielgruppe.', 'info');
+    // Reload groups so the new group appears in the sidebar
+    const targetGroupId = inviteRedeem.result?.joinedGroups?.[0]?.groupId ?? null;
+    try {
+      const { groups } = await apiCall('/groups/my', 'GET');
+      myGroups = groups || [];
+    } catch (e) {
+      console.warn('Gruppen nach Invite-Join nicht aktualisiert:', e);
+    }
+    // Switch to the first joined group (or stay in current group for already_member)
+    if (targetGroupId && myGroups.find((g) => g.id === targetGroupId)) {
+      await switchGroup(targetGroupId);
+    } else {
+      renderGroupSwitcher();
+      renderSidebar();
+    }
+  } else {
+    toast(inviteRedeem.error || 'Einladung konnte nicht eingelöst werden.', 'error');
+  }
+}
+
+function dismissInviteBanner() {
+  hide('invite-banner');
+  pendingLoggedInInviteToken = null;
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+window.confirmInviteJoin = confirmInviteJoin;
+window.dismissInviteBanner = dismissInviteBanner;
 
 // ── AUTH (OIDC - via auth-oidc.js) ──────────────────────
 function toLogin() {

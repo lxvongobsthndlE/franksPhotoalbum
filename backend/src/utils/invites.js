@@ -156,6 +156,31 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
         body: invite.notificationText,
       }).catch(() => {});
     }
+
+    // Notify the group owner about the new member
+    const joiningUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, username: true, displayNameField: true },
+    }).catch(() => null);
+    const joiningName =
+      (joiningUser?.displayNameField === 'username' ? joiningUser?.username : joiningUser?.name) ||
+      joiningUser?.name ||
+      joiningUser?.username ||
+      'Ein neues Mitglied';
+
+    for (const joined of joinedGroups) {
+      const group = targets.find((g) => g.id === joined.groupId);
+      if (group?.createdBy && group.createdBy !== userId) {
+        await createNotification(prisma, {
+          userId: group.createdBy,
+          type: 'groupMemberJoined',
+          title: `Neues Mitglied in „${group.name}"`,
+          body: `${joiningName} ist der Gruppe beigetreten.`,
+          entityId: group.id,
+          entityType: 'group',
+        }).catch(() => {});
+      }
+    }
   }
 
   if (joinedGroups.length === 0 && failedGroups.length === 0) {

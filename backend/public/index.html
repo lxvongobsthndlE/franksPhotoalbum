@@ -34,6 +34,13 @@
   <body>
     <div class="toast-container" id="toast-container"></div>
 
+    <!-- INVITE BANNER (shown when logged-in user opens /?invite=TOKEN) -->
+    <div id="invite-banner" class="hidden">
+      <span id="invite-banner-msg">Du wurdest eingeladen.</span>
+      <button id="invite-banner-btn" onclick="confirmInviteJoin()">Beitreten</button>
+      <a id="invite-banner-dismiss" onclick="dismissInviteBanner()">✕</a>
+    </div>
+
     <div id="loading">
       <h2>Franks Fotoalbum</h2>
       <div class="spinner"></div>
