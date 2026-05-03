@@ -27,9 +27,18 @@ vi.mock('../utils/storage.js', () => ({
   deleteAvatar: vi.fn(),
 }));
 
+vi.mock('../utils/invites.js', () => ({
+  normalizeInviteToken: vi.fn((value) => {
+    if (typeof value !== 'string' || !value.trim()) return null;
+    return value.trim().toUpperCase();
+  }),
+  redeemInviteForUser: vi.fn(),
+}));
+
 describe('auth routes', () => {
   let authRoutes;
   let oidc;
+  let invites;
   let fastify;
   let prisma;
 
@@ -47,6 +56,7 @@ describe('auth routes', () => {
     process.env.NODE_ENV = 'test';
     authRoutes = (await import('../routes/auth.js')).default;
     oidc = await import('../utils/oidc.js');
+    invites = await import('../utils/invites.js');
     prisma = createMockPrismaClient();
     fastify = createMockRouteFastify({ prisma });
     await authRoutes(fastify);
@@ -206,6 +216,50 @@ describe('auth routes', () => {
       });
       expect(secondCallback.reply.statusCode).toBe(400);
       expect(secondCallback.reply.payload).toEqual({ error: 'Invalid or expired state' });
+    });
+
+    it('stores invite context in state and auto-redeems during callback', async () => {
+      const existingUser = createMockUser({
+        id: 'user-99',
+        username: 'invite-user',
+        email: 'invite@example.com',
+      });
+
+      prisma.user.findUnique.mockResolvedValueOnce(existingUser);
+      prisma.user.update.mockResolvedValue(existingUser);
+      oidc.handleCallback.mockResolvedValue({
+        claims: () => ({
+          email: 'invite@example.com',
+          preferred_username: 'invite-user',
+          name: 'Invite User',
+        }),
+      });
+      invites.redeemInviteForUser.mockResolvedValue({
+        ok: true,
+        status: 'joined',
+        code: 'joined',
+        message: 'ok',
+      });
+
+      const loginResult = await callRoute('GET', '/login', {
+        query: { invite: 'ABCD1234EFGH5678' },
+      });
+      const state = new URL(loginResult.result.loginUrl).searchParams.get('state');
+
+      const { result } = await callRoute('GET', '/callback', {
+        query: { code: 'oidc-code', state },
+      });
+
+      expect(invites.redeemInviteForUser).toHaveBeenCalledWith(
+        prisma,
+        expect.objectContaining({ token: 'ABCD1234EFGH5678', userId: 'user-99' })
+      );
+      expect(result.inviteResult).toEqual(
+        expect.objectContaining({
+          ok: true,
+          status: 'joined',
+        })
+      );
     });
   });
 

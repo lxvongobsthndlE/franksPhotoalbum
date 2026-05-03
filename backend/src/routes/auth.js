@@ -6,6 +6,7 @@ import {
   getEndSessionUrl,
 } from '../utils/oidc.js';
 import { uploadAvatar, getAvatarStream, getAvatarStat, deleteAvatar } from '../utils/storage.js';
+import { normalizeInviteToken, redeemInviteForUser } from '../utils/invites.js';
 
 // Session-Management (In Production: Redis verwenden)
 const stateStore = new Map();
@@ -135,9 +136,10 @@ export default async function authRoutes(fastify) {
 
       const state = generateState();
       const nonce = generateNonce();
+      const inviteToken = normalizeInviteToken(request.query?.invite);
 
       // Speichere state/nonce für Validation beim Callback
-      stateStore.set(state, { nonce, createdAt: Date.now() });
+      stateStore.set(state, { nonce, createdAt: Date.now(), inviteToken });
 
       const authUrl = getAuthorizationUrl(state, nonce);
       fastify.log.info('LOGIN: Generated auth URL');
@@ -213,9 +215,18 @@ export default async function authRoutes(fastify) {
       // Cleanup
       stateStore.delete(state);
 
+      let inviteResult = null;
+      if (storedState?.inviteToken) {
+        inviteResult = await redeemInviteForUser(fastify.prisma, {
+          token: storedState.inviteToken,
+          userId: user.id,
+        });
+      }
+
       // Return Access Token & User Info
       return {
         accessToken,
+        inviteResult,
         user: {
           id: user.id,
           email: user.email,

@@ -25,6 +25,7 @@ import adminRoutes from './routes/admin.js';
 import notificationsRoutes from './routes/notifications.js';
 import changelogRoutes from './routes/changelog.js';
 import feedbackRoutes from './routes/feedback.js';
+import invitesRoutes from './routes/invites.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -106,6 +107,7 @@ app.register(adminRoutes, { prefix: '/api/admin' });
 app.register(notificationsRoutes, { prefix: '/api/notifications' });
 app.register(changelogRoutes, { prefix: '/api/changelog' });
 app.register(feedbackRoutes, { prefix: '/api/feedback' });
+app.register(invitesRoutes, { prefix: '/api/invites' });
 
 // OIDC Callback: Authentik redirectet auf /auth/callback → Frontend-SPA laden, die den Code verarbeitet
 app.get('/auth/callback', async (request, reply) => {

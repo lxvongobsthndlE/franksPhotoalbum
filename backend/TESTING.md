@@ -187,6 +187,165 @@ npm run test:coverage
 # → coverage/index.html
 ```
 
+---
+
+## Manuelle Testfälle — Einladungslinks
+
+Diese Szenarien müssen manuell im Browser bzw. per HTTP-Client (z. B. Bruno, Postman oder curl) geprüft werden.
+
+### Voraussetzungen
+
+- Backend läuft lokal (`npm run dev`)
+- Mindestens zwei Nutzeraccounts vorhanden (Owner A, User B)
+- Mindestens eine Gruppe existiert, deren Owner Account A ist
+
+---
+
+### TC-01 — Invite erstellen (Owner, einfach)
+
+**Ziel:** Owner kann einen einfachen Link ohne Ablauf und ohne Limit erstellen.
+
+1. Als Owner A einloggen
+2. Gruppe öffnen → Einstellungen → Einladungslinks
+3. Keinen Ablauf, keine Nutzungsanzahl setzen
+4. „Erstellen" klicken
+5. **Erwartung:** Link erscheint in der Liste mit kopierbarer URL (`/?invite=…`)
+
+---
+
+### TC-02 — Invite-Vorschau (unauthenticated)
+
+**Ziel:** Invite-Preview ist ohne Login aufrufbar.
+
+1. Kopierten Link in einem neuen (ausgeloggten) Browser-Tab öffnen
+2. **Erwartung:** Seite zeigt „Du wurdest eingeladen" mit Gruppenname, Login-Button ist sichtbar
+3. Kein 401/403
+
+---
+
+### TC-03 — Redeem nach OIDC-Login (happy path)
+
+**Ziel:** User B wird nach Login automatisch der Gruppe hinzugefügt.
+
+1. Invite-Link (aus TC-01) im privaten/ausgeloggten Tab öffnen
+2. Auf Login-Button klicken
+3. Als User B einloggen (OIDC)
+4. **Erwartung:** Nach Callback-Redirect ist User B Mitglied der Gruppe; ggf. Willkommens-Benachrichtigung vorhanden
+
+---
+
+### TC-04 — Redeem direkt per API (bereits eingeloggt)
+
+**Ziel:** Eingeloggter User kann Link per Klick einlösen ohne erneuten Login.
+
+1. Als User B einloggen
+2. Invite-Link (`/?invite=TOKEN`) öffnen
+3. **Erwartung:** Vorschau wird angezeigt, „Beitreten"-Button erscheint
+4. Button klicken
+5. **Erwartung:** Erfolgs-Meldung, User B ist Mitglied der Gruppe
+
+---
+
+### TC-05 — Idempotentes Redeem
+
+**Ziel:** Zweimaliges Einlösen erhöht `useCount` nicht doppelt.
+
+1. User B löst denselben Link nochmals ein (Button oder API `POST /api/invites/redeem/:token`)
+2. **Erwartung:** Response enthält `status: already_member` oder `alreadyMemberGroups` mit der Gruppe; `useCount` bleibt unverändert
+
+---
+
+### TC-06 — Ablaufdatum in der Vergangenheit (API-Validierung)
+
+**Ziel:** Server lehnt Erstellung mit vergangenem Datum ab.
+
+```bash
+POST /api/invites
+{ "groupIds": ["<id>"], "expiresAt": "2000-01-01T00:00:00.000Z" }
+```
+
+**Erwartung:** `400 Bad Request`, Fehlermeldung „expiresAt muss in der Zukunft liegen"
+
+---
+
+### TC-07 — Abgelaufener Link
+
+**Ziel:** Abgelaufener Link wird mit 410 abgelehnt.
+
+1. Invite mit `expiresAt` in wenigen Minuten erstellen
+2. Warten bis abgelaufen (oder Datum direkt in DB setzen)
+3. Link öffnen
+4. **Erwartung:** `GET /api/invites/preview/:token` → `410 Gone`, UI zeigt „Link abgelaufen"
+
+---
+
+### TC-08 — Nutzungslimit erschöpft
+
+**Ziel:** Link mit `maxUses: 1` kann nur von einem User eingelöst werden.
+
+1. Invite mit `maxUses: 1` erstellen
+2. User B löst Link ein → Erfolg
+3. User C versucht denselben Link einzulösen
+4. **Erwartung:** `410 Gone`, `code: invite_exhausted`
+
+---
+
+### TC-09 — Deaktivierter Link (Revoke)
+
+**Ziel:** Owner kann Link widerrufen, danach ist er nicht mehr nutzbar.
+
+1. Invite aus Liste löschen (DELETE-Button)
+2. **Erwartung:** Link verschwindet aus Liste
+3. Link trotzdem im Browser öffnen
+4. **Erwartung:** `404 Not Found`, UI zeigt „Link ungültig"
+
+---
+
+### TC-10 — Owner-Limit (10 aktive Links)
+
+**Ziel:** Owner kann nicht mehr als 10 aktive Links pro Gruppe erstellen.
+
+1. 10 Links für dieselbe Gruppe erstellen
+2. 11. Link versuchen
+3. **Erwartung:** `409 Conflict`, `code: owner_active_invite_limit`
+
+---
+
+### TC-11 — Owner versucht Multi-Gruppe
+
+**Ziel:** Owner darf nur 1 Gruppe pro Invite angeben.
+
+```bash
+POST /api/invites
+{ "groupIds": ["<id1>", "<id2>"] }
+```
+
+**Erwartung:** `403 Forbidden`, `code: owner_single_group_only`
+
+---
+
+### TC-12 — Admin-Invite mit mehreren Gruppen
+
+**Ziel:** Admin kann Invite für mehrere Gruppen gleichzeitig erstellen.
+
+1. Als Admin einloggen → Admin-Panel → Einladungen
+2. Zwei Gruppen auswählen, optionalen Benachrichtigungstext eingeben
+3. Erstellen
+4. **Erwartung:** Link erscheint, Preview-Endpoint gibt beide Gruppen zurück
+5. User B löst Link ein → Mitglied in beiden Gruppen
+
+---
+
+### TC-13 — Invite-Preview für nicht-existenten Token
+
+```bash
+GET /api/invites/preview/GIBBERISH123
+```
+
+**Erwartung:** `404 Not Found`, `code: invite_not_found`
+
+---
+
 ## CI/CD Integration
 
 GitHub Actions laufen automatisch auf PR:

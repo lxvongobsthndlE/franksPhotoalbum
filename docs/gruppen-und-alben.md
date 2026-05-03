@@ -3,6 +3,7 @@
 ## Inhaltsverzeichnis
 
 - [Gruppen](#gruppen)
+- [Einladungslinks](#einladungslinks)
 - [Owner & Deputies](#owner--deputies)
 - [Owner-Nachfolge beim Verlassen](#owner-nachfolge-beim-verlassen)
 - [Gruppe auflösen](#gruppe-auflösen)
@@ -52,6 +53,32 @@ Admins können in der Admin-Gruppenverwaltung das Mitgliederlimit zusätzlich sp
 | `POST`   | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin)                                         |
 | `DELETE` | `/api/groups/:id`             | Gruppe löschen (Owner/Admin, mit ZIP-Backup wenn Fotos vorhanden)                   |
 | `DELETE` | `/api/groups/:id/leave`       | Gruppe verlassen                                                                    |
+
+---
+
+## Einladungslinks
+
+Zusätzlich zum klassischen 6-stelligen Gruppen-Code gibt es dedizierte Invite-Links.
+
+- Format: `/?invite=<TOKEN>`
+- Owner dürfen Invite-Links nur für ihre eigene Gruppe erstellen
+- Owner-Limit: maximal `10` aktive Links pro Gruppe
+- Admins dürfen Invite-Links für mehrere Gruppen in einem Link erstellen
+- In der Admin-Gruppenverwaltung kann beim Anlegen einer Gruppe optional direkt ein Invite-Link mit erstellt werden (ohne Ablaufdatum, ohne `maxUses`)
+- Optional: Gültigkeit (`expiresAt`, max. 12 Monate) und Nutzungslimit (`maxUses`)
+- Optional: On-Join-Benachrichtigung an den beitretenden User
+
+### Einlösen (idempotent)
+
+Das Einlösen ist idempotent: Ist ein User bereits Mitglied, kommt kein Fehler, sondern ein erfolgreicher Status (`already_member`).
+
+Bei Multi-Group-Invites sind Teil-Erfolge erlaubt (`partial`), falls z. B. eine Gruppe voll ist, andere aber erfolgreich beigetreten werden können.
+
+### OIDC-Flow bei nicht eingeloggten Nutzern
+
+Wird ein Invite-Link ohne aktive Session geöffnet, wird der Invite-Kontext serverseitig an den OIDC-State gebunden und nach erfolgreichem Callback automatisch eingelöst.
+
+Dadurch ist keine clientseitige Persistenz (z. B. localStorage) für den Invite-Token notwendig.
 
 ---
 

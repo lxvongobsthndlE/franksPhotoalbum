@@ -32,10 +32,11 @@ model User {
   albumContributions AlbumContributor[]
   groupDeputies      GroupDeputy[]
   notifications      Notification[]
-    notifPreference    NotificationPreference?
-    feedbackReports    FeedbackReport[]
-    reportedInFeedback FeedbackReport[] @relation("ReportedUser")
+  notifPreference    NotificationPreference?
+  feedbackReports    FeedbackReport[]
+  reportedInFeedback FeedbackReport[] @relation("ReportedUser")
   feedbackMessages   FeedbackMessage[]
+  createdInvites     GroupInvite[] @relation("GroupInviteCreator")
 }
 
 model Group {
@@ -52,6 +53,36 @@ model Group {
   albums    Album[]
   photos    Photo[]
   deputies  GroupDeputy[]
+  invites   GroupInviteGroup[]
+}
+
+model GroupInvite {
+  id               String   @id @default(cuid())
+  token            String   @unique
+  createdBy        String
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime?
+  maxUses          Int?
+  useCount         Int      @default(0)
+  notificationText String?
+  isActive         Boolean  @default(true)
+
+  creator User             @relation("GroupInviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  groups  GroupInviteGroup[]
+
+  @@index([createdBy])
+  @@index([isActive, createdAt(sort: Desc)])
+}
+
+model GroupInviteGroup {
+  inviteId String
+  groupId  String
+
+  invite GroupInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  group  Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([inviteId, groupId])
+  @@index([groupId])
 }
 
 model GroupMember {

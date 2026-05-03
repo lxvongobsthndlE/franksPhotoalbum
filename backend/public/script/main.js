@@ -87,6 +87,62 @@ let lbIdx = 0,
 let appVersion = '...';
 let changelogEntries = [];
 let changelogEditingId = null;
+let pendingInviteToken = null;
+let adminGroupsCache = [];
+
+async function loadInvitePreview(token) {
+  try {
+    const response = await fetch(`/api/invites/preview/${encodeURIComponent(token)}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      return { ok: false, error: data.error || 'Einladungslink ist ungültig.' };
+    }
+    const data = await response.json();
+    return { ok: true, invite: data.invite };
+  } catch (err) {
+    return { ok: false, error: 'Invite-Vorschau konnte nicht geladen werden.' };
+  }
+}
+
+async function redeemInviteViaApi(token) {
+  try {
+    const result = await apiCall(`/invites/redeem/${encodeURIComponent(token)}`, 'POST');
+    return { ok: true, result };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err.serverMessage || 'Invite konnte nicht eingelöst werden.',
+      code: err.status,
+    };
+  }
+}
+
+function applyInviteLoginMode(token, preview) {
+  pendingInviteToken = token;
+  const groupNames = (preview?.groups || []).map((group) => group?.name).filter(Boolean);
+  const msg =
+    groupNames.length > 0
+      ? `Du wurdest zu ${groupNames.join(', ')} eingeladen. Bitte zuerst anmelden.`
+      : 'Du wurdest eingeladen. Bitte zuerst anmelden.';
+  showMsg('login-msg', 'info', msg);
+}
+
+function fmtInviteDate(value) {
+  if (!value) return 'unbegrenzt';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unbegrenzt';
+  return date.toLocaleDateString('de-DE');
+}
+
+function copyInviteUrl(url) {
+  if (!url) return;
+  navigator.clipboard
+    .writeText(url)
+    .then(() => toast('Invite-Link kopiert', 'success'))
+    .catch(() => toast('Kopieren nicht möglich', 'error'));
+}
+
+window.startOIDCLogin = () => startOIDCLogin(pendingInviteToken);
 
 // Hängt den Access-Token als ?t= an Foto-URLs (nötig da <img src> keinen Auth-Header sendet)
 function photoSrc(url) {
@@ -147,13 +203,14 @@ window.addEventListener('load', async () => {
 
   // Check if we're returning from OIDC callback
   const params = new URLSearchParams(window.location.search);
+  const inviteTokenFromUrl = (params.get('invite') || '').trim().toUpperCase();
   if (params.has('code')) {
     const code = params.get('code');
     const state = params.get('state');
 
     try {
       // Process OIDC callback
-      const user = await handleOIDCCallback(code, state);
+      const { user, inviteResult } = await handleOIDCCallback(code, state);
       me = user;
 
       // Clean up URL (remove code/state params)
@@ -161,6 +218,16 @@ window.addEventListener('load', async () => {
 
       // Start app
       await startApp();
+
+      if (inviteResult?.status === 'joined') {
+        toast('Einladung erfolgreich eingeloest.', 'success');
+      } else if (inviteResult?.status === 'partial') {
+        toast('Einladung teilweise eingeloest.', 'info');
+      } else if (inviteResult?.status === 'already_member') {
+        toast('Du bist bereits in der Zielgruppe.', 'info');
+      } else if (inviteResult && inviteResult.ok === false) {
+        toast(inviteResult.message || 'Einladung konnte nicht eingeloest werden.', 'error');
+      }
       return;
     } catch (e) {
       console.error('OIDC callback failed:', e);
@@ -174,6 +241,19 @@ window.addEventListener('load', async () => {
   if (session && session.id) {
     me = session;
     try {
+      if (inviteTokenFromUrl) {
+        const inviteRedeem = await redeemInviteViaApi(inviteTokenFromUrl);
+        if (inviteRedeem.ok) {
+          const status = inviteRedeem.result?.status;
+          if (status === 'joined') toast('Einladung erfolgreich eingeloest.', 'success');
+          else if (status === 'partial') toast('Einladung teilweise eingeloest.', 'info');
+          else if (status === 'already_member') toast('Du bist bereits in der Zielgruppe.', 'info');
+        } else {
+          toast(inviteRedeem.error, 'error');
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
       await startApp();
       return;
     } catch (e) {
@@ -182,12 +262,21 @@ window.addEventListener('load', async () => {
     }
   }
 
+  if (inviteTokenFromUrl) {
+    const preview = await loadInvitePreview(inviteTokenFromUrl);
+    if (preview.ok) {
+      applyInviteLoginMode(inviteTokenFromUrl, preview.invite);
+    } else {
+      showMsg('login-msg', 'error', preview.error || 'Einladungslink ist ungueltig.');
+    }
+  }
+
   // Not logged in, show login page
   show('auth-page');
 });
 
 // Make startOIDCLogin available globally for the HTML onclick handler
-window.startOIDCLogin = startOIDCLogin;
+window.startOIDCLogin = () => startOIDCLogin(pendingInviteToken);
 
 // ── AUTH (OIDC - via auth-oidc.js) ──────────────────────
 function toLogin() {
@@ -1355,9 +1444,17 @@ function openGroupSettingsModal() {
   if (lockHint) lockHint.classList.toggle('hidden', !group.memberLimitLocked);
   if (limitSaveBtn) limitSaveBtn.disabled = !!group.memberLimitLocked;
 
+  const inviteMaxUses = $('gs-invite-max-uses');
+  const inviteExpiry = $('gs-invite-expiry');
+  const inviteNotif = $('gs-invite-with-notification');
+  if (inviteMaxUses) inviteMaxUses.value = '';
+  if (inviteExpiry) inviteExpiry.value = '';
+  if (inviteNotif) inviteNotif.checked = false;
+
   toggleGroupLimitInputs();
 
   _loadGsDeputies();
+  refreshGroupInviteList();
   show('group-settings-modal');
 }
 
@@ -1623,6 +1720,110 @@ function copyGroupSettingsCode() {
     .catch(() => {
       toast('Kopieren nicht möglich', 'error');
     });
+}
+
+function renderGroupInviteList(invites = []) {
+  const listEl = $('gs-invite-list');
+  if (!listEl) return;
+
+  if (!invites.length) {
+    listEl.innerHTML =
+      '<p style="font-size:12px;color:var(--muted2);font-weight:300;margin:0">Noch keine Invite-Links erstellt.</p>';
+    return;
+  }
+
+  listEl.innerHTML = invites
+    .map((invite) => {
+      const usageText =
+        invite.maxUses === null || invite.maxUses === undefined
+          ? `${invite.useCount} Nutzungen`
+          : `${invite.useCount}/${invite.maxUses} Nutzungen`;
+      return `
+      <div style="padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--bg)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--text);font-weight:600">${usageText}</span>
+          <span style="font-size:11px;color:var(--muted)">gültig bis ${fmtInviteDate(invite.expiresAt)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px;word-break:break-all">${esc(invite.url || '')}</div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-ghost" style="padding:6px 9px;font-size:12px" data-url="${esc(invite.url || '')}" onclick="copyInviteUrl(this.dataset.url)">Link kopieren</button>
+          <button class="btn btn-danger" style="padding:6px 9px;font-size:12px" onclick="deleteGroupInvite('${invite.id}')">Löschen</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+async function refreshGroupInviteList() {
+  if (!curGroupId) return;
+  const listEl = $('gs-invite-list');
+  if (listEl) {
+    listEl.innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:6px 0">Invite-Links werden geladen…</div>';
+  }
+  try {
+    const { invites } = await apiCall(`/invites/group/${curGroupId}`, 'GET');
+    renderGroupInviteList(invites || []);
+  } catch (e) {
+    if (listEl) {
+      listEl.innerHTML =
+        '<div style="color:var(--danger,#e05555);font-size:12px;padding:6px 0">Invite-Liste konnte nicht geladen werden.</div>';
+    }
+  }
+}
+
+async function createGroupInvite() {
+  if (!curGroupId) return;
+  const maxUsesRaw = $('gs-invite-max-uses')?.value?.trim();
+  const expiryRaw = $('gs-invite-expiry')?.value;
+  const withNotif = !!$('gs-invite-with-notification')?.checked;
+  const btn = $('gs-invite-create-btn');
+
+  const body = { groupIds: [curGroupId] };
+  if (maxUsesRaw) {
+    const maxUses = Number(maxUsesRaw);
+    if (!Number.isInteger(maxUses) || maxUses < 1) {
+      toast('Max Nutzungen muss eine ganze Zahl >= 1 sein', 'error');
+      return;
+    }
+    body.maxUses = maxUses;
+  }
+  if (expiryRaw) {
+    body.expiresAt = new Date(`${expiryRaw}T23:59:59`).toISOString();
+  }
+  if (withNotif) body.notificationText = true;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Erstelle…';
+  }
+
+  try {
+    const { invite } = await apiCall('/invites', 'POST', body);
+    toast('Invite-Link erstellt', 'success');
+    if (invite?.url) copyInviteUrl(invite.url);
+    const gsSection = document.getElementById('gs-invite-section');
+    if (gsSection) gsSection.open = true;
+    await refreshGroupInviteList();
+  } catch (e) {
+    toast(e.serverMessage || 'Invite konnte nicht erstellt werden', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Invite-Link erstellen';
+    }
+  }
+}
+
+async function deleteGroupInvite(inviteId) {
+  if (!inviteId) return;
+  try {
+    await apiCall(`/invites/${inviteId}`, 'DELETE');
+    toast('Invite-Link gelöscht', 'success');
+    await refreshGroupInviteList();
+  } catch (e) {
+    toast(e.serverMessage || 'Invite-Link konnte nicht gelöscht werden', 'error');
+  }
 }
 
 let _settingsDeleteGroupId = null;
@@ -4561,9 +4762,16 @@ async function renderAdminGroups() {
     '<div style="color:var(--muted);font-size:13px;padding:8px 0">Wird geladen…</div>';
   try {
     const { groups } = await apiCall('/groups/admin/all', 'GET');
+    adminGroupsCache = groups || [];
+    renderAdminInviteGroupOptions(adminGroupsCache);
+    populateAdminInviteGroupSelector(adminGroupsCache);
     if (!groups.length) {
       list.innerHTML =
         '<div style="color:var(--muted);font-size:13px;padding:8px 0">Keine Gruppen vorhanden.</div>';
+      const inviteOptions = $('ag-invite-group-options');
+      const inviteList = $('ag-invite-list');
+      if (inviteOptions) inviteOptions.innerHTML = '';
+      if (inviteList) inviteList.innerHTML = '';
       return;
     }
 
@@ -4647,6 +4855,182 @@ async function renderAdminGroups() {
   }
 }
 
+function renderAdminInviteGroupOptions(groups = []) {
+  const container = $('ag-invite-group-options');
+  if (!container) return;
+  if (!groups.length) {
+    container.innerHTML =
+      '<span style="font-size:12px;color:var(--muted)">Keine Gruppen verfügbar.</span>';
+    return;
+  }
+  container.innerHTML = groups
+    .map(
+      (g) => `
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);padding:4px 0;cursor:pointer">
+        <input type="checkbox" class="ag-invite-group-checkbox" value="${g.id}" style="accent-color:var(--accent)">
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</span>
+      </label>`
+    )
+    .join('');
+}
+
+function populateAdminInviteGroupSelector(groups = []) {
+  const select = $('ag-invite-list-group');
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">— Gruppe wählen —</option>';
+  groups.forEach((g) => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.name;
+    select.appendChild(opt);
+  });
+  if (current && groups.some((g) => g.id === current)) {
+    select.value = current;
+  } else if (!select.value && groups.length) {
+    select.value = groups[0].id;
+  }
+  adminLoadInvitesForSelectedGroup();
+}
+
+function getSelectedAdminInviteGroupIds() {
+  return Array.from(document.querySelectorAll('.ag-invite-group-checkbox:checked'))
+    .map((el) => el.value)
+    .filter(Boolean);
+}
+
+async function adminCreateInvite() {
+  const msgEl = $('ag-invite-msg');
+  const btn = $('ag-invite-create-btn');
+  const groupIds = getSelectedAdminInviteGroupIds();
+  const maxUsesRaw = $('ag-invite-max-uses')?.value?.trim();
+  const expiryRaw = $('ag-invite-expiry')?.value;
+  const notificationText = $('ag-invite-notification')?.value?.trim();
+
+  if (!groupIds.length) {
+    if (msgEl) {
+      msgEl.textContent = '⚠ Mindestens eine Gruppe auswählen';
+      msgEl.className = 'msg msg-error';
+      msgEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const body = { groupIds };
+  if (maxUsesRaw) {
+    const maxUses = Number(maxUsesRaw);
+    if (!Number.isInteger(maxUses) || maxUses < 1) {
+      if (msgEl) {
+        msgEl.textContent = '⚠ Max Nutzungen muss eine ganze Zahl >= 1 sein';
+        msgEl.className = 'msg msg-error';
+        msgEl.classList.remove('hidden');
+      }
+      return;
+    }
+    body.maxUses = maxUses;
+  }
+  if (expiryRaw) body.expiresAt = new Date(`${expiryRaw}T23:59:59`).toISOString();
+  if (notificationText) body.notificationText = notificationText;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Erstelle…';
+  }
+
+  try {
+    const { invite } = await apiCall('/invites', 'POST', body);
+    const agSection = document.getElementById('ag-invite-section');
+    if (agSection) agSection.open = true;
+    if (msgEl) {
+      msgEl.textContent = `✅ Invite erstellt: ${invite.url}`;
+      msgEl.className = 'msg msg-success';
+      msgEl.classList.remove('hidden');
+    }
+    if ($('ag-invite-max-uses')) $('ag-invite-max-uses').value = '';
+    if ($('ag-invite-expiry')) $('ag-invite-expiry').value = '';
+    if ($('ag-invite-notification')) $('ag-invite-notification').value = '';
+    document.querySelectorAll('.ag-invite-group-checkbox').forEach((el) => {
+      el.checked = false;
+    });
+    await adminLoadInvitesForSelectedGroup();
+  } catch (e) {
+    if (msgEl) {
+      msgEl.textContent =
+        '❌ ' + (e.serverMessage || e.message || 'Invite konnte nicht erstellt werden');
+      msgEl.className = 'msg msg-error';
+      msgEl.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Invite-Link erstellen';
+    }
+  }
+}
+
+function renderAdminInviteList(invites = []) {
+  const listEl = $('ag-invite-list');
+  if (!listEl) return;
+  if (!invites.length) {
+    listEl.innerHTML =
+      '<span style="font-size:12px;color:var(--muted)">Keine Invite-Links in dieser Gruppe.</span>';
+    return;
+  }
+  listEl.innerHTML = invites
+    .map((invite) => {
+      const usage =
+        invite.maxUses === null || invite.maxUses === undefined
+          ? `${invite.useCount} Nutzungen`
+          : `${invite.useCount}/${invite.maxUses} Nutzungen`;
+      const creator = invite.creator?.name || invite.creator?.username || 'Unbekannt';
+      return `
+      <div style="padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <span style="font-size:12px;color:var(--text);font-weight:600">${usage} · ${esc(creator)}</span>
+          <span style="font-size:11px;color:var(--muted)">bis ${fmtInviteDate(invite.expiresAt)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px;word-break:break-all">${esc(invite.url || '')}</div>
+        <div style="display:flex;gap:6px;margin-top:7px">
+          <button class="btn btn-ghost" style="padding:6px 8px;font-size:12px" data-url="${esc(invite.url || '')}" onclick="copyInviteUrl(this.dataset.url)">Kopieren</button>
+          <button class="btn btn-danger" style="padding:6px 8px;font-size:12px" onclick="adminDeleteInvite('${invite.id}')">Löschen</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+async function adminLoadInvitesForSelectedGroup() {
+  const groupId = $('ag-invite-list-group')?.value;
+  const listEl = $('ag-invite-list');
+  if (!listEl) return;
+  if (!groupId) {
+    listEl.innerHTML =
+      '<span style="font-size:12px;color:var(--muted)">Bitte eine Gruppe auswählen.</span>';
+    return;
+  }
+  listEl.innerHTML =
+    '<span style="font-size:12px;color:var(--muted)">Invite-Links werden geladen…</span>';
+  try {
+    const { invites } = await apiCall(`/invites/group/${groupId}`, 'GET');
+    renderAdminInviteList(invites || []);
+  } catch (e) {
+    listEl.innerHTML =
+      '<span style="font-size:12px;color:var(--danger,#e05555)">Invite-Liste konnte nicht geladen werden.</span>';
+  }
+}
+
+async function adminDeleteInvite(inviteId) {
+  if (!inviteId) return;
+  try {
+    await apiCall(`/invites/${inviteId}`, 'DELETE');
+    toast('Invite-Link gelöscht', 'success');
+    await adminLoadInvitesForSelectedGroup();
+    if (curGroupId) await refreshGroupInviteList();
+  } catch (e) {
+    toast(e.serverMessage || 'Invite-Link konnte nicht gelöscht werden', 'error');
+  }
+}
+
 function adminEditGroup(id, name, code) {
   document.getElementById(`ag-view-${id}`).classList.add('hidden');
   document.getElementById(`ag-edit-${id}`).classList.remove('hidden');
@@ -4717,6 +5101,7 @@ async function adminCreateGroup() {
   const code = $('ag-new-code')?.value?.trim();
   const limitEnabled = !!$('ag-new-limit-enabled')?.checked;
   const memberLimitLocked = !!$('ag-new-limit-locked')?.checked;
+  const createInvite = !!$('ag-new-create-invite')?.checked;
   const limitInput = $('ag-new-limit');
   const msgEl = $('ag-create-msg');
   if (!name || !code) {
@@ -4738,18 +5123,39 @@ async function adminCreateGroup() {
   }
 
   try {
-    await apiCall('/groups/admin/create', 'POST', { name, code, maxMembers, memberLimitLocked });
+    const group = await apiCall('/groups/admin/create', 'POST', {
+      name,
+      code,
+      maxMembers,
+      memberLimitLocked,
+    });
+
+    let createdInviteUrl = null;
+    if (createInvite && group?.id) {
+      const inviteRes = await apiCall('/invites', 'POST', { groupIds: [group.id] });
+      createdInviteUrl = inviteRes?.invite?.url || null;
+    }
+
     $('ag-new-name').value = '';
     $('ag-new-code').value = '';
     $('ag-new-limit-enabled').checked = false;
     $('ag-new-limit-locked').checked = false;
+    if ($('ag-new-create-invite')) $('ag-new-create-invite').checked = false;
     if (limitInput) {
       limitInput.value = '';
       limitInput.disabled = true;
     }
-    msgEl.classList.add('hidden');
+
+    if (createdInviteUrl && msgEl) {
+      msgEl.textContent = `✅ Gruppe angelegt + Invite erstellt: ${createdInviteUrl}`;
+      msgEl.className = 'msg msg-success';
+      msgEl.classList.remove('hidden');
+    } else {
+      msgEl.classList.add('hidden');
+    }
+
     await renderAdminGroups();
-    toast('Gruppe angelegt', 'success');
+    toast(createInvite ? 'Gruppe + Invite angelegt' : 'Gruppe angelegt', 'success');
   } catch (e) {
     msgEl.textContent = '❌ ' + (e.serverMessage || e.message);
     msgEl.className = 'msg msg-error';
@@ -6489,6 +6895,10 @@ Object.assign(window, {
   rotateGroupInviteCode,
   saveGroupInviteCodeVisibility,
   copyGroupSettingsCode,
+  copyInviteUrl,
+  createGroupInvite,
+  refreshGroupInviteList,
+  deleteGroupInvite,
   deleteGroupFromSettings,
   toggleGroupLimitInputs,
   saveGroupMemberLimit,
@@ -6507,6 +6917,9 @@ Object.assign(window, {
   adminCancelEdit,
   adminSaveGroup,
   adminCreateGroup,
+  adminCreateInvite,
+  adminLoadInvitesForSelectedGroup,
+  adminDeleteInvite,
   adminDeleteGroup,
   adminToggleCreateGroupLimit,
   adminToggleEditGroupLimit,
