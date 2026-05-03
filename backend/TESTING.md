@@ -187,6 +187,8 @@ npm run test:coverage
 # → coverage/index.html
 ```
 
+---
+
 ## CI/CD Integration
 
 GitHub Actions laufen automatisch auf PR:

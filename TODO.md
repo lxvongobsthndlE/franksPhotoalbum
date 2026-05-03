@@ -85,6 +85,22 @@ Falls ja:
     * Note: Modals und co müssen für Devices mit notch nach unten verschoben werden
     * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
 * Logo-Rework
+* State-Store aus auth.js in eigenes Regis auslagern (persist over restart + multi instance support)
+* Einladungs-System
+    * Group-Owner können in den Gruppen-Einstellungen mehrere Invite Links zu ihrer Gruppe erstellen (max. 10).
+    * Admins können in den Admin-Einstellungen Invite-Links für jegliche Gruppen erstellen (kein Limit).
+    * Invites sollen folgende Informationen enthalten können:
+        * Gruppe(n) zu der/denen Sie einladen. (min. 1 Pflicht)
+        * Gültigkeit (optional, max. 12 Monate, wenn nicht gesetzt: unendlich)
+        * Benachrichtigung on-join (optional, Text, wird nach Beitritt via Invite-link als Notification an den User ausgespielt)
+    * Beim Aufrufen eines Invite-Links soll folgendes Verhalten passieren:
+        * User ist bereits eingeloggt -> Check link valid, Add User to group(s), send optional Notifications
+        * User ist nicht eingeloggt, hat aber Account -> User meldet sich an, Check link valid, Add User to group(s), send optional Notifications
+        * User ist nicht eingeloggt, hat keinen Account -> User registriert sich, meldet sich an, Check link valid, Add User to group(s), send optional Notifications
+    * Nur Admins können multi-group-invites erstellen (Ein Link, mehrere Gruppen).
+    * Group-Owner können immer nur für die individuelle Gruppe Links erstellen.
+    * Admins können optional eine individuelle Notification verschicken.
+    * Group-Owner können optional eine vordefinierte Notification verschicken.
 
 
 ### DONE

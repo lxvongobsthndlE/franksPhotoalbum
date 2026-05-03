@@ -33,9 +33,13 @@ export async function checkSession() {
 }
 
 // ── LOGIN: REDIRECT TO AUTHENTIK ────────────────────────────
-export async function startOIDCLogin() {
+export async function startOIDCLogin(inviteToken = null) {
   try {
-    const response = await fetch(`${API_BASE}/auth/login`);
+    const query =
+      typeof inviteToken === 'string' && inviteToken.trim()
+        ? `?invite=${encodeURIComponent(inviteToken.trim())}`
+        : '';
+    const response = await fetch(`${API_BASE}/auth/login${query}`);
     const { loginUrl } = await response.json();
 
     if (!loginUrl) throw new Error('No login URL returned');
@@ -58,7 +62,7 @@ export async function handleOIDCCallback(code, state) {
       throw new Error(err.error || 'Callback failed');
     }
 
-    const { accessToken: token, user } = await response.json();
+    const { accessToken: token, user, inviteResult } = await response.json();
 
     // Store access token in sessionStorage (NOT localStorage for security)
     sessionStorage.setItem('accessToken', token);
@@ -67,7 +71,7 @@ export async function handleOIDCCallback(code, state) {
     // Start token refresh timer
     startTokenRefreshTimer();
 
-    return user;
+    return { user, inviteResult };
   } catch (e) {
     console.error('Callback processing failed:', e);
     throw e;

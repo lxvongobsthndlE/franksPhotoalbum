@@ -34,6 +34,13 @@
   <body>
     <div class="toast-container" id="toast-container"></div>
 
+    <!-- INVITE BANNER (shown when logged-in user opens /?invite=TOKEN) -->
+    <div id="invite-banner" class="hidden">
+      <span id="invite-banner-msg">Du wurdest eingeladen.</span>
+      <button id="invite-banner-btn" onclick="confirmInviteJoin()">Beitreten</button>
+      <a id="invite-banner-dismiss" onclick="dismissInviteBanner()">✕</a>
+    </div>
+
     <div id="loading">
       <h2>Franks Fotoalbum</h2>
       <div class="spinner"></div>
@@ -64,11 +71,6 @@
                   stroke="#c4a882"
                   stroke-width="1.4"
                 />
-                <rect x="18" y="18" width="26" height="26" rx="1.5" fill="#e0d5c6" />
-                <path d="M18 38 l8-8 6 5 5-4 7 7v2H18z" fill="#c4a882" opacity=".35" />
-                <circle cx="24" cy="24" r="3" fill="#c4a882" opacity=".25" />
-              </g>
-              <g transform="rotate(6 36 38)">
                 <rect
                   x="24"
                   y="12"
@@ -1975,7 +1977,8 @@
           <button class="modal-x" onclick="closeAdminGroups()">✕</button>
         </div>
         <div class="modal-body" style="flex: 1; overflow-y: auto; padding-bottom: 0">
-          <div
+          <details
+            id="ag-create-section"
             style="
               background: var(--card);
               border: 1px solid var(--border);
@@ -1984,126 +1987,276 @@
               margin-bottom: 20px;
             "
           >
-            <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px">
-              Neue Gruppe anlegen
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap">
-              <input
-                id="ag-new-name"
-                type="text"
-                placeholder="Gruppenname"
-                maxlength="60"
-                style="
-                  flex: 2;
-                  min-width: 140px;
-                  padding: 9px 12px;
-                  border-radius: 9px;
-                  border: 1.5px solid var(--border);
-                  background: var(--bg);
-                  font-size: 13px;
-                  color: var(--text);
-                  font-family: inherit;
-                "
-                onfocus="this.style.borderColor = 'var(--accent)'"
-                onblur="this.style.borderColor = 'var(--border)'"
-              />
-              <input
-                id="ag-new-code"
-                type="text"
-                placeholder="Code (z.B. FAMILIE24)"
-                maxlength="20"
-                style="
-                  flex: 1;
-                  min-width: 110px;
-                  padding: 9px 12px;
-                  border-radius: 9px;
-                  border: 1.5px solid var(--border);
-                  background: var(--bg);
-                  font-size: 13px;
-                  color: var(--text);
-                  font-family: monospace;
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                "
-                onfocus="this.style.borderColor = 'var(--accent)'"
-                onblur="this.style.borderColor = 'var(--border)'"
-                oninput="this.value = this.value.toUpperCase()"
-              />
-              <button
-                class="btn btn-primary"
-                style="padding: 9px 18px; white-space: nowrap"
-                onclick="adminCreateGroup()"
-              >
-                Anlegen
-              </button>
-            </div>
-            <div
+            <summary
               style="
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                align-items: center;
-                margin-top: 10px;
-                padding-top: 10px;
-                border-top: 1px dashed var(--border);
+                display: block;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text);
+                user-select: none;
               "
             >
-              <label
+              Neue Gruppe anlegen &#9656;
+            </summary>
+            <div style="margin-top: 12px">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <input
+                  id="ag-new-name"
+                  type="text"
+                  placeholder="Gruppenname"
+                  maxlength="60"
+                  style="
+                    flex: 2;
+                    min-width: 140px;
+                    padding: 9px 12px;
+                    border-radius: 9px;
+                    border: 1.5px solid var(--border);
+                    background: var(--bg);
+                    font-size: 13px;
+                    color: var(--text);
+                    font-family: inherit;
+                  "
+                  onfocus="this.style.borderColor = 'var(--accent)'"
+                  onblur="this.style.borderColor = 'var(--border)'"
+                />
+                <input
+                  id="ag-new-code"
+                  type="text"
+                  placeholder="Code (z.B. FAMILIE24)"
+                  maxlength="20"
+                  style="
+                    flex: 1;
+                    min-width: 110px;
+                    padding: 9px 12px;
+                    border-radius: 9px;
+                    border: 1.5px solid var(--border);
+                    background: var(--bg);
+                    font-size: 13px;
+                    color: var(--text);
+                    font-family: monospace;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                  "
+                  onfocus="this.style.borderColor = 'var(--accent)'"
+                  onblur="this.style.borderColor = 'var(--border)'"
+                  oninput="this.value = this.value.toUpperCase()"
+                />
+                <button
+                  class="btn btn-primary"
+                  style="padding: 9px 18px; white-space: nowrap"
+                  onclick="adminCreateGroup()"
+                >
+                  Anlegen
+                </button>
+              </div>
+              <div
                 style="
                   display: flex;
+                  flex-wrap: wrap;
+                  gap: 10px;
                   align-items: center;
-                  gap: 7px;
-                  font-size: 12px;
-                  color: var(--text);
-                  cursor: pointer;
+                  margin-top: 10px;
+                  padding-top: 10px;
+                  border-top: 1px dashed var(--border);
                 "
               >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+                    font-size: 12px;
+                    color: var(--text);
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    id="ag-new-limit-enabled"
+                    type="checkbox"
+                    onchange="adminToggleCreateGroupLimit()"
+                    style="accent-color: var(--accent)"
+                  />
+                  Mitgliederlimit aktivieren
+                </label>
                 <input
-                  id="ag-new-limit-enabled"
-                  type="checkbox"
-                  onchange="adminToggleCreateGroupLimit()"
-                  style="accent-color: var(--accent)"
+                  id="ag-new-limit"
+                  type="number"
+                  min="1"
+                  max="50"
+                  disabled
+                  placeholder="Max (1-50)"
+                  style="
+                    width: 120px;
+                    padding: 8px 10px;
+                    border-radius: 8px;
+                    border: 1.5px solid var(--border);
+                    background: var(--bg);
+                    font-size: 13px;
+                    color: var(--text);
+                    font-family: inherit;
+                  "
                 />
-                Mitgliederlimit aktivieren
-              </label>
-              <input
-                id="ag-new-limit"
-                type="number"
-                min="1"
-                max="50"
-                disabled
-                placeholder="Max (1-50)"
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+                    font-size: 12px;
+                    color: var(--text);
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    id="ag-new-limit-locked"
+                    type="checkbox"
+                    style="accent-color: var(--accent)"
+                  />
+                  Limit sperren
+                </label>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+                    font-size: 12px;
+                    color: var(--text);
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    id="ag-new-create-invite"
+                    type="checkbox"
+                    style="accent-color: var(--accent)"
+                  />
+                  Invite erzeugen
+                </label>
+              </div>
+              <div id="ag-create-msg" class="msg hidden" style="margin-top: 8px"></div>
+            </div>
+          </details>
+          <details
+            id="ag-invite-section"
+            style="
+              background: var(--card);
+              border: 1px solid var(--border);
+              border-radius: 12px;
+              padding: 16px;
+              margin-bottom: 20px;
+            "
+          >
+            <summary
+              style="
+                display: block;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text);
+                user-select: none;
+              "
+            >
+              Invite-Links &#9656;
+            </summary>
+            <div style="margin-top: 12px">
+              <p style="font-size: 12px; color: var(--muted); margin: 0 0 10px">
+                Du kannst einen Link für eine oder mehrere Gruppen erstellen.
+              </p>
+              <div
+                id="ag-invite-group-options"
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px"
+              ></div>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px">
+                <input
+                  id="ag-invite-expiry"
+                  type="date"
+                  style="
+                    flex: 1;
+                    min-width: 130px;
+                    padding: 9px 12px;
+                    border-radius: 9px;
+                    border: 1.5px solid var(--border);
+                    background: var(--bg);
+                    font-size: 13px;
+                    color: var(--text);
+                    font-family: inherit;
+                  "
+                />
+                <input
+                  id="ag-invite-max-uses"
+                  type="number"
+                  min="1"
+                  placeholder="Max Nutzungen"
+                  style="
+                    width: 140px;
+                    padding: 9px 12px;
+                    border-radius: 9px;
+                    border: 1.5px solid var(--border);
+                    background: var(--bg);
+                    font-size: 13px;
+                    color: var(--text);
+                    font-family: inherit;
+                  "
+                />
+              </div>
+              <textarea
+                id="ag-invite-notification"
+                maxlength="500"
+                placeholder="Optionale On-Join-Nachricht"
                 style="
-                  width: 120px;
-                  padding: 8px 10px;
-                  border-radius: 8px;
+                  width: 100%;
+                  min-height: 62px;
+                  box-sizing: border-box;
+                  padding: 9px 12px;
+                  border-radius: 9px;
                   border: 1.5px solid var(--border);
                   background: var(--bg);
                   font-size: 13px;
                   color: var(--text);
                   font-family: inherit;
+                  margin-bottom: 10px;
+                  resize: vertical;
                 "
-              />
-              <label
-                style="
-                  display: flex;
-                  align-items: center;
-                  gap: 7px;
-                  font-size: 12px;
-                  color: var(--text);
-                  cursor: pointer;
-                "
+              ></textarea>
+              <button
+                class="btn btn-primary"
+                id="ag-invite-create-btn"
+                style="padding: 9px 14px; white-space: nowrap"
+                onclick="adminCreateInvite()"
               >
-                <input
-                  id="ag-new-limit-locked"
-                  type="checkbox"
-                  style="accent-color: var(--accent)"
-                />
-                Limit sperren
-              </label>
+                Invite-Link erstellen
+              </button>
+              <div id="ag-invite-msg" class="msg hidden" style="margin-top: 8px"></div>
+
+              <div
+                style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border)"
+              >
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px">
+                  <span style="font-size: 12px; color: var(--muted)">Invite-Liste für Gruppe:</span>
+                  <select
+                    id="ag-invite-list-group"
+                    onchange="adminLoadInvitesForSelectedGroup()"
+                    style="
+                      flex: 1;
+                      min-width: 140px;
+                      padding: 8px 10px;
+                      border-radius: 8px;
+                      border: 1.5px solid var(--border);
+                      background: var(--bg);
+                      font-size: 12px;
+                      color: var(--text);
+                      font-family: inherit;
+                    "
+                  >
+                    <option value="">— Gruppe wählen —</option>
+                  </select>
+                </div>
+                <div
+                  id="ag-invite-list"
+                  style="display: flex; flex-direction: column; gap: 6px"
+                ></div>
+              </div>
             </div>
-            <div id="ag-create-msg" class="msg hidden" style="margin-top: 8px"></div>
-          </div>
+          </details>
           <div
             id="ag-list"
             style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 16px"
@@ -2335,292 +2488,408 @@
             </button>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px">
-            <label
+          <details id="gs-code-section">
+            <summary
               style="
+                display: block;
+                cursor: pointer;
                 font-size: 11px;
                 font-weight: 600;
                 letter-spacing: 1.1px;
                 text-transform: uppercase;
                 color: var(--muted2);
+                margin-bottom: 0;
+                user-select: none;
               "
-              >Einladungscode</label
             >
-            <div style="position: relative; display: inline-flex; align-items: center">
-              <span
+              Einladungscode &#9656;
+            </summary>
+            <div style="margin-top: 10px">
+              <div
                 style="
+                  position: relative;
+                  display: inline-flex;
+                  align-items: center;
+                  margin-bottom: 8px;
+                "
+              >
+                <span
+                  style="
+                    font-size: 11px;
+                    color: var(--muted);
+                    cursor: default;
+                    line-height: 1;
+                    user-select: none;
+                  "
+                  onmouseenter="$('gs-code-hint').style.display = 'block'"
+                  onmouseleave="$('gs-code-hint').style.display = 'none'"
+                  >ℹ️</span
+                >
+                <div
+                  id="gs-code-hint"
+                  style="
+                    display: none;
+                    position: absolute;
+                    left: 0;
+                    top: 130%;
+                    width: 220px;
+                    white-space: normal;
+                    background: var(--surface);
+                    border: 1px solid var(--border);
+                    border-radius: 8px;
+                    padding: 8px 10px;
+                    font-size: 11px;
+                    color: var(--muted);
+                    z-index: 10;
+                    box-shadow: var(--shadow2);
+                  "
+                >
+                  Für einen individuellen Code wende dich bitte an einen Admin.
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 10px;
+                  padding: 12px 16px;
+                  background: var(--accent-l);
+                  border: 1.5px solid var(--accent);
+                  border-radius: 10px;
+                  margin-bottom: 10px;
+                "
+              >
+                <span
+                  id="group-settings-code-display"
+                  style="
+                    flex: 1;
+                    font-size: 22px;
+                    font-weight: 800;
+                    letter-spacing: 5px;
+                    color: var(--accent);
+                    font-family: monospace;
+                  "
+                ></span>
+                <button
+                  onclick="copyGroupSettingsCode()"
+                  title="Kopieren"
+                  style="
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    color: var(--accent);
+                    padding: 4px;
+                    display: flex;
+                    align-items: center;
+                    border-radius: 6px;
+                    transition: background 0.15s;
+                  "
+                  onmouseover="this.style.background = 'rgba(0,0,0,.07)'"
+                  onmouseout="this.style.background = 'none'"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                class="btn btn-ghost"
+                id="group-settings-code-rotate-btn"
+                style="width: 100%; margin-bottom: 20px"
+                onclick="rotateGroupInviteCode()"
+              >
+                Neu generieren
+              </button>
+
+              <label
+                style="
+                  display: block;
                   font-size: 11px;
-                  color: var(--muted);
-                  cursor: default;
-                  line-height: 1;
+                  font-weight: 600;
+                  letter-spacing: 1.1px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  margin-bottom: 8px;
+                "
+                >Code-Sichtbarkeit</label
+              >
+              <label
+                for="group-settings-code-visible"
+                style="
+                  display: flex;
+                  align-items: flex-start;
+                  gap: 10px;
+                  padding: 10px 12px;
+                  border: 1px solid var(--border);
+                  border-radius: 10px;
+                  background: var(--bg);
+                  margin-bottom: 20px;
+                  cursor: pointer;
+                "
+              >
+                <input
+                  id="group-settings-code-visible"
+                  type="checkbox"
+                  style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
+                  onchange="saveGroupInviteCodeVisibility()"
+                />
+                <div style="font-size: 13px; color: var(--text)">
+                  Mitglieder dürfen den Einladungscode sehen
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 2px">
+                    Wenn deaktiviert, sehen nur Owner und Vertreter den Code.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                style="
+                  display: block;
+                  font-size: 11px;
+                  font-weight: 600;
+                  letter-spacing: 1.1px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  margin-bottom: 8px;
+                "
+                >Mitgliederlimit</label
+              >
+              <label
+                for="group-settings-limit-enabled"
+                style="
+                  display: flex;
+                  align-items: flex-start;
+                  gap: 10px;
+                  padding: 10px 12px;
+                  border: 1px solid var(--border);
+                  border-radius: 10px;
+                  background: var(--bg);
+                  margin-bottom: 10px;
+                  cursor: pointer;
+                "
+              >
+                <input
+                  id="group-settings-limit-enabled"
+                  type="checkbox"
+                  style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
+                  onchange="toggleGroupLimitInputs()"
+                />
+                <div style="font-size: 13px; color: var(--text)">
+                  Mitgliederlimit aktivieren
+                  <div
+                    id="group-settings-limit-hint"
+                    style="font-size: 11px; color: var(--muted); margin-top: 2px"
+                  >
+                    Optional: Begrenze die maximale Mitgliederanzahl dieser Gruppe.
+                  </div>
+                </div>
+              </label>
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px">
+                <input
+                  id="group-settings-limit-input"
+                  type="number"
+                  min="1"
+                  max="50"
+                  disabled
+                  style="
+                    width: 130px;
+                    padding: 9px 11px;
+                    border-radius: 9px;
+                    border: 1.5px solid var(--border);
+                    background: var(--bg);
+                    font-size: 13px;
+                    color: var(--text);
+                    font-family: inherit;
+                  "
+                  onkeydown="if (event.key === 'Enter') saveGroupMemberLimit();"
+                />
+                <button
+                  class="btn btn-primary"
+                  id="group-settings-limit-save-btn"
+                  style="padding: 9px 14px; white-space: nowrap"
+                  onclick="saveGroupMemberLimit()"
+                >
+                  Limit speichern
+                </button>
+              </div>
+              <div
+                id="group-settings-limit-lock-hint"
+                class="hidden"
+                style="font-size: 12px; color: var(--danger, #e05555); margin: 0 0 20px"
+              >
+                Dieses Limit wurde von einem Admin gesperrt und kann von dir nicht geändert werden.
+              </div>
+            </div>
+          </details>
+
+          <div style="border-top: 1px solid var(--border); padding-top: 14px">
+            <details id="gs-deputy-section">
+              <summary
+                style="
+                  display: block;
+                  cursor: pointer;
+                  font-size: 11px;
+                  font-weight: 600;
+                  letter-spacing: 1.1px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  margin-bottom: 0;
                   user-select: none;
                 "
-                onmouseenter="$('gs-code-hint').style.display = 'block'"
-                onmouseleave="$('gs-code-hint').style.display = 'none'"
-                >ℹ️</span
               >
-              <div
-                id="gs-code-hint"
-                style="
-                  display: none;
-                  position: absolute;
-                  left: 0;
-                  top: 130%;
-                  width: 220px;
-                  white-space: normal;
-                  background: var(--surface);
-                  border: 1px solid var(--border);
-                  border-radius: 8px;
-                  padding: 8px 10px;
-                  font-size: 11px;
-                  color: var(--muted);
-                  z-index: 10;
-                  box-shadow: var(--shadow2);
-                "
-              >
-                Für einen individuellen Code wende dich bitte an einen Admin.
+                Vertreter &#9656;
+              </summary>
+              <div style="margin-top: 10px">
+                <p style="font-size: 12px; color: var(--muted); margin: 0 0 10px; font-weight: 300">
+                  Vertreter haben dieselben Rechte wie du – außer Umbenennen und Löschen.
+                </p>
+                <div id="gs-deputy-list" style="margin-bottom: 10px; min-height: 24px"></div>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr auto;
+                    gap: 8px;
+                    align-items: center;
+                    margin-bottom: 20px;
+                  "
+                >
+                  <select
+                    id="gs-deputy-user-select"
+                    style="
+                      width: 100%;
+                      padding: 9px 12px;
+                      border-radius: 9px;
+                      border: 1.5px solid var(--border);
+                      background: var(--bg);
+                      font-size: 13px;
+                      color: var(--text);
+                      font-family: inherit;
+                      box-sizing: border-box;
+                    "
+                  >
+                    <option value="">— Mitglied auswählen —</option>
+                  </select>
+                  <button
+                    class="btn btn-primary"
+                    style="padding: 9px 14px; white-space: nowrap"
+                    onclick="addGsDeputy()"
+                  >
+                    Ernennen
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 10px;
-              padding: 12px 16px;
-              background: var(--accent-l);
-              border: 1.5px solid var(--accent);
-              border-radius: 10px;
-              margin-bottom: 10px;
-            "
-          >
-            <span
-              id="group-settings-code-display"
-              style="
-                flex: 1;
-                font-size: 22px;
-                font-weight: 800;
-                letter-spacing: 5px;
-                color: var(--accent);
-                font-family: monospace;
-              "
-            ></span>
-            <button
-              onclick="copyGroupSettingsCode()"
-              title="Kopieren"
-              style="
-                background: none;
-                border: none;
-                cursor: pointer;
-                color: var(--accent);
-                padding: 4px;
-                display: flex;
-                align-items: center;
-                border-radius: 6px;
-                transition: background 0.15s;
-              "
-              onmouseover="this.style.background = 'rgba(0,0,0,.07)'"
-              onmouseout="this.style.background = 'none'"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <rect x="9" y="9" width="13" height="13" rx="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            </button>
-          </div>
-          <button
-            class="btn btn-ghost"
-            id="group-settings-code-rotate-btn"
-            style="width: 100%; margin-bottom: 20px"
-            onclick="rotateGroupInviteCode()"
-          >
-            Neu generieren
-          </button>
-
-          <label
-            style="
-              display: block;
-              font-size: 11px;
-              font-weight: 600;
-              letter-spacing: 1.1px;
-              text-transform: uppercase;
-              color: var(--muted2);
-              margin-bottom: 8px;
-            "
-            >Code-Sichtbarkeit</label
-          >
-          <label
-            for="group-settings-code-visible"
-            style="
-              display: flex;
-              align-items: flex-start;
-              gap: 10px;
-              padding: 10px 12px;
-              border: 1px solid var(--border);
-              border-radius: 10px;
-              background: var(--bg);
-              margin-bottom: 20px;
-              cursor: pointer;
-            "
-          >
-            <input
-              id="group-settings-code-visible"
-              type="checkbox"
-              style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
-              onchange="saveGroupInviteCodeVisibility()"
-            />
-            <div style="font-size: 13px; color: var(--text)">
-              Mitglieder dürfen den Einladungscode sehen
-              <div style="font-size: 11px; color: var(--muted); margin-top: 2px">
-                Wenn deaktiviert, sehen nur Owner und Vertreter den Code.
-              </div>
-            </div>
-          </label>
-
-          <label
-            style="
-              display: block;
-              font-size: 11px;
-              font-weight: 600;
-              letter-spacing: 1.1px;
-              text-transform: uppercase;
-              color: var(--muted2);
-              margin-bottom: 8px;
-            "
-            >Mitgliederlimit</label
-          >
-          <label
-            for="group-settings-limit-enabled"
-            style="
-              display: flex;
-              align-items: flex-start;
-              gap: 10px;
-              padding: 10px 12px;
-              border: 1px solid var(--border);
-              border-radius: 10px;
-              background: var(--bg);
-              margin-bottom: 10px;
-              cursor: pointer;
-            "
-          >
-            <input
-              id="group-settings-limit-enabled"
-              type="checkbox"
-              style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
-              onchange="toggleGroupLimitInputs()"
-            />
-            <div style="font-size: 13px; color: var(--text)">
-              Mitgliederlimit aktivieren
-              <div
-                id="group-settings-limit-hint"
-                style="font-size: 11px; color: var(--muted); margin-top: 2px"
-              >
-                Optional: Begrenze die maximale Mitgliederanzahl dieser Gruppe.
-              </div>
-            </div>
-          </label>
-          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px">
-            <input
-              id="group-settings-limit-input"
-              type="number"
-              min="1"
-              max="50"
-              disabled
-              style="
-                width: 130px;
-                padding: 9px 11px;
-                border-radius: 9px;
-                border: 1.5px solid var(--border);
-                background: var(--bg);
-                font-size: 13px;
-                color: var(--text);
-                font-family: inherit;
-              "
-              onkeydown="if (event.key === 'Enter') saveGroupMemberLimit();"
-            />
-            <button
-              class="btn btn-primary"
-              id="group-settings-limit-save-btn"
-              style="padding: 9px 14px; white-space: nowrap"
-              onclick="saveGroupMemberLimit()"
-            >
-              Limit speichern
-            </button>
-          </div>
-          <div
-            id="group-settings-limit-lock-hint"
-            class="hidden"
-            style="font-size: 12px; color: var(--danger, #e05555); margin: 0 0 20px"
-          >
-            Dieses Limit wurde von einem Admin gesperrt und kann von dir nicht geändert werden.
-          </div>
-
-          <label
-            style="
-              display: block;
-              font-size: 11px;
-              font-weight: 600;
-              letter-spacing: 1.1px;
-              text-transform: uppercase;
-              color: var(--muted2);
-              margin-bottom: 6px;
-            "
-            >Vertreter</label
-          >
-          <p style="font-size: 12px; color: var(--muted); margin: 0 0 10px; font-weight: 300">
-            Vertreter haben dieselben Rechte wie du – außer Umbenennen und Löschen.
-          </p>
-          <div id="gs-deputy-list" style="margin-bottom: 10px; min-height: 24px"></div>
-          <div
-            style="
-              display: grid;
-              grid-template-columns: 1fr auto;
-              gap: 8px;
-              align-items: center;
-              margin-bottom: 20px;
-            "
-          >
-            <select
-              id="gs-deputy-user-select"
-              style="
-                width: 100%;
-                padding: 9px 12px;
-                border-radius: 9px;
-                border: 1.5px solid var(--border);
-                background: var(--bg);
-                font-size: 13px;
-                color: var(--text);
-                font-family: inherit;
-                box-sizing: border-box;
-              "
-            >
-              <option value="">— Mitglied auswählen —</option>
-            </select>
-            <button
-              class="btn btn-primary"
-              style="padding: 9px 14px; white-space: nowrap"
-              onclick="addGsDeputy()"
-            >
-              Ernennen
-            </button>
+            </details>
           </div>
 
           <div style="border-top: 1px solid var(--border); padding-top: 14px">
-            <button
-              class="btn btn-danger"
-              id="group-settings-delete-btn"
-              style="width: 100%"
-              onclick="deleteGroupFromSettings()"
-            >
-              Gruppe löschen
-            </button>
+            <details id="gs-invite-section">
+              <summary
+                style="
+                  display: block;
+                  cursor: pointer;
+                  font-size: 11px;
+                  font-weight: 600;
+                  letter-spacing: 1.1px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  margin-bottom: 0;
+                  user-select: none;
+                "
+              >
+                Invite-Links &#9656;
+              </summary>
+              <div style="margin-top: 10px">
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 8px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <input
+                    id="gs-invite-expiry"
+                    type="date"
+                    style="
+                      width: 100%;
+                      box-sizing: border-box;
+                      padding: 9px 11px;
+                      border-radius: 9px;
+                      border: 1.5px solid var(--border);
+                      background: var(--bg);
+                      font-size: 13px;
+                      color: var(--text);
+                      font-family: inherit;
+                    "
+                  />
+                  <input
+                    id="gs-invite-max-uses"
+                    type="number"
+                    min="1"
+                    placeholder="Max Nutzungen"
+                    style="
+                      width: 100%;
+                      box-sizing: border-box;
+                      padding: 9px 11px;
+                      border-radius: 9px;
+                      border: 1.5px solid var(--border);
+                      background: var(--bg);
+                      font-size: 13px;
+                      color: var(--text);
+                      font-family: inherit;
+                    "
+                  />
+                </div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: var(--muted);
+                    margin-bottom: 8px;
+                  "
+                >
+                  <input
+                    id="gs-invite-with-notification"
+                    type="checkbox"
+                    style="accent-color: var(--accent)"
+                  />
+                  Vordefinierte On-Join-Nachricht senden
+                </label>
+                <button
+                  class="btn btn-primary"
+                  id="gs-invite-create-btn"
+                  style="width: 100%; margin-bottom: 10px"
+                  onclick="createGroupInvite()"
+                >
+                  Invite-Link erstellen
+                </button>
+                <div
+                  id="gs-invite-list"
+                  style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px"
+                ></div>
+              </div>
+            </details>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 14px">
+              <button
+                class="btn btn-danger"
+                id="group-settings-delete-btn"
+                style="width: 100%"
+                onclick="deleteGroupFromSettings()"
+              >
+                Gruppe löschen
+              </button>
+            </div>
           </div>
         </div>
       </div>

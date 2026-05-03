@@ -8,7 +8,7 @@ import { vi } from 'vitest';
  * Erstellt einen Mock PrismaClient mit vordefinierten Responses
  */
 export function createMockPrismaClient(overrides = {}) {
-  return {
+  const prisma = {
     user: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -75,6 +75,23 @@ export function createMockPrismaClient(overrides = {}) {
       deleteMany: vi.fn(),
       ...overrides.groupDeputy,
     },
+    groupInvite: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      delete: vi.fn(),
+      ...overrides.groupInvite,
+    },
+    groupInviteGroup: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      count: vi.fn(),
+      delete: vi.fn(),
+      ...overrides.groupInviteGroup,
+    },
     albumContributor: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -96,8 +113,18 @@ export function createMockPrismaClient(overrides = {}) {
       findMany: vi.fn(),
       ...overrides.like,
     },
+    $transaction: vi.fn(),
     ...overrides,
   };
+
+  if (!overrides.$transaction) {
+    prisma.$transaction.mockImplementation(async (cb) => {
+      if (typeof cb === 'function') return cb(overrides.transactionClient || prisma);
+      return cb;
+    });
+  }
+
+  return prisma;
 }
 
 /**

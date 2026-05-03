@@ -12,7 +12,7 @@ Authorization: Bearer <accessToken>
 
 | Methode | Pfad                       | Beschreibung                                            | Auth       |
 | ------- | -------------------------- | ------------------------------------------------------- | ---------- |
-| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter           | Nein       |
+| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter (`?invite=<TOKEN>` optional) | Nein       |
 | `GET`   | `/api/auth/callback`       | OIDC-Callback; gibt JWT zurück und setzt Refresh-Cookie | Nein       |
 | `POST`  | `/api/auth/refresh`        | Erneuert Access Token über Refresh-Cookie               | Cookie     |
 | `GET`   | `/api/auth/me`             | Eigenes Nutzerprofil                                    | JWT        |
@@ -71,6 +71,26 @@ Authorization: Bearer <accessToken>
 | `GET`    | `/api/groups/:id/deputies`         | Vertreter auflisten                                                                     |
 | `POST`   | `/api/groups/:id/deputies`         | Vertreter ernennen (nur Owner) – Body: `{ "userId": "…" }`                              |
 | `DELETE` | `/api/groups/:id/deputies/:userId` | Vertreter entfernen (nur Owner)                                                         |
+
+---
+
+## Einladungslinks (`/api/invites`)
+
+| Methode  | Pfad                          | Beschreibung |
+| -------- | ----------------------------- | ------------ |
+| `GET`    | `/api/invites/preview/:token` | Öffentliche Vorschau eines Invite-Links (`404`, `410` möglich) |
+| `POST`   | `/api/invites`                | Invite-Link erstellen (`groupIds`, optional `expiresAt`, `maxUses`, `notificationText`) |
+| `GET`    | `/api/invites/group/:groupId` | Invite-Links einer Gruppe laden (Owner/Admin) |
+| `DELETE` | `/api/invites/:id`            | Invite-Link widerrufen/deaktivieren |
+| `POST`   | `/api/invites/redeem/:token`  | Invite-Link einlösen (idempotent; bei bereits bestehender Mitgliedschaft `status=already_member`) |
+
+Hinweise:
+
+- Group-Owner: max. `10` aktive Links pro Gruppe, kein Multi-Group-Invite
+- Admins: Multi-Group-Invites erlaubt, kein künstliches Link-Limit
+- `expiresAt` darf maximal `12 Monate` in der Zukunft liegen
+- `maxUses` ist optional; ohne Wert ist ein Link unbegrenzt nutzbar
+- Optionaler On-Join-Text wird als `system`-Benachrichtigung an den beitretenden User ausgespielt
 
 ### Admin-Endpunkte für Gruppen
 

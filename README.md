@@ -8,7 +8,7 @@
 
 Teile Fotos mit der Familie, organisiere sie in Alben, kommentiere und like was dir gefällt – alles auf deinem eigenen Server.
 
-[🌐 Demo](#demo) • [✨ Features](#features) • [🚀 Starten](#schnellstart) • [📚 Docs](#dokumentation)
+[🌐 Demo](https://photoalbum.lx-derpi-cloud.de) • [✨ Features](#-hauptfeatures) • [🚀 Starten](#-schnellstart) • [📚 Docs](#-dokumentation)
 
 ---
 
