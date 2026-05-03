@@ -158,10 +158,12 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
     }
 
     // Notify the group owner about the new member
-    const joiningUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, username: true, displayNameField: true },
-    }).catch(() => null);
+    const joiningUser = await prisma.user
+      .findUnique({
+        where: { id: userId },
+        select: { name: true, username: true, displayNameField: true },
+      })
+      .catch(() => null);
     const joiningName =
       (joiningUser?.displayNameField === 'username' ? joiningUser?.username : joiningUser?.name) ||
       joiningUser?.name ||

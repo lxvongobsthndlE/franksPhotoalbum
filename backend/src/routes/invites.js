@@ -76,12 +76,10 @@ export default async function invitesRoutes(fastify) {
       });
 
       if (!invite || !invite.isActive) {
-        return reply
-          .code(404)
-          .send({
-            error: 'Dieser Einladungslink wurde deaktiviert oder existiert nicht.',
-            code: 'invite_not_found',
-          });
+        return reply.code(404).send({
+          error: 'Dieser Einladungslink wurde deaktiviert oder existiert nicht.',
+          code: 'invite_not_found',
+        });
       }
 
       if (isInviteExpired(invite)) {
@@ -91,12 +89,10 @@ export default async function invitesRoutes(fastify) {
       }
 
       if (isInviteExhausted(invite)) {
-        return reply
-          .code(410)
-          .send({
-            error: 'Einladungslink wurde bereits vollstaendig genutzt.',
-            code: 'invite_exhausted',
-          });
+        return reply.code(410).send({
+          error: 'Einladungslink wurde bereits vollstaendig genutzt.',
+          code: 'invite_exhausted',
+        });
       }
 
       return {
@@ -132,12 +128,10 @@ export default async function invitesRoutes(fastify) {
 
       const isAdmin = requester.role === 'admin';
       if (!isAdmin && groupIds.length > 1) {
-        return reply
-          .code(403)
-          .send({
-            error: 'Group-Owner duerfen nur Einladungen fuer eine Gruppe erstellen',
-            code: 'owner_single_group_only',
-          });
+        return reply.code(403).send({
+          error: 'Group-Owner duerfen nur Einladungen fuer eine Gruppe erstellen',
+          code: 'owner_single_group_only',
+        });
       }
 
       const groups = await fastify.prisma.group.findMany({
@@ -176,12 +170,10 @@ export default async function invitesRoutes(fastify) {
         }).length;
 
         if (activeInviteCount >= MAX_OWNER_ACTIVE_INVITES_PER_GROUP) {
-          return reply
-            .code(409)
-            .send({
-              error: 'Maximal 10 aktive Links pro Gruppe erlaubt',
-              code: 'owner_active_invite_limit',
-            });
+          return reply.code(409).send({
+            error: 'Maximal 10 aktive Links pro Gruppe erlaubt',
+            code: 'owner_active_invite_limit',
+          });
         }
       }
 
@@ -194,12 +186,10 @@ export default async function invitesRoutes(fastify) {
         return reply.code(400).send({ error: 'expiresAt muss in der Zukunft liegen' });
       }
       if (expiresAt && expiresAt.getTime() > addMonths(now, MAX_INVITE_MONTHS).getTime()) {
-        return reply
-          .code(400)
-          .send({
-            error: 'expiresAt darf maximal 12 Monate in der Zukunft liegen',
-            code: 'expires_at_too_far',
-          });
+        return reply.code(400).send({
+          error: 'expiresAt darf maximal 12 Monate in der Zukunft liegen',
+          code: 'expires_at_too_far',
+        });
       }
 
       let maxUses = null;
