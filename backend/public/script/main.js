@@ -723,7 +723,7 @@ function renderSidebar() {
   footerDiv.innerHTML = `
     <div class="sb-footer">
       <div class="sb-div" style="margin:0 4px 2px"></div>
-      <button class="sb-profile-btn" onclick="openProfileModal();closeSidebar()">
+      <button class="sb-profile-btn" onclick="closeSidebar();openProfileModal()">
         <div class="av" style="background:${meProfile.color};width:32px;height:32px;font-size:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;border-radius:50%;overflow:hidden">${avatarHtml(meProfile, 32)}</div>
         <span>${esc(getVisibleName(meProfile, me.displayNameField) || me.email)}</span>
       </button>
