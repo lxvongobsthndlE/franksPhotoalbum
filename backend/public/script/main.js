@@ -1,4 +1,4 @@
-import { checkSession, startOIDCLogin, handleOIDCCallback, logout, apiCall } from './auth-oidc.js';
+﻿import { checkSession, startOIDCLogin, handleOIDCCallback, logout, apiCall } from './auth-oidc.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -1413,6 +1413,16 @@ function openModal() {
     });
     dzEl.addEventListener('click', () => $('fi').click());
   }
+  _fetchVideoQuota();
+}
+async function _fetchVideoQuota() {
+  try {
+    const data = await apiCall('/photos/video-quota', 'GET');
+    const el = $('video-quota-hint');
+    if (el) el.textContent = `${data.current} / ${data.max} Videos genutzt`;
+  } catch {
+    // non-critical
+  }
 }
 function closeModal() {
   hide('up-modal');
@@ -2038,7 +2048,7 @@ function _renderStagedPreviews() {
     previewWrap.style.display = 'block';
     uploadBtn.style.display = 'flex';
     $('do-upload-label').textContent =
-      _stagedFiles.length === 1 ? '1 Foto hochladen' : `${_stagedFiles.length} Fotos hochladen`;
+      _stagedFiles.length === 1 ? '1 Datei hochladen' : `${_stagedFiles.length} Dateien hochladen`;
   } else {
     dz?.classList.remove('dz--compact');
     previewWrap.style.display = 'none';
@@ -2050,7 +2060,14 @@ function _renderStagedPreviews() {
   grid.innerHTML =
     visible
       .map((f, i) => {
+        const isVideo = f.type.startsWith('video/');
         const url = URL.createObjectURL(f);
+        if (isVideo) {
+          return `<div class="dz-thumb" id="dz-thumb-${i}">
+      <video src="${url}" style="width:100%;height:100%;object-fit:cover" preload="metadata" muted playsinline></video>
+      <button class="dz-thumb-del" onclick="_removeStagedFile(${i})" title="Entfernen">✕</button>
+    </div>`;
+        }
         return `<div class="dz-thumb" id="dz-thumb-${i}">
       <img src="${url}" alt="${esc(f.name)}" onload="URL.revokeObjectURL(this.src)">
       <button class="dz-thumb-del" onclick="_removeStagedFile(${i})" title="Entfernen">✕</button>
@@ -2065,24 +2082,71 @@ function _removeStagedFile(idx) {
   _renderStagedPreviews();
 }
 
-function handleFiles(fileList) {
-  const newFiles = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-  if (!newFiles.length) return;
-  const remaining = UPLOAD_MAX_FILES - _stagedFiles.length;
-  if (remaining <= 0) {
-    toast(`Maximal ${UPLOAD_MAX_FILES} Fotos pro Upload erlaubt.`, 'error');
+/** Liest die Dauer eines Video-Files via HTML5-Video-Element aus. */
+function getVideoDuration(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    video.src = url;
+  });
+}
+
+async function handleFiles(fileList) {
+  const ALLOWED_VIDEO = ['video/mp4', 'video/quicktime'];
+  const allFiles = Array.from(fileList).filter(
+    (f) => f.type.startsWith('image/') || ALLOWED_VIDEO.includes(f.type)
+  );
+  if (!allFiles.length) return;
+
+  const oversized = allFiles.filter(
+    (f) => ALLOWED_VIDEO.includes(f.type) && f.size > 200 * 1024 * 1024
+  );
+  if (oversized.length) {
+    toast('Videos dürfen maximal 200 MB groß sein.', 'error');
     $('fi').value = '';
     return;
   }
-  const toAdd = newFiles.slice(0, remaining);
-  if (newFiles.length > remaining) {
+
+  const validFiles = [];
+  for (const f of allFiles) {
+    if (ALLOWED_VIDEO.includes(f.type)) {
+      const duration = await getVideoDuration(f);
+      if (duration === null) {
+        toast(`„${f.name}" konnte nicht gelesen werden.`, 'error');
+        continue;
+      }
+      if (duration > 60) {
+        toast(`„${f.name}" ist zu lang (${Math.round(duration)}s, max. 60 Sek.).`, 'error');
+        continue;
+      }
+    }
+    validFiles.push(f);
+  }
+
+  const remaining = UPLOAD_MAX_FILES - _stagedFiles.length;
+  if (remaining <= 0) {
+    toast(`Maximal ${UPLOAD_MAX_FILES} Dateien pro Upload erlaubt.`, 'error');
+    $('fi').value = '';
+    return;
+  }
+  const toAdd = validFiles.slice(0, remaining);
+  if (validFiles.length > remaining) {
     toast(
-      `Nur ${toAdd.length} von ${newFiles.length} Fotos hinzugefügt (Limit: ${UPLOAD_MAX_FILES}).`,
+      `Nur ${toAdd.length} von ${validFiles.length} Dateien hinzugefügt (Limit: ${UPLOAD_MAX_FILES}).`,
       'error'
     );
   }
   _stagedFiles.push(...toAdd);
-  $('fi').value = ''; // reset so same files can be re-added
+  $('fi').value = '';
   _renderStagedPreviews();
 }
 
@@ -2125,7 +2189,7 @@ async function startUpload() {
   $('prog-fill').style.width = '100%';
   $('prog-txt').textContent = failed
     ? `Fertig! ${done - failed} hochgeladen, ${failed} fehlgeschlagen`
-    : `Fertig! ${done} Fotos hochgeladen`;
+    : `Fertig! ${done - failed} Dateien hochgeladen`;
 
   if (uploadedIds.length > 0) invalidateCounts();
   setTimeout(closeModal, 800);
@@ -2134,32 +2198,49 @@ async function startUpload() {
   _stagedFiles = [];
   $('fi').value = '';
   if (failed)
-    toast(`${failed} Foto${failed > 1 ? 's' : ''} konnten nicht hochgeladen werden`, 'error');
-  else toast(`${done} Foto${done > 1 ? 's' : ''} hochgeladen`, 'success');
+    toast(`${failed} Datei${failed > 1 ? 'en' : ''} konnten nicht hochgeladen werden`, 'error');
+  else toast(`${done} Datei${done > 1 ? 'en' : ''} hochgeladen`, 'success');
 }
 
 async function uploadOne(file, folder = SHARED, desc = null, albumId = null) {
-  const blob = await compress(file);
+  const isVideo = file.type.startsWith('video/');
+  let uploadFile;
+  if (isVideo) {
+    uploadFile = file;
+  } else {
+    const blob = await compress(file);
+    uploadFile = new File([blob], file.name, { type: 'image/jpeg' });
+  }
 
   const formData = new FormData();
-  formData.append('file', new File([blob], file.name, { type: 'image/jpeg' }));
+  formData.append('file', uploadFile);
   formData.append('groupId', curGroupId);
   if (albumId) formData.append('albumId', albumId);
   if (desc) formData.append('description', desc);
+  if (isVideo) {
+    const duration = await getVideoDuration(file);
+    if (duration !== null) formData.append('videoDuration', Math.ceil(duration).toString());
+  }
 
-  // apiCall doesn’t support multipart, direkter fetch
-  const { accessToken: token } = await import('./auth-oidc.js').catch(() => ({}));
   const storedToken = sessionStorage.getItem('accessToken');
   const resp = await fetch('/api/photos', {
     method: 'POST',
     headers: storedToken ? { Authorization: `Bearer ${storedToken}` } : {},
     body: formData,
   });
-  if (!resp.ok) throw new Error(await resp.text());
+  if (!resp.ok) {
+    let errMsg;
+    try {
+      const errData = await resp.json();
+      errMsg = errData.error || 'Upload fehlgeschlagen';
+    } catch {
+      errMsg = 'Upload fehlgeschlagen';
+    }
+    throw new Error(errMsg);
+  }
   const { photo } = await resp.json();
   return photo?.id;
 }
-
 // Drag&Drop-Listener werden in openModal() registriert (DOM erst dann vorhanden)
 
 // ── LIGHTBOX ─────────────────────────────────────────────

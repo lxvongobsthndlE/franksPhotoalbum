@@ -123,8 +123,10 @@ model Photo {
   groupId     String
   filename    String
   path        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
+  description   String?
+  mediaType     String   @default("image")
+  videoDuration Int?
+  createdAt     DateTime @default(now())
   
   uploader    User         @relation(fields: [uploaderId], references: [id])
   group       Group        @relation(fields: [groupId], references: [id])
