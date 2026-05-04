@@ -2373,6 +2373,56 @@ textarea {
   overflow: hidden;
   background: var(--bg);
 }
+/* dark placeholder for video cards in the grid */
+.p-thumb-video {
+  width: 100%;
+  height: 100%;
+  background: #111;
+}
+/* video element used as thumbnail in the grid */
+.p-thumb-vid {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.p-thumb-vid.loading {
+  opacity: 1;
+}
+.p-thumb-vid.loaded {
+  opacity: 1;
+}
+/* play icon overlay for video cards */
+.p-thumb-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.p-thumb-play svg {
+  width: 38px;
+  height: 38px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.9));
+}
+.media-duration-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  z-index: 3;
+  pointer-events: none;
+}
 @media (hover: hover) {
   .p-card:hover .p-thumb img.loaded {
     transform: scale(1.08);
@@ -2770,6 +2820,26 @@ textarea {
 .dz-thumb-del:hover {
   background: rgba(200, 40, 40, 0.85);
 }
+/* play icon overlay – staged video previews */
+.dz-thumb-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dz-thumb-play svg {
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.8));
+}
+.dz-thumb .media-duration-badge {
+  font-size: 10px;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 5px;
+}
 .dz-thumb-overflow {
   background: var(--border2);
   display: flex;
@@ -2853,6 +2923,7 @@ textarea {
   justify-content: center;
   animation: fadeIn 0.2s ease;
   padding-top: env(safe-area-inset-top);
+  touch-action: pan-x pan-y;
 }
 .lb-layout {
   display: flex;
@@ -2880,6 +2951,14 @@ textarea {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   touch-action: none;
   transform-origin: 0 0;
+}
+#lb-video {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 10px;
+  display: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  background: #000;
 }
 .lb-x {
   position: fixed;
@@ -3932,6 +4011,31 @@ textarea {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.add-photo-vid {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.add-thumb-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.add-thumb-play svg {
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.85));
+}
+.add-photo-thumb .media-duration-badge {
+  font-size: 10px;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 5px;
 }
 .add-photo-thumb.selected {
   border-color: var(--accent);

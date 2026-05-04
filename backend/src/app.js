@@ -89,7 +89,7 @@ app.addHook('onResponse', (request, reply, done) => {
 // Plugins
 await app.register(cors, { origin: true, credentials: true });
 await app.register(cookie, { secret: process.env.JWT_SECRET });
-await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
+await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } });
 await app.register(jwt, { secret: process.env.JWT_SECRET });
 await app.register(rateLimit, { global: false });
 

@@ -10,33 +10,43 @@ Authorization: Bearer <accessToken>
 
 ## Authentifizierung (`/api/auth`)
 
-| Methode | Pfad                       | Beschreibung                                            | Auth       |
-| ------- | -------------------------- | ------------------------------------------------------- | ---------- |
+| Methode | Pfad                       | Beschreibung                                                               | Auth       |
+| ------- | -------------------------- | -------------------------------------------------------------------------- | ---------- |
 | `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter (`?invite=<TOKEN>` optional) | Nein       |
-| `GET`   | `/api/auth/callback`       | OIDC-Callback; gibt JWT zurück und setzt Refresh-Cookie | Nein       |
-| `POST`  | `/api/auth/refresh`        | Erneuert Access Token über Refresh-Cookie               | Cookie     |
-| `GET`   | `/api/auth/me`             | Eigenes Nutzerprofil                                    | JWT        |
-| `POST`  | `/api/auth/logout`         | Löscht Refresh Token                                    | JWT        |
-| `GET`   | `/api/auth/avatar/:userId` | Avatar-Proxy (aus MinIO)                                | Öffentlich |
-| `PATCH` | `/api/auth/profile`        | Profil aktualisieren (`color`, `displayNameField`)      | JWT        |
+| `GET`   | `/api/auth/callback`       | OIDC-Callback; gibt JWT zurück und setzt Refresh-Cookie                    | Nein       |
+| `POST`  | `/api/auth/refresh`        | Erneuert Access Token über Refresh-Cookie                                  | Cookie     |
+| `GET`   | `/api/auth/me`             | Eigenes Nutzerprofil                                                       | JWT        |
+| `POST`  | `/api/auth/logout`         | Löscht Refresh Token                                                       | JWT        |
+| `GET`   | `/api/auth/avatar/:userId` | Avatar-Proxy (aus MinIO)                                                   | Öffentlich |
+| `PATCH` | `/api/auth/profile`        | Profil aktualisieren (`color`, `displayNameField`)                         | JWT        |
 
 ---
 
-## Fotos (`/api/photos`)
+## Medien (`/api/photos`)
 
-| Methode  | Pfad                      | Beschreibung                                                                        |
-| -------- | ------------------------- | ----------------------------------------------------------------------------------- |
-| `GET`    | `/api/photos`             | Fotoliste; Parameter: `groupId`, `albumId`, `cursor`, `limit`                       |
-| `POST`   | `/api/photos`             | Foto hochladen (`multipart/form-data`: `file`, `groupId`, `description`, `albumId`) |
-| `GET`    | `/api/photos/:id/file`    | Foto-Datei streamen; Token als `?t=<accessToken>` übergeben                         |
-| `PATCH`  | `/api/photos/:id`         | Beschreibung oder Album-Zuordnung ändern                                            |
-| `PATCH`  | `/api/photos/batch-album` | Mehrere Fotos einem Album zuordnen/entfernen                                        |
-| `DELETE` | `/api/photos/:id`         | Foto löschen (nur eigene; Admins können alle löschen)                               |
+| Methode  | Pfad                      | Beschreibung                                                                                                        |
+| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/photos`             | Medienliste; Parameter: `groupId`, `albumId`, `uploaderId`, `skip`, `limit`, `order`                                |
+| `POST`   | `/api/photos`             | Bild/Video hochladen (`multipart/form-data`: `file`, `groupId`, `description`, `albumId`, optional `videoDuration`) |
+| `GET`    | `/api/photos/video-quota` | Globales Video-Kontingent des eingeloggten Nutzers (`current`, `max`, `remaining`)                                  |
+| `GET`    | `/api/photos/:id/file`    | Medien-Datei streamen; Token als `?t=<accessToken>` übergeben                                                       |
+| `PATCH`  | `/api/photos/:id`         | Beschreibung oder Album-Zuordnung ändern                                                                            |
+| `PATCH`  | `/api/photos/batch-album` | Mehrere Medien einem Album zuordnen/entfernen                                                                       |
+| `DELETE` | `/api/photos/:id`         | Medium löschen (nur eigene; Admins können alle löschen)                                                             |
 
 **Upload-Details:**
 
 - Bilder werden clientseitig auf max. 1400 px (JPEG) komprimiert, bevor sie hochgeladen werden
-- Avatare werden in den `avatars`-Bucket abgelegt; Fotos in `photos`
+- Videos: erlaubt sind `video/mp4` und `video/quicktime` (MOV)
+- Video-Limits: max. `60s`, max. `200 MB` pro Datei, max. `20` Videos global pro Nutzer
+- Avatare werden in den `avatars`-Bucket abgelegt; Bilder/Videos in `photos`
+
+**Streaming-Details (`GET /api/photos/:id/file`):**
+
+- Unterstützt HTTP Byte-Range (`Range: bytes=...`)
+- Antwort mit `206 Partial Content` bei gültiger Range
+- Header `Accept-Ranges: bytes` ist gesetzt
+- Für `<img>`/`<video>` wird Auth per Query-Token (`?t=`) genutzt
 
 ---
 
@@ -76,12 +86,12 @@ Authorization: Bearer <accessToken>
 
 ## Einladungslinks (`/api/invites`)
 
-| Methode  | Pfad                          | Beschreibung |
-| -------- | ----------------------------- | ------------ |
-| `GET`    | `/api/invites/preview/:token` | Öffentliche Vorschau eines Invite-Links (`404`, `410` möglich) |
-| `POST`   | `/api/invites`                | Invite-Link erstellen (`groupIds`, optional `expiresAt`, `maxUses`, `notificationText`) |
-| `GET`    | `/api/invites/group/:groupId` | Invite-Links einer Gruppe laden (Owner/Admin) |
-| `DELETE` | `/api/invites/:id`            | Invite-Link widerrufen/deaktivieren |
+| Methode  | Pfad                          | Beschreibung                                                                                      |
+| -------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/invites/preview/:token` | Öffentliche Vorschau eines Invite-Links (`404`, `410` möglich)                                    |
+| `POST`   | `/api/invites`                | Invite-Link erstellen (`groupIds`, optional `expiresAt`, `maxUses`, `notificationText`)           |
+| `GET`    | `/api/invites/group/:groupId` | Invite-Links einer Gruppe laden (Owner/Admin)                                                     |
+| `DELETE` | `/api/invites/:id`            | Invite-Link widerrufen/deaktivieren                                                               |
 | `POST`   | `/api/invites/redeem/:token`  | Invite-Link einlösen (idempotent; bei bereits bestehender Mitgliedschaft `status=already_member`) |
 
 Hinweise:
@@ -142,17 +152,17 @@ Hinweise:
 
 ## Feedback & Meldungen (`/api/feedback`)
 
-| Methode  | Pfad                            | Beschreibung                                                                 |
-| -------- | ------------------------------- | ---------------------------------------------------------------------------- |
-| `GET`    | `/api/feedback/eligible-users`  | Nutzerliste für "Nutzer melden" (gleiche Gruppen wie der aufrufende User) |
-| `POST`   | `/api/feedback`                 | Neues Ticket erstellen (`category`, `subject`, `body`, optional `anonymous`, `reportedUserId`) |
-| `GET`    | `/api/feedback`                 | Admin: Tickets auflisten (`?status=open|closed`, `?category=...`)          |
-| `GET`    | `/api/feedback/mine`            | Eigene Tickets des eingeloggten Users                                        |
-| `GET`    | `/api/feedback/:id/messages`    | Konversationsverlauf eines Tickets laden                                     |
-| `POST`   | `/api/feedback/:id/messages`    | Nachricht in bestehender Ticket-Konversation senden                          |
-| `PATCH`  | `/api/feedback/:id`             | Admin: Ticket aktualisieren (`markReadAdmin`, `status`, `resolution`)       |
-| `PATCH`  | `/api/feedback/:id/close-by-user` | User: eigenes Ticket schließen (nicht bei `report_user`)                   |
-| `DELETE` | `/api/feedback/:id`             | Admin: Ticket endgültig löschen                                              |
+| Methode  | Pfad                              | Beschreibung                                                                                   |
+| -------- | --------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
+| `GET`    | `/api/feedback/eligible-users`    | Nutzerliste für "Nutzer melden" (gleiche Gruppen wie der aufrufende User)                      |
+| `POST`   | `/api/feedback`                   | Neues Ticket erstellen (`category`, `subject`, `body`, optional `anonymous`, `reportedUserId`) |
+| `GET`    | `/api/feedback`                   | Admin: Tickets auflisten (`?status=open                                                        | closed`, `?category=...`) |
+| `GET`    | `/api/feedback/mine`              | Eigene Tickets des eingeloggten Users                                                          |
+| `GET`    | `/api/feedback/:id/messages`      | Konversationsverlauf eines Tickets laden                                                       |
+| `POST`   | `/api/feedback/:id/messages`      | Nachricht in bestehender Ticket-Konversation senden                                            |
+| `PATCH`  | `/api/feedback/:id`               | Admin: Ticket aktualisieren (`markReadAdmin`, `status`, `resolution`)                          |
+| `PATCH`  | `/api/feedback/:id/close-by-user` | User: eigenes Ticket schließen (nicht bei `report_user`)                                       |
+| `DELETE` | `/api/feedback/:id`               | Admin: Ticket endgültig löschen                                                                |
 
 Hinweise:
 
@@ -203,6 +213,7 @@ Validierung:
 | `403` | Berechtigung fehlt (falsche Rolle oder nicht Mitglied) |
 | `404` | Ressource nicht gefunden                               |
 | `409` | Konflikt (z. B. bereits Mitglied, letzter Admin)       |
+| `413` | Payload zu groß (z. B. Video-Datei > 200 MB)           |
 | `410` | Backup-Link abgelaufen                                 |
 | `429` | Rate-Limit überschritten                               |
 | `500` | Interner Serverfehler                                  |

@@ -1,4 +1,16 @@
-import { uploadPhoto, deletePhoto, getPhotoStream, getPhotoStat } from '../utils/storage.js';
+import {
+  uploadPhoto,
+  deletePhoto,
+  getPhotoStream,
+  getPhotoStat,
+  getPhotoRangeStream,
+} from '../utils/storage.js';
+import {
+  MAX_VIDEO_DURATION_SECONDS,
+  MAX_USER_VIDEOS_GLOBAL,
+  MAX_VIDEO_FILE_SIZE_BYTES,
+  ALLOWED_VIDEO_MIMETYPES,
+} from '../utils/videoLimits.js';
 import { createNotification } from '../utils/notifications.js';
 
 // Debounce-Map für gebündelte "neue Fotos"-Notifications
@@ -173,17 +185,55 @@ export default async function photosRoutes(fastify) {
       }
 
       const { filename, mimetype } = fileData;
-      const { groupId, albumId, description } = fields;
+      const { groupId, albumId, description, videoDuration } = fields;
 
       if (!groupId) {
         return reply.code(400).send({ error: 'groupId erforderlich' });
       }
 
-      if (!mimetype.startsWith('image/')) {
-        return reply.code(400).send({ error: 'Nur Bilder erlaubt' });
+      const isVideo = mimetype.startsWith('video/');
+      const isImage = mimetype.startsWith('image/');
+
+      if (!isImage && !isVideo) {
+        return reply
+          .code(400)
+          .send({ error: 'Nur Bilder und Videos erlaubt', code: 'unsupported_format' });
+      }
+      if (isVideo && !ALLOWED_VIDEO_MIMETYPES.includes(mimetype)) {
+        return reply
+          .code(400)
+          .send({ error: 'Nur MP4 und MOV Videos sind erlaubt', code: 'unsupported_video_format' });
       }
 
       const buffer = fileData._buffer;
+
+      if (isVideo) {
+        if (buffer.length > MAX_VIDEO_FILE_SIZE_BYTES) {
+          return reply
+            .code(413)
+            .send({ error: 'Video zu groß (max. 200 MB)', code: 'video_file_too_large' });
+        }
+        const duration = videoDuration ? parseFloat(videoDuration) : null;
+        if (duration !== null && duration > MAX_VIDEO_DURATION_SECONDS) {
+          return reply.code(409).send({
+            error: `Video zu lang (${Math.round(duration)}s, max. ${MAX_VIDEO_DURATION_SECONDS}s)`,
+            code: 'video_duration_limit_exceeded',
+            max: MAX_VIDEO_DURATION_SECONDS,
+          });
+        }
+        const videoCount = await fastify.prisma.photo.count({
+          where: { uploaderId: request.user.id, mediaType: 'video' },
+        });
+        if (videoCount >= MAX_USER_VIDEOS_GLOBAL) {
+          return reply.code(409).send({
+            error: `Du hast bereits ${MAX_USER_VIDEOS_GLOBAL} Videos hochgeladen (globales Limit)`,
+            code: 'user_global_video_limit_reached',
+            max: MAX_USER_VIDEOS_GLOBAL,
+            current: videoCount,
+          });
+        }
+      }
+
       const key = await uploadPhoto(buffer, mimetype, filename);
 
       const photo = await fastify.prisma.photo.create({
@@ -193,6 +243,8 @@ export default async function photosRoutes(fastify) {
           filename,
           path: key,
           description: description || null,
+          mediaType: isVideo ? 'video' : 'image',
+          videoDuration: isVideo && videoDuration ? parseInt(videoDuration) : null,
           ...(albumId ? { albums: { create: { albumId } } } : {}),
         },
         include: { uploader: true, albums: { select: { albumId: true } } },
@@ -231,6 +283,24 @@ export default async function photosRoutes(fastify) {
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Upload fehlgeschlagen' });
+    }
+  });
+
+  // GET /api/photos/video-quota – Globales Video-Kontingent des eingeloggten Nutzers
+  fastify.get('/video-quota', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const count = await fastify.prisma.photo.count({
+        where: { uploaderId: request.user.id, mediaType: 'video' },
+      });
+      return {
+        current: count,
+        max: MAX_USER_VIDEOS_GLOBAL,
+        remaining: MAX_USER_VIDEOS_GLOBAL - count,
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Fehler beim Abrufen des Kontingents' });
     }
   });
 
@@ -420,13 +490,35 @@ export default async function photosRoutes(fastify) {
       if (!photo) return reply.code(404).send({ error: 'Foto nicht gefunden' });
 
       const stat = await getPhotoStat(photo.path);
-      const stream = await getPhotoStream(photo.path);
+      const size = stat.size;
+      const contentType = stat.metaData['content-type'] || 'application/octet-stream';
+      const rangeHeader = request.headers['range'];
 
-      reply
-        .header('Content-Type', stat.metaData['content-type'] || 'image/jpeg')
-        .header('Content-Length', stat.size)
-        .header('Cache-Control', 'private, max-age=3600');
-      return reply.send(stream);
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1]);
+          const end = match[2] ? Math.min(parseInt(match[2]), size - 1) : size - 1;
+          const chunkSize = end - start + 1;
+          const rangeStream = await getPhotoRangeStream(photo.path, start, chunkSize);
+          return reply
+            .code(206)
+            .header('Content-Type', contentType)
+            .header('Content-Length', chunkSize)
+            .header('Content-Range', `bytes ${start}-${end}/${size}`)
+            .header('Accept-Ranges', 'bytes')
+            .header('Cache-Control', 'private, max-age=3600')
+            .send(rangeStream);
+        }
+      }
+
+      const stream = await getPhotoStream(photo.path);
+      return reply
+        .header('Content-Type', contentType)
+        .header('Content-Length', size)
+        .header('Accept-Ranges', 'bytes')
+        .header('Cache-Control', 'private, max-age=3600')
+        .send(stream);
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Datei konnte nicht geladen werden' });

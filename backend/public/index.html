@@ -652,7 +652,7 @@
     <div class="modal-bg hidden" id="up-modal" onclick="if (event.target === this) closeModal();">
       <div class="modal">
         <div class="modal-hdr">
-          <h3>Fotos hochladen</h3>
+          <h3>Medien hochladen</h3>
           <button class="modal-x" onclick="closeModal()">✕</button>
         </div>
         <div class="modal-body">
@@ -661,8 +661,16 @@
             <div class="dz" id="dz">
               <div class="dz-ico">📸</div>
               <p class="dz-ttl">Fotos hier ablegen</p>
-              <p class="dz-sub">oder klicken · JPG, PNG, GIF, WebP · Mehrere möglich</p>
+              <p class="dz-sub">oder klicken · Fotos (JPG, PNG, WebP) &amp; Videos (MP4, MOV)</p>
             </div>
+
+            <p
+              id="video-limits-hint"
+              style="font-size: 11px; color: var(--muted); margin: 6px 0 0; text-align: center"
+            >
+              Videos: max. 60 Sek. &middot; MP4 / MOV &middot; max. 200 MB &middot;
+              <span id="video-quota-hint"></span>
+            </p>
 
             <!-- Vorschau-Bereich -->
             <div id="dz-preview-wrap" style="display: none">
@@ -744,7 +752,7 @@
           <input
             type="file"
             id="fi"
-            accept="image/*"
+            accept="image/*,video/mp4,video/quicktime"
             multiple
             style="display: none"
             onchange="handleFiles(this.files)"
@@ -760,6 +768,7 @@
         <div class="lb-img-side" onclick="if (event.target === this) closeLB();">
           <button class="lb-arr" id="lb-prv" onclick="lbNav(-1)">‹</button>
           <img id="lb-img" class="lb-img" src="" alt="" />
+          <video id="lb-video" controls playsinline webkit-playsinline></video>
           <button class="lb-arr" id="lb-nxt" onclick="lbNav(1)">›</button>
         </div>
         <div class="lb-panel">

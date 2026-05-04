@@ -127,15 +127,23 @@ model AlbumContributor {
 
 ```prisma
 model Photo {
-  id          String   @id @default(cuid())
-  uploaderId  String
-  groupId     String
-  filename    String
-  path        String   @unique   // Pfad in MinIO
-  description String?
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  uploaderId    String
+  groupId       String
+  filename      String
+  path          String   @unique   // Pfad in MinIO
+  description   String?
+  mediaType     String   @default("image") // "image" | "video"
+  videoDuration Int?     // Dauer in Sekunden (nur für Videos)
+  createdAt     DateTime @default(now())
 }
 ```
+
+Hinweise:
+
+- `mediaType` steuert die Frontend-Darstellung (Bild vs. Video)
+- `videoDuration` wird beim Upload übergeben und als Integer gespeichert
+- Video-spezifische Limits werden in `backend/src/utils/videoLimits.js` zentral gehalten
 
 ---
 

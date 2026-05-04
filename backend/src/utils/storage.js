@@ -82,6 +82,16 @@ export async function getPhotoStat(key) {
 }
 
 /**
+ * Streamt einen Byte-Range eines Objekts aus MinIO (für HTTP Range-Requests).
+ * @param {string} key - Object-Key in MinIO
+ * @param {number} offset - Start-Byte (0-basiert)
+ * @param {number} length - Anzahl Bytes
+ */
+export async function getPhotoRangeStream(key, offset, length) {
+  return getClient().getPartialObject(BUCKET_PHOTOS, key, offset, length);
+}
+
+/**
  * Lädt einen Avatar-Buffer hoch.
  */
 export async function uploadAvatar(buffer, mimetype, userId) {
