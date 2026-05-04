@@ -51,13 +51,15 @@ await apiCall(`/api/comments/${id}`, "DELETE");
 startTokenRefreshTimer(); // alle 14 Minuten POST /api/auth/refresh
 ```
 
-### Foto-URLs
+### Medien-URLs
 
 Da `<img src="...">` keine Header senden kann, wird der Token als Query-Parameter angehängt:
 
 ```js
 img.src = `/api/photos/${id}/file?t=${accessToken}`;
 ```
+
+Dasselbe Prinzip gilt für `<video src="...">`.
 
 ### OIDC-Flow
 
@@ -119,6 +121,30 @@ Der Upload kann zusätzlich über einen schwebenden, runden Plus-Button unten re
 - Mobile-Optimierung: Position berücksichtigt `env(safe-area-inset-right)` und `env(safe-area-inset-bottom)` (Notch/Home-Indicator)
 - Accessibility: explizites `aria-label="Fotos hochladen"`
 - Layering: Button liegt unter Overlays/Modals (z. B. Lightbox/Modale bleiben immer darüber)
+
+## Medien-Upload (Bilder + Videos)
+
+Der Upload unterstützt Bilder und Videos im selben Modal.
+
+- Bilder: clientseitige Komprimierung vor dem Upload
+- Videos: Upload ohne Re-Encoding
+- Erlaubte Video-Formate: `MP4` (`video/mp4`) und `MOV` (`video/quicktime`)
+- Limits: max. `60` Sekunden, max. `200 MB`, max. `20` Videos global pro Nutzer
+- Das Frontend ruft `GET /api/photos/video-quota` ab und zeigt das verbleibende Kontingent an
+
+## Galerie- und Lightbox-Verhalten für Videos
+
+- Video-Karten in der Übersicht zeigen Play-Indikator und Dauer-Badge
+- Lightbox nutzt bei Videos ein eigenes `<video>`-Element mit nativen Controls
+- Für Videos verwendet der Vollbild-Button Browser-Fullscreen (`requestFullscreen`)
+- Beim Wechsel zwischen Medien wird das Lightbox-Videoelement zurückgesetzt, um iOS-Control-Zustände konsistent zu halten
+
+## Mobile Gesten in der Lightbox
+
+- Pinch-Zoom ist nur auf dem Bild (`#lb-img`) aktiv
+- Doppeltipp auf das Bild setzt Zoom zurück
+- Swipe-Navigation ist deaktiviert, solange gezoomt ist
+- Für Videos gibt es keinen Bild-Pinch-Zoom; Video-Controls bleiben bedienbar
 
 ## Version & Changelog Modal
 

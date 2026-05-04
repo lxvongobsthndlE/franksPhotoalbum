@@ -52,6 +52,11 @@ data: {"id":"…","type":"photoCommented","title":"…","body":"…","entityId":
 | `newAlbum`           | Neues Album in der Gruppe erstellt       | ✅              | ❌              |
 | `system`             | Admin-Broadcast-Nachricht                | ✅ (immer)      | ❌              |
 
+Hinweis zu Medien-Uploads:
+
+- Der Typ `newPhoto` wird aktuell sowohl für Bild- als auch Video-Uploads verwendet.
+- Die Textbausteine lauten derzeit weiterhin „Foto“. Eine medienneutrale Formulierung ist als Folgeaufgabe eingeplant.
+
 ---
 
 ## E-Mail-Benachrichtigungen
