@@ -152,6 +152,15 @@ function photoSrc(url) {
   if (!t) return url;
   return url + (url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(t);
 }
+
+/** Formatiert Sekunden als m:ss für Video-Badges. */
+function formatMediaDuration(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  const mins = Math.floor(s / 60);
+  const secs = s % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
 // Dasselbe für Backup-Download-URLs — kein Auth nötig, zipKey ist das Geheimnis
 function backupSrc(url) {
   return url;
@@ -1286,12 +1295,26 @@ function renderGrid(appendFrom = 0) {
       const liked = p._liked || false;
       const likes = p._likes || 0;
       const comms = p._comments || 0;
+      const isVideo = p.mediaType === 'video';
+      const durationBadge =
+        isVideo && Number.isFinite(Number(p.videoDuration)) && Number(p.videoDuration) > 0
+          ? `<span class="media-duration-badge">${formatMediaDuration(p.videoDuration)}</span>`
+          : '';
+      const PLAY_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.45)"/><polygon points="9.5,7 19,12 9.5,17" fill="white"/></svg>`;
       return `<div class="p-card${selectedIds.has(p.id) ? ' selected' : ''}" id="pc-${p.id}" onclick="if(window.selectMode){event.stopPropagation();toggleCardSelect('${p.id}',this)}else{openLB(${i})}">
       <div class="p-thumb">
         <div class="sel-check" onclick="event.stopPropagation();toggleCardSelect('${p.id}',this.closest('.p-card'))">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        ${url ? `<img src="${esc(photoSrc(url))}" alt="" loading="lazy" class="loading" onload="onThumbLoad(this)">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%"><div class="spinner"></div></div>`}
+        ${
+          isVideo
+            ? url
+              ? `<video class="p-thumb-vid loading" src="${esc(photoSrc(url))}#t=0.1" preload="metadata" muted playsinline webkit-playsinline onloadedmetadata="this.currentTime=0.1;this.classList.remove('loading');this.classList.add('loaded')" onloadeddata="this.classList.remove('loading');this.classList.add('loaded')" onseeked="this.classList.remove('loading');this.classList.add('loaded')"></video><div class="p-thumb-play">${PLAY_SVG}</div>${durationBadge}`
+              : `<div class="p-thumb-video"></div><div class="p-thumb-play">${PLAY_SVG}</div>${durationBadge}`
+            : url
+              ? `<img src="${esc(photoSrc(url))}" alt="" loading="lazy" class="loading" onload="onThumbLoad(this)">`
+              : `<div style="display:flex;align-items:center;justify-content:center;height:100%"><div class="spinner"></div></div>`
+        }
         <div class="p-ov">
           <div class="p-ov-stats">
             <span class="p-ov-stat">${ICON_HEART_LG_EMPTY} ${likes}</span>
@@ -2062,9 +2085,15 @@ function _renderStagedPreviews() {
       .map((f, i) => {
         const isVideo = f.type.startsWith('video/');
         const url = URL.createObjectURL(f);
+        const durationBadge =
+          isVideo && Number.isFinite(f._videoDurationSeconds)
+            ? `<span class="media-duration-badge">${formatMediaDuration(f._videoDurationSeconds)}</span>`
+            : '';
         if (isVideo) {
           return `<div class="dz-thumb" id="dz-thumb-${i}">
-      <video src="${url}" style="width:100%;height:100%;object-fit:cover" preload="metadata" muted playsinline></video>
+      <video src="${url}#t=0.1" style="width:100%;height:100%;object-fit:cover" preload="auto" muted playsinline webkit-playsinline></video>
+      <div class="dz-thumb-play"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.4)"/><polygon points="9.5,7 18,12 9.5,17" fill="white"/></svg></div>
+      ${durationBadge}
       <button class="dz-thumb-del" onclick="_removeStagedFile(${i})" title="Entfernen">✕</button>
     </div>`;
         }
@@ -2128,6 +2157,7 @@ async function handleFiles(fileList) {
         toast(`„${f.name}" ist zu lang (${Math.round(duration)}s, max. 60 Sek.).`, 'error');
         continue;
       }
+      f._videoDurationSeconds = Math.ceil(duration);
     }
     validFiles.push(f);
   }
@@ -2243,6 +2273,20 @@ async function uploadOne(file, folder = SHARED, desc = null, albumId = null) {
 }
 // Drag&Drop-Listener werden in openModal() registriert (DOM erst dann vorhanden)
 
+function resetLbVideoElement() {
+  const oldVideo = $('lb-video');
+  if (!oldVideo) return null;
+  const newVideo = oldVideo.cloneNode(false);
+  newVideo.id = 'lb-video';
+  newVideo.setAttribute('controls', '');
+  newVideo.setAttribute('playsinline', '');
+  newVideo.setAttribute('webkit-playsinline', '');
+  newVideo.preload = 'metadata';
+  newVideo.style.display = 'none';
+  oldVideo.replaceWith(newVideo);
+  return newVideo;
+}
+
 // ── LIGHTBOX ─────────────────────────────────────────────
 async function openLB(i) {
   lbIdx = i;
@@ -2252,12 +2296,34 @@ async function openLB(i) {
   initLbSwipe();
   // Lightbox: Foto-URL aus Cache
   const url = urlCache[p.id] || p.url || '';
-  $('lb-img').src = photoSrc(url);
+  const lbImg = $('lb-img');
+  let lbVideo = $('lb-video');
+  if (p.mediaType === 'video') {
+    lbVideo = resetLbVideoElement() || lbVideo;
+    lbImg.style.display = 'none';
+    lbImg.src = '';
+    lbVideo.currentTime = 0;
+    lbVideo.autoplay = false;
+    lbVideo.onended = null;
+    lbVideo.src = photoSrc(url);
+    lbVideo.load();
+    lbVideo.pause();
+    lbVideo.style.display = 'block';
+  } else {
+    if (lbVideo) {
+      lbVideo.pause();
+      lbVideo.src = '';
+      lbVideo.load();
+      lbVideo.style.display = 'none';
+    }
+    lbImg.style.display = '';
+    lbImg.src = photoSrc(url);
+  }
   $('lb-av').innerHTML = avatarHtml(u, 32);
   $('lb-av').style.background = u.avatar ? 'transparent' : u.color || '#888';
   $('lb-who').textContent = getVisibleName(u) || '?';
   $('lb-dt').textContent = fmtDateLong(p.created_at);
-  $('lb-cnt').textContent = `${i + 1} von ${photos.length} Fotos`;
+  $('lb-cnt').textContent = `${i + 1} / ${photos.length}`;
   // Description with edit capability
   let descWrap = document.getElementById('lb-desc-wrap');
   if (!descWrap) {
@@ -2280,6 +2346,7 @@ async function openLB(i) {
   // Update slideshow counter
   const ssCnt = $('ss-counter');
   if (ssCnt) ssCnt.textContent = `${i + 1} / ${photos.length}`;
+  if (ssPlaying) startSS();
   $('lb-prv').style.display = i > 0 ? '' : 'none';
   $('lb-nxt').style.display = i < photos.length - 1 ? '' : 'none';
   // Action buttons
@@ -2484,7 +2551,11 @@ function buildLbMenu() {
   document.getElementById('lb-action-menu')?.remove();
   const p = photos[lbIdx];
   if (!p) return;
-  const isFullview = $('lb').classList.contains('lb-fullview');
+  const lbVideo = $('lb-video');
+  const isVideo = p.mediaType === 'video';
+  const isFullview = isVideo
+    ? document.fullscreenElement === lbVideo
+    : $('lb').classList.contains('lb-fullview');
   const canDel = p.uploaderId === me.id;
   const isAdmin = me?.role === 'admin';
 
@@ -2493,7 +2564,13 @@ function buildLbMenu() {
     { icon: ICON_ALBUM, label: 'Album', fn: 'openAlbumPicker()', cls: '' },
     {
       icon: isFullview ? ICON_SHRINK : ICON_FULLSCREEN,
-      label: isFullview ? 'Verkleinern' : 'Vollbild',
+      label: isVideo
+        ? isFullview
+          ? 'Vollbild beenden'
+          : 'Browser-Vollbild'
+        : isFullview
+          ? 'Verkleinern'
+          : 'Vollbild',
       fn: 'toggleFullview()',
       cls: 'muted',
     },
@@ -2544,6 +2621,17 @@ function copyCurrentImageId() {
 }
 
 function closeLB() {
+  const lbVideo = $('lb-video');
+  if (document.fullscreenElement === lbVideo) {
+    document.exitFullscreen().catch(() => {});
+  }
+  if (lbVideo) {
+    lbVideo.pause();
+    lbVideo.src = '';
+    lbVideo.style.display = 'none';
+  }
+  resetLbVideoElement();
+  $('lb-img').style.display = '';
   resetZoom();
   hide('lb');
   hide('ss-bar');
@@ -2986,8 +3074,25 @@ function startSS() {
   if (icon)
     icon.innerHTML =
       '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-  clearInterval(ssTimer);
-  ssTimer = setInterval(() => {
+  clearTimeout(ssTimer);
+
+  const current = photos[lbIdx];
+  const lbVideo = $('lb-video');
+  if (current?.mediaType === 'video' && lbVideo && lbVideo.style.display !== 'none') {
+    lbVideo.onended = () => {
+      if (!ssPlaying) return;
+      if (lbIdx < photos.length - 1) lbNav(1);
+      else {
+        pauseSS();
+        closeLB();
+      }
+    };
+    lbVideo.play().catch(() => {});
+    return;
+  }
+
+  if (lbVideo) lbVideo.onended = null;
+  ssTimer = setTimeout(() => {
     if (lbIdx < photos.length - 1) lbNav(1);
     else {
       pauseSS();
@@ -2998,10 +3103,16 @@ function startSS() {
 
 function pauseSS() {
   ssPlaying = false;
-  clearInterval(ssTimer);
+  clearTimeout(ssTimer);
+  const lbVideo = $('lb-video');
+  if (lbVideo) lbVideo.onended = null;
   const icon = $('ss-play-icon');
   if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
 }
+
+document.addEventListener('fullscreenchange', () => {
+  if ($('lb') && !$('lb').classList.contains('hidden')) updateFullviewBtn();
+});
 
 function ssChangeSpeed() {
   ssSpeedIdx = (ssSpeedIdx + 1) % ssSpeeds.length;
@@ -3253,7 +3364,7 @@ async function openAddFromAll() {
     const { photos: allData } = await apiCall(`/photos?groupId=${curGroupId}&limit=200`, 'GET');
     if (!allData?.length) {
       grid.innerHTML =
-        '<p style="color:var(--muted);text-align:center;padding:20px;grid-column:1/-1">Keine Fotos vorhanden.</p>';
+        '<p style="color:var(--muted);text-align:center;padding:20px;grid-column:1/-1">Keine Medien vorhanden.</p>';
       return;
     }
     allData.forEach((p) => {
@@ -3262,9 +3373,15 @@ async function openAddFromAll() {
     grid.innerHTML = allData
       .map((p) => {
         const url = urlCache[p.id] || '';
+        const isVideo = p.mediaType === 'video';
+        const durationBadge =
+          isVideo && Number.isFinite(Number(p.videoDuration)) && Number(p.videoDuration) > 0
+            ? `<span class="media-duration-badge">${formatMediaDuration(p.videoDuration)}</span>`
+            : '';
+        const PLAY_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.45)"/><polygon points="9.5,7 19,12 9.5,17" fill="white"/></svg>`;
         const inAlbum = (p.albumIds || []).includes(curAlbum);
         return `<div class="add-photo-thumb${inAlbum ? ' selected' : ''}" id="apt-${p.id}" onclick="toggleAddSelection('${p.id}',${inAlbum})" title="${esc(p.filename || '')}">
-        <img src="${esc(photoSrc(url))}" loading="lazy">
+        ${isVideo ? `<video class="add-photo-vid" src="${esc(photoSrc(url))}#t=0.1" preload="metadata" muted playsinline webkit-playsinline onloadedmetadata="this.currentTime=0.1" onloadeddata="this.classList.add('loaded')" onseeked="this.classList.add('loaded')"></video><div class="add-thumb-play">${PLAY_SVG}</div>${durationBadge}` : `<img src="${esc(photoSrc(url))}" loading="lazy">`}
         <div class="check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
         ${inAlbum ? '<div style="position:absolute;bottom:4px;left:4px;background:var(--accent);border-radius:4px;padding:1px 5px;font-size:9px;color:#fff;font-weight:700">Im Album</div>' : ''}
       </div>`;
@@ -6106,22 +6223,47 @@ let touchStartX = 0,
   touchStartY = 0,
   touchMoved = false;
 
-let zoomScale = 1,
-  zoomX = 0,
-  zoomY = 0,
-  _pinchStartDist = 0;
+let zoomScale = 1;
+let _lbSwipeInited = false;
+let _isPinching = false,
+  _pinchStartDist = 0,
+  _pinchStartScale = 1,
+  _pinchBaseRect = null,
+  _pinchOriginX = 50,
+  _pinchOriginY = 50,
+  _lastTapTs = 0;
 
 function initLbSwipe() {
   const el = $('lb');
-  if (!el) return;
+  if (!el || _lbSwipeInited) return;
+  _lbSwipeInited = true;
 
   el.addEventListener(
     'touchstart',
     (e) => {
+      const target = e.target;
+      if (target?.closest('#lb-video') || target?.closest('.lb-panel')) return;
       if (e.touches.length === 2) {
-        _pinchStartDist = getTouchDist(e.touches);
+        // Nur das Bild darf gezoomt werden (nicht die ganze Seite).
+        if (!target?.closest('#lb-img')) return;
+        const img = $('lb-img');
+        if (!img || img.style.display === 'none') return;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        _pinchStartDist = Math.hypot(dx, dy) || 1;
+        _pinchStartScale = zoomScale;
+        _pinchBaseRect = img.getBoundingClientRect();
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const rect = _pinchBaseRect;
+        _pinchOriginX = ((cx - rect.left) / Math.max(rect.width, 1)) * 100;
+        _pinchOriginY = ((cy - rect.top) / Math.max(rect.height, 1)) * 100;
+        img.style.transformOrigin = `${_pinchOriginX}% ${_pinchOriginY}%`;
+        _isPinching = true;
         e.preventDefault();
-      } else if (e.touches.length === 1) {
+        return;
+      }
+      if (e.touches.length === 1) {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
         touchMoved = false;
@@ -6133,22 +6275,32 @@ function initLbSwipe() {
   el.addEventListener(
     'touchmove',
     (e) => {
-      if (e.touches.length === 2) {
-        const dist = getTouchDist(e.touches);
-        zoomScale = Math.min(4, Math.max(1, dist / _pinchStartDist));
+      const target = e.target;
+      if (target?.closest('#lb-video') || target?.closest('.lb-panel')) return;
+      if (_isPinching && e.touches.length === 2) {
         const img = $('lb-img');
-        if (img) {
-          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-          const rect = img.getBoundingClientRect();
-          const ox = ((cx - rect.left) / rect.width) * 100;
-          const oy = ((cy - rect.top) / rect.height) * 100;
-          img.style.transformOrigin = `${ox}% ${oy}%`;
-          img.style.transform = `scale(${zoomScale})`;
-          img.style.transition = 'none';
-        }
+        if (!img || img.style.display === 'none') return;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy) || 1;
+        zoomScale = Math.min(4, Math.max(1, _pinchStartScale * (dist / _pinchStartDist)));
+
+        // Ursprung darf sich während der Geste bewegen, aber relativ zum Start-Rect.
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const rect = _pinchBaseRect || img.getBoundingClientRect();
+        _pinchOriginX = ((cx - rect.left) / Math.max(rect.width, 1)) * 100;
+        _pinchOriginY = ((cy - rect.top) / Math.max(rect.height, 1)) * 100;
+        _pinchOriginX = Math.max(0, Math.min(100, _pinchOriginX));
+        _pinchOriginY = Math.max(0, Math.min(100, _pinchOriginY));
+        img.style.transformOrigin = `${_pinchOriginX}% ${_pinchOriginY}%`;
+        img.style.transform = `scale(${zoomScale})`;
+        img.style.transition = 'none';
         e.preventDefault();
-      } else if (e.touches.length === 1) {
+        return;
+      }
+      if (e.touches.length === 1) {
+        if (zoomScale > 1) return;
         touchMoved = true;
       }
     },
@@ -6158,20 +6310,27 @@ function initLbSwipe() {
   el.addEventListener(
     'touchend',
     (e) => {
-      if (zoomScale > 1) {
-        // Snap back to normal
-        const img = $('lb-img');
-        if (img) {
-          img.style.transition = 'transform .25s ease';
-          img.style.transform = '';
-          setTimeout(() => {
-            img.style.transition = '';
-            img.style.transformOrigin = '';
-          }, 260);
+      const target = e.target;
+      if (target?.closest('#lb-video') || target?.closest('.lb-panel')) return;
+
+      if (!_isPinching && !touchMoved && target?.closest('#lb-img')) {
+        const now = Date.now();
+        if (now - _lastTapTs < 280) {
+          resetZoom();
+          _lastTapTs = 0;
+          return;
         }
-        zoomScale = 1;
+        _lastTapTs = now;
+      }
+
+      if (_isPinching && e.touches.length < 2) {
+        _isPinching = false;
+        _pinchBaseRect = null;
+        if (zoomScale <= 1.01) resetZoom();
         return;
       }
+
+      if (zoomScale > 1) return;
       // Swipe navigation (only when not zoomed)
       if (!touchMoved) return;
       const dx = e.changedTouches[0].clientX - touchStartX;
@@ -6183,12 +6342,6 @@ function initLbSwipe() {
     },
     { passive: true }
   );
-}
-
-function getTouchDist(touches) {
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.sqrt(dx * dx + dy * dy);
 }
 
 function resetZoom() {
@@ -6208,7 +6361,23 @@ function onThumbLoad(img) {
 }
 
 // ── FULLVIEW MODE ─────────────────────────────────────────
-function toggleFullview() {
+async function toggleFullview() {
+  const p = photos[lbIdx];
+  const lbVideo = $('lb-video');
+  if (p?.mediaType === 'video' && lbVideo && lbVideo.style.display !== 'none') {
+    try {
+      if (document.fullscreenElement === lbVideo) {
+        await document.exitFullscreen();
+      } else if (!document.fullscreenElement) {
+        await lbVideo.requestFullscreen();
+      }
+    } catch {
+      /* ignore */
+    }
+    updateFullviewBtn();
+    return;
+  }
+
   const lb = $('lb');
   const isFullview = lb.classList.contains('lb-fullview');
   lb.classList.toggle('lb-fullview');
@@ -6229,6 +6398,14 @@ function toggleFullview() {
 function updateFullviewBtn() {
   const btn = $('lb-full-btn');
   if (!btn) return;
+  const p = photos[lbIdx];
+  const lbVideo = $('lb-video');
+  if (p?.mediaType === 'video' && lbVideo && lbVideo.style.display !== 'none') {
+    const inFs = document.fullscreenElement === lbVideo;
+    btn.innerHTML = inFs ? ICON_SHRINK : ICON_FULLSCREEN;
+    btn.title = inFs ? 'Vollbild beenden' : 'Browser-Vollbild';
+    return;
+  }
   const isFullview = $('lb').classList.contains('lb-fullview');
   btn.innerHTML = isFullview ? ICON_SHRINK : ICON_FULLSCREEN;
   btn.title = isFullview ? 'Verkleinern' : 'Vollbild';

@@ -67,6 +67,7 @@ Falls ja:
 
 * Upgrade auf Node 24 !!
 * Zoom in LightBox überarbeiten
+* Notification-Texte für Medien vereinheitlichen (Foto/Video statt pauschal "Foto")
 * Modularisierung des Codes
     * Wiederverwendbare Komponenten im Frontend bauen.
         * Modals

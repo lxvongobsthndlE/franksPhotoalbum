@@ -1,5 +1,16 @@
-import { uploadPhoto, deletePhoto, getPhotoStream, getPhotoStat, getPhotoRangeStream } from '../utils/storage.js';
-import { MAX_VIDEO_DURATION_SECONDS, MAX_USER_VIDEOS_GLOBAL, MAX_VIDEO_FILE_SIZE_BYTES, ALLOWED_VIDEO_MIMETYPES } from '../utils/videoLimits.js';
+import {
+  uploadPhoto,
+  deletePhoto,
+  getPhotoStream,
+  getPhotoStat,
+  getPhotoRangeStream,
+} from '../utils/storage.js';
+import {
+  MAX_VIDEO_DURATION_SECONDS,
+  MAX_USER_VIDEOS_GLOBAL,
+  MAX_VIDEO_FILE_SIZE_BYTES,
+  ALLOWED_VIDEO_MIMETYPES,
+} from '../utils/videoLimits.js';
 import { createNotification } from '../utils/notifications.js';
 
 // Debounce-Map für gebündelte "neue Fotos"-Notifications
@@ -184,17 +195,23 @@ export default async function photosRoutes(fastify) {
       const isImage = mimetype.startsWith('image/');
 
       if (!isImage && !isVideo) {
-        return reply.code(400).send({ error: 'Nur Bilder und Videos erlaubt', code: 'unsupported_format' });
+        return reply
+          .code(400)
+          .send({ error: 'Nur Bilder und Videos erlaubt', code: 'unsupported_format' });
       }
       if (isVideo && !ALLOWED_VIDEO_MIMETYPES.includes(mimetype)) {
-        return reply.code(400).send({ error: 'Nur MP4 und MOV Videos sind erlaubt', code: 'unsupported_video_format' });
+        return reply
+          .code(400)
+          .send({ error: 'Nur MP4 und MOV Videos sind erlaubt', code: 'unsupported_video_format' });
       }
 
       const buffer = fileData._buffer;
 
       if (isVideo) {
         if (buffer.length > MAX_VIDEO_FILE_SIZE_BYTES) {
-          return reply.code(413).send({ error: 'Video zu groß (max. 200 MB)', code: 'video_file_too_large' });
+          return reply
+            .code(413)
+            .send({ error: 'Video zu groß (max. 200 MB)', code: 'video_file_too_large' });
         }
         const duration = videoDuration ? parseFloat(videoDuration) : null;
         if (duration !== null && duration > MAX_VIDEO_DURATION_SECONDS) {
