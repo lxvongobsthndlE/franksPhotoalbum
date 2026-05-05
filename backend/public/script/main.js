@@ -1296,6 +1296,7 @@ function renderGrid(appendFrom = 0) {
       const likes = p._likes || 0;
       const comms = p._comments || 0;
       const isVideo = p.mediaType === 'video';
+      const descText = typeof p.description === 'string' ? p.description.trim() : '';
       const durationBadge =
         isVideo && Number.isFinite(Number(p.videoDuration)) && Number(p.videoDuration) > 0
           ? `<span class="media-duration-badge">${formatMediaDuration(p.videoDuration)}</span>`
@@ -1324,7 +1325,7 @@ function renderGrid(appendFrom = 0) {
         </div>
       </div>
       <div class="p-meta">
-        ${p.description ? `<div class="p-desc">${esc(p.description)}</div>` : ''}
+        ${descText ? `<div class="p-desc">${esc(descText)}</div>` : ''}
         <div class="p-top">
           <span class="dot" style="background:${esc(u.color || '#888')}"></span>
           <span class="p-who">${esc(getVisibleName(u) || '?')}</span>
