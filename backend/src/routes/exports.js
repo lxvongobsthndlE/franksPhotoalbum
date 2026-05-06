@@ -11,6 +11,10 @@ const EXPORT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const EXPORT_NOT_READY = new Set(['queued', 'running']);
 
 const EXPORT_CLEANUP_DEFAULT_MINUTES = 60;
+const EXPORT_RECOVERY_DEFAULT_LIMIT = 500;
+
+const exportJobQueue = [];
+let exportWorkerRunning = false;
 
 function generateExportZipKey(userId) {
   return `export_user_${userId}_${Date.now()}.zip`;
@@ -77,11 +81,17 @@ function toPublicExportDto(record) {
     readyAt: record.readyAt,
     linkExpiry: record.linkExpiry,
     expired,
-    downloadUrl:
-      record.status === 'ready' && !expired
-        ? `/api/exports/download/${encodeURIComponent(record.downloadToken)}`
-        : null,
+    downloadUrl: record.status === 'ready' && !expired ? `/api/exports/${record.id}/download` : null,
   };
+}
+
+async function canAccessExport(fastify, callerId, exportOwnerId) {
+  if (callerId === exportOwnerId) return true;
+  const caller = await fastify.prisma.user.findUnique({
+    where: { id: callerId },
+    select: { role: true },
+  });
+  return !!caller && caller.role === 'admin';
 }
 
 async function requireAuth(request, reply) {
@@ -261,6 +271,64 @@ async function processUserExport(fastify, exportId) {
   }
 }
 
+async function runExportWorker(fastify) {
+  if (exportWorkerRunning) return;
+  exportWorkerRunning = true;
+  try {
+    while (exportJobQueue.length > 0) {
+      const exportId = exportJobQueue.shift();
+      if (!exportId) continue;
+      await processUserExport(fastify, exportId);
+    }
+  } finally {
+    exportWorkerRunning = false;
+  }
+}
+
+export function enqueueUserExportJob(fastify, exportId) {
+  if (!exportId) return;
+  if (exportJobQueue.includes(exportId)) return;
+  exportJobQueue.push(exportId);
+  void runExportWorker(fastify);
+}
+
+export async function recoverPendingUserExports(fastify, { limit = EXPORT_RECOVERY_DEFAULT_LIMIT } = {}) {
+  const pending = await fastify.prisma.userExport.findMany({
+    where: { status: { in: ['queued', 'running'] } },
+    orderBy: { createdAt: 'asc' },
+    take: limit,
+    select: { id: true, status: true },
+  });
+
+  if (!pending.length) {
+    return { found: 0, normalizedRunning: 0, requeued: 0 };
+  }
+
+  const runningIds = pending.filter((item) => item.status === 'running').map((item) => item.id);
+  let normalizedRunning = 0;
+
+  if (runningIds.length) {
+    const updateResult = await fastify.prisma.userExport.updateMany({
+      where: { id: { in: runningIds } },
+      data: {
+        status: 'queued',
+        errorMessage: 'Server wurde neu gestartet. Export wird erneut verarbeitet.',
+      },
+    });
+    normalizedRunning = updateResult?.count || 0;
+  }
+
+  for (const item of pending) {
+    enqueueUserExportJob(fastify, item.id);
+  }
+
+  return {
+    found: pending.length,
+    normalizedRunning,
+    requeued: pending.length,
+  };
+}
+
 export default async function exportsRoutes(fastify) {
   // POST /api/exports/request - neuen Export erzeugen (strict: 1x pro 24h pro User)
   fastify.post(
@@ -310,7 +378,7 @@ export default async function exportsRoutes(fastify) {
         },
       });
 
-      void processUserExport(fastify, exportRecord.id);
+      enqueueUserExportJob(fastify, exportRecord.id);
 
       return reply.code(202).send({ export: toPublicExportDto(exportRecord) });
     }
@@ -328,9 +396,9 @@ export default async function exportsRoutes(fastify) {
     return { exports: exports.map(toPublicExportDto) };
   });
 
-  // GET /api/exports/download/:token - Export-Datei authentifiziert laden (Owner/Admin)
+  // GET /api/exports/:id/download - Export-Datei authentifiziert laden (Owner/Admin)
   fastify.get(
-    '/download/:token',
+    '/:id/download',
     {
       config: {
         rateLimit: {
@@ -343,9 +411,9 @@ export default async function exportsRoutes(fastify) {
       try {
         if (!(await requireAuth(request, reply))) return;
 
-        const token = decodeURIComponent(request.params.token || '');
+        const id = decodeURIComponent(request.params.id || '');
         const exportRecord = await fastify.prisma.userExport.findUnique({
-          where: { downloadToken: token },
+          where: { id },
           select: {
             id: true,
             userId: true,
@@ -359,14 +427,8 @@ export default async function exportsRoutes(fastify) {
           return reply.code(404).send({ error: 'Export nicht gefunden' });
         }
 
-        if (exportRecord.userId !== request.user.id) {
-          const caller = await fastify.prisma.user.findUnique({
-            where: { id: request.user.id },
-            select: { role: true },
-          });
-          if (!caller || caller.role !== 'admin') {
-            return reply.code(403).send({ error: 'Forbidden' });
-          }
+        if (!(await canAccessExport(fastify, request.user.id, exportRecord.userId))) {
+          return reply.code(403).send({ error: 'Forbidden' });
         }
 
         if (EXPORT_NOT_READY.has(exportRecord.status)) {

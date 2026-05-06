@@ -4,7 +4,7 @@
   handleOIDCCallback,
   logout,
   apiCall,
-  getAccessToken,
+  fetchWithAuth,
 } from './auth-oidc.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -169,7 +169,7 @@ function formatMediaDuration(seconds) {
   return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
-// Dasselbe für Backup-Download-URLs — kein Auth nötig, zipKey ist das Geheimnis
+// Für Export-Downloads wird ein API-Pfad durchgereicht
 function backupSrc(url) {
   return url;
 }
@@ -3228,16 +3228,7 @@ function exportStatusBadge(status) {
 
 async function downloadExportAuthenticated(downloadUrl, fallbackName = 'export.zip') {
   try {
-    const token = getAccessToken();
-    if (!token) throw new Error('Nicht eingeloggt');
-
-    const response = await fetch(backupSrc(downloadUrl), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
+    const response = await fetchWithAuth(backupSrc(downloadUrl), { method: 'GET' });
 
     if (!response.ok) {
       let serverMsg = '';

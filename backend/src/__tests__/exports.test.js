@@ -15,6 +15,7 @@ vi.mock('../utils/storage.js', () => ({
 
 describe('exports routes', () => {
   let exportsRoutes;
+  let recoverPendingUserExports;
   let storage;
   let prisma;
   let fastify;
@@ -30,7 +31,9 @@ describe('exports routes', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    exportsRoutes = (await import('../routes/exports.js')).default;
+    const exportsModule = await import('../routes/exports.js');
+    exportsRoutes = exportsModule.default;
+    recoverPendingUserExports = exportsModule.recoverPendingUserExports;
     storage = await import('../utils/storage.js');
     prisma = createMockPrismaClient();
     fastify = createMockRouteFastify({ prisma });
@@ -160,14 +163,14 @@ describe('exports routes', () => {
       expect.objectContaining({ where: { userId: 'user-1' } })
     );
     expect(result.exports).toHaveLength(2);
-    expect(result.exports[0].downloadUrl).toContain('/api/exports/download/');
+    expect(result.exports[0].downloadUrl).toContain('/api/exports/exp-ready/download');
     expect(result.exports[1].downloadUrl).toBeNull();
   });
 
   it('blocks unauthenticated download access', async () => {
-    const { reply } = await callRoute('GET', '/download/:token', {
+    const { reply } = await callRoute('GET', '/:id/download', {
       jwtVerify: vi.fn().mockRejectedValue(new Error('Unauthorized')),
-      params: { token: 'any-token' },
+      params: { id: 'exp-unauth' },
     });
 
     expect(reply.statusCode).toBe(401);
@@ -184,10 +187,10 @@ describe('exports routes', () => {
     });
     prisma.user.findUnique.mockResolvedValue({ role: 'user' });
 
-    const { reply } = await callRoute('GET', '/download/:token', {
+    const { reply } = await callRoute('GET', '/:id/download', {
       jwtVerify: vi.fn().mockResolvedValue(undefined),
       user: { id: 'user-other' },
-      params: { token: 'foreign-token' },
+      params: { id: 'exp-foreign' },
     });
 
     expect(reply.statusCode).toBe(403);
@@ -203,10 +206,10 @@ describe('exports routes', () => {
       linkExpiry: new Date(Date.now() - 1000),
     });
 
-    const { reply } = await callRoute('GET', '/download/:token', {
+    const { reply } = await callRoute('GET', '/:id/download', {
       jwtVerify: vi.fn().mockResolvedValue(undefined),
       user: { id: 'user-1' },
-      params: { token: 'expired-token' },
+      params: { id: 'exp-1' },
     });
 
     expect(reply.statusCode).toBe(410);
@@ -224,10 +227,10 @@ describe('exports routes', () => {
     storage.getUserExportStat.mockResolvedValue({ size: 123 });
     storage.getUserExportStream.mockResolvedValue('STREAM');
 
-    const { reply } = await callRoute('GET', '/download/:token', {
+    const { reply } = await callRoute('GET', '/:id/download', {
       jwtVerify: vi.fn().mockResolvedValue(undefined),
       user: { id: 'user-1' },
-      params: { token: 'valid-token' },
+      params: { id: 'exp-2' },
     });
 
     expect(storage.getUserExportStat).toHaveBeenCalledWith('ready.zip');
@@ -276,9 +279,68 @@ describe('exports routes', () => {
       expect.objectContaining({
         id: 'exp-admin',
         userLabel: 'Max Mustermann',
-        downloadUrl: expect.stringContaining('/api/exports/download/'),
+        downloadUrl: expect.stringContaining('/api/exports/exp-admin/download'),
       })
     );
+  });
+
+  it('allows admin to download a foreign export', async () => {
+    prisma.userExport.findUnique.mockResolvedValue({
+      id: 'exp-admin-download',
+      userId: 'user-owner',
+      zipKey: 'owner.zip',
+      status: 'ready',
+      linkExpiry: new Date(Date.now() + 60_000),
+    });
+    prisma.user.findUnique.mockResolvedValue({ role: 'admin' });
+    storage.getUserExportStat.mockResolvedValue({ size: 88 });
+    storage.getUserExportStream.mockResolvedValue('ADMIN_STREAM');
+
+    const { reply } = await callRoute('GET', '/:id/download', {
+      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      user: { id: 'admin-1' },
+      params: { id: 'exp-admin-download' },
+    });
+
+    expect(reply.payload).toBe('ADMIN_STREAM');
+    expect(storage.getUserExportStream).toHaveBeenCalledWith('owner.zip');
+  });
+
+  it('requeues queued and running exports during startup recovery', async () => {
+    prisma.userExport.findMany.mockResolvedValue([
+      { id: 'exp-queued', status: 'queued' },
+      { id: 'exp-running', status: 'running' },
+    ]);
+    prisma.userExport.updateMany.mockResolvedValue({ count: 1 });
+
+    prisma.userExport.findUnique
+      .mockResolvedValueOnce({
+        id: 'exp-queued',
+        userId: 'user-1',
+        zipKey: 'q.zip',
+        status: 'queued',
+      })
+      .mockResolvedValueOnce({
+        id: 'exp-running',
+        userId: 'user-1',
+        zipKey: 'r.zip',
+        status: 'queued',
+      });
+    prisma.photo.findMany.mockResolvedValue([]);
+    prisma.userExport.update.mockResolvedValue({ id: 'ok' });
+    storage.createUserExportZip.mockResolvedValue('ok.zip');
+    storage.getUserExportStat.mockResolvedValue({ size: 12 });
+
+    const result = await recoverPendingUserExports(fastify);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(result).toEqual({ found: 2, normalizedRunning: 1, requeued: 2 });
+    expect(prisma.userExport.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['exp-running'] } },
+      })
+    );
+    expect(storage.createUserExportZip).toHaveBeenCalledTimes(2);
   });
 
   it('blocks non-admin from deleting an export', async () => {

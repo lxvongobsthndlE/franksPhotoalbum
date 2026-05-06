@@ -27,7 +27,7 @@ import changelogRoutes from './routes/changelog.js';
 import feedbackRoutes from './routes/feedback.js';
 import invitesRoutes from './routes/invites.js';
 import exportsRoutes from './routes/exports.js';
-import { startUserExportCleanupTask } from './routes/exports.js';
+import { recoverPendingUserExports, startUserExportCleanupTask } from './routes/exports.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -137,14 +137,18 @@ const start = async () => {
     const env = process.env.NODE_ENV || 'development';
     await app.listen({ port, host: '0.0.0.0' });
 
-    // Verwaiste Exporte (queued/running nach Neustart) als fehlgeschlagen markieren
+    // Verwaiste Exporte (queued/running nach Neustart) wieder in die Queue aufnehmen
     try {
-      const { count } = await app.prisma.userExport.updateMany({
-        where: { status: { in: ['queued', 'running'] } },
-        data: { status: 'failed', errorMessage: 'Server neu gestartet – Export abgebrochen.' },
-      });
-      if (count > 0) {
-        app.log.warn({ count }, 'Verwaiste Exporte beim Start zurueckgesetzt');
+      const recovery = await recoverPendingUserExports(app);
+      if (recovery.requeued > 0) {
+        app.log.warn(
+          {
+            found: recovery.found,
+            normalizedRunning: recovery.normalizedRunning,
+            requeued: recovery.requeued,
+          },
+          'Verwaiste Exporte beim Start erneut eingeplant'
+        );
       }
     } catch (err) {
       app.log.error(err, 'Export-Recovery beim Start fehlgeschlagen');
