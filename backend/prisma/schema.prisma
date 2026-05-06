@@ -37,6 +37,7 @@ model User {
   reportedInFeedback FeedbackReport[] @relation("ReportedUser")
   feedbackMessages   FeedbackMessage[]
   createdInvites     GroupInvite[] @relation("GroupInviteCreator")
+  exports            UserExport[]
 }
 
 model Group {
@@ -190,6 +191,27 @@ model GroupBackup {
   linkExpiry    DateTime
 
   @@map("group_backups")
+}
+
+model UserExport {
+  id            String   @id @default(cuid())
+  userId        String
+  zipKey        String   @unique
+  downloadToken String   @unique
+  status        String   @default("queued") // queued | running | ready | failed
+  photoCount    Int      @default(0)
+  sizeBytes     BigInt?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  readyAt       DateTime?
+  linkExpiry    DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([linkExpiry])
+  @@map("user_exports")
 }
 
 model ChangelogEntry {

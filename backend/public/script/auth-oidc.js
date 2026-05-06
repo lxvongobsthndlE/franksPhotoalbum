@@ -191,6 +191,30 @@ export async function apiCall(endpoint, method = 'GET', body = null) {
   }
 }
 
+// ── FETCH HELPER WITH AUTO-AUTHORIZATION (for blobs/streams) ───────────────
+export async function fetchWithAuth(endpoint, options = {}) {
+  const url = endpoint.startsWith('/api/') ? endpoint : `${API_BASE}${endpoint}`;
+  const requestOptions = {
+    credentials: 'include',
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+    },
+  };
+
+  if (accessToken && !requestOptions.headers.Authorization) {
+    requestOptions.headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  let response = await fetch(url, requestOptions);
+  if (response.status === 401) {
+    await refreshAccessToken();
+    requestOptions.headers.Authorization = `Bearer ${accessToken}`;
+    response = await fetch(url, requestOptions);
+  }
+  return response;
+}
+
 // ── FILE UPLOAD WITH AUTO-AUTHORIZATION ────────────────────
 export async function uploadFile(endpoint, file) {
   const formData = new FormData();

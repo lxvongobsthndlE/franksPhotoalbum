@@ -26,6 +26,8 @@ import notificationsRoutes from './routes/notifications.js';
 import changelogRoutes from './routes/changelog.js';
 import feedbackRoutes from './routes/feedback.js';
 import invitesRoutes from './routes/invites.js';
+import exportsRoutes from './routes/exports.js';
+import { recoverPendingUserExports, startUserExportCleanupTask } from './routes/exports.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -47,6 +49,7 @@ const loggerConfig =
     : true;
 
 const app = Fastify({ logger: loggerConfig });
+let stopUserExportCleanupTask = null;
 
 // Stelle sicher, dass JS/CSS mit korrektem MIME-Type geladen werden
 app.addHook('onSend', (request, reply, payload, done) => {
@@ -108,6 +111,7 @@ app.register(notificationsRoutes, { prefix: '/api/notifications' });
 app.register(changelogRoutes, { prefix: '/api/changelog' });
 app.register(feedbackRoutes, { prefix: '/api/feedback' });
 app.register(invitesRoutes, { prefix: '/api/invites' });
+app.register(exportsRoutes, { prefix: '/api/exports' });
 
 // OIDC Callback: Authentik redirectet auf /auth/callback → Frontend-SPA laden, die den Code verarbeitet
 app.get('/auth/callback', async (request, reply) => {
@@ -132,6 +136,25 @@ const start = async () => {
     const port = process.env.PORT || 3000;
     const env = process.env.NODE_ENV || 'development';
     await app.listen({ port, host: '0.0.0.0' });
+
+    // Verwaiste Exporte (queued/running nach Neustart) wieder in die Queue aufnehmen
+    try {
+      const recovery = await recoverPendingUserExports(app);
+      if (recovery.requeued > 0) {
+        app.log.warn(
+          {
+            found: recovery.found,
+            normalizedRunning: recovery.normalizedRunning,
+            requeued: recovery.requeued,
+          },
+          'Verwaiste Exporte beim Start erneut eingeplant'
+        );
+      }
+    } catch (err) {
+      app.log.error(err, 'Export-Recovery beim Start fehlgeschlagen');
+    }
+
+    stopUserExportCleanupTask = startUserExportCleanupTask(app);
     const isProd = env === 'production';
 
     const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
@@ -191,3 +214,11 @@ const start = async () => {
 };
 
 start();
+
+process.on('SIGINT', () => {
+  if (stopUserExportCleanupTask) stopUserExportCleanupTask();
+});
+
+process.on('SIGTERM', () => {
+  if (stopUserExportCleanupTask) stopUserExportCleanupTask();
+});

@@ -22,6 +22,29 @@ Authorization: Bearer <accessToken>
 
 ---
 
+## Content-Export (`/api/exports`)
+
+| Methode  | Pfad                                | Beschreibung                                                                                      | Auth        |
+| -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- | ----------- |
+| `POST`   | `/api/exports/request`              | Export anfordern (asynchron, `202`), strikt auf 1 Request pro 24h pro User limitiert            | JWT         |
+| `GET`    | `/api/exports/mine`                 | Eigene Export-Historie inkl. Status (`queued`, `running`, `ready`, `failed`)                    | JWT         |
+| `GET`    | `/api/exports/:id/download`         | ZIP-Export herunterladen (nur Owner oder Admin, Rate-Limit: 10 req/min/IP)                       | JWT         |
+| `GET`    | `/api/exports/admin/exports`        | Admin: alle User-Exporte laden (inkl. User-Label und Status)                                     | JWT (Admin) |
+| `POST`   | `/api/exports/admin/exports/:id/refresh` | Admin: Export-Link um 30 Tage verlaengern                                                   | JWT (Admin) |
+| `DELETE` | `/api/exports/admin/exports/:id`    | Admin: Export endgueltig aus MinIO + DB loeschen                                                 | JWT (Admin) |
+| `POST`   | `/api/exports/admin/exports/cleanup`| Admin: abgelaufene Exporte manuell aufraeumen                                                    | JWT (Admin) |
+
+Hinweise:
+
+- Exportinhalt: eigene hochgeladene Medien + Metadaten als `metadata/export.json` und `metadata/photos.csv`
+- Link-Laufzeit: 30 Tage (`410 Gone` nach Ablauf), Download nur fuer eingeloggten Owner oder Admin
+- Wenn ein Export noch erstellt wird: `409`
+- Exporte werden intern ueber eine Worker-Queue nacheinander verarbeitet
+- Nach Server-Neustart werden verwaiste `queued`/`running` Exporte automatisch wieder eingeplant
+- Automatischer Cleanup laeuft im Backend-Intervall (`EXPORT_CLEANUP_INTERVAL_MINUTES`, Default: 60)
+
+---
+
 ## Medien (`/api/photos`)
 
 | Methode  | Pfad                      | Beschreibung                                                                                                        |
@@ -214,7 +237,7 @@ Validierung:
 | `404` | Ressource nicht gefunden                               |
 | `409` | Konflikt (z. B. bereits Mitglied, letzter Admin)       |
 | `413` | Payload zu groß (z. B. Video-Datei > 200 MB)           |
-| `410` | Backup-Link abgelaufen                                 |
+| `410` | Download-Link abgelaufen (z. B. Backup- oder Export-Link) |
 | `429` | Rate-Limit überschritten                               |
 | `500` | Interner Serverfehler                                  |
 

@@ -113,6 +113,16 @@ export function createMockPrismaClient(overrides = {}) {
       findMany: vi.fn(),
       ...overrides.like,
     },
+    userExport: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      delete: vi.fn(),
+      ...overrides.userExport,
+    },
     $transaction: vi.fn(),
     ...overrides,
   };
