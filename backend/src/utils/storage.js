@@ -171,6 +171,61 @@ export async function createGroupBackupZip(groupId, photos) {
 }
 
 /**
+ * Erstellt ein ZIP-Exportarchiv fuer einen User und laedt es in den Backups-Bucket hoch.
+ * @param {string} userId
+ * @param {string} zipKey
+ * @param {Array<{path: string, filename: string}>} photos
+ * @param {{json?: Record<string, unknown>, csv?: string}} metadata
+ * @returns {Promise<string>} Objekt-Key des ZIPs
+ */
+export async function createUserExportZip(userId, zipKey, photos, metadata = {}) {
+  const { default: archiver } = await import('archiver');
+  const client = getClient();
+  const objectKey = zipKey || `export_user_${userId}_${Date.now()}.zip`;
+
+  const buffer = await new Promise((resolve, reject) => {
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    const chunks = [];
+    const nameCounts = new Map();
+
+    archive.on('data', (d) => chunks.push(d));
+    archive.on('end', () => resolve(Buffer.concat(chunks)));
+    archive.on('error', reject);
+
+    (async () => {
+      for (const photo of photos) {
+        if (!photo?.path) continue;
+        try {
+          const stream = await client.getObject(BUCKET_PHOTOS, photo.path);
+          const baseName = String(photo.filename || photo.path).replace(/[^a-zA-Z0-9._-]/g, '_');
+          const count = (nameCounts.get(baseName) || 0) + 1;
+          nameCounts.set(baseName, count);
+          const safeName = count > 1 ? `${count}_${baseName}` : baseName;
+          archive.append(stream, { name: `media/${safeName}` });
+        } catch {
+          // Datei nicht gefunden - ueberspringen
+        }
+      }
+
+      if (metadata.json) {
+        archive.append(JSON.stringify(metadata.json, null, 2), { name: 'metadata/export.json' });
+      }
+      if (metadata.csv) {
+        archive.append(metadata.csv, { name: 'metadata/photos.csv' });
+      }
+
+      archive.finalize();
+    })().catch(reject);
+  });
+
+  await client.putObject(BUCKET_BACKUPS, objectKey, buffer, buffer.length, {
+    'Content-Type': 'application/zip',
+  });
+
+  return objectKey;
+}
+
+/**
  * Streamt ein Backup-ZIP-Objekt direkt aus MinIO.
  */
 export async function getBackupStream(zipKey) {
@@ -178,6 +233,20 @@ export async function getBackupStream(zipKey) {
 }
 
 export async function getBackupStat(zipKey) {
+  return getClient().statObject(BUCKET_BACKUPS, zipKey);
+}
+
+/**
+ * Streamt ein User-Export-ZIP aus MinIO.
+ */
+export async function getUserExportStream(zipKey) {
+  return getClient().getObject(BUCKET_BACKUPS, zipKey);
+}
+
+/**
+ * Liefert Metadaten eines User-Export-ZIP aus MinIO.
+ */
+export async function getUserExportStat(zipKey) {
   return getClient().statObject(BUCKET_BACKUPS, zipKey);
 }
 
@@ -200,6 +269,13 @@ export async function deleteGroupPhotoObjects(keys) {
  * Löscht ein einzelnes Backup-Objekt aus MinIO.
  */
 export async function deleteBackupObject(zipKey) {
+  await getClient().removeObject(BUCKET_BACKUPS, zipKey);
+}
+
+/**
+ * Loescht ein einzelnes User-Export-Objekt aus MinIO.
+ */
+export async function deleteUserExportObject(zipKey) {
   await getClient().removeObject(BUCKET_BACKUPS, zipKey);
 }
 

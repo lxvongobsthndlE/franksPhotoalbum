@@ -1498,6 +1498,79 @@
             </div>
           </div>
           <!-- ── END NOTIFICATION PREFERENCES ── -->
+
+          <!-- ── CONTENT EXPORT ── -->
+          <div style="padding-top: 14px; border-top: 1px solid var(--border); margin-top: 14px">
+            <button
+              onclick="toggleProfileExports()"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0;
+                margin-bottom: 0;
+              "
+              aria-expanded="false"
+              id="profile-export-toggle"
+            >
+              <label
+                style="
+                  display: block;
+                  font-size: 11px;
+                  font-weight: 600;
+                  letter-spacing: 1.2px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  pointer-events: none;
+                "
+                >Content-Export</label
+              >
+              <svg
+                id="profile-export-chevron"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--muted2)"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                style="transition: transform 0.2s"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            <div id="profile-export-collapsible" style="display: none; margin-top: 12px">
+              <p style="font-size: 12px; color: var(--muted); margin: 0 0 10px; font-weight: 300">
+                Du kannst einmal pro 24 Stunden ein ZIP mit deinen eigenen Uploads und Metadaten
+                erstellen lassen.
+              </p>
+              <div id="profile-export-msg" class="msg hidden" style="margin-bottom: 8px"></div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px">
+                <button
+                  class="btn btn-primary"
+                  id="profile-export-request-btn"
+                  style="font-size: 12px; padding: 7px 14px"
+                  onclick="requestMyContentExport()"
+                >
+                  Export anfordern
+                </button>
+                <button
+                  class="btn btn-ghost"
+                  id="profile-export-refresh-btn"
+                  style="font-size: 12px; padding: 7px 14px"
+                  onclick="loadMyExports()"
+                >
+                  Aktualisieren
+                </button>
+              </div>
+              <div id="profile-export-list" style="display: grid; gap: 8px"></div>
+            </div>
+          </div>
+          <!-- ── END CONTENT EXPORT ── -->
         </div>
       </div>
     </div>
@@ -1936,13 +2009,13 @@
         style="max-width: 720px; max-height: 85vh; display: flex; flex-direction: column"
       >
         <div class="modal-hdr">
-          <h3>📦 Backups verwalten</h3>
+          <h3>📦 Backups und Exporte verwalten</h3>
           <button class="modal-x" onclick="closeAdminBackups()">✕</button>
         </div>
         <div class="modal-body" style="overflow-y: auto; padding: 12px 20px">
           <p style="font-size: 13px; color: var(--muted); margin: 0 0 16px">
-            Alle gespeicherten Gruppen-Backups. Links können bei Bedarf verlängert werden. Backups
-            werden <strong>nicht</strong> automatisch gelöscht.
+            Verwaltung für Gruppen-Backups und User-Exporte. Download-Links können verlängert
+            und Einträge bei Bedarf gelöscht werden.
           </p>
           <div
             id="admin-backups-list"

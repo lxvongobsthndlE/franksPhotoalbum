@@ -13,6 +13,8 @@ User ──< GroupMember >── Group ──< Album ──< AlbumContributor >�
   │                                   │
   │                                   └──< Like
   │
+  ├──< UserExport
+  │
   ├──< FeedbackReport ──< FeedbackMessage
   │          │
   │          └──(optional) reportedUser -> User
@@ -210,6 +212,39 @@ model GroupBackup {
   @@map("group_backups")
 }
 ```
+
+---
+
+### UserExport
+
+Metadaten zu nutzerbezogenen Content-Exporten (ZIP-Archive).
+
+```prisma
+model UserExport {
+  id            String   @id @default(cuid())
+  userId        String
+  zipKey        String   @unique
+  downloadToken String   @unique
+  status        String   @default("queued") // queued | running | ready | failed
+  photoCount    Int      @default(0)
+  sizeBytes     BigInt?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  readyAt       DateTime?
+  linkExpiry    DateTime
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([linkExpiry])
+  @@map("user_exports")
+}
+```
+
+Hinweise:
+
+- `downloadToken` ist der signierte, schwer erratbare Public-Link-Token
+- `linkExpiry` bestimmt die Gueltigkeit des Download-Links (30 Tage)
+- `status=failed` enthaelt in `errorMessage` eine gekuerzte Fehlerursache
 
 ---
 

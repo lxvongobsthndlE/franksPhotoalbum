@@ -87,22 +87,23 @@ Falls ja:
     * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
 * Logo-Rework
 * State-Store aus auth.js in eigenes Regis auslagern (persist over restart + multi instance support)
-* Einladungs-System
-    * Group-Owner können in den Gruppen-Einstellungen mehrere Invite Links zu ihrer Gruppe erstellen (max. 10).
-    * Admins können in den Admin-Einstellungen Invite-Links für jegliche Gruppen erstellen (kein Limit).
-    * Invites sollen folgende Informationen enthalten können:
-        * Gruppe(n) zu der/denen Sie einladen. (min. 1 Pflicht)
-        * Gültigkeit (optional, max. 12 Monate, wenn nicht gesetzt: unendlich)
-        * Benachrichtigung on-join (optional, Text, wird nach Beitritt via Invite-link als Notification an den User ausgespielt)
-    * Beim Aufrufen eines Invite-Links soll folgendes Verhalten passieren:
-        * User ist bereits eingeloggt -> Check link valid, Add User to group(s), send optional Notifications
-        * User ist nicht eingeloggt, hat aber Account -> User meldet sich an, Check link valid, Add User to group(s), send optional Notifications
-        * User ist nicht eingeloggt, hat keinen Account -> User registriert sich, meldet sich an, Check link valid, Add User to group(s), send optional Notifications
-    * Nur Admins können multi-group-invites erstellen (Ein Link, mehrere Gruppen).
-    * Group-Owner können immer nur für die individuelle Gruppe Links erstellen.
-    * Admins können optional eine individuelle Notification verschicken.
-    * Group-Owner können optional eine vordefinierte Notification verschicken.
-
+* Account Deletion and Content Export
+    * User sollen ihren eigenen Account löschen können.
+        * Neue Schaltfläche im Profil
+        * Es wird ein Bestätigungscode per Mail verschickt, der dann in der "Bist du sicher?" Maske eingegeben werden muss
+        * User können hier auch optional einen "Erben" benennen, quasi ein "transfer ownership" was jeglichen content auf die gewählte Person umschlüsselt.
+        * User sollen außerdem entscheiden dürfen ob ihr Content nach der Löschung erhalten bleiben darf (angezeigt als von "gelöscht") oder mit gelöscht wird.
+        * Wenn ein Erbe benannt wurde, gibt es keine Frage mehr, was mit dem Content nach Löschung passieren soll.
+        * Außerdem soll der Hinweis gezigt werden, dass man auch vorher seinen Content exportieren kann vor der Löschung
+        * Eine Account-Löschung ist erstmal nicht permanent. Der Account wird für 14 Tage "deaktiviert", heißt er wird vom System wie "gelöscht" behandelt, kann aber theoretisch wieder eingeloggt und damit "re-aktiviert" werden.
+        * Nach 14 Tagen wird der Account restlos gelöscht.
+    * User sollen ihren content exportieren können
+        * Neue Schaltfläche im Profil
+        * Scheduled Task der ein Zip mit dem gesamten Content des Users erstellt und ihm einen Downloadlink per Mail zuschickt.
+        * Erzeugung Zip darf Betriebsfluss nicht negativ beeinflussen!
+        * Endpunkt muss striktes rate-limiting haben (Vorschlag: 1x per day) um unnötige Erzeugung von Exporten zu verhindern.
+        * Die Zip's sollen eine Lebenszeit von 1 Monat haben.
+        * Content exports sollen, genau wie Backups, den Admins im "Backups verwalten" Menü angezeigt werden. (Funktionen: Download, Link erneuern, Delete), das Menü kann dafür entsprechend umbenannt werden.
 
 ### DONE
 * ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~
@@ -119,3 +120,18 @@ Falls ja:
     * ~~Modal kann jeder öffnen~~
     * ~~nur Admin kann changelog-Einträge anlegen~~
 * ~~Auf mobile statt GroupSwitcher Dropdown in Header ein Group-Icon neben die Glocke, das das selbe "switch-group" modal öffnet wie der switcher.~~
+* ~~Einladungs-System~~
+    * ~~Group-Owner können in den Gruppen-Einstellungen mehrere Invite Links zu ihrer Gruppe erstellen (max. 10).~~
+    * ~~Admins können in den Admin-Einstellungen Invite-Links für jegliche Gruppen erstellen (kein Limit).~~
+    * ~~Invites sollen folgende Informationen enthalten können:~~
+        * ~~Gruppe(n) zu der/denen Sie einladen. (min. 1 Pflicht)~~
+        * ~~Gültigkeit (optional, max. 12 Monate, wenn nicht gesetzt: unendlich)~~
+        * ~~Benachrichtigung on-join (optional, Text, wird nach Beitritt via Invite-link als Notification an den User ausgespielt)~~
+    * ~~Beim Aufrufen eines Invite-Links soll folgendes Verhalten passieren:~~
+        * ~~User ist bereits eingeloggt -> Check link valid, Add User to group(s), send optional Notifications~~
+        * ~~User ist nicht eingeloggt, hat aber Account -> User meldet sich an, Check link valid, Add User to group(s), send optional Notifications~~
+        * ~~User ist nicht eingeloggt, hat keinen Account -> User registriert sich, meldet sich an, Check link valid, Add User to group(s), send optional Notifications~~
+    * ~~Nur Admins können multi-group-invites erstellen (Ein Link, mehrere Gruppen).~~
+    * ~~Group-Owner können immer nur für die individuelle Gruppe Links erstellen.~~
+    * ~~Admins können optional eine individuelle Notification verschicken.~~
+    * ~~Group-Owner können optional eine vordefinierte Notification verschicken.~~

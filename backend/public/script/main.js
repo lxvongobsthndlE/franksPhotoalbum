@@ -1,4 +1,11 @@
-﻿import { checkSession, startOIDCLogin, handleOIDCCallback, logout, apiCall } from './auth-oidc.js';
+﻿import {
+  checkSession,
+  startOIDCLogin,
+  handleOIDCCallback,
+  logout,
+  apiCall,
+  getAccessToken,
+} from './auth-oidc.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -90,6 +97,7 @@ let changelogEditingId = null;
 let pendingInviteToken = null;
 let pendingLoggedInInviteToken = null;
 let adminGroupsCache = [];
+let profileExportsLoading = false;
 
 async function loadInvitePreview(token) {
   try {
@@ -230,13 +238,13 @@ window.addEventListener('load', async () => {
       await startApp();
 
       if (inviteResult?.status === 'joined') {
-        toast('Einladung erfolgreich eingeloest.', 'success');
+        toast('Einladung erfolgreich eingelöst.', 'success');
       } else if (inviteResult?.status === 'partial') {
-        toast('Einladung teilweise eingeloest.', 'info');
+        toast('Einladung teilweise eingelöst.', 'info');
       } else if (inviteResult?.status === 'already_member') {
         toast('Du bist bereits in der Zielgruppe.', 'info');
       } else if (inviteResult && inviteResult.ok === false) {
-        toast(inviteResult.message || 'Einladung konnte nicht eingeloest werden.', 'error');
+        toast(inviteResult.message || 'Einladung konnte nicht eingelöst werden.', 'error');
       }
       return;
     } catch (e) {
@@ -275,7 +283,7 @@ window.addEventListener('load', async () => {
     if (preview.ok) {
       applyInviteLoginMode(inviteTokenFromUrl, preview.invite);
     } else {
-      showMsg('login-msg', 'error', preview.error || 'Einladungslink ist ungueltig.');
+      showMsg('login-msg', 'error', preview.error || 'Einladungslink ist ungültig.');
     }
   }
 
@@ -3177,7 +3185,195 @@ async function openProfileModal() {
     loading.style.display = '';
   }
   if (prefsBody) hide('notif-prefs-body');
+
+  // Reset export panel to collapsed state
+  const exportCol = $('profile-export-collapsible');
+  const exportToggle = $('profile-export-toggle');
+  const exportChevron = $('profile-export-chevron');
+  if (exportCol) exportCol.style.display = 'none';
+  if (exportToggle) exportToggle.setAttribute('aria-expanded', 'false');
+  if (exportChevron) exportChevron.style.transform = '';
+
+  hide('profile-export-msg');
   show('profile-modal');
+}
+
+function fmtProfileDateTime(value) {
+  if (!value) return '—';
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '—';
+  return dt.toLocaleString('de-DE', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function exportStatusLabel(status) {
+  if (status === 'ready') return 'Bereit';
+  if (status === 'running') return 'Wird erstellt';
+  if (status === 'failed') return 'Fehlgeschlagen';
+  return 'Eingeplant';
+}
+
+function exportStatusBadge(status) {
+  const map = {
+    ready:   { label: 'Bereit',         bg: '#1a7f4e', color: '#fff' },
+    running: { label: 'Wird erstellt',  bg: '#1a5fa8', color: '#fff' },
+    failed:  { label: 'Fehlgeschlagen', bg: '#c0392b', color: '#fff' },
+    queued:  { label: 'Eingeplant',     bg: '#666',    color: '#fff' },
+  };
+  const s = map[status] || map.queued;
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:${s.bg};color:${s.color}">${s.label}</span>`;
+}
+
+async function downloadExportAuthenticated(downloadUrl, fallbackName = 'export.zip') {
+  try {
+    const token = getAccessToken();
+    if (!token) throw new Error('Nicht eingeloggt');
+
+    const response = await fetch(backupSrc(downloadUrl), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      let serverMsg = '';
+      try {
+        const data = await response.json();
+        serverMsg = data?.error || '';
+      } catch (_) {}
+      throw new Error(serverMsg || `Download fehlgeschlagen (HTTP ${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fallbackName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch (e) {
+    toast(e.message || 'Export konnte nicht heruntergeladen werden.', 'error');
+  }
+}
+
+function renderProfileExports(exports = []) {
+  const list = $('profile-export-list');
+  if (!list) return;
+
+  if (profileExportsLoading) {
+    list.innerHTML =
+      '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">Exporte werden geladen…</div>';
+    return;
+  }
+
+  if (!exports.length) {
+    list.innerHTML =
+      '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">Noch keine Exporte vorhanden.</div>';
+    return;
+  }
+
+  list.innerHTML = exports
+    .map((entry) => {
+      const size = Number.isFinite(entry.sizeBytes)
+        ? `${Math.max(1, Math.round(entry.sizeBytes / 1024 / 1024))} MB`
+        : '—';
+      const canDownload = !!entry.downloadUrl && !entry.expired;
+      const downloadButton = canDownload
+        ? `<button class="btn btn-ghost" onclick="downloadExportAuthenticated('${esc(entry.downloadUrl)}','export_${esc(entry.id)}.zip')" style="font-size:11px;padding:5px 10px">Download</button>`
+        : `<button class="btn btn-ghost" disabled style="font-size:11px;padding:5px 10px;opacity:.55;cursor:not-allowed">Download</button>`;
+      return `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--panel2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <div>${exportStatusBadge(entry.status)}</div>
+            ${downloadButton}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;display:grid;gap:3px">
+            <div>Erstellt: ${esc(fmtProfileDateTime(entry.createdAt))}</div>
+            <div>Gültig bis: ${esc(fmtProfileDateTime(entry.linkExpiry))}</div>
+            <div>Dateien: ${esc(String(entry.photoCount || 0))}, Größe: ${esc(size)}</div>
+            ${entry.errorMessage ? `<div style="color:#d46f6f">Fehler: ${esc(entry.errorMessage)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+async function loadMyExports() {
+  const btn = $('profile-export-refresh-btn');
+  profileExportsLoading = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Lade…';
+  }
+  renderProfileExports([]);
+  let exportsList = [];
+  let loadError = null;
+
+  try {
+    const data = await apiCall('/exports/mine', 'GET');
+    exportsList = data?.exports || [];
+  } catch (e) {
+    loadError = e;
+  } finally {
+    profileExportsLoading = false;
+    renderProfileExports(exportsList);
+    if (loadError) {
+      flashInlineMessage(
+        'profile-export-msg',
+        'error',
+        loadError.serverMessage || 'Exporte konnten nicht geladen werden.'
+      );
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Aktualisieren';
+    }
+  }
+}
+
+async function requestMyContentExport() {
+  const btn = $('profile-export-request-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird angefordert…';
+  }
+
+  try {
+    const data = await apiCall('/exports/request', 'POST');
+    const status = data?.export?.status ? ` (Status: ${exportStatusLabel(data.export.status)})` : '';
+    flashInlineMessage('profile-export-msg', 'success', `✓ Export angefordert${status}`);
+    toast('Export wurde gestartet.', 'success');
+    await loadMyExports();
+  } catch (e) {
+    const err = e.serverMessage || e.message || 'Export konnte nicht angefordert werden.';
+    flashInlineMessage('profile-export-msg', 'error', err);
+    toast(err, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Export anfordern';
+    }
+  }
+}
+
+function toggleProfileExports() {
+  const col = $('profile-export-collapsible');
+  const toggle = $('profile-export-toggle');
+  const chevron = $('profile-export-chevron');
+  if (!col) return;
+  const open = col.style.display !== 'none';
+  col.style.display = open ? 'none' : 'block';
+  if (toggle) toggle.setAttribute('aria-expanded', String(!open));
+  if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+  if (!open) loadMyExports();
 }
 
 function renderColorSwatches() {
@@ -4903,6 +5099,73 @@ function closeAdminUsers() {
 
 // ── ADMIN BACKUPS ─────────────────────────────────────────
 
+let _adminExportsCache = [];
+
+function _filterAdminExports() {
+  const input = document.getElementById('admin-exports-filter');
+  const query = (input?.value || '').trim().toLowerCase();
+  const inner = document.getElementById('admin-exports-inner-list');
+  if (!inner) return;
+
+  const filtered = query
+    ? _adminExportsCache.filter(
+        (e) =>
+          (e.userLabel || e.userId || '').toLowerCase().includes(query) ||
+          (e.status || '').toLowerCase().includes(query)
+      )
+    : _adminExportsCache;
+
+  const buildExportCard = (e) => {
+    const created = new Date(e.createdAt).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    const createdTime = new Date(e.createdAt).toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const expiry = new Date(e.linkExpiry);
+    const now = new Date();
+    const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+    const expired = e.expired || daysLeft <= 0;
+    const expiryStr = expired ? 'Abgelaufen' : `noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''}`;
+    const sizeMB = e.sizeBytes ? (e.sizeBytes / 1024 / 1024).toFixed(1) + ' MB' : null;
+    return `
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-weight:700;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 ${esc(e.userLabel || e.userId)}</span>
+              ${exportStatusBadge(e.status)}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+              <span style="font-size:12px;color:var(--muted)">🗓 ${created}, ${createdTime} Uhr</span>
+              <span style="font-size:12px;color:var(--muted)">🖼️ ${e.photoCount || 0} Datei${e.photoCount === 1 ? '' : 'en'}</span>
+              ${sizeMB ? `<span style="font-size:12px;color:var(--muted)">💾 ${sizeMB}</span>` : ''}
+            </div>
+            <div style="font-size:12px;color:${expired ? 'var(--danger,#e05555)' : 'var(--muted)'};margin-top:4px;font-weight:600">${expiryStr}</div>
+            ${e.errorMessage ? `<div style="font-size:12px;color:var(--danger,#e05555);margin-top:4px">${esc(e.errorMessage)}</div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start">
+            ${e.downloadUrl && !expired ? `<button onclick="downloadExportAuthenticated('${esc(e.downloadUrl)}','export_${esc(e.id)}.zip')" style="background:var(--accent);border:none;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Download</button>` : ''}
+            <button onclick="adminRefreshUserExportLink('${esc(e.id)}')" style="background:var(--accent-l);border:none;color:var(--accent);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Link erneuern</button>
+            <button onclick="adminDeleteUserExport('${esc(e.id)}','${esc(e.userLabel || e.userId)}')" style="background:none;border:1.5px solid var(--danger,#e05555);color:var(--danger,#e05555);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Löschen</button>
+          </div>
+        </div>
+      </div>`;
+  };
+
+  if (!filtered.length) {
+    inner.innerHTML =
+      query
+        ? `<div style="font-size:12px;color:var(--muted)">Keine Ergebnisse für „${esc(query)}“.</div>`
+        : '<div style="font-size:12px;color:var(--muted)">Keine User-Exporte vorhanden.</div>';
+    return;
+  }
+  inner.innerHTML = filtered.map(buildExportCard).join('');
+}
+
 async function openAdminBackups() {
   closeSidebar();
   show('admin-backups-modal');
@@ -4918,13 +5181,13 @@ async function renderAdminBackups() {
   list.innerHTML =
     '<div style="display:flex;justify-content:center;padding:30px"><div class="spinner"></div></div>';
   try {
-    const { backups } = await apiCall('/groups/admin/backups', 'GET');
-    if (!backups?.length) {
-      list.innerHTML =
-        '<p style="color:var(--muted);text-align:center;padding:24px">Keine Backups vorhanden.</p>';
-      return;
-    }
-    list.innerHTML = backups
+    const [{ backups }, exportsPayload] = await Promise.all([
+      apiCall('/groups/admin/backups', 'GET'),
+      apiCall('/exports/admin/exports', 'GET'),
+    ]);
+    _adminExportsCache = exportsPayload?.exports || [];
+
+    const backupHtml = (backups || [])
       .map((b) => {
         const created = new Date(b.createdAt).toLocaleDateString('de-DE', {
           day: '2-digit',
@@ -4940,8 +5203,8 @@ async function renderAdminBackups() {
         const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
         const expired = b.expired || daysLeft <= 0;
         const expiryStr = expired
-          ? '⛔ Abgelaufen'
-          : `⏳ noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''}`;
+          ? 'Abgelaufen'
+          : `noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''}`;
         const expiryColor = expired
           ? 'var(--danger,#e05555)'
           : daysLeft <= 7
@@ -4962,14 +5225,44 @@ async function renderAdminBackups() {
             <div style="font-size:12px;color:${expiryColor};margin-top:4px;font-weight:600">${expiryStr}</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start">
-            ${!expired ? `<a href="${esc(backupSrc(b.downloadUrl))}" target="_blank" rel="noopener" style="background:var(--accent);color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center">📥 Download</a>` : ''}
-            <button onclick="adminRefreshBackupLink('${esc(b.zipKey)}')" style="background:var(--accent-l);border:none;color:var(--accent);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">🔗 Link erneuern</button>
-            <button onclick="adminDeleteBackupEntry('${esc(b.zipKey)}','${esc(b.groupName)}')" style="background:none;border:1.5px solid var(--danger,#e05555);color:var(--danger,#e05555);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">🗑</button>
+            ${!expired ? `<a href="${esc(backupSrc(b.downloadUrl))}" target="_blank" rel="noopener" style="background:var(--accent);color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center">Download</a>` : ''}
+            <button onclick="adminRefreshBackupLink('${esc(b.zipKey)}')" style="background:var(--accent-l);border:none;color:var(--accent);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Link erneuern</button>
+            <button onclick="adminDeleteBackupEntry('${esc(b.zipKey)}','${esc(b.groupName)}')" style="background:none;border:1.5px solid var(--danger,#e05555);color:var(--danger,#e05555);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Löschen</button>
           </div>
         </div>
       </div>`;
       })
       .join('');
+
+    if (!backupHtml && !_adminExportsCache.length) {
+      list.innerHTML =
+        '<p style="color:var(--muted);text-align:center;padding:24px">Keine Backups oder Exporte vorhanden.</p>';
+      return;
+    }
+
+    list.innerHTML = `
+      <div style="display:grid;gap:14px">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Gruppen-Backups</div>
+          <div style="display:flex;flex-direction:column;gap:10px">${backupHtml || '<div style="font-size:12px;color:var(--muted)">Keine Gruppen-Backups vorhanden.</div>'}</div>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+            <div style="font-size:12px;font-weight:700;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">User-Exporte</div>
+            <button onclick="adminCleanupExpiredExports()" style="background:none;border:1.5px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Abgelaufene aufräumen</button>
+          </div>
+          <input
+            id="admin-exports-filter"
+            type="search"
+            placeholder="Suche nach Nutzer oder Status…"
+            oninput="_filterAdminExports()"
+            style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--input,var(--panel2));color:var(--text);margin-bottom:10px"
+          >
+          <div id="admin-exports-inner-list" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+      </div>
+    `;
+    _filterAdminExports();
   } catch (e) {
     list.innerHTML = `<p style="color:var(--danger,#e05555);text-align:center;padding:24px">${esc(e.message)}</p>`;
   }
@@ -5001,6 +5294,49 @@ async function adminDeleteBackupEntry(zipKey, groupName) {
   try {
     await apiCall(`/groups/admin/backups/${encodeURIComponent(zipKey)}`, 'DELETE');
     toast('Backup gelöscht', 'success');
+    await renderAdminBackups();
+  } catch (e) {
+    toast('❌ ' + (e.serverMessage || e.message), 'error');
+  }
+}
+
+async function adminRefreshUserExportLink(exportId) {
+  try {
+    const { linkExpiry } = await apiCall(
+      `/exports/admin/exports/${encodeURIComponent(exportId)}/refresh`,
+      'POST'
+    );
+    const d = new Date(linkExpiry).toLocaleDateString('de-DE');
+    toast(`Export-Link verlängert bis ${d}`, 'success');
+    await renderAdminBackups();
+  } catch (e) {
+    toast('❌ ' + (e.serverMessage || e.message), 'error');
+  }
+}
+
+async function adminDeleteUserExport(exportId, userLabel) {
+  const confirmed = await showConfirmDlg(
+    'Export endgültig löschen',
+    `Der Export von „${userLabel}" wird unwiderruflich gelöscht.`,
+    'Löschen',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiCall(`/exports/admin/exports/${encodeURIComponent(exportId)}`, 'DELETE');
+    toast('Export gelöscht', 'success');
+    await renderAdminBackups();
+  } catch (e) {
+    toast('❌ ' + (e.serverMessage || e.message), 'error');
+  }
+}
+
+async function adminCleanupExpiredExports() {
+  try {
+    const result = await apiCall('/exports/admin/exports/cleanup', 'POST');
+    toast(`Cleanup: ${result.removed} gelöscht, ${result.errors} Fehler`, 'success');
     await renderAdminBackups();
   } catch (e) {
     toast('❌ ' + (e.serverMessage || e.message), 'error');
@@ -7189,6 +7525,9 @@ Object.assign(window, {
   clearAvatar,
   setUserColor,
   setDisplayName,
+  toggleProfileExports,
+  loadMyExports,
+  requestMyContentExport,
   // Groups
   switchGroup,
   openJoinGroup,
@@ -7241,6 +7580,11 @@ Object.assign(window, {
   adminGroupDoBackup,
   adminGroupDoDelete,
   adminGroupConfirmDelete,
+  downloadExportAuthenticated,
+  adminRefreshUserExportLink,
+  adminDeleteUserExport,
+  adminCleanupExpiredExports,
+  _filterAdminExports,
   openAdminUsers,
   closeAdminUsers,
   adminSetRole,
