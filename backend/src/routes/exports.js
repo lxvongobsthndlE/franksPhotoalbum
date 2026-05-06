@@ -60,7 +60,9 @@ function buildPhotosCsv(photos) {
       photo.group?.name ?? '',
       albums.map((a) => a.id).join('|'),
       albums.map((a) => a.name).join('|'),
-      photo.createdAt instanceof Date ? photo.createdAt.toISOString() : String(photo.createdAt || ''),
+      photo.createdAt instanceof Date
+        ? photo.createdAt.toISOString()
+        : String(photo.createdAt || ''),
     ]
       .map(toCsvValue)
       .join(',');
@@ -81,7 +83,8 @@ function toPublicExportDto(record) {
     readyAt: record.readyAt,
     linkExpiry: record.linkExpiry,
     expired,
-    downloadUrl: record.status === 'ready' && !expired ? `/api/exports/${record.id}/download` : null,
+    downloadUrl:
+      record.status === 'ready' && !expired ? `/api/exports/${record.id}/download` : null,
   };
 }
 
@@ -160,23 +163,26 @@ export function startUserExportCleanupTask(fastify) {
     Number(process.env.EXPORT_CLEANUP_INTERVAL_MINUTES || EXPORT_CLEANUP_DEFAULT_MINUTES)
   );
 
-  const timer = setInterval(async () => {
-    try {
-      const result = await cleanupExpiredUserExports(fastify);
-      if (result.removed > 0 || result.errors > 0) {
-        fastify.log.info(
-          {
-            removed: result.removed,
-            errors: result.errors,
-            scanned: result.scanned,
-          },
-          'Export cleanup completed'
-        );
+  const timer = setInterval(
+    async () => {
+      try {
+        const result = await cleanupExpiredUserExports(fastify);
+        if (result.removed > 0 || result.errors > 0) {
+          fastify.log.info(
+            {
+              removed: result.removed,
+              errors: result.errors,
+              scanned: result.scanned,
+            },
+            'Export cleanup completed'
+          );
+        }
+      } catch (error) {
+        fastify.log.error(error, 'Export cleanup task failed');
       }
-    } catch (error) {
-      fastify.log.error(error, 'Export cleanup task failed');
-    }
-  }, intervalMinutes * 60 * 1000);
+    },
+    intervalMinutes * 60 * 1000
+  );
 
   if (typeof timer.unref === 'function') timer.unref();
   return () => clearInterval(timer);
@@ -236,15 +242,10 @@ async function processUserExport(fastify, exportId) {
       })),
     };
 
-    await createUserExportZip(
-      exportRecord.userId,
-      exportRecord.zipKey,
-      photos,
-      {
-        json: metadataJson,
-        csv: buildPhotosCsv(photos),
-      }
-    );
+    await createUserExportZip(exportRecord.userId, exportRecord.zipKey, photos, {
+      json: metadataJson,
+      csv: buildPhotosCsv(photos),
+    });
 
     const stat = await getUserExportStat(exportRecord.zipKey).catch(() => null);
     await fastify.prisma.userExport.update({
@@ -292,7 +293,10 @@ export function enqueueUserExportJob(fastify, exportId) {
   void runExportWorker(fastify);
 }
 
-export async function recoverPendingUserExports(fastify, { limit = EXPORT_RECOVERY_DEFAULT_LIMIT } = {}) {
+export async function recoverPendingUserExports(
+  fastify,
+  { limit = EXPORT_RECOVERY_DEFAULT_LIMIT } = {}
+) {
   const pending = await fastify.prisma.userExport.findMany({
     where: { status: { in: ['queued', 'running'] } },
     orderBy: { createdAt: 'asc' },

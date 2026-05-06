@@ -3217,10 +3217,10 @@ function exportStatusLabel(status) {
 
 function exportStatusBadge(status) {
   const map = {
-    ready:   { label: 'Bereit',         bg: '#1a7f4e', color: '#fff' },
-    running: { label: 'Wird erstellt',  bg: '#1a5fa8', color: '#fff' },
-    failed:  { label: 'Fehlgeschlagen', bg: '#c0392b', color: '#fff' },
-    queued:  { label: 'Eingeplant',     bg: '#666',    color: '#fff' },
+    ready: { label: 'Bereit', bg: '#1a7f4e', color: '#fff' },
+    running: { label: 'Wird erstellt', bg: '#1a5fa8', color: '#fff' },
+    failed: { label: 'Fehlgeschlagen', bg: '#c0392b', color: '#fff' },
+    queued: { label: 'Eingeplant', bg: '#666', color: '#fff' },
   };
   const s = map[status] || map.queued;
   return `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:${s.bg};color:${s.color}">${s.label}</span>`;
@@ -3339,7 +3339,9 @@ async function requestMyContentExport() {
 
   try {
     const data = await apiCall('/exports/request', 'POST');
-    const status = data?.export?.status ? ` (Status: ${exportStatusLabel(data.export.status)})` : '';
+    const status = data?.export?.status
+      ? ` (Status: ${exportStatusLabel(data.export.status)})`
+      : '';
     flashInlineMessage('profile-export-msg', 'success', `✓ Export angefordert${status}`);
     toast('Export wurde gestartet.', 'success');
     await loadMyExports();
@@ -5148,10 +5150,9 @@ function _filterAdminExports() {
   };
 
   if (!filtered.length) {
-    inner.innerHTML =
-      query
-        ? `<div style="font-size:12px;color:var(--muted)">Keine Ergebnisse für „${esc(query)}“.</div>`
-        : '<div style="font-size:12px;color:var(--muted)">Keine User-Exporte vorhanden.</div>';
+    inner.innerHTML = query
+      ? `<div style="font-size:12px;color:var(--muted)">Keine Ergebnisse für „${esc(query)}“.</div>`
+      : '<div style="font-size:12px;color:var(--muted)">Keine User-Exporte vorhanden.</div>';
     return;
   }
   inner.innerHTML = filtered.map(buildExportCard).join('');
