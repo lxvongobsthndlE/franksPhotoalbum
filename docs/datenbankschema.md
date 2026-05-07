@@ -14,6 +14,7 @@ User ──< GroupMember >── Group ──< Album ──< AlbumContributor >�
   │                                   └──< Like
   │
   ├──< UserExport
+  ├──  AccountDeletionRequest
   │
   ├──< FeedbackReport ──< FeedbackMessage
   │          │
@@ -245,6 +246,41 @@ Hinweise:
 - `downloadToken` ist der signierte, schwer erratbare Public-Link-Token
 - `linkExpiry` bestimmt die Gueltigkeit des Download-Links (30 Tage)
 - `status=failed` enthaelt in `errorMessage` eine gekuerzte Fehlerursache
+
+---
+
+### AccountDeletionRequest
+
+Zwischenspeicher für Account-Löschung mit Bestätigungscode, Reaktivierung und 14-Tage-Purge.
+
+```prisma
+model AccountDeletionRequest {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  codeHash        String
+  codeExpiresAt   DateTime
+  requestedAt     DateTime @default(now())
+  lastCodeSentAt  DateTime @default(now())
+  confirmAttempts Int      @default(0)
+  status          String   @default("pending") // pending | confirmed | reactivated | purged
+  keepContent     Boolean?
+  successorUserId String?
+  confirmedAt     DateTime?
+  purgeAt         DateTime?
+  reactivatedAt   DateTime?
+
+  @@index([status, purgeAt])
+  @@map("account_deletion_requests")
+}
+```
+
+Hinweise:
+
+- `status=confirmed` bedeutet: Account ist deaktiviert und zur endgültigen Löschung eingeplant.
+- `purgeAt` steuert die harte Löschung im Background-Task (ein Lauf beim Startup + Intervalllauf).
+- `successorUserId` überschreibt `keepContent` und übernimmt Ownership von Inhalten.
+- Wenn `keepContent=true` und kein Erbe gesetzt ist, wird Content auf ein internes Systemprofil (`auth_source='system'`, Name `Gelöscht`) übertragen.
+- Reaktivierung via explizitem Login setzt den Status auf `reactivated`, solange der User noch nicht tatsächlich gepurgt wurde.
 
 ---
 

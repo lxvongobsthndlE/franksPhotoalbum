@@ -38,6 +38,7 @@ model User {
   feedbackMessages   FeedbackMessage[]
   createdInvites     GroupInvite[] @relation("GroupInviteCreator")
   exports            UserExport[]
+  accountDeletionRequest AccountDeletionRequest?
 }
 
 model Group {
@@ -212,6 +213,27 @@ model UserExport {
   @@index([status, createdAt(sort: Desc)])
   @@index([linkExpiry])
   @@map("user_exports")
+}
+
+model AccountDeletionRequest {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  codeHash          String
+  codeExpiresAt     DateTime
+  requestedAt       DateTime @default(now())
+  lastCodeSentAt    DateTime @default(now())
+  confirmAttempts   Int      @default(0)
+  status            String   @default("pending") // pending | confirmed | reactivated | purged
+  keepContent       Boolean?
+  successorUserId   String?
+  confirmedAt       DateTime?
+  purgeAt           DateTime?
+  reactivatedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, purgeAt])
+  @@map("account_deletion_requests")
 }
 
 model ChangelogEntry {

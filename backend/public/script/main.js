@@ -98,6 +98,7 @@ let pendingInviteToken = null;
 let pendingLoggedInInviteToken = null;
 let adminGroupsCache = [];
 let profileExportsLoading = false;
+let profileDeletionCandidatesLoaded = false;
 
 async function loadInvitePreview(token) {
   try {
@@ -1297,7 +1298,7 @@ function renderGrid(appendFrom = 0) {
   const html = photosToRender
     .map((p, idx) => {
       const i = startIdx + idx;
-      const u = allProfiles[p.uploaderId] || {};
+      const u = allProfiles[p.uploaderId] || p.uploader || {};
       const url = urlCache[p.id] || '';
       const canDel = p.uploaderId === me.id;
       const liked = p._liked || false;
@@ -2300,7 +2301,7 @@ function resetLbVideoElement() {
 async function openLB(i) {
   lbIdx = i;
   const p = photos[i],
-    u = allProfiles[p.uploaderId] || {};
+    u = allProfiles[p.uploaderId] || p.uploader || {};
   show('lb');
   initLbSwipe();
   // Lightbox: Foto-URL aus Cache
@@ -3195,6 +3196,16 @@ async function openProfileModal() {
   if (exportChevron) exportChevron.style.transform = '';
 
   hide('profile-export-msg');
+
+  // Reset account deletion panel to collapsed state
+  const delCol = $('profile-delete-collapsible');
+  const delToggle = $('profile-delete-toggle');
+  const delChevron = $('profile-delete-chevron');
+  if (delCol) delCol.style.display = 'none';
+  if (delToggle) delToggle.setAttribute('aria-expanded', 'false');
+  if (delChevron) delChevron.style.transform = '';
+  hide('profile-delete-msg');
+
   show('profile-modal');
 }
 
@@ -3367,6 +3378,150 @@ function toggleProfileExports() {
   if (toggle) toggle.setAttribute('aria-expanded', String(!open));
   if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
   if (!open) loadMyExports();
+}
+
+function onProfileDeleteSuccessorChange() {
+  const successorId = $('profile-delete-successor')?.value || '';
+  const keepContent = $('profile-delete-keep-content');
+  if (!keepContent) return;
+  if (successorId) {
+    keepContent.checked = true;
+    keepContent.disabled = true;
+  } else {
+    keepContent.disabled = false;
+  }
+}
+
+async function loadProfileDeletionCandidates() {
+  const sel = $('profile-delete-successor');
+  if (!sel || profileDeletionCandidatesLoaded) return;
+
+  try {
+    const { users } = await apiCall('/feedback/eligible-users', 'GET');
+    const entries = (users || []).filter((u) => u?.id && u.id !== me?.id);
+    sel.innerHTML =
+      '<option value="">— Kein Erbe —</option>' +
+      entries
+        .map(
+          (u) =>
+            `<option value="${esc(u.id)}">${esc(getVisibleName(u, u.displayNameField) || u.username || u.name || 'Unbekannt')}</option>`
+        )
+        .join('');
+    profileDeletionCandidatesLoaded = true;
+  } catch {
+    sel.innerHTML = '<option value="">— Erben-Liste konnte nicht geladen werden —</option>';
+  }
+}
+
+async function loadAccountDeletionStatus() {
+  try {
+    const status = await apiCall('/account-deletion/status', 'GET');
+    if (status?.status === 'scheduled' && status.purgeAt) {
+      flashInlineMessage(
+        'profile-delete-msg',
+        'info',
+        `Löschung geplant für ${fmtProfileDateTime(status.purgeAt)} (${status.daysRemaining} Tage verbleibend).`,
+        8000
+      );
+    }
+  } catch {
+    // Kein harter Fehler für den Status-Check
+  }
+}
+
+function toggleProfileAccountDeletion() {
+  const col = $('profile-delete-collapsible');
+  const toggle = $('profile-delete-toggle');
+  const chevron = $('profile-delete-chevron');
+  if (!col) return;
+
+  const open = col.style.display !== 'none';
+  col.style.display = open ? 'none' : 'block';
+  if (toggle) toggle.setAttribute('aria-expanded', String(!open));
+  if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+
+  if (!open) {
+    void loadProfileDeletionCandidates();
+    void loadAccountDeletionStatus();
+  }
+}
+
+async function requestAccountDeletionCode() {
+  const btn = $('profile-delete-send-code-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Fordere an…';
+  }
+
+  try {
+    const result = await apiCall('/account-deletion/request', 'POST');
+    flashInlineMessage(
+      'profile-delete-msg',
+      'success',
+      result.message || 'Bestätigungscode wurde angefordert.'
+    );
+    toast('Bestätigungscode wurde angefordert.', 'success');
+  } catch (e) {
+    const msg = e.serverMessage || e.message || 'Code konnte nicht angefordert werden.';
+    flashInlineMessage('profile-delete-msg', 'error', msg, 7000);
+    toast(msg, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Bestätigungscode anfordern';
+    }
+  }
+}
+
+async function confirmAccountDeletion() {
+  const code = String($('profile-delete-code')?.value || '').trim();
+  const successorUserId = $('profile-delete-successor')?.value || '';
+  const keepContent = !!$('profile-delete-keep-content')?.checked;
+  const btn = $('profile-delete-confirm-btn');
+
+  if (!code) {
+    flashInlineMessage('profile-delete-msg', 'error', 'Bitte gib den Bestätigungscode ein.');
+    return;
+  }
+
+  const confirmed = await showConfirmDlg(
+    'Account deaktivieren',
+    'Dein Account wird für 14 Tage deaktiviert und danach endgültig gelöscht. Möchtest du fortfahren?',
+    'Jetzt deaktivieren',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird deaktiviert…';
+  }
+
+  try {
+    const payload = {
+      code,
+      successorUserId: successorUserId || null,
+      keepContent: successorUserId ? false : keepContent,
+    };
+    const result = await apiCall('/account-deletion/confirm', 'POST', payload);
+    flashInlineMessage(
+      'profile-delete-msg',
+      'success',
+      result.message || 'Account wurde deaktiviert.'
+    );
+    toast('Account wurde deaktiviert. Du wirst jetzt abgemeldet.', 'success');
+    await logout();
+  } catch (e) {
+    const msg = e.serverMessage || e.message || 'Account konnte nicht deaktiviert werden.';
+    flashInlineMessage('profile-delete-msg', 'error', msg, 7000);
+    toast(msg, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Account jetzt deaktivieren';
+    }
+  }
 }
 
 function renderColorSwatches() {
@@ -7518,6 +7673,10 @@ Object.assign(window, {
   setUserColor,
   setDisplayName,
   toggleProfileExports,
+  toggleProfileAccountDeletion,
+  onProfileDeleteSuccessorChange,
+  requestAccountDeletionCode,
+  confirmAccountDeletion,
   loadMyExports,
   requestMyContentExport,
   // Groups

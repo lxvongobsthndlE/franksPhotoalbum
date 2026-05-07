@@ -4533,6 +4533,109 @@ textarea {
   cursor: pointer;
   font-family: inherit;
 }
+
+.profile-delete-warning {
+  font-size: 12px;
+  color: var(--text2);
+  margin: 0 0 10px;
+  font-weight: 500;
+  line-height: 1.45;
+  padding: 10px 11px;
+  border: 1px solid rgba(200, 70, 70, 0.35);
+  border-left: 4px solid #c84646;
+  border-radius: 10px;
+  background: rgba(200, 70, 70, 0.07);
+}
+
+.profile-delete-warning ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.profile-delete-warning li {
+  line-height: 1.45;
+}
+
+[data-theme='dark'] .profile-delete-warning {
+  border-color: rgba(224, 112, 112, 0.4);
+  border-left-color: #e07070;
+  background: rgba(224, 112, 112, 0.15);
+}
+
+.profile-delete-keep-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin: 0;
+}
+
+.profile-delete-code-request {
+  margin-top: 12px;
+  margin-bottom: 10px;
+}
+
+.inline-help-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.inline-help-tip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.inline-help-pop {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 260px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-shadow: var(--shadow2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+  z-index: 20;
+}
+
+.inline-help-tip:hover .inline-help-pop,
+.inline-help-tip:focus-visible .inline-help-pop {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (max-width: 640px) {
+  .inline-help-pop {
+    left: auto;
+    right: 0;
+    top: 22px;
+    transform: none;
+    width: min(240px, 74vw);
+  }
+}
 .au-role-select:focus {
   outline: none;
   border-color: var(--accent);

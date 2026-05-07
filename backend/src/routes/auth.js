@@ -7,6 +7,7 @@ import {
 } from '../utils/oidc.js';
 import { uploadAvatar, getAvatarStream, getAvatarStat, deleteAvatar } from '../utils/storage.js';
 import { normalizeInviteToken, redeemInviteForUser } from '../utils/invites.js';
+import { reactivateDeletionOnLogin } from './account-deletion.js';
 
 // Session-Management (In Production: Redis verwenden)
 const stateStore = new Map();
@@ -48,6 +49,16 @@ function createSessionTokens(fastify, userId, email, username) {
   const refreshToken = fastify.jwt.sign({ id: userId, type: 'refresh' }, { expiresIn: '7d' });
 
   return { accessToken, refreshToken };
+}
+
+async function hasActiveDeletion(prisma, userId) {
+  const record = await prisma.accountDeletionRequest.findUnique({
+    where: { userId },
+    select: { status: true, purgeAt: true },
+  });
+  return (
+    !!record && record.status === 'confirmed' && (!record.purgeAt || record.purgeAt > new Date())
+  );
 }
 
 async function syncUserFromOIDC(fastify, userInfo) {
@@ -180,11 +191,11 @@ export default async function authRoutes(fastify) {
       const tokenSet = await handleCallback(code, state);
       const userInfo = tokenSet.claims();
 
-      // TEMP DEBUG: zeigt den von Authentik gelieferten auth_source-Claim.
-      fastify.log.info({ auth_source: userInfo?.auth_source ?? null }, 'OIDC auth_source claim');
-
       // Sync/create user in DB
       const user = await syncUserFromOIDC(fastify, userInfo);
+
+      // Login reaktiviert einen zuvor deaktivierten Account
+      await reactivateDeletionOnLogin(fastify.prisma, user.id);
 
       // Generiere Session Tokens
       const { accessToken, refreshToken } = createSessionTokens(
@@ -270,6 +281,10 @@ export default async function authRoutes(fastify) {
         return reply.code(401).send({ error: 'User not found' });
       }
 
+      if (await hasActiveDeletion(fastify.prisma, user.id)) {
+        return reply.code(403).send({ error: 'Account ist deaktiviert. Bitte neu einloggen.' });
+      }
+
       // Generiere neuen Access Token
       const accessToken = fastify.jwt.sign(
         { id: user.id, email: user.email, username: user.username, type: 'access' },
@@ -294,6 +309,10 @@ export default async function authRoutes(fastify) {
 
       if (!user) {
         return reply.code(404).send({ error: 'User not found' });
+      }
+
+      if (await hasActiveDeletion(fastify.prisma, user.id)) {
+        return reply.code(403).send({ error: 'Account ist deaktiviert. Bitte neu einloggen.' });
       }
 
       return {

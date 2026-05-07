@@ -137,10 +137,9 @@ export async function logout() {
     clearTimeout(refreshTokenTimeout);
   }
 
-  // Zu Authentik weiterleiten um die dortge Session zu beenden
-  if (endSessionUrl) {
-    window.location.href = endSessionUrl;
-  }
+  // Zu Authentik weiterleiten um die dortige Session zu beenden,
+  // oder Fallback auf App-Root damit die UI den Login-Screen zeigt
+  window.location.href = endSessionUrl || '/';
 }
 
 // ── API CALL HELPER WITH AUTO-AUTHORIZATION ────────────────

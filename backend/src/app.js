@@ -27,6 +27,10 @@ import changelogRoutes from './routes/changelog.js';
 import feedbackRoutes from './routes/feedback.js';
 import invitesRoutes from './routes/invites.js';
 import exportsRoutes from './routes/exports.js';
+import accountDeletionRoutes, {
+  createActiveDeletionGuard,
+  startAccountDeletionPurgeTask,
+} from './routes/account-deletion.js';
 import { recoverPendingUserExports, startUserExportCleanupTask } from './routes/exports.js';
 
 dotenv.config({ path: '.env.local' });
@@ -50,6 +54,7 @@ const loggerConfig =
 
 const app = Fastify({ logger: loggerConfig });
 let stopUserExportCleanupTask = null;
+let stopAccountDeletionPurgeTask = null;
 
 // Stelle sicher, dass JS/CSS mit korrektem MIME-Type geladen werden
 app.addHook('onSend', (request, reply, payload, done) => {
@@ -99,6 +104,8 @@ await app.register(rateLimit, { global: false });
 // Prisma als Decorator verfügbar machen
 app.decorate('prisma', prisma);
 
+app.addHook('preHandler', createActiveDeletionGuard({ prisma, jwt: app.jwt }));
+
 // Routes (vor Static!)
 app.register(authRoutes, { prefix: '/api/auth' });
 app.register(photosRoutes, { prefix: '/api/photos' });
@@ -112,6 +119,7 @@ app.register(changelogRoutes, { prefix: '/api/changelog' });
 app.register(feedbackRoutes, { prefix: '/api/feedback' });
 app.register(invitesRoutes, { prefix: '/api/invites' });
 app.register(exportsRoutes, { prefix: '/api/exports' });
+app.register(accountDeletionRoutes, { prefix: '/api/account-deletion' });
 
 // OIDC Callback: Authentik redirectet auf /auth/callback → Frontend-SPA laden, die den Code verarbeitet
 app.get('/auth/callback', async (request, reply) => {
@@ -155,6 +163,7 @@ const start = async () => {
     }
 
     stopUserExportCleanupTask = startUserExportCleanupTask(app);
+    stopAccountDeletionPurgeTask = startAccountDeletionPurgeTask(app);
     const isProd = env === 'production';
 
     const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
@@ -217,8 +226,10 @@ start();
 
 process.on('SIGINT', () => {
   if (stopUserExportCleanupTask) stopUserExportCleanupTask();
+  if (stopAccountDeletionPurgeTask) stopAccountDeletionPurgeTask();
 });
 
 process.on('SIGTERM', () => {
   if (stopUserExportCleanupTask) stopUserExportCleanupTask();
+  if (stopAccountDeletionPurgeTask) stopAccountDeletionPurgeTask();
 });
