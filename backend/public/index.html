@@ -1571,6 +1571,150 @@
             </div>
           </div>
           <!-- ── END CONTENT EXPORT ── -->
+
+          <!-- ── ACCOUNT DELETION ── -->
+          <div style="padding-top: 14px; border-top: 1px solid var(--border); margin-top: 14px">
+            <button
+              onclick="toggleProfileAccountDeletion()"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0;
+                margin-bottom: 0;
+              "
+              aria-expanded="false"
+              id="profile-delete-toggle"
+            >
+              <label
+                style="
+                  display: block;
+                  font-size: 11px;
+                  font-weight: 600;
+                  letter-spacing: 1.2px;
+                  text-transform: uppercase;
+                  color: var(--muted2);
+                  pointer-events: none;
+                "
+                >Account-Löschung</label
+              >
+              <svg
+                id="profile-delete-chevron"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--muted2)"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                style="transition: transform 0.2s"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            <div id="profile-delete-collapsible" style="display: none; margin-top: 12px">
+              <div class="profile-delete-warning">
+                <ul>
+                  <li>
+                    Dein Account wird für 14 Tage deaktiviert und erst danach restlos gelöscht.
+                  </li>
+                  <li>
+                    Wenn du dich innerhalb der 14 Tage erneut einloggst, wird dein Account wieder
+                    aktiviert.
+                  </li>
+                  <li>Empfehlung: Erstelle vor der Löschung einen Content-Export.</li>
+                  <li>
+                    Wenn du keinen Erben wählst und Gruppen-Owner bist, wird die Gruppe entweder
+                    gelöscht (wenn du das letzte Mitglied bist) oder später von einem anderen
+                    Mitglied übernommen.
+                  </li>
+                </ul>
+              </div>
+              <div id="profile-delete-msg" class="msg hidden" style="margin-bottom: 8px"></div>
+              <div class="field" style="margin-bottom: 8px">
+                <label style="font-size: 12px; display: inline-flex; align-items: center; gap: 7px">
+                  Erbe
+                  <span class="inline-help-tip" tabindex="0" aria-label="Info zu Erbe">
+                    i
+                    <span class="inline-help-pop"
+                      >Der User den du als Erbe wählst übernimmt all deine Bilder, Videos, Rollen in
+                      Gruppen und Alben.</span
+                    >
+                  </span>
+                </label>
+                <select
+                  id="profile-delete-successor"
+                  onchange="onProfileDeleteSuccessorChange()"
+                  style="
+                    width: 100%;
+                    padding: 10px 12px;
+                    border-radius: 10px;
+                    border: 1px solid var(--border);
+                    background: var(--card);
+                    color: var(--text);
+                    font-size: 14px;
+                  "
+                >
+                  <option value="">— Kein Erbe —</option>
+                </select>
+              </div>
+              <label class="profile-delete-keep-row">
+                <input id="profile-delete-keep-content" type="checkbox" />
+                Meine Inhalte erhalten?
+                <span class="inline-help-tip" tabindex="0" aria-label="Info zu Inhalte erhalten">
+                  i
+                  <span class="inline-help-pop"
+                    >Bilder und Videos werden nicht gelöscht, aber dein Name wird entfernt und durch
+                    "Gelöscht" ersetzt.</span
+                  >
+                </span>
+              </label>
+              <div
+                class="profile-delete-code-request"
+                style="display: flex; gap: 8px; flex-wrap: wrap"
+              >
+                <button
+                  class="btn btn-ghost"
+                  id="profile-delete-send-code-btn"
+                  style="font-size: 12px; padding: 7px 14px"
+                  onclick="requestAccountDeletionCode()"
+                >
+                  Bestätigungscode anfordern
+                </button>
+              </div>
+              <div class="field" style="margin-bottom: 10px">
+                <label style="font-size: 12px">Bestätigungscode</label>
+                <input
+                  id="profile-delete-code"
+                  type="text"
+                  maxlength="12"
+                  placeholder="Code aus der E-Mail"
+                  style="
+                    width: 100%;
+                    padding: 10px 12px;
+                    border-radius: 10px;
+                    border: 1px solid var(--border);
+                    background: var(--card);
+                    color: var(--text);
+                    font-size: 14px;
+                  "
+                />
+              </div>
+              <button
+                class="btn btn-danger"
+                id="profile-delete-confirm-btn"
+                style="width: 100%"
+                onclick="confirmAccountDeletion()"
+              >
+                Account jetzt deaktivieren
+              </button>
+            </div>
+          </div>
+          <!-- ── END ACCOUNT DELETION ── -->
         </div>
       </div>
     </div>

@@ -47,6 +47,7 @@ export default async function adminRoutes(fastify) {
     if (stop) return;
 
     const users = await fastify.prisma.user.findMany({
+      where: { auth_source: { not: 'system' } },
       orderBy: { name: 'asc' },
       select: {
         id: true,

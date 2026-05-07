@@ -110,7 +110,14 @@ export default async function photosRoutes(fastify) {
           where,
           include: {
             uploader: {
-              select: { id: true, name: true, username: true, color: true, avatar: true },
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                displayNameField: true,
+                color: true,
+                avatar: true,
+              },
             },
             albums: { select: { albumId: true } },
             _count: { select: { likes: true, comments: true } },

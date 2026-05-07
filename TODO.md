@@ -87,6 +87,8 @@ Falls ja:
     * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
 * Logo-Rework
 * State-Store aus auth.js in eigenes Regis auslagern (persist over restart + multi instance support)
+* Gruppen Owner sollen alle Bilder in ihrer Gruppe löschen können (Admins sowieso)
+* Gruppen Owner sollen Uploads in ihrer Gruppe für normale Member sperren können - Checkbox in Gruppe verwalten (nur owner und vertreter dürfen uploaden)
 * Account Deletion and Content Export
     * User sollen ihren eigenen Account löschen können.
         * Neue Schaltfläche im Profil

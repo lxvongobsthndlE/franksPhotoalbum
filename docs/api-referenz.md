@@ -45,6 +45,29 @@ Hinweise:
 
 ---
 
+## Account-Löschung (`/api/account-deletion`)
+
+| Methode | Pfad                            | Beschreibung                                                                    | Auth |
+| ------- | ------------------------------- | ------------------------------------------------------------------------------- | ---- |
+| `POST`  | `/api/account-deletion/request` | Sendet einen Bestätigungscode per Mail für die Account-Löschung                | JWT  |
+| `GET`   | `/api/account-deletion/status`  | Liefert aktuellen Löschstatus (`none`, `pending`, `scheduled`, `reactivated`) | JWT  |
+| `POST`  | `/api/account-deletion/confirm` | Bestätigt Löschung mit Code; Account wird 14 Tage deaktiviert                  | JWT  |
+| `POST`  | `/api/account-deletion/reactivate` | Hebt eine geplante Löschung vor Erreichen von `purgeAt` auf                 | JWT  |
+
+Hinweise:
+
+- Bestätigungscode ist 15 Minuten gültig.
+- Eine bestätigte Löschung wird nach 14 Tagen endgültig ausgeführt (`purgeAt`).
+- Optional kann ein Erbe (`successorUserId`) angegeben werden, der den Content übernimmt.
+- Ohne Erben kann `keepContent=true` gesetzt werden; Content wird dann auf ein Systemprofil übertragen.
+- Nach `confirm` wird der Refresh-Cookie gelöscht; der User wird im Frontend ausgeloggt.
+- Solange ein Löschvorgang `confirmed` ist, sind geschützte API-Endpunkte gesperrt (`403`), ausgenommen Login/Logout und `/api/account-deletion/*`.
+- Login via OIDC reaktiviert einen `confirmed`-Vorgang automatisch, solange der User noch nicht tatsächlich gepurgt wurde (auch wenn `purgeAt` bereits überschritten war).
+- Der Purge-Task läuft einmal beim App-Start und danach periodisch. Intervall: `ACCOUNT_DELETION_PURGE_INTERVAL_MINUTES`, Default 360 Minuten, Minimum 30 Minuten.
+- Pro Purge-Lauf werden bis zu 50 fällige Accounts verarbeitet.
+
+---
+
 ## Medien (`/api/photos`)
 
 | Methode  | Pfad                      | Beschreibung                                                                                                        |
