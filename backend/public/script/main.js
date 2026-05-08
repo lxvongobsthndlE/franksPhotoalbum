@@ -4170,6 +4170,7 @@ async function openSupportModal() {
   const anon = document.getElementById('feedback-anonymous');
   if (anon) anon.checked = false;
   document.getElementById('feedback-reported-user-wrap')?.classList.add('hidden');
+  applyFeedbackCategoryConfig('default');
   try {
     const payload = await apiCall('/feedback/eligible-users', 'GET');
     const users = Array.isArray(payload?.users) ? payload.users : [];
@@ -4191,10 +4192,89 @@ function closeSupportModal() {
   document.getElementById('feedback-modal')?.classList.add('hidden');
 }
 
+const FEEDBACK_CATEGORY_CONFIG = {
+  default: {
+    intro: 'Hast du ein Problem entdeckt, eine Idee oder brauchst Hilfe? Schreib uns!',
+    hint: '',
+    subjectPlaceholder: 'Kurze Zusammenfassung…',
+    bodyPlaceholder: 'Beschreibe dein Anliegen möglichst genau…',
+    anonymousLabel: 'Anonym einreichen (kein Name in der Nachricht an Admins)',
+    successHtml:
+      '<strong>Danke, angekommen!</strong><br><span>Wir haben dein Feedback erhalten und schauen es uns an.</span>',
+  },
+  bug: {
+    intro: 'Melde Bugs so konkret wie möglich, damit wir sie sauber nachstellen können.',
+    hint: 'Hilfreich sind: erwartetes Verhalten, tatsächliches Verhalten und die letzten Schritte davor.',
+    subjectPlaceholder: 'z. B. Export bricht bei großen Alben ab',
+    bodyPlaceholder: 'Was genau ist passiert? Wie lässt sich der Fehler reproduzieren?',
+    anonymousLabel: 'Anonym melden (dein Name bleibt in der Nachricht an Admins verborgen)',
+    successHtml:
+      '<strong>Bug-Meldung eingereicht.</strong><br><span>Wir prüfen den Fehler und melden uns bei Rückfragen im Ticket.</span>',
+  },
+  feature: {
+    intro: 'Beschreibe den gewünschten Mehrwert möglichst konkret, nicht nur die Idee.',
+    hint: 'Hilfreich sind: Problem, gewünschtes Ergebnis und wer von der Änderung profitiert.',
+    subjectPlaceholder: 'z. B. Export mit Album-Auswahl',
+    bodyPlaceholder: 'Welche Funktion fehlt dir und warum wäre sie hilfreich?',
+    anonymousLabel: 'Anonym einreichen (dein Name bleibt im Admin-Ticket verborgen)',
+    successHtml:
+      '<strong>Feature-Wunsch eingereicht.</strong><br><span>Wir prüfen, ob und wie der Vorschlag in die Planung passt.</span>',
+  },
+  help: {
+    intro: 'Wenn du Hilfe brauchst, beschreibe kurz dein Ziel und wo du gerade festhängst.',
+    hint: 'Je klarer dein Ziel beschrieben ist, desto schneller können wir helfen.',
+    subjectPlaceholder: 'z. B. Wie teile ich ein Album mit einer Gruppe?',
+    bodyPlaceholder: 'Was möchtest du erreichen und an welcher Stelle kommst du nicht weiter?',
+    anonymousLabel: 'Anonym fragen (dein Name bleibt im Admin-Ticket verborgen)',
+    successHtml:
+      '<strong>Hilfe-Anfrage eingereicht.</strong><br><span>Wir melden uns über das Ticket bei dir zurück.</span>',
+  },
+  report_user: {
+    intro: 'Nutzer-Meldungen werden als Moderationsfall behandelt.',
+    hint: 'Beschreibe den Vorfall sachlich und konkret. Diese Ticket-Art hat einen separaten Prüfprozess.',
+    subjectPlaceholder: 'z. B. Unangemessener Kommentar im Album',
+    bodyPlaceholder: 'Was ist passiert, wann ist es passiert und warum meldest du den Vorfall?',
+    anonymousLabel: 'Anonym melden (Admins sehen deinen Namen in der Nachricht nicht)',
+    successHtml:
+      '<strong>Nutzer-Meldung eingereicht.</strong><br><span>Der Fall wird geprüft. Antworten im Ticket sind bei dieser Kategorie nicht vorgesehen.</span>',
+  },
+  other: {
+    intro: 'Für Anliegen, die in keine andere Kategorie passen, kannst du hier ein freies Ticket erstellen.',
+    hint: 'Wenn sich dein Anliegen später besser einordnen lässt, kann ein Admin die Ticket-Art anpassen.',
+    subjectPlaceholder: 'Worum geht es?',
+    bodyPlaceholder: 'Beschreibe dein Anliegen möglichst klar und vollständig…',
+    anonymousLabel: 'Anonym einreichen (dein Name bleibt im Admin-Ticket verborgen)',
+    successHtml:
+      '<strong>Ticket eingereicht.</strong><br><span>Wir schauen uns dein Anliegen an und ordnen es bei Bedarf intern neu ein.</span>',
+  },
+};
+
+function applyFeedbackCategoryConfig(category) {
+  const config = FEEDBACK_CATEGORY_CONFIG[category] || FEEDBACK_CATEGORY_CONFIG.default;
+  const intro = document.getElementById('feedback-intro');
+  if (intro) intro.textContent = config.intro;
+
+  const hint = document.getElementById('feedback-category-hint');
+  if (hint) {
+    hint.textContent = config.hint;
+    hint.classList.toggle('hidden', !config.hint);
+  }
+
+  const subject = document.getElementById('feedback-subject');
+  if (subject) subject.placeholder = config.subjectPlaceholder;
+
+  const body = document.getElementById('feedback-body');
+  if (body) body.placeholder = config.bodyPlaceholder;
+
+  const anonymousLabel = document.getElementById('feedback-anonymous-label');
+  if (anonymousLabel) anonymousLabel.textContent = config.anonymousLabel;
+}
+
 function onFeedbackCategoryChange() {
   const cat = document.getElementById('feedback-category')?.value;
   const wrap = document.getElementById('feedback-reported-user-wrap');
   if (wrap) wrap.classList.toggle('hidden', cat !== 'report_user');
+  applyFeedbackCategoryConfig(cat || 'default');
 }
 
 async function submitFeedback() {
@@ -4208,6 +4288,8 @@ async function submitFeedback() {
       : null;
   const msgEl = document.getElementById('feedback-msg');
   const btn = document.getElementById('feedback-submit-btn');
+  const successHtml =
+    FEEDBACK_CATEGORY_CONFIG[category]?.successHtml || FEEDBACK_CATEGORY_CONFIG.default.successHtml;
   const showMsg = (text, isError, asHtml = false) => {
     if (!msgEl) return;
     if (asHtml) msgEl.innerHTML = text;
@@ -4224,17 +4306,14 @@ async function submitFeedback() {
   if (btn) btn.disabled = true;
   try {
     await apiCall('/feedback', 'POST', { category, subject, body, anonymous, reportedUserId });
-    showMsg(
-      '<strong>Danke, angekommen!</strong><br><span>Wir haben dein Feedback erhalten und schauen es uns an.</span>',
-      false,
-      true
-    );
+    showMsg(successHtml, false, true);
     toast('Feedback erfolgreich gesendet', 'success');
     document.getElementById('feedback-subject').value = '';
     document.getElementById('feedback-body').value = '';
     document.getElementById('feedback-category').value = '';
     document.getElementById('feedback-anonymous').checked = false;
     document.getElementById('feedback-reported-user-wrap')?.classList.add('hidden');
+    applyFeedbackCategoryConfig('default');
     setTimeout(() => closeSupportModal(), 1400);
   } catch (e) {
     showMsg(e.serverMessage || 'Netzwerkfehler. Bitte versuche es später erneut.', true);
@@ -4247,6 +4326,8 @@ async function submitFeedback() {
 
 function openAdminFeedback() {
   document.getElementById('admin-feedback-modal')?.classList.remove('hidden');
+  const statusFilter = document.getElementById('af-filter-status');
+  if (statusFilter) statusFilter.value = 'open';
   renderAdminFeedbackList();
 }
 
@@ -4299,6 +4380,135 @@ function getResolutionReasonFromLatestMessage(report) {
   return '';
 }
 
+function getFeedbackStatusLabel(report, viewer = 'admin') {
+  if (report?.status === 'accepted') return 'Angenommen';
+  if (report?.status === 'rejected') return 'Abgelehnt';
+  if (report?.status === 'closed') return 'Geschlossen';
+  if (report?.waitingFor === 'user') {
+    return viewer === 'user' ? 'Offen - Wartet auf dich' : 'Offen - Wartet auf User';
+  }
+  return 'Offen - Wartet auf Support';
+}
+
+function getFeedbackItemStateClass(report, unreadFlag) {
+  if (report?.status === 'accepted') return 'af-status-accepted';
+  if (report?.status === 'rejected') return 'af-status-rejected';
+  if (report?.status === 'closed') return 'af-status-closed';
+  if (report?.status === 'open' && unreadFlag) return 'af-status-open-new';
+  if (report?.status === 'open') return 'af-status-open';
+  return 'af-status-read';
+}
+
+function canAdminReplyToFeedback(report) {
+  return report?.category !== 'report_user' && report?.status === 'open';
+}
+
+function canUserReplyToFeedback(report) {
+  return report?.category !== 'report_user' && report?.status === 'open';
+}
+
+async function showFeedbackDecisionDialog({ title, text, confirmLabel, checkboxLabel }) {
+  return new Promise((resolve) => {
+    document.getElementById('feedback-decision-dlg')?.remove();
+    const dlg = document.createElement('div');
+    dlg.id = 'feedback-decision-dlg';
+    dlg.className = 'dlg-bg';
+    dlg.style.cssText =
+      'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:600;animation:fadeIn .15s ease';
+    dlg.innerHTML = `
+      <div class="dlg" style="animation:scaleIn .2s ease;max-width:520px;width:min(92vw,520px)">
+        <div class="dlg-ico">📝</div>
+        <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">${esc(title)}</h3>
+        <p style="font-size:13px;color:var(--muted);font-weight:300;margin:0 0 14px;line-height:1.5">${esc(text)}</p>
+        <textarea id="fdd-note" placeholder="Begründung eingeben…" style="width:100%;min-height:120px;resize:vertical"></textarea>
+        ${checkboxLabel ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--text)"><input type="checkbox" id="fdd-checkbox"> ${esc(checkboxLabel)}</label>` : ''}
+        <div class="dlg-btns" style="margin-top:16px">
+          <button id="fdd-cancel" class="btn btn-ghost">Abbrechen</button>
+          <button id="fdd-confirm" class="btn btn-primary">${esc(confirmLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('#fdd-confirm').onclick = () => {
+      const note = String(dlg.querySelector('#fdd-note')?.value || '').trim();
+      const checked = dlg.querySelector('#fdd-checkbox')?.checked === true;
+      dlg.remove();
+      resolve({ confirmed: true, note, checked });
+    };
+    dlg.querySelector('#fdd-cancel').onclick = () => {
+      dlg.remove();
+      resolve({ confirmed: false, note: '', checked: false });
+    };
+    dlg.onclick = (e) => {
+      if (e.target === dlg) {
+        dlg.remove();
+        resolve({ confirmed: false, note: '', checked: false });
+      }
+    };
+  });
+}
+
+async function showFeedbackRecategorizeDialog(currentCategory) {
+  const { users } = await apiCall('/feedback/eligible-users', 'GET');
+  return new Promise((resolve) => {
+    document.getElementById('feedback-recateg-dlg')?.remove();
+    const dlg = document.createElement('div');
+    dlg.id = 'feedback-recateg-dlg';
+    dlg.className = 'dlg-bg';
+    dlg.style.cssText =
+      'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:600;animation:fadeIn .15s ease';
+    dlg.innerHTML = `
+      <div class="dlg" style="animation:scaleIn .2s ease;max-width:520px;width:min(92vw,520px)">
+        <div class="dlg-ico">🔀</div>
+        <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">Ticket-Art ändern</h3>
+        <p style="font-size:13px;color:var(--muted);font-weight:300;margin:0 0 14px;line-height:1.5">Lege fest, wie dieses Ticket weitergeführt werden soll.</p>
+        <div class="field" style="margin-bottom:12px">
+          <label>Ziel-Kategorie</label>
+          <select id="frd-category" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px">
+            <option value="bug" ${currentCategory === 'bug' ? 'selected' : ''}>🐛 Bug</option>
+            <option value="feature" ${currentCategory === 'feature' ? 'selected' : ''}>💡 Feature</option>
+            <option value="help" ${currentCategory === 'help' ? 'selected' : ''}>❓ Hilfe</option>
+            <option value="report_user" ${currentCategory === 'report_user' ? 'selected' : ''}>⚠️ Nutzer melden</option>
+            <option value="other" ${currentCategory === 'other' ? 'selected' : ''}>💬 Sonstiges</option>
+          </select>
+        </div>
+        <div class="field ${currentCategory === 'report_user' ? '' : 'hidden'}" id="frd-user-wrap" style="margin-bottom:12px">
+          <label>Gemeldeter Nutzer</label>
+          <select id="frd-user" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px">
+            <option value="">— Bitte wählen —</option>
+            ${users.map((user) => `<option value="${esc(user.id)}">${esc(getVisibleName(user, user.displayNameField) || user.name || user.username || user.id)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="dlg-btns">
+          <button id="frd-cancel" class="btn btn-ghost">Abbrechen</button>
+          <button id="frd-confirm" class="btn btn-primary">Speichern</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+    const categorySelect = dlg.querySelector('#frd-category');
+    const userWrap = dlg.querySelector('#frd-user-wrap');
+    categorySelect?.addEventListener('change', () => {
+      const wantsReportedUser = categorySelect.value === 'report_user';
+      userWrap?.classList.toggle('hidden', !wantsReportedUser);
+    });
+    dlg.querySelector('#frd-confirm').onclick = () => {
+      const category = String(categorySelect?.value || '').trim();
+      const reportedUserId = String(dlg.querySelector('#frd-user')?.value || '').trim();
+      dlg.remove();
+      resolve({ confirmed: true, category, reportedUserId });
+    };
+    dlg.querySelector('#frd-cancel').onclick = () => {
+      dlg.remove();
+      resolve({ confirmed: false, category: '', reportedUserId: '' });
+    };
+    dlg.onclick = (e) => {
+      if (e.target === dlg) {
+        dlg.remove();
+        resolve({ confirmed: false, category: '', reportedUserId: '' });
+      }
+    };
+  });
+}
+
 async function renderAdminFeedbackList() {
   const list = document.getElementById('admin-feedback-list');
   if (!list) return;
@@ -4331,35 +4541,16 @@ async function renderAdminFeedbackList() {
       report_user: '⚠️ Nutzer',
       other: '💬 Sonstiges',
     };
-    const statusLabel = {
-      closed: 'Geschlossen',
-      open_support: 'Offen - Wartet auf Support',
-      open_user: 'Offen - Wartet auf User',
-    };
     list.innerHTML = filteredReports
       .map((r) => {
         const resolutionReason = getResolutionReasonFromLatestMessage(r);
         return `
-        <div class="af-item ${
-          r.status === 'closed'
-            ? 'af-status-closed'
-            : r.status === 'open' && r.unreadAdmin
-              ? 'af-status-open-new'
-              : r.status === 'open'
-                ? 'af-status-open'
-                : 'af-status-read'
-        }" data-id="${esc(r.id)}">
+        <div class="af-item ${getFeedbackItemStateClass(r, r.unreadAdmin)}" data-id="${esc(r.id)}" data-status="${esc(r.status)}" data-category="${esc(r.category)}">
           <div class="af-item-hdr">
             <span class="af-cat-badge af-cat-${esc(r.category)}">${catLabel[r.category] || r.category}</span>
             ${r.anonymous ? '<span class="fb-anon-icon" title="Anonym eingereicht">🕵️</span>' : ''}
-            <span class="af-status-badge af-status-badge-${esc(r.status)}">${
-              r.status === 'closed'
-                ? statusLabel.closed
-                : r.waitingFor === 'user'
-                  ? statusLabel.open_user
-                  : statusLabel.open_support
-            }</span>
-            ${r.unreadAdmin ? '<span class="fb-unread-badge">Neu</span>' : ''}
+            <span class="af-status-badge af-status-badge-${esc(r.status)}">${esc(getFeedbackStatusLabel(r, 'admin'))}</span>
+            ${r.unreadAdmin ? `<button class="af-read-indicator" onclick="markFeedbackAdminRead('${esc(r.id)}')" title="Als gelesen markieren" aria-label="Als gelesen markieren">✓</button>` : ''}
             <span class="fb-ticket-id">${esc(formatFeedbackTicketId(r.id))}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:auto">${new Date(r.createdAt).toLocaleString('de-DE')}</span>
           </div>
@@ -4380,25 +4571,27 @@ async function renderAdminFeedbackList() {
               ? `<div style="font-size:12px;color:var(--muted)">Entscheidung: ${r.resolution === 'action_taken' ? 'Maßnahme getroffen' : 'Keine Maßnahme'}${resolutionReason ? ` — Begründung: ${esc(resolutionReason)}` : ''}</div>`
               : ''
           }
+          ${r.githubIssueUrl ? `<div style="font-size:12px;color:var(--muted)">GitHub-Issue: <a href="${esc(r.githubIssueUrl)}" target="_blank" rel="noopener noreferrer">#${esc(r.githubIssueNumber || 'Issue')}</a></div>` : ''}
           <div class="af-item-actions">
-            ${
-              r.status === 'open' && r.unreadAdmin
-                ? `<button class="btn btn-sm btn-ghost af-action-read" onclick="markFeedbackAdminRead('${esc(r.id)}')">Als gelesen markieren</button>`
-                : ''
-            }
             ${
               r.category !== 'report_user' && r.status === 'open'
                 ? `<button class="btn btn-sm btn-ghost af-action-close" onclick="closeFeedbackTicket('${esc(r.id)}','${esc(r.waitingFor || 'support')}')">Erledigt</button>`
                 : ''
             }
             ${
-              r.category !== 'report_user' && r.status === 'closed'
+              (r.category === 'help' || r.category === 'other') && r.status === 'closed'
                 ? `<button class="btn btn-sm btn-ghost af-action-reopen" onclick="setFeedbackStatus('${esc(r.id)}','open')">Wieder öffnen</button>`
                 : ''
             }
             ${
-              r.category !== 'report_user'
+              canAdminReplyToFeedback(r)
                 ? `<button class="btn btn-sm btn-ghost af-action-reply" onclick="adminOpenConversation('${esc(r.id)}','${esc(r.subject)}')">${(r._count?.messages || 0) > 0 ? `💬 ${r._count.messages}` : '💬'} Antworten</button>`
+                : ''
+            }
+            ${
+              (r.category === 'bug' || r.category === 'feature') && r.status === 'open'
+                ? `<button class="btn btn-sm btn-ghost af-action-accept" onclick="acceptFeedbackTicket('${esc(r.id)}')">Annehmen</button>
+                   <button class="btn btn-sm btn-ghost af-action-reject" onclick="rejectFeedbackTicket('${esc(r.id)}')">Ablehnen</button>`
                 : ''
             }
             ${
@@ -4410,6 +4603,11 @@ async function renderAdminFeedbackList() {
               r.category === 'report_user' && r.status !== 'closed'
                 ? `<button class="btn btn-sm btn-ghost af-action-resolve-none" onclick="setFeedbackResolution('${esc(r.id)}','no_action')">Keine Maßnahme</button>
                    <button class="btn btn-sm btn-ghost af-action-resolve-act" onclick="setFeedbackResolution('${esc(r.id)}','action_taken')">Maßnahme getroffen</button>`
+                : ''
+            }
+            ${
+              r.category === 'other' || r.category === 'help'
+                ? `<button class="btn btn-sm btn-ghost af-action-recateg" onclick="recategorizeFeedbackTicket('${esc(r.id)}','${esc(r.category)}')">Ticket-Art ändern</button>`
                 : ''
             }
             <button class="btn btn-sm btn-danger" onclick="deleteFeedbackEntry('${esc(r.id)}')">Löschen</button>
@@ -4436,6 +4634,75 @@ async function markFeedbackAdminRead(id) {
     renderAdminFeedbackList();
   } catch (e) {
     toast(e.serverMessage || 'Fehler beim Markieren.', 'error');
+  }
+}
+
+async function acceptFeedbackTicket(id) {
+  const result = await showFeedbackDecisionDialog({
+    title: 'Ticket annehmen',
+    text: 'Halte kurz fest, warum dieses Ticket angenommen wird. Optional kann direkt ein GitHub-Issue erstellt werden.',
+    confirmLabel: 'Annehmen',
+    checkboxLabel: 'Zusätzlich GitHub-Issue erstellen',
+  });
+  if (!result?.confirmed) return;
+  if (!result.note) {
+    toast('Bitte eine Begründung angeben.', 'error');
+    return;
+  }
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}/accept`, 'PATCH', {
+      decisionNote: result.note,
+      createGithubIssue: result.checked,
+    });
+    renderAdminFeedbackList();
+    toast('Ticket angenommen.', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Annehmen.', 'error');
+  }
+}
+
+async function rejectFeedbackTicket(id) {
+  const result = await showFeedbackDecisionDialog({
+    title: 'Ticket ablehnen',
+    text: 'Lege eine kurze, nachvollziehbare Begründung für die Ablehnung fest.',
+    confirmLabel: 'Ablehnen',
+  });
+  if (!result?.confirmed) return;
+  if (!result.note) {
+    toast('Bitte eine Begründung angeben.', 'error');
+    return;
+  }
+  try {
+    await apiCall(`/feedback/${encodeURIComponent(id)}/reject`, 'PATCH', {
+      decisionNote: result.note,
+    });
+    renderAdminFeedbackList();
+    toast('Ticket abgelehnt.', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Ablehnen.', 'error');
+  }
+}
+
+async function recategorizeFeedbackTicket(id, currentCategory) {
+  try {
+    const result = await showFeedbackRecategorizeDialog(currentCategory);
+    if (!result?.confirmed) return;
+    if (!result.category) {
+      toast('Bitte eine Ziel-Kategorie auswählen.', 'error');
+      return;
+    }
+    if (result.category === 'report_user' && !result.reportedUserId) {
+      toast('Bitte einen gemeldeten Nutzer auswählen.', 'error');
+      return;
+    }
+    await apiCall(`/feedback/${encodeURIComponent(id)}/recategorize`, 'PATCH', {
+      category: result.category,
+      reportedUserId: result.reportedUserId || undefined,
+    });
+    renderAdminFeedbackList();
+    toast('Ticket-Art geändert.', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Fehler beim Ändern der Ticket-Art.', 'error');
   }
 }
 
@@ -4671,37 +4938,19 @@ async function renderMyFeedbackList() {
       report_user: '⚠️ Nutzer',
       other: '💬 Sonstiges',
     };
-    const statusLabel = {
-      closed: 'Geschlossen',
-      open_support: 'Offen - Wartet auf Support',
-      open_user: 'Offen - Wartet auf dich',
-    };
     const resolutionLabel = { no_action: 'Keine Maßnahme', action_taken: 'Maßnahme getroffen' };
-    const canReply = (r) => r.category !== 'report_user' && r.status !== 'closed';
+    const canReply = (r) => canUserReplyToFeedback(r);
     list.innerHTML = reports
       .map((r) => {
         const msgCount = r._count?.messages || 0;
         const lastMsg = r.messages?.[0];
         const resolutionReason = getResolutionReasonFromLatestMessage(r);
-        const itemStateClass =
-          r.status === 'closed'
-            ? 'af-status-closed'
-            : r.status === 'open' && r.unreadUser
-              ? 'af-status-open-new'
-              : r.status === 'open'
-                ? 'af-status-open'
-                : 'af-status-read';
-        return `<div class="my-fb-item ${itemStateClass}" data-id="${esc(r.id)}">
+        const itemStateClass = getFeedbackItemStateClass(r, r.unreadUser);
+        return `<div class="my-fb-item ${itemStateClass}" data-id="${esc(r.id)}" data-status="${esc(r.status)}" data-category="${esc(r.category)}">
           <div class="af-item-hdr">
             <span class="af-cat-badge af-cat-${esc(r.category)}">${catLabel[r.category] || r.category}</span>
             ${r.anonymous ? '<span class="fb-anon-icon" title="Anonym eingereicht">🕵️</span>' : ''}
-            <span class="af-status-badge af-status-badge-${esc(r.status)}">${
-              r.status === 'closed'
-                ? statusLabel.closed
-                : r.waitingFor === 'user'
-                  ? statusLabel.open_user
-                  : statusLabel.open_support
-            }</span>
+            <span class="af-status-badge af-status-badge-${esc(r.status)}">${esc(getFeedbackStatusLabel(r, 'user'))}</span>
             ${r.unreadUser ? '<span class="fb-unread-badge">Neu</span>' : ''}
             <span class="fb-ticket-id">${esc(formatFeedbackTicketId(r.id))}</span>
             ${r.resolution ? `<span class="fb-resolution-badge">${resolutionLabel[r.resolution] || r.resolution}</span>` : ''}
@@ -4718,6 +4967,7 @@ async function renderMyFeedbackList() {
               ? `<div style="font-size:12px;color:var(--muted)">Entscheidung: ${resolutionLabel[r.resolution] || r.resolution}${resolutionReason ? ` — Begründung: ${esc(resolutionReason)}` : ''}</div>`
               : ''
           }
+          ${r.githubIssueUrl ? `<div style="font-size:12px;color:var(--muted)">GitHub-Issue: <a href="${esc(r.githubIssueUrl)}" target="_blank" rel="noopener noreferrer">#${esc(r.githubIssueNumber || 'Issue')}</a></div>` : ''}
           ${msgCount > 0 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">💬 ${msgCount} Nachricht${msgCount !== 1 ? 'en' : ''}</div>` : ''}
           ${
             lastMsg
@@ -4753,9 +5003,10 @@ let _myConvCanReply = false;
 
 async function openMyConversation(reportId, subject) {
   _myConvReportId = reportId;
-  // Determine if reply is allowed by checking report status from my-feedback-list
   const item = document.querySelector(`[data-id="${CSS.escape(reportId)}"]`);
-  _myConvCanReply = !item?.classList.contains('af-status-closed');
+  const status = item?.getAttribute('data-status') || '';
+  const category = item?.getAttribute('data-category') || '';
+  _myConvCanReply = status === 'open' && category !== 'report_user';
 
   // Reuse admin conv modal for user too
   const title = document.getElementById('af-conv-title');
@@ -4766,7 +5017,7 @@ async function openMyConversation(reportId, subject) {
   // Hide reply area if closed or report_user
   const replyWrap = document.getElementById('af-conv-reply-wrap');
   const catEl = item?.querySelector('.af-cat-badge');
-  const isReportUser = catEl?.classList.contains('af-cat-report_user');
+  const isReportUser = category === 'report_user' || catEl?.classList.contains('af-cat-report_user');
   if (replyWrap) replyWrap.style.display = isReportUser || !_myConvCanReply ? 'none' : 'flex';
 
   // Override reply button to use user submit
@@ -7767,6 +8018,9 @@ Object.assign(window, {
   renderAdminFeedbackList,
   setFeedbackStatus,
   markFeedbackAdminRead,
+  acceptFeedbackTicket,
+  rejectFeedbackTicket,
+  recategorizeFeedbackTicket,
   closeFeedbackTicket,
   closeOwnFeedbackTicket,
   deleteFeedbackEntry,

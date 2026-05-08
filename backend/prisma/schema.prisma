@@ -312,11 +312,13 @@ model FeedbackReport {
   anonymous      Boolean  @default(false)
   reportedUserId String?
   reportedUser   User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
-  status         String   @default("open") // "open" | "closed"
+  status         String   @default("open") // "open" | "closed" | "accepted" | "rejected"
   waitingFor     String   @default("support") // "support" | "user" | "none"
   unreadAdmin    Boolean  @default(true)
   unreadUser     Boolean  @default(false)
   resolution     String?  // "no_action" | "action_taken" — nur für report_user
+  githubIssueNumber Int?
+  githubIssueUrl String?
   createdAt      DateTime @default(now())
 
   messages  FeedbackMessage[]
