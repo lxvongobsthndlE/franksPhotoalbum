@@ -9,14 +9,41 @@ const CATEGORY_LABELS = {
 };
 
 const VALID_CATEGORIES = Object.keys(CATEGORY_LABELS);
-const VALID_STATUS = ['open', 'closed'];
+const VALID_STATUS = ['open', 'closed', 'accepted', 'rejected'];
+const ACCEPTABLE_CATEGORIES = new Set(['bug', 'feature']);
 const ALLOWED_STATUS_TRANSITIONS = {
-  open: new Set(['closed']),
+  open: new Set(['closed', 'accepted', 'rejected']),
   closed: new Set(['open']),
+  accepted: new Set([]),
+  rejected: new Set([]),
 };
 
 function isSupportWaiting(report) {
   return report.waitingFor === 'support';
+}
+
+function canUseDecisionStatus(category) {
+  return ACCEPTABLE_CATEGORIES.has(category);
+}
+
+function isTerminalStatus(status) {
+  return ['closed', 'accepted', 'rejected'].includes(status);
+}
+
+function canRecategorizeTo(category) {
+  return VALID_CATEGORIES.includes(category);
+}
+
+function buildDecisionMessage(status, note, issueUrl) {
+  const prefix =
+    status === 'accepted'
+      ? 'Ticket angenommen.'
+      : status === 'rejected'
+        ? 'Ticket abgelehnt.'
+        : 'Ticket aktualisiert.';
+  const notePart = note ? ` Begründung: ${note}` : '';
+  const issuePart = issueUrl ? ` GitHub-Issue: ${issueUrl}` : '';
+  return `${prefix}${notePart}${issuePart}`;
 }
 
 export default async function feedbackRoutes(fastify) {
@@ -196,7 +223,13 @@ export default async function feedbackRoutes(fastify) {
     const limit = Math.min(Number(request.query?.limit || 50), 200);
 
     const where = {};
-    if (status && VALID_STATUS.includes(status)) where.status = status;
+    if (status && VALID_STATUS.includes(status)) {
+      if (status === 'closed') {
+        where.status = { in: ['closed', 'accepted', 'rejected'] };
+      } else {
+        where.status = status;
+      }
+    }
     if (category && VALID_CATEGORIES.includes(category)) where.category = category;
 
     const reports = await fastify.prisma.feedbackReport.findMany({
@@ -229,7 +262,7 @@ export default async function feedbackRoutes(fastify) {
       },
     });
 
-    const statusOrder = { open: 1, closed: 2 };
+    const statusOrder = { open: 1, accepted: 2, rejected: 3, closed: 4 };
     const waitingOrder = { support: 1, user: 2, none: 3 };
     reports.sort(
       (a, b) =>
@@ -271,7 +304,7 @@ export default async function feedbackRoutes(fastify) {
       },
     });
 
-    const statusOrder = { open: 1, closed: 2 };
+    const statusOrder = { open: 1, accepted: 2, rejected: 3, closed: 4 };
     reports.sort(
       (a, b) =>
         Number(Boolean(b.unreadUser)) - Number(Boolean(a.unreadUser)) ||
@@ -298,6 +331,8 @@ export default async function feedbackRoutes(fastify) {
         unreadAdmin: true,
         unreadUser: true,
         status: true,
+        githubIssueNumber: true,
+        githubIssueUrl: true,
       },
     });
     if (!report) return reply.code(404).send({ error: 'Feedback nicht gefunden.' });
@@ -338,6 +373,8 @@ export default async function feedbackRoutes(fastify) {
       unreadAdmin: report.unreadAdmin,
       unreadUser: report.unreadUser,
       status: report.status,
+      githubIssueNumber: report.githubIssueNumber,
+      githubIssueUrl: report.githubIssueUrl,
     };
   });
 
@@ -378,7 +415,7 @@ export default async function feedbackRoutes(fastify) {
       if (!isAdmin && report.category === 'report_user') {
         return reply.code(403).send({ error: 'Diese Meldungsart unterstützt keine Antworten.' });
       }
-      if (report.status === 'closed') {
+      if (isTerminalStatus(report.status)) {
         return reply.code(409).send({ error: 'Dieses Ticket ist geschlossen.' });
       }
 
@@ -470,6 +507,7 @@ export default async function feedbackRoutes(fastify) {
     const resolutionReason = request.body?.resolutionReason
       ? String(request.body.resolutionReason).trim()
       : '';
+    const decisionNote = request.body?.decisionNote ? String(request.body.decisionNote).trim() : '';
 
     // Admin markiert Ticket als gelesen
     if (request.body?.markReadAdmin === true) {
@@ -481,6 +519,14 @@ export default async function feedbackRoutes(fastify) {
       const status = String(request.body.status).trim();
       if (!VALID_STATUS.includes(status)) {
         return reply.code(400).send({ error: 'Ungültiger Status.' });
+      }
+      if (
+        (status === 'accepted' || status === 'rejected') &&
+        !canUseDecisionStatus(existing.category)
+      ) {
+        return reply.code(400).send({
+          error: 'Dieser Status ist nur für Bug- und Feature-Tickets erlaubt.',
+        });
       }
       if (status !== existing.status) {
         const allowed = ALLOWED_STATUS_TRANSITIONS[existing.status] || new Set();
@@ -501,11 +547,24 @@ export default async function feedbackRoutes(fastify) {
         updateData.waitingFor = 'none';
         updateData.unreadAdmin = false;
         updateData.unreadUser = true;
-      } else {
+      } else if (status === 'open') {
         updateData.status = 'open';
         updateData.waitingFor = 'support';
         updateData.unreadAdmin = true;
         updateData.unreadUser = false;
+        updateData.githubIssueNumber = null;
+        updateData.githubIssueUrl = null;
+      } else if (status === 'accepted' || status === 'rejected') {
+        if (!decisionNote) {
+          return reply.code(400).send({
+            error: 'Für angenommene oder abgelehnte Tickets ist eine Begründung erforderlich.',
+          });
+        }
+
+        updateData.status = status;
+        updateData.waitingFor = 'none';
+        updateData.unreadAdmin = false;
+        updateData.unreadUser = true;
       }
     }
 
@@ -576,6 +635,184 @@ export default async function feedbackRoutes(fastify) {
         },
       });
     }
+
+    return { report: updated };
+  });
+
+  fastify.patch('/:id/accept', async (request, reply) => {
+    if (!(await requireAuth(request, reply))) return;
+    if (!(await requireAdmin(request, reply))) return;
+
+    const id = String(request.params?.id || '');
+    const existing = await fastify.prisma.feedbackReport.findUnique({ where: { id } });
+    if (!existing) {
+      return reply.code(404).send({ error: 'Feedback nicht gefunden.' });
+    }
+    if (!canUseDecisionStatus(existing.category)) {
+      return reply
+        .code(400)
+        .send({ error: 'Annehmen ist nur für Bug- und Feature-Tickets erlaubt.' });
+    }
+    if (existing.status !== 'open') {
+      return reply.code(409).send({ error: 'Nur offene Tickets können angenommen werden.' });
+    }
+
+    const decisionNote = String(request.body?.decisionNote || '').trim();
+    if (!decisionNote) {
+      return reply.code(400).send({ error: 'Bitte gib eine Begründung für die Annahme an.' });
+    }
+
+    let githubIssueUrl = null;
+    let githubIssueNumber = null;
+    if (request.body?.createGithubIssue === true) {
+      try {
+        const { createFeedbackGithubIssue } = await import('../utils/github.js');
+        const issue = await createFeedbackGithubIssue({
+          category: existing.category,
+          subject: existing.subject,
+          body: existing.body,
+          feedbackId: existing.id,
+          decisionNote,
+        });
+        githubIssueUrl = issue.url;
+        githubIssueNumber = issue.number;
+      } catch (error) {
+        return reply.code(502).send({
+          error:
+            error instanceof Error ? error.message : 'GitHub-Issue konnte nicht erstellt werden.',
+        });
+      }
+    }
+
+    const updated = await fastify.prisma.feedbackReport.update({
+      where: { id },
+      data: {
+        status: 'accepted',
+        waitingFor: 'none',
+        unreadAdmin: false,
+        unreadUser: true,
+        githubIssueUrl,
+        githubIssueNumber,
+      },
+    });
+
+    await fastify.prisma.feedbackMessage.create({
+      data: {
+        reportId: id,
+        authorId: request.user.id,
+        body: buildDecisionMessage('accepted', decisionNote, githubIssueUrl),
+      },
+    });
+
+    return { report: updated };
+  });
+
+  fastify.patch('/:id/reject', async (request, reply) => {
+    if (!(await requireAuth(request, reply))) return;
+    if (!(await requireAdmin(request, reply))) return;
+
+    const id = String(request.params?.id || '');
+    const existing = await fastify.prisma.feedbackReport.findUnique({ where: { id } });
+    if (!existing) {
+      return reply.code(404).send({ error: 'Feedback nicht gefunden.' });
+    }
+    if (!canUseDecisionStatus(existing.category)) {
+      return reply
+        .code(400)
+        .send({ error: 'Ablehnen ist nur für Bug- und Feature-Tickets erlaubt.' });
+    }
+    if (existing.status !== 'open') {
+      return reply.code(409).send({ error: 'Nur offene Tickets können abgelehnt werden.' });
+    }
+
+    const decisionNote = String(request.body?.decisionNote || '').trim();
+    if (!decisionNote) {
+      return reply.code(400).send({ error: 'Bitte gib eine Begründung für die Ablehnung an.' });
+    }
+
+    const updated = await fastify.prisma.feedbackReport.update({
+      where: { id },
+      data: {
+        status: 'rejected',
+        waitingFor: 'none',
+        unreadAdmin: false,
+        unreadUser: true,
+      },
+    });
+
+    await fastify.prisma.feedbackMessage.create({
+      data: {
+        reportId: id,
+        authorId: request.user.id,
+        body: buildDecisionMessage('rejected', decisionNote),
+      },
+    });
+
+    return { report: updated };
+  });
+
+  fastify.patch('/:id/recategorize', async (request, reply) => {
+    if (!(await requireAuth(request, reply))) return;
+    if (!(await requireAdmin(request, reply))) return;
+
+    const id = String(request.params?.id || '');
+    const existing = await fastify.prisma.feedbackReport.findUnique({ where: { id } });
+    if (!existing) {
+      return reply.code(404).send({ error: 'Feedback nicht gefunden.' });
+    }
+
+    const category = String(request.body?.category || '').trim();
+    const reportedUserId = request.body?.reportedUserId
+      ? String(request.body.reportedUserId).trim()
+      : null;
+    if (!canRecategorizeTo(category)) {
+      return reply.code(400).send({ error: 'Ungültige Ziel-Kategorie.' });
+    }
+    if (category === existing.category) {
+      return reply.code(400).send({ error: 'Ticket ist bereits in dieser Kategorie.' });
+    }
+    if (category === 'report_user' && !reportedUserId) {
+      return reply.code(400).send({
+        error: 'Beim Wechsel zu Nutzer melden muss ein gemeldeter Nutzer ausgewählt werden.',
+      });
+    }
+
+    if (reportedUserId) {
+      const exists = await fastify.prisma.user.findUnique({
+        where: { id: reportedUserId },
+        select: { id: true },
+      });
+      if (!exists) {
+        return reply.code(404).send({ error: 'Gemeldeter Nutzer nicht gefunden.' });
+      }
+    }
+
+    const nextStatus = canUseDecisionStatus(category)
+      ? existing.status
+      : existing.status === 'open'
+        ? 'open'
+        : 'closed';
+    const updated = await fastify.prisma.feedbackReport.update({
+      where: { id },
+      data: {
+        category,
+        reportedUserId: category === 'report_user' ? reportedUserId : null,
+        resolution: category === 'report_user' ? existing.resolution : null,
+        status: nextStatus,
+        githubIssueNumber:
+          category === 'bug' || category === 'feature' ? existing.githubIssueNumber : null,
+        githubIssueUrl:
+          category === 'bug' || category === 'feature' ? existing.githubIssueUrl : null,
+      },
+    });
+
+    await fastify.prisma.feedbackMessage.create({
+      data: {
+        reportId: id,
+        authorId: request.user.id,
+        body: `Ticket-Art geändert: ${CATEGORY_LABELS[existing.category] || existing.category} → ${CATEGORY_LABELS[category] || category}`,
+      },
+    });
 
     return { report: updated };
   });

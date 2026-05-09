@@ -104,6 +104,19 @@ Das Frontend enthält einen vollständigen Ticket-Flow für Hilfe/Feedback/Nutze
 - Konversationsmodal für Nachrichtenverlauf und Antworten
 - Bestätigungsdialoge für Schließen/Löschen/Entscheidung
 
+Admin-Aktionen:
+
+- `bug` und `feature`: Antworten, annehmen, ablehnen, optional direkt mit GitHub-Issue annehmen
+- `help` und `other`: Antworten, schließen, wieder öffnen, löschen
+- `other` und `help`: Ticket-Art im Admin-Dialog umstellen; beim Wechsel zu `report_user` wird zusätzlich ein gemeldeter Nutzer ausgewählt
+- `report_user`: Bestehende Moderationsentscheidungen bleiben erhalten
+- Der bisherige große Button "Als gelesen markieren" wurde durch einen kleinen Haken direkt in der Ticket-Kopfzeile ersetzt
+
+Statusdarstellung:
+
+- Zusätzliche Ticket-Endstatus `accepted` und `rejected` werden im Admin- und User-Listing mit eigenen Badges dargestellt
+- User sehen bei übernommenen Tickets optional einen Direktlink auf das erzeugte GitHub-Issue
+
 Sidebar-Badges:
 
 - Admin-Feedback-Badge wird unabhängig von der aktuellen Listenfilterung berechnet

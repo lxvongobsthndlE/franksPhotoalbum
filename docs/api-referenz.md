@@ -202,11 +202,14 @@ Hinweise:
 | -------- | --------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
 | `GET`    | `/api/feedback/eligible-users`    | Nutzerliste für "Nutzer melden" (gleiche Gruppen wie der aufrufende User)                      |
 | `POST`   | `/api/feedback`                   | Neues Ticket erstellen (`category`, `subject`, `body`, optional `anonymous`, `reportedUserId`) |
-| `GET`    | `/api/feedback`                   | Admin: Tickets auflisten (`?status=open                                                        | closed`, `?category=...`) |
+| `GET`    | `/api/feedback`                   | Admin: Tickets auflisten (`?status=open                                                        | closed | accepted | rejected`, `?category=...`) |
 | `GET`    | `/api/feedback/mine`              | Eigene Tickets des eingeloggten Users                                                          |
 | `GET`    | `/api/feedback/:id/messages`      | Konversationsverlauf eines Tickets laden                                                       |
 | `POST`   | `/api/feedback/:id/messages`      | Nachricht in bestehender Ticket-Konversation senden                                            |
 | `PATCH`  | `/api/feedback/:id`               | Admin: Ticket aktualisieren (`markReadAdmin`, `status`, `resolution`)                          |
+| `PATCH`  | `/api/feedback/:id/accept`        | Admin: Bug/Feature annehmen (`decisionNote`, optional `createGithubIssue`)                     |
+| `PATCH`  | `/api/feedback/:id/reject`        | Admin: Bug/Feature ablehnen (`decisionNote`)                                                   |
+| `PATCH`  | `/api/feedback/:id/recategorize`  | Admin: Ticket-Art ändern (`category`, optional `reportedUserId`)                               |
 | `PATCH`  | `/api/feedback/:id/close-by-user` | User: eigenes Ticket schließen (nicht bei `report_user`)                                       |
 | `DELETE` | `/api/feedback/:id`               | Admin: Ticket endgültig löschen                                                                |
 
@@ -215,6 +218,9 @@ Hinweise:
 - `POST /api/feedback`: Rate-Limit `5` Requests / `10 Minuten`
 - `POST /api/feedback/:id/messages`: Rate-Limit `20` Requests / `5 Minuten`
 - `resolution` ist nur für Kategorie `report_user` erlaubt (`no_action` oder `action_taken`)
+- `accepted` und `rejected` sind aktuell nur für `bug` und `feature` erlaubt
+- `PATCH /api/feedback/:id/accept` kann optional direkt ein GitHub-Issue anlegen; die Referenz wird am Ticket gespeichert
+- `PATCH /api/feedback/:id/recategorize` nach `report_user` erfordert zusätzlich `reportedUserId`
 - Beim Admin-Schließen während `waitingFor=support` ist ein Schließungsgrund erforderlich
 
 ---

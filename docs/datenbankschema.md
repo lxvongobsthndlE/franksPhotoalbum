@@ -364,14 +364,18 @@ model FeedbackReport {
   body           String
   anonymous      Boolean  @default(false)
   reportedUserId String?
-  status         String   @default("open")      // open | closed
+  status         String   @default("open")      // open | closed | accepted | rejected
   waitingFor     String   @default("support")   // support | user | none
   unreadAdmin    Boolean  @default(true)
   unreadUser     Boolean  @default(false)
   resolution     String?  // no_action | action_taken (nur report_user)
+  githubIssueNumber Int?
+  githubIssueUrl String?
   createdAt      DateTime @default(now())
 }
 ```
+
+`accepted` und `rejected` werden derzeit nur für `bug`- und `feature`-Tickets verwendet. Falls ein Ticket beim Annehmen in ein GitHub-Issue überführt wird, werden `githubIssueNumber` und `githubIssueUrl` direkt am Report gespeichert.
 
 ---
 
