@@ -520,7 +520,10 @@ export default async function feedbackRoutes(fastify) {
       if (!VALID_STATUS.includes(status)) {
         return reply.code(400).send({ error: 'Ungültiger Status.' });
       }
-      if ((status === 'accepted' || status === 'rejected') && !canUseDecisionStatus(existing.category)) {
+      if (
+        (status === 'accepted' || status === 'rejected') &&
+        !canUseDecisionStatus(existing.category)
+      ) {
         return reply.code(400).send({
           error: 'Dieser Status ist nur für Bug- und Feature-Tickets erlaubt.',
         });
@@ -646,7 +649,9 @@ export default async function feedbackRoutes(fastify) {
       return reply.code(404).send({ error: 'Feedback nicht gefunden.' });
     }
     if (!canUseDecisionStatus(existing.category)) {
-      return reply.code(400).send({ error: 'Annehmen ist nur für Bug- und Feature-Tickets erlaubt.' });
+      return reply
+        .code(400)
+        .send({ error: 'Annehmen ist nur für Bug- und Feature-Tickets erlaubt.' });
     }
     if (existing.status !== 'open') {
       return reply.code(409).send({ error: 'Nur offene Tickets können angenommen werden.' });
@@ -673,7 +678,8 @@ export default async function feedbackRoutes(fastify) {
         githubIssueNumber = issue.number;
       } catch (error) {
         return reply.code(502).send({
-          error: error instanceof Error ? error.message : 'GitHub-Issue konnte nicht erstellt werden.',
+          error:
+            error instanceof Error ? error.message : 'GitHub-Issue konnte nicht erstellt werden.',
         });
       }
     }
@@ -711,7 +717,9 @@ export default async function feedbackRoutes(fastify) {
       return reply.code(404).send({ error: 'Feedback nicht gefunden.' });
     }
     if (!canUseDecisionStatus(existing.category)) {
-      return reply.code(400).send({ error: 'Ablehnen ist nur für Bug- und Feature-Tickets erlaubt.' });
+      return reply
+        .code(400)
+        .send({ error: 'Ablehnen ist nur für Bug- und Feature-Tickets erlaubt.' });
     }
     if (existing.status !== 'open') {
       return reply.code(409).send({ error: 'Nur offene Tickets können abgelehnt werden.' });
@@ -779,7 +787,11 @@ export default async function feedbackRoutes(fastify) {
       }
     }
 
-    const nextStatus = canUseDecisionStatus(category) ? existing.status : existing.status === 'open' ? 'open' : 'closed';
+    const nextStatus = canUseDecisionStatus(category)
+      ? existing.status
+      : existing.status === 'open'
+        ? 'open'
+        : 'closed';
     const updated = await fastify.prisma.feedbackReport.update({
       where: { id },
       data: {
@@ -787,8 +799,10 @@ export default async function feedbackRoutes(fastify) {
         reportedUserId: category === 'report_user' ? reportedUserId : null,
         resolution: category === 'report_user' ? existing.resolution : null,
         status: nextStatus,
-        githubIssueNumber: category === 'bug' || category === 'feature' ? existing.githubIssueNumber : null,
-        githubIssueUrl: category === 'bug' || category === 'feature' ? existing.githubIssueUrl : null,
+        githubIssueNumber:
+          category === 'bug' || category === 'feature' ? existing.githubIssueNumber : null,
+        githubIssueUrl:
+          category === 'bug' || category === 'feature' ? existing.githubIssueUrl : null,
       },
     });
 

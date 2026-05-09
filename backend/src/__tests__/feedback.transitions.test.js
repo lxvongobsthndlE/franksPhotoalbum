@@ -135,7 +135,10 @@ describe('feedback transition rules', () => {
       body: 'Beschreibung',
       status: 'open',
     });
-    createFeedbackGithubIssue.mockResolvedValue({ number: 42, url: 'https://github.com/x/y/issues/42' });
+    createFeedbackGithubIssue.mockResolvedValue({
+      number: 42,
+      url: 'https://github.com/x/y/issues/42',
+    });
     prisma.feedbackReport.update.mockResolvedValue({
       id: 'rep-1',
       status: 'accepted',

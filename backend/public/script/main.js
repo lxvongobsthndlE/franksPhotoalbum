@@ -4239,7 +4239,8 @@ const FEEDBACK_CATEGORY_CONFIG = {
       '<strong>Nutzer-Meldung eingereicht.</strong><br><span>Der Fall wird geprüft. Antworten im Ticket sind bei dieser Kategorie nicht vorgesehen.</span>',
   },
   other: {
-    intro: 'Für Anliegen, die in keine andere Kategorie passen, kannst du hier ein freies Ticket erstellen.',
+    intro:
+      'Für Anliegen, die in keine andere Kategorie passen, kannst du hier ein freies Ticket erstellen.',
     hint: 'Wenn sich dein Anliegen später besser einordnen lässt, kann ein Admin die Ticket-Art anpassen.',
     subjectPlaceholder: 'Worum geht es?',
     bodyPlaceholder: 'Beschreibe dein Anliegen möglichst klar und vollständig…',
@@ -5017,7 +5018,8 @@ async function openMyConversation(reportId, subject) {
   // Hide reply area if closed or report_user
   const replyWrap = document.getElementById('af-conv-reply-wrap');
   const catEl = item?.querySelector('.af-cat-badge');
-  const isReportUser = category === 'report_user' || catEl?.classList.contains('af-cat-report_user');
+  const isReportUser =
+    category === 'report_user' || catEl?.classList.contains('af-cat-report_user');
   if (replyWrap) replyWrap.style.display = isReportUser || !_myConvCanReply ? 'none' : 'flex';
 
   // Override reply button to use user submit
