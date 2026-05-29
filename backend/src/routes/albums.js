@@ -33,11 +33,36 @@ export default async function albumsRoutes(fastify) {
     return (await isGroupOwner(groupId, userId)) || (await isGroupDeputy(groupId, userId));
   }
 
+  async function isGroupMember(groupId, userId) {
+    const membership = await fastify.prisma.groupMember.findUnique({
+      where: { userId_groupId: { userId, groupId } },
+    });
+    return !!membership;
+  }
+
+  async function canAccessGroup(groupId, userId) {
+    if (await isAdmin(userId)) return true;
+    return isGroupMember(groupId, userId);
+  }
+
+  async function ensureGroupAccess(reply, groupId, userId) {
+    if (await canAccessGroup(groupId, userId)) return true;
+    reply.code(403).send({
+      error: 'Du bist nicht Mitglied dieser Gruppe',
+      code: 'not_group_member',
+    });
+    return false;
+  }
+
   // GET /api/albums - Liste Alben für eine Gruppe (inkl. contributors)
   fastify.get('/', async (request, reply) => {
     try {
+      await request.jwtVerify();
+      const userId = request.user.id;
       const { groupId } = request.query;
       if (!groupId) return reply.code(400).send({ error: 'groupId erforderlich' });
+
+      if (!(await ensureGroupAccess(reply, groupId, userId))) return;
 
       const albums = await fastify.prisma.album.findMany({
         where: { groupId },
@@ -81,8 +106,26 @@ export default async function albumsRoutes(fastify) {
       const membership = await fastify.prisma.groupMember.findUnique({
         where: { userId_groupId: { userId: request.user.id, groupId } },
       });
-      if (!membership && !(await isAdmin(request.user.id))) {
+      const isAppAdmin = await isAdmin(request.user.id);
+      if (!membership && !isAppAdmin) {
         return reply.code(403).send({ error: 'Nur Gruppenmitglieder können Alben erstellen' });
+      }
+
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { name: true, createdBy: true, albumsRestrictedToModerators: true },
+      });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      if (group.albumsRestrictedToModerators) {
+        const isOwner = group.createdBy === request.user.id;
+        const isDeputy = !isOwner && (await isGroupDeputy(groupId, request.user.id));
+        if (!isOwner && !isDeputy && !isAppAdmin) {
+          return reply.code(403).send({
+            error: 'Alben erstellen ist in dieser Gruppe für Mitglieder gesperrt',
+            code: 'albums_locked_for_members',
+          });
+        }
       }
 
       const album = await fastify.prisma.album.create({
@@ -94,10 +137,6 @@ export default async function albumsRoutes(fastify) {
       const members = await fastify.prisma.groupMember.findMany({
         where: { groupId },
         select: { userId: true },
-      });
-      const group = await fastify.prisma.group.findUnique({
-        where: { id: groupId },
-        select: { name: true },
       });
       const creator = await fastify.prisma.user.findUnique({
         where: { id: request.user.id },
@@ -134,6 +173,8 @@ export default async function albumsRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
+      if (!(await ensureGroupAccess(reply, album.groupId, request.user.id))) return;
+
       if (
         album.createdBy !== request.user.id &&
         !(await hasGroupAdminRights(album.groupId, request.user.id))
@@ -160,6 +201,8 @@ export default async function albumsRoutes(fastify) {
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
 
+      if (!(await ensureGroupAccess(reply, album.groupId, request.user.id))) return;
+
       if (
         album.createdBy !== request.user.id &&
         !(await hasGroupAdminRights(album.groupId, request.user.id))
@@ -184,6 +227,8 @@ export default async function albumsRoutes(fastify) {
 
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
+
+      if (!(await ensureGroupAccess(reply, album.groupId, request.user.id))) return;
 
       const contributors = await fastify.prisma.albumContributor.findMany({
         where: { albumId: request.params.id },
@@ -217,6 +262,8 @@ export default async function albumsRoutes(fastify) {
 
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
+
+      if (!(await ensureGroupAccess(reply, album.groupId, request.user.id))) return;
 
       const canManage =
         album.createdBy === request.user.id ||
@@ -275,6 +322,8 @@ export default async function albumsRoutes(fastify) {
 
       const album = await fastify.prisma.album.findUnique({ where: { id: request.params.id } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
+
+      if (!(await ensureGroupAccess(reply, album.groupId, request.user.id))) return;
 
       const canManage =
         album.createdBy === request.user.id ||

@@ -95,6 +95,14 @@ Auf Mobilgeräten wird der Gruppenwechsel über ein eigenes Bottom Sheet geöffn
 - Schließen: per Overlay, Close-Button oder nach erfolgreicher Auswahl
 - Ziel: schneller Gruppenwechsel ohne die Sidebar vollständig öffnen zu müssen
 
+## Gruppenverwaltung-Modal (Rollenmodus)
+
+Der Eintrag "Gruppe verwalten" ist in der Sidebar für Owner und Vertreter sichtbar.
+
+- Owner sehen alle Bereiche im Modal (z. B. Umbenennen, Locks, Invite-Links, Vertreterverwaltung, Löschen).
+- Vertreter sehen eine reduzierte Ansicht mit Fokus auf Moderation (`Mitglieder entfernen`).
+- Owner-only Bereiche werden im Frontend ausgeblendet; serverseitige Rechteprüfungen bleiben unverändert aktiv.
+
 ## Feedback- und Meldungs-UI
 
 Das Frontend enthält einen vollständigen Ticket-Flow für Hilfe/Feedback/Nutzer-Meldungen.

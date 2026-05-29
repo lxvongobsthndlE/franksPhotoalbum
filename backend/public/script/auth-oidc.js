@@ -173,13 +173,16 @@ export async function apiCall(endpoint, method = 'GET', body = null) {
 
     if (!response.ok) {
       let serverMsg = '';
+      let serverCode = '';
       try {
         const j = await response.json();
         serverMsg = j.error || j.message || '';
+        serverCode = j.code || '';
       } catch (_) {}
       const err = new Error(serverMsg || `HTTP ${response.status}`);
       err.status = response.status;
       err.serverMessage = serverMsg;
+      err.serverCode = serverCode;
       throw err;
     }
 

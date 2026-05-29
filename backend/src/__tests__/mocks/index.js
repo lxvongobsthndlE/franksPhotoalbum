@@ -69,6 +69,7 @@ export function createMockPrismaClient(overrides = {}) {
     groupMember: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
       deleteMany: vi.fn(),
@@ -81,6 +82,15 @@ export function createMockPrismaClient(overrides = {}) {
       delete: vi.fn(),
       deleteMany: vi.fn(),
       ...overrides.groupDeputy,
+    },
+    groupBlock: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+      ...overrides.groupBlock,
     },
     groupInvite: {
       findUnique: vi.fn(),
@@ -117,12 +127,15 @@ export function createMockPrismaClient(overrides = {}) {
       ...overrides.photoAlbum,
     },
     like: {
+      findUnique: vi.fn(),
       findMany: vi.fn(),
+      delete: vi.fn(),
       deleteMany: vi.fn(),
       create: vi.fn(),
       ...overrides.like,
     },
     comment: {
+      findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),

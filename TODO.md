@@ -87,10 +87,14 @@ Falls ja:
     * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
 * Logo-Rework
 * State-Store aus auth.js in eigenes Regis auslagern (persist over restart + multi instance support)
-* Gruppen Owner sollen alle Bilder in ihrer Gruppe löschen können (Admins sowieso)
-* Gruppen Owner sollen Uploads in ihrer Gruppe für normale Member sperren können - Checkbox in Gruppe verwalten (nur owner und vertreter dürfen uploaden)
-* Gruppen Owner sollen User aus der Gruppe werfen können
 * Admin Restriktion aufheben: User aus letzter Gruppe löschen
+
+* Admins sollen Einladungscode in Gruppen immer sehen dürfen (auch wenn in Group-Settings anders konfiguriert)
+* Blocked Member Verwaltung! Entblocken, Grund ansehen, wer hat geblockt ansehen. Dafür nötig: Verpflichtende ANgabe von Grund beim Blocken.
+
+Plan: Group Moderation Feature Set
+- Block-Prüfung in Join-Flows: Verhindert Wiederbeitritt per Einladungslink.
+
 
 ### DONE
 * ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~
@@ -122,20 +126,20 @@ Falls ja:
     * ~~Group-Owner können immer nur für die individuelle Gruppe Links erstellen.~~
     * ~~Admins können optional eine individuelle Notification verschicken.~~
     * ~~Group-Owner können optional eine vordefinierte Notification verschicken.~~
-* Account Deletion and Content Export
-    * User sollen ihren eigenen Account löschen können.
-        * Neue Schaltfläche im Profil
-        * Es wird ein Bestätigungscode per Mail verschickt, der dann in der "Bist du sicher?" Maske eingegeben werden muss
-        * User können hier auch optional einen "Erben" benennen, quasi ein "transfer ownership" was jeglichen content auf die gewählte Person umschlüsselt.
-        * User sollen außerdem entscheiden dürfen ob ihr Content nach der Löschung erhalten bleiben darf (angezeigt als von "gelöscht") oder mit gelöscht wird.
-        * Wenn ein Erbe benannt wurde, gibt es keine Frage mehr, was mit dem Content nach Löschung passieren soll.
-        * Außerdem soll der Hinweis gezigt werden, dass man auch vorher seinen Content exportieren kann vor der Löschung
-        * Eine Account-Löschung ist erstmal nicht permanent. Der Account wird für 14 Tage "deaktiviert", heißt er wird vom System wie "gelöscht" behandelt, kann aber theoretisch wieder eingeloggt und damit "re-aktiviert" werden.
-        * Nach 14 Tagen wird der Account restlos gelöscht.
-    * User sollen ihren content exportieren können
-        * Neue Schaltfläche im Profil
-        * Scheduled Task der ein Zip mit dem gesamten Content des Users erstellt und ihm einen Downloadlink per Mail zuschickt.
-        * Erzeugung Zip darf Betriebsfluss nicht negativ beeinflussen!
-        * Endpunkt muss striktes rate-limiting haben (Vorschlag: 1x per day) um unnötige Erzeugung von Exporten zu verhindern.
-        * Die Zip's sollen eine Lebenszeit von 1 Monat haben.
-        * Content exports sollen, genau wie Backups, den Admins im "Backups verwalten" Menü angezeigt werden. (Funktionen: Download, Link erneuern, Delete), das Menü kann dafür entsprechend umbenannt werden.
+* ~~Account Deletion and Content Export~~
+    * ~~User sollen ihren eigenen Account löschen können.~~
+        * ~~Neue Schaltfläche im Profil~~
+        * ~~Es wird ein Bestätigungscode per Mail verschickt, der dann in der "Bist du sicher?" Maske eingegeben werden muss~~
+        * ~~User können hier auch optional einen "Erben" benennen, quasi ein "transfer ownership" was jeglichen content auf die gewählte Person umschlüsselt.~~
+        * ~~User sollen außerdem entscheiden dürfen ob ihr Content nach der Löschung erhalten bleiben darf (angezeigt als von "gelöscht") oder mit gelöscht wird.~~
+        * ~~Wenn ein Erbe benannt wurde, gibt es keine Frage mehr, was mit dem Content nach Löschung passieren soll.~~
+        * ~~Außerdem soll der Hinweis gezigt werden, dass man auch vorher seinen Content exportieren kann vor der Löschung~~
+        * ~~Eine Account-Löschung ist erstmal nicht permanent. Der Account wird für 14 Tage "deaktiviert", heißt er wird vom System wie "gelöscht" behandelt, kann aber theoretisch wieder eingeloggt und damit "re-aktiviert" werden.~~
+        * ~~Nach 14 Tagen wird der Account restlos gelöscht.~~
+    * ~~User sollen ihren content exportieren können~~
+        * ~~Neue Schaltfläche im Profil~~
+        * ~~Scheduled Task der ein Zip mit dem gesamten Content des Users erstellt und ihm einen Downloadlink per Mail zuschickt.~~
+        * ~~Erzeugung Zip darf Betriebsfluss nicht negativ beeinflussen!~~
+        * ~~Endpunkt muss striktes rate-limiting haben (Vorschlag: 1x per day) um unnötige Erzeugung von Exporten zu verhindern.~~
+        * ~~Die Zip's sollen eine Lebenszeit von 1 Monat haben.~~
+        * ~~Content exports sollen, genau wie Backups, den Admins im "Backups verwalten" Menü angezeigt werden. (Funktionen: Download, Link erneuern, Delete), das Menü kann dafür entsprechend umbenannt werden.~~

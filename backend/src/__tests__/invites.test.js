@@ -97,13 +97,43 @@ describe('invite routes', () => {
     });
     prisma.groupMember.findMany.mockResolvedValue([{ groupId: 'group-1' }]);
 
-    const { result } = await callRoute('POST', '/redeem/:token', {
+    const { result, reply } = await callRoute('POST', '/redeem/:token', {
       user: { id: 'member-1' },
       params: { token: 'ABCDEFGH12345678' },
     });
 
-    expect(result.status).toBe('already_member');
+    const payload = result || reply.payload;
+    expect(payload).toEqual(expect.objectContaining({ code: 'already_member' }));
     expect(prisma.groupInvite.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects redeem when user is blocked in target group', async () => {
+    prisma.groupInvite.findUnique.mockResolvedValue({
+      id: 'invite-1',
+      token: 'ABCDEFGH12345678',
+      isActive: true,
+      expiresAt: null,
+      maxUses: null,
+      useCount: 0,
+      notificationText: null,
+      groups: [
+        { group: { id: 'group-1', name: 'Familie', createdBy: 'owner-1', maxMembers: null } },
+      ],
+    });
+    prisma.groupMember.findMany.mockResolvedValue([]);
+    prisma.groupBlock.findMany.mockResolvedValue([{ groupId: 'group-1' }]);
+
+    const { reply } = await callRoute('POST', '/redeem/:token', {
+      user: { id: 'member-1' },
+      params: { token: 'ABCDEFGH12345678' },
+    });
+
+    expect(reply.statusCode).toBe(403);
+    expect(reply.payload).toEqual(
+      expect.objectContaining({
+        code: 'group_blocked',
+      })
+    );
   });
 
   it('returns 410 for expired invite preview', async () => {

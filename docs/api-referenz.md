@@ -78,7 +78,13 @@ Hinweise:
 | `GET`    | `/api/photos/:id/file`    | Medien-Datei streamen; Token als `?t=<accessToken>` übergeben                                                       |
 | `PATCH`  | `/api/photos/:id`         | Beschreibung oder Album-Zuordnung ändern                                                                            |
 | `PATCH`  | `/api/photos/batch-album` | Mehrere Medien einem Album zuordnen/entfernen                                                                       |
-| `DELETE` | `/api/photos/:id`         | Medium löschen (nur eigene; Admins können alle löschen)                                                             |
+| `DELETE` | `/api/photos/:id`         | Medium löschen (eigene oder als Gruppenmoderation: Owner/Vertreter, Admin nur als Gruppenmitglied)                 |
+
+**Berechtigung:**
+
+- Für gruppenbezogene Medien-Endpunkte ist eine **aktuelle Gruppenmitgliedschaft** erforderlich.
+- Admins dürfen weiterhin gruppenübergreifend zugreifen.
+- Bei fehlender Mitgliedschaft liefert die API `403` mit `code=not_group_member`.
 
 **Upload-Details:**
 
@@ -86,6 +92,7 @@ Hinweise:
 - Videos: erlaubt sind `video/mp4` und `video/quicktime` (MOV)
 - Video-Limits: max. `60s`, max. `200 MB` pro Datei, max. `20` Videos global pro Nutzer
 - Avatare werden in den `avatars`-Bucket abgelegt; Bilder/Videos in `photos`
+- Wenn `uploadsRestrictedToModerators=true` auf der Gruppe gesetzt ist, dürfen nur Owner, Vertreter und Admins hochladen (`403`, `code=uploads_locked_for_members`)
 
 **Streaming-Details (`GET /api/photos/:id/file`):**
 
@@ -108,6 +115,13 @@ Hinweise:
 | `POST`   | `/api/albums/:id/contributors`         | Beitragenden hinzufügen (`userId`)                       |
 | `DELETE` | `/api/albums/:id/contributors/:userId` | Beitragenden entfernen                                   |
 
+**Berechtigung:**
+
+- Für gruppenbezogene Album-Endpunkte ist eine **aktuelle Gruppenmitgliedschaft** erforderlich.
+- Admins dürfen weiterhin gruppenübergreifend zugreifen.
+- Bei fehlender Mitgliedschaft liefert die API `403` mit `code=not_group_member`.
+- Wenn `albumsRestrictedToModerators=true` auf der Gruppe gesetzt ist, dürfen nur Owner, Vertreter und Admins neue Alben anlegen (`403`, `code=albums_locked_for_members`).
+
 ---
 
 ## Gruppen (`/api/groups`)
@@ -119,10 +133,23 @@ Hinweise:
 | `POST`   | `/api/groups/join`                 | Gruppe per Code beitreten (`code`); bei aktivem und erreichtem Limit: `409`             |
 | `GET`    | `/api/groups/:id/members`          | Mitglieder der Gruppe                                                                   |
 | `PATCH`  | `/api/groups/:id`                  | Gruppe umbenennen (nur Owner)                                                           |
-| `PATCH`  | `/api/groups/:id/settings`         | Gruppeneinstellungen ändern (Owner/Admin) – Body: `{ "inviteCodeVisibleToMembers": true | false, "maxMembers": <int | null> }` |
+| `PATCH`  | `/api/groups/:id/settings`         | Gruppeneinstellungen ändern (Owner/Admin). Felder: `inviteCodeVisibleToMembers`, `maxMembers`; `uploadsRestrictedToModerators` und `albumsRestrictedToModerators` nur Owner |
 | `POST`   | `/api/groups/:id/code/rotate`      | Einladungscode neu generieren (Owner/Admin)                                             |
 | `DELETE` | `/api/groups/:id`                  | Gruppe löschen (Owner/Admin), erstellt bei vorhandenen Fotos ein ZIP-Backup             |
 | `DELETE` | `/api/groups/:id/leave`            | Gruppe verlassen (`successorId` bei Owner-Wechsel)                                      |
+| `POST`   | `/api/groups/:id/members/:memberId/remove` | Mitglied entfernen (Owner/Vertreter), löscht dessen Gruppen-Content und optional mit `blockUser=true` dauerhaft blocken |
+Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
+
+```json
+{ "successorId": "<optional-userId>", "deleteOwnContent": true }
+```
+
+- `deleteOwnContent=true` entfernt eigenen Content in der Zielgruppe (eigene Medien, eigene Kommentare, eigene Likes).
+- Album-Verhalten beim Verlassen:
+	- `deleteOwnContent=true`: eigene Alben werden gelöscht; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
+	- `deleteOwnContent=false`: eigene Alben ohne Contributors werden gelöscht; eigene Alben mit Contributors werden an den ersten verfügbaren Contributor übertragen; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
+- Response enthält Zähler (`deletedPhotos`, `deletedComments`, `deletedLikes`, `deletedOwnedAlbums`, `transferredOwnedAlbums`, `removedAlbumContributorLinks`).
+
 | `DELETE` | `/api/groups/:id/dissolve`         | Gruppe auflösen – nur Owner als letztes Mitglied; erstellt ZIP-Backup                   |
 | `GET`    | `/api/groups/:id/deputies`         | Vertreter auflisten                                                                     |
 | `POST`   | `/api/groups/:id/deputies`         | Vertreter ernennen (nur Owner) – Body: `{ "userId": "…" }`                              |
@@ -147,6 +174,7 @@ Hinweise:
 - `expiresAt` darf maximal `12 Monate` in der Zukunft liegen
 - `maxUses` ist optional; ohne Wert ist ein Link unbegrenzt nutzbar
 - Optionaler On-Join-Text wird als `system`-Benachrichtigung an den beitretenden User ausgespielt
+- Ist ein User in einer Zielgruppe blockiert, liefert das Einlösen `403` mit `code=group_blocked`
 
 ### Admin-Endpunkte für Gruppen
 
@@ -171,15 +199,26 @@ Hinweise:
 | -------- | ------------------------ | ------------------------------------------ |
 | `GET`    | `/api/comments/:photoId` | Kommentare eines Fotos                     |
 | `POST`   | `/api/comments`          | Kommentar erstellen (`photoId`, `content`) |
-| `DELETE` | `/api/comments/:id`      | Kommentar löschen (nur eigene)             |
+| `DELETE` | `/api/comments/:id`      | Kommentar löschen (eigene oder als Gruppenmoderation: Owner/Vertreter, Admin nur als Gruppenmitglied) |
+
+**Berechtigung:**
+
+- Für Kommentar-Aktionen auf einem Medium ist eine aktuelle Mitgliedschaft in der Medium-Gruppe erforderlich.
+- Bei fehlender Mitgliedschaft: `403` mit `code=not_group_member`.
 
 ---
 
 ## Likes (`/api/likes`)
 
-| Methode | Pfad                  | Beschreibung                                  |
-| ------- | --------------------- | --------------------------------------------- |
-| `POST`  | `/api/likes/:photoId` | Like togglen (Like hinzufügen oder entfernen) |
+| Methode  | Pfad                  | Beschreibung                     |
+| -------- | --------------------- | -------------------------------- |
+| `POST`   | `/api/likes`          | Like hinzufügen (`photoId`)      |
+| `DELETE` | `/api/likes/:photoId` | Eigenen Like zu Medium entfernen |
+
+**Berechtigung:**
+
+- Für Like-Aktionen auf einem Medium ist eine aktuelle Mitgliedschaft in der Medium-Gruppe erforderlich.
+- Bei fehlender Mitgliedschaft: `403` mit `code=not_group_member`.
 
 ---
 

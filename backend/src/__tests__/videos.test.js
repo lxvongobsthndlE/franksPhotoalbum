@@ -111,6 +111,7 @@ describe('photos routes – video upload validation', () => {
       albums: [],
     });
     prisma.groupMember.findMany.mockResolvedValue([]);
+    prisma.groupMember.findUnique.mockResolvedValue({ userId: user.id, groupId: 'group-1' });
     prisma.user.findUnique.mockResolvedValue(user);
     prisma.group.findUnique.mockResolvedValue({ name: 'Test Group', createdBy: 'other-user' });
 

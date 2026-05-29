@@ -63,12 +63,42 @@ function _schedulePhotoNotif(
 }
 
 export default async function photosRoutes(fastify) {
-  async function isGroupOwner(groupId, userId) {
+  async function getUserRole(userId) {
     const user = await fastify.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
-    if (user?.role === 'admin') return true;
+    return user?.role || null;
+  }
+
+  async function isGroupMember(groupId, userId) {
+    const membership = await fastify.prisma.groupMember.findUnique({
+      where: { userId_groupId: { userId, groupId } },
+    });
+    return !!membership;
+  }
+
+  async function isSystemAdmin(userId) {
+    const role = await getUserRole(userId);
+    return role === 'admin';
+  }
+
+  async function canAccessGroup(groupId, userId) {
+    const role = await getUserRole(userId);
+    if (role === 'admin') return true;
+    return isGroupMember(groupId, userId);
+  }
+
+  async function ensureGroupAccess(reply, groupId, userId) {
+    if (await canAccessGroup(groupId, userId)) return true;
+    reply.code(403).send({
+      error: 'Du bist nicht Mitglied dieser Gruppe',
+      code: 'not_group_member',
+    });
+    return false;
+  }
+
+  async function isGroupOwner(groupId, userId) {
     const group = await fastify.prisma.group.findUnique({
       where: { id: groupId },
       select: { createdBy: true },
@@ -87,6 +117,14 @@ export default async function photosRoutes(fastify) {
     return (await isGroupOwner(groupId, userId)) || (await isGroupDeputy(groupId, userId));
   }
 
+  async function canModerateGroupContent(groupId, userId) {
+    if (await hasGroupAdminRights(groupId, userId)) return true;
+    if (await isSystemAdmin(userId)) {
+      return isGroupMember(groupId, userId);
+    }
+    return false;
+  }
+
   // GET /api/photos - Liste Fotos mit Pagination + Likes/Comments-Counts
   fastify.get('/', async (request, reply) => {
     try {
@@ -98,6 +136,8 @@ export default async function photosRoutes(fastify) {
       if (!groupId) {
         return reply.code(400).send({ error: 'groupId erforderlich' });
       }
+
+      if (!(await ensureGroupAccess(reply, groupId, userId))) return;
 
       const where = { groupId };
       if (albumId) where.albums = { some: { albumId } };
@@ -196,6 +236,28 @@ export default async function photosRoutes(fastify) {
 
       if (!groupId) {
         return reply.code(400).send({ error: 'groupId erforderlich' });
+      }
+
+      if (!(await ensureGroupAccess(reply, groupId, request.user.id))) return;
+
+      const groupMeta = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { createdBy: true, uploadsRestrictedToModerators: true },
+      });
+      if (!groupMeta) {
+        return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+      }
+
+      if (groupMeta.uploadsRestrictedToModerators) {
+        const isOwner = groupMeta.createdBy === request.user.id;
+        const isDeputy = !isOwner && (await isGroupDeputy(groupId, request.user.id));
+        const isAdmin = await isSystemAdmin(request.user.id);
+        if (!isOwner && !isDeputy && !isAdmin) {
+          return reply.code(403).send({
+            error: 'Uploads sind in dieser Gruppe für Mitglieder gesperrt',
+            code: 'uploads_locked_for_members',
+          });
+        }
       }
 
       const isVideo = mimetype.startsWith('video/');
@@ -324,9 +386,15 @@ export default async function photosRoutes(fastify) {
         return reply.code(404).send({ error: 'Foto nicht gefunden' });
       }
 
-      // Nur Owner oder Admin kann löschen
+      if (!(await ensureGroupAccess(reply, photo.groupId, request.user.id))) return;
+
       if (photo.uploaderId !== request.user.id) {
-        return reply.code(403).send({ error: 'Du kannst nur deine eigenen Fotos löschen' });
+        const canModerate = await canModerateGroupContent(photo.groupId, request.user.id);
+        if (!canModerate) {
+          return reply
+            .code(403)
+            .send({ error: 'Du kannst nur eigene Fotos oder als Moderator löschen' });
+        }
       }
 
       // MinIO-Objekt löschen
@@ -358,6 +426,8 @@ export default async function photosRoutes(fastify) {
       // Berechtigung prüfen: Creator, Contributor oder Admin
       const album = await fastify.prisma.album.findUnique({ where: { id: albumId } });
       if (!album) return reply.code(404).send({ error: 'Album nicht gefunden' });
+
+      if (!(await ensureGroupAccess(reply, album.groupId, userId))) return;
 
       const user = await fastify.prisma.user.findUnique({
         where: { id: userId },
@@ -399,12 +469,14 @@ export default async function photosRoutes(fastify) {
   fastify.patch('/:id', async (request, reply) => {
     try {
       await request.jwtVerify();
+      const userId = request.user.id;
 
       const photo = await fastify.prisma.photo.findUnique({ where: { id: request.params.id } });
       if (!photo) return reply.code(404).send({ error: 'Foto nicht gefunden' });
 
+      if (!(await ensureGroupAccess(reply, photo.groupId, userId))) return;
+
       const { albumId, albumIds, description } = request.body;
-      const userId = request.user.id;
       const userRecord = await fastify.prisma.user.findUnique({
         where: { id: userId },
         select: { role: true },
@@ -484,17 +556,23 @@ export default async function photosRoutes(fastify) {
     try {
       const token = request.query.t;
       if (!token) return reply.code(401).send({ error: 'Unauthorized' });
+      let tokenPayload;
       try {
-        fastify.jwt.verify(token);
+        tokenPayload = fastify.jwt.verify(token);
       } catch {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
 
+      const userId = tokenPayload?.id;
+      if (!userId) return reply.code(401).send({ error: 'Unauthorized' });
+
       const photo = await fastify.prisma.photo.findUnique({
         where: { id: request.params.id },
-        select: { path: true, filename: true },
+        select: { path: true, filename: true, groupId: true },
       });
       if (!photo) return reply.code(404).send({ error: 'Foto nicht gefunden' });
+
+      if (!(await ensureGroupAccess(reply, photo.groupId, userId))) return;
 
       const stat = await getPhotoStat(photo.path);
       const size = stat.size;
@@ -535,6 +613,9 @@ export default async function photosRoutes(fastify) {
   // GET /api/photos/:id - Foto-Details
   fastify.get('/:id', async (request, reply) => {
     try {
+      await request.jwtVerify();
+      const userId = request.user.id;
+
       const photo = await fastify.prisma.photo.findUnique({
         where: { id: request.params.id },
         include: {
@@ -548,6 +629,8 @@ export default async function photosRoutes(fastify) {
       if (!photo) {
         return reply.code(404).send({ error: 'Foto nicht gefunden' });
       }
+
+      if (!(await ensureGroupAccess(reply, photo.groupId, userId))) return;
 
       const url = `/api/photos/${photo.id}/file`;
       return { ...photo, albums: undefined, albumIds: photo.albums.map((a) => a.albumId), url };
