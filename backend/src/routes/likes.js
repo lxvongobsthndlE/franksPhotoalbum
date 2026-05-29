@@ -1,6 +1,18 @@
 // Likes Routes
 import { createNotification } from '../utils/notifications.js';
 export default async function likesRoutes(fastify) {
+  async function canAccessGroup(groupId, userId) {
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === 'admin') return true;
+    const membership = await fastify.prisma.groupMember.findUnique({
+      where: { userId_groupId: { userId, groupId } },
+    });
+    return !!membership;
+  }
+
   // POST /api/likes (Like hinzufügen, protected)
   fastify.post('/', async (request, reply) => {
     try {
@@ -9,6 +21,19 @@ export default async function likesRoutes(fastify) {
       const { photoId } = request.body;
       if (!photoId) {
         return reply.code(400).send({ error: 'photoId erforderlich' });
+      }
+
+      const photo = await fastify.prisma.photo.findUnique({
+        where: { id: photoId },
+        select: { uploaderId: true, groupId: true },
+      });
+      if (!photo) return reply.code(404).send({ error: 'Foto nicht gefunden' });
+
+      if (!(await canAccessGroup(photo.groupId, request.user.id))) {
+        return reply.code(403).send({
+          error: 'Du bist nicht Mitglied dieser Gruppe',
+          code: 'not_group_member',
+        });
       }
 
       // Prüfe, ob bereits geliked
@@ -33,10 +58,6 @@ export default async function likesRoutes(fastify) {
       });
 
       // Foto-Owner benachrichtigen (nicht sich selbst)
-      const photo = await fastify.prisma.photo.findUnique({
-        where: { id: photoId },
-        select: { uploaderId: true },
-      });
       if (photo && photo.uploaderId !== request.user.id) {
         const liker = await fastify.prisma.user.findUnique({
           where: { id: request.user.id },
@@ -78,6 +99,19 @@ export default async function likesRoutes(fastify) {
 
       if (!like) {
         return reply.code(404).send({ error: 'Like nicht gefunden' });
+      }
+
+      const photo = await fastify.prisma.photo.findUnique({
+        where: { id: photoId },
+        select: { groupId: true },
+      });
+      if (!photo) return reply.code(404).send({ error: 'Foto nicht gefunden' });
+
+      if (!(await canAccessGroup(photo.groupId, request.user.id))) {
+        return reply.code(403).send({
+          error: 'Du bist nicht Mitglied dieser Gruppe',
+          code: 'not_group_member',
+        });
       }
 
       await fastify.prisma.like.deleteMany({

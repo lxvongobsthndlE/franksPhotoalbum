@@ -31,6 +31,8 @@ model User {
   likes              Like[]
   albumContributions AlbumContributor[]
   groupDeputies      GroupDeputy[]
+  blockedInGroups    GroupBlock[] @relation("BlockedUser")
+  blockedByInGroups  GroupBlock[] @relation("BlockedByUser")
   notifications      Notification[]
   notifPreference    NotificationPreference?
   feedbackReports    FeedbackReport[]
@@ -47,6 +49,8 @@ model Group {
   code                        String   @unique
   createdBy                   String?
   inviteCodeVisibleToMembers  Boolean  @default(true)
+  uploadsRestrictedToModerators Boolean @default(false)
+  albumsRestrictedToModerators Boolean @default(false)
   maxMembers                  Int?
   memberLimitLocked           Boolean  @default(false)
   createdAt                   DateTime @default(now())
@@ -55,6 +59,7 @@ model Group {
   albums    Album[]
   photos    Photo[]
   deputies  GroupDeputy[]
+  blocks    GroupBlock[]
   invites   GroupInviteGroup[]
 }
 
@@ -178,6 +183,20 @@ model GroupDeputy {
   user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([groupId, userId])
+}
+
+model GroupBlock {
+  groupId   String
+  userId    String
+  blockedBy String?
+  createdAt DateTime @default(now())
+
+  group         Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user          User  @relation("BlockedUser", fields: [userId], references: [id], onDelete: Cascade)
+  blockedByUser User? @relation("BlockedByUser", fields: [blockedBy], references: [id], onDelete: SetNull)
+
+  @@id([groupId, userId])
+  @@index([userId])
 }
 
 model GroupBackup {

@@ -588,6 +588,7 @@ function renderSidebar() {
   const canSeeInviteCode =
     !!curGroup &&
     (isOwnerInCurrentGroup || isDeputyInCurrentGroup || curGroup.inviteCodeVisibleToMembers);
+  const allowAlbumCreation = canCreateAlbum();
   const membersCounter =
     curGroup?.maxMembers !== null && curGroup?.maxMembers !== undefined
       ? `${allMembers.length}/${curGroup.maxMembers}`
@@ -612,11 +613,15 @@ function renderSidebar() {
     <div class="sb-div"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px 4px">
       <span class="sb-label" style="padding:0">Alben</span>
-      <button onclick="openNewAlbumInline()" title="Neues Album" style="background:none;border:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;padding:2px;border-radius:6px;transition:background .15s" onmouseover="this.style.background='var(--accent-l)'" onmouseout="this.style.background='none'">
+      ${
+        allowAlbumCreation
+          ? `<button onclick="openNewAlbumInline()" title="Neues Album" style="background:none;border:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;padding:2px;border-radius:6px;transition:background .15s" onmouseover="this.style.background='var(--accent-l)'" onmouseout="this.style.background='none'">
         ${ICON_PLUS}
-      </button>
+      </button>`
+          : ''
+      }
     </div>
-    <div id="new-album-inline" class="hidden" style="padding:6px 10px">
+    <div id="new-album-inline" class="hidden" style="padding:6px 10px;display:${allowAlbumCreation ? 'block' : 'none'}">
       <div style="display:flex;gap:6px">
         <input id="new-album-sb-input" type="text" placeholder="Albumname…" maxlength="40"
           style="flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;outline:none;font-family:inherit"
@@ -663,7 +668,7 @@ function renderSidebar() {
         : ''
     }
     ${
-      isOwnerInCurrentGroup
+      isOwnerInCurrentGroup || isDeputyInCurrentGroup
         ? `
     <button class="fb" onclick="openGroupSettingsModal()${window.innerWidth <= 900 ? ';closeSidebar()' : ''}">
       <span class="fi">${ICON_GEAR}</span>
@@ -1050,10 +1055,43 @@ function folderTitle() {
   if (curFilter === 'mine') return 'Meine Fotos';
   return 'Alle Fotos';
 }
+
+function isCurrentGroupModerator() {
+  if (!curGroupId) return false;
+  if (me?.role === 'admin') return true;
+  const group = myGroups.find((g) => g.id === curGroupId);
+  if (!group) return false;
+  if (group.createdBy === me.id) return true;
+  return groupDeputies.some((d) => d.id === me.id);
+}
+
+function canDeletePhotoInCurrentGroup(photo) {
+  if (!photo) return false;
+  if (photo.uploaderId === me.id) return true;
+  return isCurrentGroupModerator();
+}
+
+function canDeleteCommentInCurrentGroup(comment) {
+  if (!comment) return false;
+  if (comment.userId === me.id) return true;
+  return isCurrentGroupModerator();
+}
+
 function canUpload() {
+  const group = myGroups.find((g) => g.id === curGroupId);
+  const uploadLockedForMembers = !!group?.uploadsRestrictedToModerators;
+  if (uploadLockedForMembers && !isCurrentGroupModerator()) return false;
   if (curAlbum) return true;
   if (curFilterUserId) return false;
   return !curFilter || curFilter === 'mine';
+}
+
+function canCreateAlbum() {
+  const group = myGroups.find((g) => g.id === curGroupId);
+  if (!group) return false;
+  const albumLockedForMembers = !!group.albumsRestrictedToModerators;
+  if (albumLockedForMembers && !isCurrentGroupModerator()) return false;
+  return true;
 }
 
 function updateUploadShortcutVisibility() {
@@ -1193,6 +1231,39 @@ async function loadPhotos(reset = false) {
     }
     renderGrid(appendFrom);
   } catch (err) {
+    if (err?.status === 403 && err?.serverCode === 'not_group_member') {
+      toast('Du bist nicht mehr Mitglied der gewählten Gruppe.', 'error');
+      try {
+        const { groups } = await apiCall('/groups/my', 'GET');
+        myGroups = groups || [];
+      } catch (_) {
+        // Kein zusätzlicher Fehlerdialog nötig.
+      }
+
+      if (myGroups.length === 0) {
+        curGroupId = null;
+        photos = [];
+        renderGroupSwitcher();
+        renderSidebar();
+        renderGrid(0);
+        return;
+      }
+
+      if (!myGroups.some((g) => g.id === curGroupId)) {
+        curGroupId = myGroups[0].id;
+        try {
+          localStorage.setItem('activeGroup', curGroupId);
+        } catch (_) {
+          // Ignore localStorage errors
+        }
+        renderGroupSwitcher();
+        await loadGroupMembers();
+        await loadAlbums();
+        renderSidebar();
+        await loadPhotos(true);
+        return;
+      }
+    }
     console.error('Fotos laden fehlgeschlagen:', err);
     renderGrid(0);
   }
@@ -1300,7 +1371,7 @@ function renderGrid(appendFrom = 0) {
       const i = startIdx + idx;
       const u = allProfiles[p.uploaderId] || p.uploader || {};
       const url = urlCache[p.id] || '';
-      const canDel = p.uploaderId === me.id;
+      const canDel = canDeletePhotoInCurrentGroup(p);
       const liked = p._liked || false;
       const likes = p._likes || 0;
       const comms = p._comments || 0;
@@ -1509,14 +1580,18 @@ async function saveGroupRename() {
 function openGroupSettingsModal() {
   const group = myGroups.find((g) => g.id === curGroupId);
   if (!group) return;
-  if (group.createdBy !== me.id) {
-    toast('Nur der Owner kann die Gruppe verwalten', 'error');
+  const isOwner = group.createdBy === me.id;
+  const isDeputy = groupDeputies.some((d) => d.id === me.id);
+  if (!isOwner && !isDeputy) {
+    toast('Nur Owner oder Vertreter können die Gruppe verwalten', 'error');
     return;
   }
 
   const renameInp = $('group-settings-rename-input');
   const codeDisplay = $('group-settings-code-display');
   const visibilityChk = $('group-settings-code-visible');
+  const uploadLockChk = $('group-settings-upload-lock');
+  const albumLockChk = $('group-settings-album-lock');
   const limitEnabled = $('group-settings-limit-enabled');
   const limitInput = $('group-settings-limit-input');
   const lockHint = $('group-settings-limit-lock-hint');
@@ -1525,6 +1600,8 @@ function openGroupSettingsModal() {
   if (renameInp) renameInp.value = group.name || '';
   if (codeDisplay) codeDisplay.textContent = group.code || '';
   if (visibilityChk) visibilityChk.checked = !!group.inviteCodeVisibleToMembers;
+  if (uploadLockChk) uploadLockChk.checked = !!group.uploadsRestrictedToModerators;
+  if (albumLockChk) albumLockChk.checked = !!group.albumsRestrictedToModerators;
   if (limitEnabled)
     limitEnabled.checked = group.maxMembers !== null && group.maxMembers !== undefined;
   if (limitInput) {
@@ -1542,15 +1619,124 @@ function openGroupSettingsModal() {
   const inviteMaxUses = $('gs-invite-max-uses');
   const inviteExpiry = $('gs-invite-expiry');
   const inviteNotif = $('gs-invite-with-notification');
+  const deputyNote = $('group-settings-deputy-note');
+  const ownerControls = $('group-settings-owner-controls');
+  const deputyWrap = $('gs-deputy-wrap');
+  const inviteWrap = $('gs-invite-wrap');
+  const deleteWrap = $('group-settings-delete-wrap');
   if (inviteMaxUses) inviteMaxUses.value = '';
   if (inviteExpiry) inviteExpiry.value = '';
   if (inviteNotif) inviteNotif.checked = false;
 
+  if (deputyNote) deputyNote.classList.toggle('hidden', isOwner);
+  if (ownerControls) ownerControls.style.display = isOwner ? '' : 'none';
+  if (deputyWrap) deputyWrap.style.display = isOwner ? '' : 'none';
+  if (inviteWrap) inviteWrap.style.display = isOwner ? '' : 'none';
+  if (deleteWrap) deleteWrap.style.display = isOwner ? '' : 'none';
+
   toggleGroupLimitInputs();
 
   _loadGsDeputies();
-  refreshGroupInviteList();
+  _renderGsRemovableMembers();
+  if (isOwner) refreshGroupInviteList();
   show('group-settings-modal');
+}
+
+function _renderGsRemovableMembers() {
+  const sel = $('gs-remove-user-select');
+  const empty = $('gs-remove-empty');
+  const btn = $('gs-remove-user-btn');
+  if (!sel) return;
+
+  const curGroup = myGroups.find((g) => g.id === curGroupId);
+  const deputyIds = new Set((groupDeputies || []).map((d) => d.id));
+  const requesterIsOwner = curGroup?.createdBy === me.id;
+  const requesterIsDeputy = deputyIds.has(me.id);
+
+  const members = (groupMembers || []).filter((m) => {
+    if (m.id === me.id) return false;
+    if (requesterIsDeputy && m.id === curGroup?.createdBy) return false;
+    if (requesterIsOwner && deputyIds.has(m.id)) return false;
+    return true;
+  });
+
+  sel.innerHTML = '<option value="">— Mitglied auswählen —</option>';
+  members.forEach((m) => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    const roleHint = deputyIds.has(m.id) ? ' (Vertreter)' : '';
+    opt.textContent = `${m.name || m.username}${roleHint}`;
+    sel.appendChild(opt);
+  });
+
+  if (empty) empty.style.display = members.length ? 'none' : 'block';
+  sel.disabled = members.length === 0;
+  if (btn) btn.disabled = members.length === 0;
+}
+
+async function removeGroupMemberFromSettings() {
+  const userId = $('gs-remove-user-select')?.value;
+  const blockUser = !!$('gs-remove-block-user')?.checked;
+  if (!userId) return;
+
+  const member = groupMembers.find((m) => m.id === userId);
+  const memberName = member?.name || member?.username || 'dieses Mitglied';
+  const confirmed = await showConfirmDlg(
+    'Mitglied entfernen',
+    blockUser
+      ? `${memberName} wird aus der Gruppe entfernt, Gruppen-Content wird gelöscht und ein Wiederbeitritt blockiert.`
+      : `${memberName} wird aus der Gruppe entfernt und Gruppen-Content wird gelöscht.`,
+    'Entfernen',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  const btn = $('gs-remove-user-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Entferne…';
+  }
+
+  try {
+    const result = await apiCall(`/groups/${curGroupId}/members/${userId}/remove`, 'POST', {
+      blockUser,
+    });
+
+    if (result?.status === 'admin_removal_requested') {
+      toast('Admin-Ziel: Anfrage wurde als Benachrichtigung gesendet.', 'info');
+    } else {
+      toast(
+        `${memberName} entfernt. ${result?.deletedPhotos || 0} Fotos, ${result?.deletedComments || 0} Kommentare, ${result?.deletedLikes || 0} Likes gelöscht.`,
+        'success'
+      );
+    }
+
+    try {
+      const { members } = await apiCall(`/groups/${curGroupId}/members`, 'GET');
+      groupMembers = members || [];
+      groupMembers.forEach((m) => {
+        allProfiles[m.id] = m;
+      });
+    } catch (e) {
+      /* ignore */
+    }
+
+    $('gs-remove-user-select').value = '';
+    const blockChk = $('gs-remove-block-user');
+    if (blockChk) blockChk.checked = false;
+
+    await _loadGsDeputies();
+    _renderGsRemovableMembers();
+    renderSidebar();
+  } catch (e) {
+    toast(e.serverMessage || 'Mitglied konnte nicht entfernt werden', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Mitglied entfernen';
+    }
+  }
 }
 
 function toggleGroupLimitInputs() {
@@ -1657,6 +1843,7 @@ async function _loadGsDeputies() {
     groupDeputies = [];
   }
   _renderGsDeputyList();
+  _renderGsRemovableMembers();
 
   const curGroup = myGroups.find((g) => g.id === curGroupId);
   const sel = $('gs-deputy-user-select');
@@ -1803,6 +1990,68 @@ async function saveGroupInviteCodeVisibility() {
     const chk = $('group-settings-code-visible');
     if (chk) chk.checked = !visible;
     toast('Sichtbarkeit konnte nicht gespeichert werden', 'error');
+  }
+}
+
+async function saveGroupUploadRestriction() {
+  const enabled = !!$('group-settings-upload-lock')?.checked;
+
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}/settings`, 'PATCH', {
+      uploadsRestrictedToModerators: enabled,
+    });
+    const idx = myGroups.findIndex((g) => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...group };
+    const uploadBtn = $('upload-btn');
+    if (uploadBtn) uploadBtn.style.display = canUpload() ? '' : 'none';
+    updateUploadShortcutVisibility();
+    toast(
+      enabled
+        ? 'Uploads für Mitglieder gesperrt (Owner/Vertreter/Admin weiterhin erlaubt)'
+        : 'Uploads für Mitglieder wieder erlaubt',
+      'success'
+    );
+  } catch (e) {
+    const chk = $('group-settings-upload-lock');
+    if (chk) chk.checked = !enabled;
+    toast('Upload-Sperre konnte nicht gespeichert werden', 'error');
+  }
+}
+
+async function saveGroupAlbumRestriction() {
+  const enabled = !!$('group-settings-album-lock')?.checked;
+
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}/settings`, 'PATCH', {
+      albumsRestrictedToModerators: enabled,
+    });
+    const idx = myGroups.findIndex((g) => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...group };
+    closeNewAlbumInline();
+    renderSidebar();
+    const createInput = $('new-album-name');
+    const createBtn = $('new-album-create-btn');
+    const createHint = $('new-album-lock-hint');
+    const allowAlbumCreation = canCreateAlbum();
+    if (createInput) {
+      createInput.disabled = !allowAlbumCreation;
+      createInput.placeholder = allowAlbumCreation
+        ? 'Neues Album benennen…'
+        : 'Album-Erstellung ist für Mitglieder gesperrt';
+      if (!allowAlbumCreation) createInput.value = '';
+    }
+    if (createBtn) createBtn.disabled = !allowAlbumCreation;
+    if (createHint) createHint.classList.toggle('hidden', allowAlbumCreation);
+    toast(
+      enabled
+        ? 'Neue Alben für Mitglieder gesperrt (Owner/Vertreter/Admin weiterhin erlaubt)'
+        : 'Neue Alben für Mitglieder wieder erlaubt',
+      'success'
+    );
+  } catch (e) {
+    const chk = $('group-settings-album-lock');
+    if (chk) chk.checked = !enabled;
+    toast('Album-Sperre konnte nicht gespeichert werden', 'error');
   }
 }
 
@@ -2363,7 +2612,7 @@ async function openLB(i) {
   const d = $('lb-del-btn');
   if (d) {
     d.innerHTML = ICON_TRASH;
-    p.uploaderId === me.id ? d.classList.remove('hidden') : d.classList.add('hidden');
+    canDeletePhotoInCurrentGroup(p) ? d.classList.remove('hidden') : d.classList.add('hidden');
   }
   const dn = $('lb-down-btn');
   if (dn) dn.innerHTML = ICON_DOWNLOAD;
@@ -2530,7 +2779,7 @@ function renderComments() {
   el.innerHTML = lbComments
     .map((c) => {
       const u = allProfiles[c.userId] || c.user || {};
-      const canDel = c.userId === me.id || me.role === 'admin';
+      const canDel = canDeleteCommentInCurrentGroup(c);
       const ts = fmtDateLong(c.createdAt);
       return `<div class="comment-item" title="${esc(ts)}">
       <div class="c-av">${avatarHtml(u, 32)}</div>
@@ -2566,7 +2815,7 @@ function buildLbMenu() {
   const isFullview = isVideo
     ? document.fullscreenElement === lbVideo
     : $('lb').classList.contains('lb-fullview');
-  const canDel = p.uploaderId === me.id;
+  const canDel = canDeletePhotoInCurrentGroup(p);
   const isAdmin = me?.role === 'admin';
 
   const items = [
@@ -2769,12 +3018,41 @@ async function loadAlbums() {
     const { albums } = await apiCall(`/albums?groupId=${curGroupId}`, 'GET');
     allAlbums = albums || [];
   } catch (e) {
+    if (e?.status === 403 && e?.serverCode === 'not_group_member') {
+      try {
+        const { groups } = await apiCall('/groups/my', 'GET');
+        myGroups = groups || [];
+      } catch (_) {
+        myGroups = myGroups || [];
+      }
+      if (myGroups.length > 0 && !myGroups.some((g) => g.id === curGroupId)) {
+        curGroupId = myGroups[0].id;
+        try {
+          localStorage.setItem('activeGroup', curGroupId);
+        } catch (_) {
+          // Ignore localStorage errors
+        }
+      }
+    }
     allAlbums = [];
   }
 }
 
 function openAlbumModal(fromLightbox = false) {
   renderAlbumList();
+  const allowAlbumCreation = canCreateAlbum();
+  const createInput = $('new-album-name');
+  const createBtn = $('new-album-create-btn');
+  const createHint = $('new-album-lock-hint');
+  if (createInput) {
+    createInput.disabled = !allowAlbumCreation;
+    createInput.placeholder = allowAlbumCreation
+      ? 'Neues Album benennen…'
+      : 'Album-Erstellung ist für Mitglieder gesperrt';
+    if (!allowAlbumCreation) createInput.value = '';
+  }
+  if (createBtn) createBtn.disabled = !allowAlbumCreation;
+  if (createHint) createHint.classList.toggle('hidden', allowAlbumCreation);
   const el = document.getElementById('album-modal');
   if (fromLightbox) el.classList.add('modal-bg--top');
   else el.classList.remove('modal-bg--top');
@@ -2831,6 +3109,10 @@ function renderAlbumList() {
 }
 
 async function createAlbum() {
+  if (!canCreateAlbum()) {
+    toast('Album-Erstellung ist in dieser Gruppe für Mitglieder gesperrt', 'error');
+    return;
+  }
   const name = $('new-album-name').value.trim();
   if (!name) return;
   try {
@@ -2845,6 +3127,10 @@ async function createAlbum() {
 }
 
 function openNewAlbumInline() {
+  if (!canCreateAlbum()) {
+    toast('Album-Erstellung ist in dieser Gruppe für Mitglieder gesperrt', 'error');
+    return;
+  }
   const el = $('new-album-inline');
   if (el) {
     el.classList.remove('hidden');
@@ -2858,6 +3144,10 @@ function closeNewAlbumInline() {
   if (inp) inp.value = '';
 }
 async function createAlbumInline() {
+  if (!canCreateAlbum()) {
+    toast('Album-Erstellung ist in dieser Gruppe für Mitglieder gesperrt', 'error');
+    return;
+  }
   const inp = document.getElementById('new-album-sb-input');
   const name = inp?.value?.trim();
   if (!name) return;
@@ -6418,6 +6708,9 @@ async function openLeaveGroup() {
   hide('leave-dissolve-section');
   hide('leave-successor-section');
   hide('leave-last-group-hint');
+  hide('leave-delete-content-wrap');
+  const delOwnChk = $('leave-delete-content');
+  if (delOwnChk) delOwnChk.checked = false;
   $('leave-group-btn').textContent = 'Verlassen';
   $('leave-group-btn').disabled = false;
   $('leave-group-btn').style.display = '';
@@ -6455,6 +6748,7 @@ async function _leaveGroupUpdateOwnerUI() {
       $('leave-last-group-hint').classList.toggle('hidden', !isLastGroup);
       $('leave-group-btn').style.display = isLastGroup ? 'none' : '';
       $('leave-group-btn').disabled = false;
+      if (!isLastGroup) show('leave-delete-content-wrap');
       return;
     }
 
@@ -6468,12 +6762,14 @@ async function _leaveGroupUpdateOwnerUI() {
       $('leave-group-btn').style.display = 'none';
       $('leave-dissolve-btn').style.display = 'none';
       $('leave-dissolve-last-group-hint').classList.remove('hidden');
+      hide('leave-delete-content-wrap');
     } else if (otherMembers.length === 0) {
       // Owner + alleiniges Mitglied + nicht letzte Gruppe → Auflösen möglich
       show('leave-dissolve-section');
       $('leave-group-btn').style.display = 'none';
       $('leave-dissolve-btn').style.display = '';
       $('leave-dissolve-last-group-hint').classList.add('hidden');
+      hide('leave-delete-content-wrap');
     } else {
       // Owner + andere Mitglieder → Nachfolger wählen
       show('leave-successor-section');
@@ -6484,6 +6780,7 @@ async function _leaveGroupUpdateOwnerUI() {
       $('leave-group-btn').style.display = '';
       $('leave-group-btn').disabled = false;
       $('leave-group-btn').textContent = 'Ownership übertragen & verlassen';
+      show('leave-delete-content-wrap');
     }
   } catch (e) {
     // Fehler beim Laden ignorieren, normaler Flow
@@ -6533,13 +6830,16 @@ async function doLeaveGroup() {
     !$('leave-successor-section').classList.contains('hidden')
       ? $('leave-successor-select')?.value
       : null;
+  const deleteOwnContent = !!$('leave-delete-content')?.checked;
 
   if (!isOwner || successorId) {
     const confirmed = await showConfirmDlg(
       `„${groupName}" verlassen`,
       successorId
         ? `Du überträgst die Ownership auf den gewählten Nachfolger und verlässt die Gruppe.`
-        : 'Du verlässt diese Gruppe und siehst ihre Fotos nicht mehr. Deine hochgeladenen Fotos bleiben erhalten.',
+        : deleteOwnContent
+          ? 'Du verlässt diese Gruppe. Dein eigener Content in dieser Gruppe wird gelöscht.'
+          : 'Du verlässt diese Gruppe und siehst ihre Fotos nicht mehr. Deine hochgeladenen Fotos bleiben erhalten.',
       successorId ? 'Übertragen & Verlassen' : 'Verlassen',
       'Abbrechen',
       true
@@ -6549,7 +6849,16 @@ async function doLeaveGroup() {
 
   setBL('leave-group-btn', true, 'Wird verlassen…');
   try {
-    await apiCall(`/groups/${groupId}/leave`, 'DELETE', successorId ? { successorId } : undefined);
+    const leavePayload = {
+      ...(successorId ? { successorId } : {}),
+      ...(deleteOwnContent ? { deleteOwnContent: true } : {}),
+    };
+    const leaveResult = await apiCall(
+      `/groups/${groupId}/leave`,
+      'DELETE',
+      Object.keys(leavePayload).length ? leavePayload : undefined
+    );
+    const albumSummary = `Alben: ${leaveResult?.deletedOwnedAlbums || 0} gelöscht, ${leaveResult?.transferredOwnedAlbums || 0} übertragen, ${leaveResult?.removedAlbumContributorLinks || 0} Contributor entfernt`;
     myGroups = myGroups.filter((g) => g.id !== groupId);
     closeLeaveGroup();
     if (groupId === curGroupId) {
@@ -6569,11 +6878,28 @@ async function doLeaveGroup() {
       await loadAlbums();
       renderSidebar();
       await loadPhotos(true);
-      toast(`„${groupName}" verlassen. Gewechselt zu „${myGroups[0].name}".`, 'success');
+      if (deleteOwnContent) {
+        toast(
+          `„${groupName}" verlassen. Content: ${leaveResult?.deletedPhotos || 0} Fotos, ${leaveResult?.deletedComments || 0} Kommentare, ${leaveResult?.deletedLikes || 0} Likes. ${albumSummary}. Jetzt in „${myGroups[0].name}".`,
+          'success'
+        );
+      } else {
+        toast(
+          `„${groupName}" verlassen. ${albumSummary}. Jetzt in „${myGroups[0].name}".`,
+          'success'
+        );
+      }
     } else {
       renderGroupSwitcher();
       renderSidebar();
-      toast(`„${groupName}" erfolgreich verlassen.`, 'success');
+      if (deleteOwnContent) {
+        toast(
+          `„${groupName}" verlassen. Content: ${leaveResult?.deletedPhotos || 0} Fotos, ${leaveResult?.deletedComments || 0} Kommentare, ${leaveResult?.deletedLikes || 0} Likes. ${albumSummary}.`,
+          'success'
+        );
+      } else {
+        toast(`„${groupName}" verlassen. ${albumSummary}.`, 'success');
+      }
     }
   } catch (e) {
     const msg = e.serverMessage || 'Fehler beim Verlassen der Gruppe.';
@@ -6826,32 +7152,30 @@ function updateBulkCount() {
 async function bulkDelete() {
   if (!selectedIds.size) return;
   const ids = [...selectedIds];
-  const own = ids.filter((id) => {
+  const removable = ids.filter((id) => {
     const p = photos.find((x) => x.id === id);
-    return p?.uploaderId === me.id;
+    return canDeletePhotoInCurrentGroup(p);
   });
-  const foreign = ids.length - own.length;
+  const foreign = ids.length - removable.length;
   const dlg = $('del-dlg');
   const ico = dlg.querySelector('.dlg-ico');
   const txt = dlg.querySelector('p');
   const btns = dlg.querySelector('.dlg-btns');
   if (ico) ico.textContent = '🗑';
-  if (own.length === 0) {
-    if (txt)
-      txt.textContent =
-        'Du kannst nur eigene Fotos löschen. Keins der ausgewählten Fotos gehört dir.';
+  if (removable.length === 0) {
+    if (txt) txt.textContent = 'Keines der ausgewählten Fotos kann von dir gelöscht werden.';
     btns.className = 'dlg-btns';
     btns.innerHTML = `<button class="btn btn-ghost" onclick="cancelDel()">Verstanden</button>`;
   } else if (foreign > 0) {
     if (txt)
-      txt.textContent = `${own.length} eigene${own.length > 1 ? ' Fotos' : ' Foto'} löschen? (${foreign} fremde${foreign > 1 ? ' Fotos' : ' Foto'} werden übersprungen)`;
+      txt.textContent = `${removable.length} löschbare${removable.length > 1 ? ' Fotos' : ' Foto'} löschen? (${foreign} nicht erlaubte${foreign > 1 ? ' Fotos' : ' Foto'} werden übersprungen)`;
     btns.className = 'dlg-btns';
     btns.innerHTML = `
       <button class="btn btn-ghost" onclick="cancelDel()">Abbrechen</button>
-      <button class="btn btn-danger" onclick="execBulkDelete()">Eigene löschen</button>`;
+      <button class="btn btn-danger" onclick="execBulkDelete()">Löschbare löschen</button>`;
   } else {
     if (txt)
-      txt.textContent = `${own.length} Foto${own.length > 1 ? 's' : ''} wirklich unwiderruflich löschen?`;
+      txt.textContent = `${removable.length} Foto${removable.length > 1 ? 's' : ''} wirklich unwiderruflich löschen?`;
     btns.className = 'dlg-btns';
     btns.innerHTML = `
       <button class="btn btn-ghost" onclick="cancelDel()">Abbrechen</button>
@@ -6864,7 +7188,7 @@ async function execBulkDelete() {
   hide('del-dlg');
   const ids = [...selectedIds].filter((id) => {
     const p = photos.find((x) => x.id === id);
-    return p?.uploaderId === me.id;
+    return canDeletePhotoInCurrentGroup(p);
   });
   if (!ids.length) {
     toggleSelectMode();
@@ -7948,11 +8272,14 @@ Object.assign(window, {
   saveGroupSettingsRename,
   rotateGroupInviteCode,
   saveGroupInviteCodeVisibility,
+  saveGroupUploadRestriction,
+  saveGroupAlbumRestriction,
   copyGroupSettingsCode,
   copyInviteUrl,
   createGroupInvite,
   refreshGroupInviteList,
   deleteGroupInvite,
+  removeGroupMemberFromSettings,
   deleteGroupFromSettings,
   toggleGroupLimitInputs,
   saveGroupMemberLimit,

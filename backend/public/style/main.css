@@ -4244,6 +4244,14 @@ textarea {
 .new-album-row button:hover {
   background: var(--accent-d);
 }
+.new-album-row button:disabled {
+  background: var(--border2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.new-album-row button:disabled:hover {
+  background: var(--border2);
+}
 
 /* ── PROFILE MODAL ── */
 .avatar-upload-area {

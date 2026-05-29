@@ -40,6 +40,22 @@ Admins können in der Admin-Gruppenverwaltung das Mitgliederlimit zusätzlich sp
 - Ein Änderungsversuch durch den Owner wird serverseitig mit `403` abgewiesen
 - Admins können Sperre und Limit jederzeit wieder anpassen
 
+### Upload-Lock für Mitglieder
+
+Owner können Uploads für normale Mitglieder sperren (`uploadsRestrictedToModerators = true`).
+
+- Erlaubt bleiben Uploads nur für Owner, Vertreter und Admins
+- Gesperrte Mitglieder erhalten beim Upload `403` mit `code=uploads_locked_for_members`
+- Diese Einstellung darf nur vom Owner geändert werden
+
+### Album-Lock für Mitglieder
+
+Owner können das Erstellen neuer Alben für normale Mitglieder sperren (`albumsRestrictedToModerators = true`).
+
+- Erlaubt bleiben neue Alben nur für Owner, Vertreter und Admins
+- Gesperrte Mitglieder erhalten beim Erstellen `403` mit `code=albums_locked_for_members`
+- Diese Einstellung darf nur vom Owner geändert werden
+
 **API:**
 
 | Methode  | Pfad                          | Beschreibung                                                                        |
@@ -49,10 +65,11 @@ Admins können in der Admin-Gruppenverwaltung das Mitgliederlimit zusätzlich sp
 | `POST`   | `/api/groups/join`            | Gruppe per `code` beitreten                                                         |
 | `GET`    | `/api/groups/:id/members`     | Mitglieder einer Gruppe                                                             |
 | `PATCH`  | `/api/groups/:id`             | Gruppe umbenennen (nur Owner)                                                       |
-| `PATCH`  | `/api/groups/:id/settings`    | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit und `maxMembers` |
+| `PATCH`  | `/api/groups/:id/settings`    | Gruppeneinstellungen ändern (Owner/Admin), z. B. Code-Sichtbarkeit, `maxMembers`, Upload- und Album-Lock |
 | `POST`   | `/api/groups/:id/code/rotate` | Einladungscode neu generieren (Owner/Admin)                                         |
 | `DELETE` | `/api/groups/:id`             | Gruppe löschen (Owner/Admin, mit ZIP-Backup wenn Fotos vorhanden)                   |
 | `DELETE` | `/api/groups/:id/leave`       | Gruppe verlassen                                                                    |
+| `POST`   | `/api/groups/:id/members/:memberId/remove` | Mitglied entfernen (Owner/Vertreter), immer mit Content-Löschung, optional `blockUser` |
 
 ---
 
@@ -73,6 +90,8 @@ Zusätzlich zum klassischen 6-stelligen Gruppen-Code gibt es dedizierte Invite-L
 Das Einlösen ist idempotent: Ist ein User bereits Mitglied, kommt kein Fehler, sondern ein erfolgreicher Status (`already_member`).
 
 Bei Multi-Group-Invites sind Teil-Erfolge erlaubt (`partial`), falls z. B. eine Gruppe voll ist, andere aber erfolgreich beigetreten werden können.
+
+Ist der User in einer Zielgruppe blockiert, liefert das Einlösen `403` mit `code=group_blocked`.
 
 ### OIDC-Flow bei nicht eingeloggten Nutzern
 
@@ -99,6 +118,23 @@ Jede Gruppe hat genau einen **Owner** (gespeichert in `Group.createdBy`). Der Ow
 | `POST`   | `/api/groups/:id/deputies`         | Vertreter ernennen (nur Owner)  |
 | `DELETE` | `/api/groups/:id/deputies/:userId` | Vertreter entfernen (nur Owner) |
 
+### Mitglied entfernen (Moderation)
+
+Owner und Vertreter können Mitglieder aus einer Gruppe entfernen. Dabei wird der gruppenbezogene Content des entfernten Users immer gelöscht:
+
+- eigene Fotos/Videos in der Gruppe
+- eigene Kommentare und Likes in der Gruppe
+- eigene Album-Ownerrollen in der Gruppe (Alben werden gelöscht)
+- eigene Contributor-Links in Gruppen-Alben
+
+Optional kann beim Entfernen zusätzlich `blockUser=true` gesetzt werden, damit ein erneuter Beitritt per Code/Invite blockiert wird.
+
+Rollenregeln:
+
+- Vertreter dürfen den Owner nicht entfernen
+- Owner dürfen Vertreter nicht entfernen
+- Owner/Vertreter dürfen keine Admins direkt entfernen; stattdessen wird eine Admin-Benachrichtigung erzeugt
+
 ---
 
 ## Owner-Nachfolge beim Verlassen
@@ -112,7 +148,34 @@ Content-Type: application/json
 { "successorId": "<userId>" }
 ```
 
+Optional kann der verlassende User beim Leave-Request den eigenen Content in dieser Gruppe löschen:
+
+```http
+DELETE /api/groups/:id/leave
+Content-Type: application/json
+
+{ "successorId": "<optional-userId>", "deleteOwnContent": true }
+```
+
+Bei `deleteOwnContent=true` werden in der Zielgruppe entfernt:
+
+- eigene Fotos/Videos
+- eigene Kommentare
+- eigene Likes
+
+Album-Verhalten beim Verlassen:
+
+- `deleteOwnContent=true`:
+	- Eigene Alben werden gelöscht (unabhängig davon, ob Contributors existieren)
+	- Eigene Contributor-Rechte in anderen Alben der Gruppe werden entfernt
+- `deleteOwnContent=false`:
+	- Eigene Alben ohne Contributors werden gelöscht
+	- Eigene Alben mit Contributors werden an den ersten verfügbaren Contributor übertragen
+	- Eigene Contributor-Rechte in anderen Alben der Gruppe werden entfernt
+
 Der neue Owner wird in `Group.createdBy` eingetragen. Ist der Owner das **letzte Mitglied**, kann er die Gruppe stattdessen [auflösen](#gruppe-auflösen).
+
+Verlässt ein Mitglied die Gruppe ohne `deleteOwnContent`, bleibt dessen vorhandener Content in der Gruppe bestehen.
 
 ---
 
@@ -151,6 +214,8 @@ Alben gehören zu einer Gruppe und dienen zur thematischen Gruppierung von Fotos
 | `GET`    | `/api/albums/:id/contributors`         | Beitragende auflisten                              |
 | `POST`   | `/api/albums/:id/contributors`         | Beitragenden hinzufügen                            |
 | `DELETE` | `/api/albums/:id/contributors/:userId` | Beitragenden entfernen                             |
+
+Ist `albumsRestrictedToModerators=true` gesetzt, dürfen nur Owner, Vertreter und Admins neue Alben erstellen.
 
 ---
 

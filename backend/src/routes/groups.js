@@ -21,6 +21,29 @@ export default async function groupsRoutes(fastify) {
     return { value: rawValue };
   }
 
+  async function getUserRole(userId) {
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    return user?.role || null;
+  }
+
+  async function isGroupOwner(groupId, userId) {
+    const group = await fastify.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { createdBy: true },
+    });
+    return group?.createdBy === userId;
+  }
+
+  async function isGroupDeputy(groupId, userId) {
+    const deputy = await fastify.prisma.groupDeputy.findUnique({
+      where: { groupId_userId: { groupId, userId } },
+    });
+    return !!deputy;
+  }
+
   // GET /api/groups/my - Gibt die Gruppen des eingeloggten Users zurück.
   // Falls keine existiert, wird automatisch eine erstellt.
   fastify.get('/my', async (request, reply) => {
@@ -108,6 +131,15 @@ export default async function groupsRoutes(fastify) {
         where: { userId_groupId: { userId: request.user.id, groupId: group.id } },
       });
       if (existing) return reply.code(409).send({ error: 'Bereits Mitglied' });
+
+      const blocked = await fastify.prisma.groupBlock.findUnique({
+        where: { groupId_userId: { groupId: group.id, userId: request.user.id } },
+      });
+      if (blocked) {
+        return reply
+          .code(403)
+          .send({ error: 'Du bist für diese Gruppe blockiert', code: 'group_blocked' });
+      }
 
       if (group.maxMembers !== null) {
         const memberCount = await fastify.prisma.groupMember.count({
@@ -200,13 +232,26 @@ export default async function groupsRoutes(fastify) {
       const body = request.body || {};
       const hasInviteCodeVisibility = hasOwn(body, 'inviteCodeVisibleToMembers');
       const hasMaxMembers = hasOwn(body, 'maxMembers');
+      const hasUploadRestriction = hasOwn(body, 'uploadsRestrictedToModerators');
+      const hasAlbumRestriction = hasOwn(body, 'albumsRestrictedToModerators');
 
-      if (!hasInviteCodeVisibility && !hasMaxMembers) {
+      if (
+        !hasInviteCodeVisibility &&
+        !hasMaxMembers &&
+        !hasUploadRestriction &&
+        !hasAlbumRestriction
+      ) {
         return reply.code(400).send({ error: 'Mindestens eine Einstellung muss angegeben werden' });
       }
 
       if (hasInviteCodeVisibility && typeof body.inviteCodeVisibleToMembers !== 'boolean') {
         return reply.code(400).send({ error: 'inviteCodeVisibleToMembers muss boolean sein' });
+      }
+      if (hasUploadRestriction && typeof body.uploadsRestrictedToModerators !== 'boolean') {
+        return reply.code(400).send({ error: 'uploadsRestrictedToModerators muss boolean sein' });
+      }
+      if (hasAlbumRestriction && typeof body.albumsRestrictedToModerators !== 'boolean') {
+        return reply.code(400).send({ error: 'albumsRestrictedToModerators muss boolean sein' });
       }
 
       const group = await fastify.prisma.group.findUnique({
@@ -223,11 +268,26 @@ export default async function groupsRoutes(fastify) {
         return reply.code(403).send({ error: 'Nur der Owner kann diese Einstellung ändern' });
       }
 
+      if (hasUploadRestriction && group.createdBy !== userId) {
+        return reply.code(403).send({ error: 'Nur der Owner kann den Upload-Lock ändern' });
+      }
+      if (hasAlbumRestriction && group.createdBy !== userId) {
+        return reply.code(403).send({ error: 'Nur der Owner kann den Album-Lock ändern' });
+      }
+
       const isAdmin = requester?.role === 'admin';
       const data = {};
 
       if (hasInviteCodeVisibility) {
         data.inviteCodeVisibleToMembers = body.inviteCodeVisibleToMembers;
+      }
+
+      if (hasUploadRestriction) {
+        data.uploadsRestrictedToModerators = body.uploadsRestrictedToModerators;
+      }
+
+      if (hasAlbumRestriction) {
+        data.albumsRestrictedToModerators = body.albumsRestrictedToModerators;
       }
 
       if (hasMaxMembers) {
@@ -434,7 +494,11 @@ export default async function groupsRoutes(fastify) {
       await request.jwtVerify();
       const userId = request.user.id;
       const groupId = request.params.id;
-      const { successorId } = request.body || {};
+      const { successorId, deleteOwnContent = false } = request.body || {};
+
+      if (typeof deleteOwnContent !== 'boolean') {
+        return reply.code(400).send({ error: 'deleteOwnContent muss boolean sein' });
+      }
 
       // Prüfen ob Mitglied
       const membership = await fastify.prisma.groupMember.findUnique({
@@ -450,6 +514,7 @@ export default async function groupsRoutes(fastify) {
 
       // Owner-Succession: wenn User Owner ist und ein Nachfolger angegeben wurde
       const group = await fastify.prisma.group.findUnique({ where: { id: groupId } });
+      let ownerAfterLeave = group?.createdBy || null;
       if (group?.createdBy === userId) {
         if (!successorId) {
           // Prüfen wie viele andere Mitglieder es gibt
@@ -469,29 +534,127 @@ export default async function groupsRoutes(fastify) {
         if (!successorMembership)
           return reply.code(400).send({ error: 'Nachfolger ist kein Mitglied der Gruppe' });
 
-        // Ownership übertragen + Deputies des alten Owners entfernen
-        await fastify.prisma.group.update({
-          where: { id: groupId },
-          data: { createdBy: successorId },
-        });
-        await fastify.prisma.groupDeputy.deleteMany({ where: { groupId, userId: successorId } }); // Nachfolger war evtl. Deputy
+        // Ownership wird zusammen mit dem Leave-Flow in der Transaktion durchgeführt
+        ownerAfterLeave = successorId;
       }
 
-      await fastify.prisma.groupMember.delete({
-        where: { userId_groupId: { userId, groupId } },
+      let removedPhotoCount = 0;
+      let removedCommentCount = 0;
+      let removedLikeCount = 0;
+      let removedPhotoKeys = [];
+      let deletedOwnedAlbumCount = 0;
+      let transferredOwnedAlbumCount = 0;
+      let removedContributorAlbumCount = 0;
+
+      await fastify.prisma.$transaction(async (tx) => {
+        if (group?.createdBy === userId && successorId) {
+          await tx.group.update({
+            where: { id: groupId },
+            data: { createdBy: successorId },
+          });
+          await tx.groupDeputy.deleteMany({ where: { groupId, userId: successorId } });
+        }
+
+        const ownedAlbumsRaw = await tx.album.findMany({
+          where: { groupId, createdBy: userId },
+          select: { id: true },
+        });
+        const ownedAlbums = Array.isArray(ownedAlbumsRaw) ? ownedAlbumsRaw : [];
+
+        if (ownedAlbums.length) {
+          if (deleteOwnContent) {
+            const deletedOwnedAlbums = await tx.album.deleteMany({
+              where: { id: { in: ownedAlbums.map((a) => a.id) } },
+            });
+            deletedOwnedAlbumCount = deletedOwnedAlbums.count || ownedAlbums.length;
+          } else {
+            for (const ownedAlbum of ownedAlbums) {
+              const transferCandidates = await tx.albumContributor.findMany({
+                where: { albumId: ownedAlbum.id, userId: { not: userId } },
+                select: { userId: true },
+                orderBy: { userId: 'asc' },
+                take: 1,
+              });
+
+              if (!transferCandidates.length) {
+                await tx.album.delete({ where: { id: ownedAlbum.id } });
+                deletedOwnedAlbumCount += 1;
+                continue;
+              }
+
+              const newOwnerId = transferCandidates[0].userId;
+              await tx.album.update({
+                where: { id: ownedAlbum.id },
+                data: { createdBy: newOwnerId },
+              });
+              transferredOwnedAlbumCount += 1;
+              await tx.albumContributor.deleteMany({
+                where: { albumId: ownedAlbum.id, userId: newOwnerId },
+              });
+            }
+          }
+        }
+
+        if (deleteOwnContent) {
+          const ownPhotos = await tx.photo.findMany({
+            where: { groupId, uploaderId: userId },
+            select: { id: true, path: true },
+          });
+          const ownPhotoIds = ownPhotos.map((p) => p.id);
+          removedPhotoKeys = ownPhotos.map((p) => p.path);
+          removedPhotoCount = ownPhotoIds.length;
+
+          const likeDelete = await tx.like.deleteMany({
+            where: {
+              OR: [
+                { userId, photo: { groupId } },
+                ...(ownPhotoIds.length ? [{ photoId: { in: ownPhotoIds } }] : []),
+              ],
+            },
+          });
+          removedLikeCount = likeDelete.count;
+
+          const commentDelete = await tx.comment.deleteMany({
+            where: {
+              OR: [
+                { userId, photo: { groupId } },
+                ...(ownPhotoIds.length ? [{ photoId: { in: ownPhotoIds } }] : []),
+              ],
+            },
+          });
+          removedCommentCount = commentDelete.count;
+
+          if (ownPhotoIds.length) {
+            await tx.photoAlbum.deleteMany({ where: { photoId: { in: ownPhotoIds } } });
+            await tx.photo.deleteMany({ where: { id: { in: ownPhotoIds } } });
+          }
+        }
+
+        await tx.groupMember.delete({
+          where: { userId_groupId: { userId, groupId } },
+        });
+        // Auch als Deputy entfernen
+        await tx.groupDeputy.deleteMany({ where: { groupId, userId } });
+        // Contributor-Rechte in Gruppen-Alben entfernen
+        const removedContributorAlbums = await tx.albumContributor.deleteMany({
+          where: { userId, album: { groupId } },
+        });
+        removedContributorAlbumCount = removedContributorAlbums.count || 0;
       });
-      // Auch als Deputy entfernen
-      await fastify.prisma.groupDeputy.deleteMany({ where: { groupId, userId } });
+
+      if (removedPhotoKeys.length) {
+        await deleteGroupPhotoObjects(removedPhotoKeys);
+      }
 
       // Notification an Gruppen-Owner
-      if (group?.createdBy && group.createdBy !== userId) {
+      if (ownerAfterLeave && ownerAfterLeave !== userId) {
         const leaver = await fastify.prisma.user.findUnique({
           where: { id: userId },
           select: { name: true, username: true },
         });
         const leaverName = leaver?.name || leaver?.username || 'Jemand';
         createNotification(fastify.prisma, {
-          userId: group.createdBy,
+          userId: ownerAfterLeave,
           type: 'groupMemberLeft',
           title: `Mitglied hat „${group.name}" verlassen`,
           body: `${leaverName} hat die Gruppe verlassen.`,
@@ -500,10 +663,206 @@ export default async function groupsRoutes(fastify) {
         }).catch(() => {});
       }
 
-      return { ok: true };
+      return {
+        ok: true,
+        deletedOwnContent: deleteOwnContent,
+        deletedPhotos: removedPhotoCount,
+        deletedComments: removedCommentCount,
+        deletedLikes: removedLikeCount,
+        deletedOwnedAlbums: deletedOwnedAlbumCount,
+        transferredOwnedAlbums: transferredOwnedAlbumCount,
+        removedAlbumContributorLinks: removedContributorAlbumCount,
+      };
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Gruppe verlassen fehlgeschlagen' });
+    }
+  });
+
+  // POST /api/groups/:id/members/:memberId/remove - Mitglied entfernen (Owner/Vertreter)
+  fastify.post('/:id/members/:memberId/remove', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const groupId = request.params.id;
+      const targetUserId = request.params.memberId;
+      const requesterId = request.user.id;
+      const { blockUser = false } = request.body || {};
+
+      if (typeof blockUser !== 'boolean') {
+        return reply.code(400).send({ error: 'blockUser muss boolean sein' });
+      }
+
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, name: true, createdBy: true },
+      });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const requesterIsOwner = group.createdBy === requesterId;
+      const requesterIsDeputy = requesterIsOwner
+        ? false
+        : await isGroupDeputy(groupId, requesterId);
+      if (!requesterIsOwner && !requesterIsDeputy) {
+        return reply
+          .code(403)
+          .send({ error: 'Nur Owner oder Vertreter dürfen Mitglieder entfernen' });
+      }
+
+      if (requesterId === targetUserId) {
+        return reply.code(400).send({
+          error: 'Du kannst dich nicht selbst entfernen. Nutze stattdessen „Gruppe verlassen“.',
+        });
+      }
+
+      const membership = await fastify.prisma.groupMember.findUnique({
+        where: { userId_groupId: { userId: targetUserId, groupId } },
+      });
+      if (!membership) {
+        return reply.code(404).send({ error: 'User ist kein Mitglied dieser Gruppe' });
+      }
+
+      const targetUser = await fastify.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { role: true, name: true, username: true },
+      });
+      const targetIsAdmin = targetUser?.role === 'admin';
+      const targetIsOwner = group.createdBy === targetUserId;
+      const targetIsDeputy = !targetIsOwner && (await isGroupDeputy(groupId, targetUserId));
+
+      if (requesterIsDeputy && targetIsOwner) {
+        return reply.code(403).send({ error: 'Vertreter dürfen den Owner nicht entfernen' });
+      }
+      if (requesterIsOwner && targetIsDeputy) {
+        return reply.code(403).send({ error: 'Der Owner kann Vertreter nicht entfernen' });
+      }
+      if (targetIsOwner) {
+        return reply.code(403).send({ error: 'Der Owner kann nicht entfernt werden' });
+      }
+
+      if (targetIsAdmin) {
+        const requesterUser = await fastify.prisma.user.findUnique({
+          where: { id: requesterId },
+          select: { name: true, username: true },
+        });
+        const requesterName = requesterUser?.name || requesterUser?.username || 'Jemand';
+        createNotification(fastify.prisma, {
+          userId: targetUserId,
+          type: 'system',
+          title: `Entfernungsanfrage für „${group.name}”`,
+          body: `${requesterName} möchte dich aus der Gruppe entfernen. Bitte prüfe die Anfrage als Admin.`,
+          entityId: groupId,
+          entityType: 'group',
+        }).catch(() => {});
+        return reply.code(202).send({ status: 'admin_removal_requested' });
+      }
+
+      const targetGroupCount = await fastify.prisma.groupMember.count({
+        where: { userId: targetUserId },
+      });
+      if (targetGroupCount <= 1) {
+        return reply
+          .code(409)
+          .send({ error: 'Der User kann nicht aus seiner letzten Gruppe entfernt werden' });
+      }
+
+      let removedPhotoCount = 0;
+      let removedCommentCount = 0;
+      let removedLikeCount = 0;
+      let removedPhotoKeys = [];
+      let deletedOwnedAlbumCount = 0;
+      let removedContributorAlbumCount = 0;
+
+      await fastify.prisma.$transaction(async (tx) => {
+        const ownedAlbums = await tx.album.findMany({
+          where: { groupId, createdBy: targetUserId },
+          select: { id: true },
+        });
+        deletedOwnedAlbumCount = ownedAlbums.length;
+        if (ownedAlbums.length) {
+          await tx.album.deleteMany({
+            where: { id: { in: ownedAlbums.map((album) => album.id) } },
+          });
+        }
+
+        const ownPhotos = await tx.photo.findMany({
+          where: { groupId, uploaderId: targetUserId },
+          select: { id: true, path: true },
+        });
+        const ownPhotoIds = ownPhotos.map((photo) => photo.id);
+        removedPhotoKeys = ownPhotos.map((photo) => photo.path);
+        removedPhotoCount = ownPhotoIds.length;
+
+        const likeDelete = await tx.like.deleteMany({
+          where: {
+            OR: [
+              { userId: targetUserId, photo: { groupId } },
+              ...(ownPhotoIds.length ? [{ photoId: { in: ownPhotoIds } }] : []),
+            ],
+          },
+        });
+        removedLikeCount = likeDelete.count;
+
+        const commentDelete = await tx.comment.deleteMany({
+          where: {
+            OR: [
+              { userId: targetUserId, photo: { groupId } },
+              ...(ownPhotoIds.length ? [{ photoId: { in: ownPhotoIds } }] : []),
+            ],
+          },
+        });
+        removedCommentCount = commentDelete.count;
+
+        if (ownPhotoIds.length) {
+          await tx.photoAlbum.deleteMany({ where: { photoId: { in: ownPhotoIds } } });
+          await tx.photo.deleteMany({ where: { id: { in: ownPhotoIds } } });
+        }
+
+        await tx.groupMember.delete({
+          where: { userId_groupId: { userId: targetUserId, groupId } },
+        });
+        await tx.groupDeputy.deleteMany({ where: { groupId, userId: targetUserId } });
+
+        const removedContributorAlbums = await tx.albumContributor.deleteMany({
+          where: { userId: targetUserId, album: { groupId } },
+        });
+        removedContributorAlbumCount = removedContributorAlbums.count || 0;
+
+        if (blockUser) {
+          await tx.groupBlock.upsert({
+            where: { groupId_userId: { groupId, userId: targetUserId } },
+            create: { groupId, userId: targetUserId, blockedBy: requesterId },
+            update: { blockedBy: requesterId },
+          });
+        }
+      });
+
+      if (removedPhotoKeys.length) {
+        await deleteGroupPhotoObjects(removedPhotoKeys);
+      }
+
+      createNotification(fastify.prisma, {
+        userId: targetUserId,
+        type: 'system',
+        title: `Du wurdest aus „${group.name}” entfernt`,
+        body: blockUser
+          ? 'Deine Inhalte und Rollen in dieser Gruppe wurden entfernt. Ein erneuter Beitritt ist blockiert.'
+          : 'Deine Inhalte und Rollen in dieser Gruppe wurden entfernt.',
+        entityId: groupId,
+        entityType: 'group',
+      }).catch(() => {});
+
+      return {
+        status: 'removed',
+        blocked: blockUser,
+        deletedPhotos: removedPhotoCount,
+        deletedComments: removedCommentCount,
+        deletedLikes: removedLikeCount,
+        deletedOwnedAlbums: deletedOwnedAlbumCount,
+        removedAlbumContributorLinks: removedContributorAlbumCount,
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Mitglied konnte nicht entfernt werden' });
     }
   });
 

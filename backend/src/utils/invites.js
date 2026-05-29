@@ -88,7 +88,7 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
       httpCode: 410,
       status: 'failed',
       code: 'invite_exhausted',
-      message: 'Einladungslink wurde bereits vollstaendig genutzt.',
+      message: 'Einladungslink wurde bereits vollständig genutzt.',
     };
   }
 
@@ -109,6 +109,19 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
     select: { groupId: true },
   });
   const memberSet = new Set(memberships.map((entry) => entry.groupId));
+  let blockedRows = [];
+  if (typeof prisma.groupBlock?.findMany === 'function') {
+    try {
+      blockedRows =
+        (await prisma.groupBlock.findMany({
+          where: { userId, groupId: { in: groupIds } },
+          select: { groupId: true },
+        })) || [];
+    } catch {
+      blockedRows = [];
+    }
+  }
+  const blockedSet = new Set(blockedRows.map((entry) => entry.groupId));
 
   const joinedGroups = [];
   const alreadyMemberGroups = [];
@@ -117,6 +130,11 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
   for (const group of targets) {
     if (memberSet.has(group.id)) {
       alreadyMemberGroups.push({ groupId: group.id, name: group.name });
+      continue;
+    }
+
+    if (blockedSet.has(group.id)) {
+      failedGroups.push({ groupId: group.id, name: group.name, reason: 'group_blocked' });
       continue;
     }
 
@@ -204,7 +222,7 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
       httpCode: 200,
       status: 'partial',
       code: 'partial_join',
-      message: 'Invite teilweise erfolgreich eingeloest.',
+      message: 'Einladung teilweise erfolgreich eingeloest.',
       joinedGroups,
       failedGroups,
       alreadyMemberGroups,
@@ -213,14 +231,21 @@ export async function redeemInviteForUser(prisma, { token, userId, now = new Dat
 
   if (joinedGroups.length === 0 && failedGroups.length > 0) {
     const hasGroupFull = failedGroups.some((entry) => entry.reason === 'group_full');
+    const hasGroupBlocked = failedGroups.some((entry) => entry.reason === 'group_blocked');
     return {
       ok: false,
-      httpCode: hasGroupFull ? 409 : 400,
+      httpCode: hasGroupBlocked ? 403 : hasGroupFull ? 409 : 400,
       status: 'failed',
-      code: hasGroupFull ? 'group_full' : 'invite_redeem_failed',
-      message: hasGroupFull
-        ? 'Mindestens eine Zielgruppe ist voll.'
-        : 'Einladung konnte nicht eingeloest werden.',
+      code: hasGroupBlocked
+        ? 'group_blocked'
+        : hasGroupFull
+          ? 'group_full'
+          : 'invite_redeem_failed',
+      message: hasGroupBlocked
+        ? 'Du bist für mindestens eine Zielgruppe blockiert.'
+        : hasGroupFull
+          ? 'Mindestens eine Zielgruppe ist voll.'
+          : 'Einladung konnte nicht eingelöst werden.',
       joinedGroups,
       failedGroups,
       alreadyMemberGroups,
