@@ -189,6 +189,7 @@ model GroupBlock {
   groupId   String
   userId    String
   blockedBy String?
+  blockedReason String?
   createdAt DateTime @default(now())
 
   group         Group @relation(fields: [groupId], references: [id], onDelete: Cascade)

@@ -80,7 +80,8 @@ let selectMode = false,
 let curGroupId = null,
   myGroups = [],
   groupMembers = [],
-  groupDeputies = [];
+  groupDeputies = [],
+  groupBlockedMembers = [];
 let curFilterUserId = null;
 let allProfiles = {},
   photos = [],
@@ -585,9 +586,13 @@ function renderSidebar() {
 
   const isOwnerInCurrentGroup = curGroup?.createdBy === me.id;
   const isDeputyInCurrentGroup = deputyIds.has(me.id);
+  const isAdminInCurrentGroup = me?.role === 'admin';
   const canSeeInviteCode =
     !!curGroup &&
-    (isOwnerInCurrentGroup || isDeputyInCurrentGroup || curGroup.inviteCodeVisibleToMembers);
+    (isAdminInCurrentGroup ||
+      isOwnerInCurrentGroup ||
+      isDeputyInCurrentGroup ||
+      curGroup.inviteCodeVisibleToMembers);
   const allowAlbumCreation = canCreateAlbum();
   const membersCounter =
     curGroup?.maxMembers !== null && curGroup?.maxMembers !== undefined
@@ -1622,6 +1627,7 @@ function openGroupSettingsModal() {
   const deputyNote = $('group-settings-deputy-note');
   const ownerControls = $('group-settings-owner-controls');
   const deputyWrap = $('gs-deputy-wrap');
+  const blockedWrap = $('gs-blocked-wrap');
   const inviteWrap = $('gs-invite-wrap');
   const deleteWrap = $('group-settings-delete-wrap');
   if (inviteMaxUses) inviteMaxUses.value = '';
@@ -1631,12 +1637,14 @@ function openGroupSettingsModal() {
   if (deputyNote) deputyNote.classList.toggle('hidden', isOwner);
   if (ownerControls) ownerControls.style.display = isOwner ? '' : 'none';
   if (deputyWrap) deputyWrap.style.display = isOwner ? '' : 'none';
+  if (blockedWrap) blockedWrap.style.display = '';
   if (inviteWrap) inviteWrap.style.display = isOwner ? '' : 'none';
   if (deleteWrap) deleteWrap.style.display = isOwner ? '' : 'none';
 
   toggleGroupLimitInputs();
 
   _loadGsDeputies();
+  _loadGsBlockedMembers();
   _renderGsRemovableMembers();
   if (isOwner) refreshGroupInviteList();
   show('group-settings-modal');
@@ -1681,16 +1689,32 @@ async function removeGroupMemberFromSettings() {
 
   const member = groupMembers.find((m) => m.id === userId);
   const memberName = member?.name || member?.username || 'dieses Mitglied';
-  const confirmed = await showConfirmDlg(
-    'Mitglied entfernen',
-    blockUser
-      ? `${memberName} wird aus der Gruppe entfernt, Gruppen-Content wird gelöscht und ein Wiederbeitritt blockiert.`
-      : `${memberName} wird aus der Gruppe entfernt und Gruppen-Content wird gelöscht.`,
-    'Entfernen',
-    'Abbrechen',
-    true
-  );
-  if (!confirmed) return;
+  let blockReason = '';
+  if (blockUser) {
+    const reasonResult = await showTextConfirmDlg(
+      'Mitglied entfernen und blockieren',
+      `${memberName} wird aus der Gruppe entfernt, Gruppen-Content wird gelöscht und ein Wiederbeitritt wird blockiert. Bitte nenne den Grund für den Block.`,
+      'Entfernen',
+      'Abbrechen',
+      true,
+      'Begründung für den Block'
+    );
+    if (!reasonResult.confirmed) return;
+    blockReason = reasonResult.text.trim();
+    if (!blockReason) {
+      toast('Ein Block-Grund ist erforderlich', 'error');
+      return;
+    }
+  } else {
+    const confirmed = await showConfirmDlg(
+      'Mitglied entfernen',
+      `${memberName} wird aus der Gruppe entfernt und Gruppen-Content wird gelöscht.`,
+      'Entfernen',
+      'Abbrechen',
+      true
+    );
+    if (!confirmed) return;
+  }
 
   const btn = $('gs-remove-user-btn');
   if (btn) {
@@ -1701,6 +1725,7 @@ async function removeGroupMemberFromSettings() {
   try {
     const result = await apiCall(`/groups/${curGroupId}/members/${userId}/remove`, 'POST', {
       blockUser,
+      blockReason,
     });
 
     if (result?.status === 'admin_removal_requested') {
@@ -1727,6 +1752,7 @@ async function removeGroupMemberFromSettings() {
     if (blockChk) blockChk.checked = false;
 
     await _loadGsDeputies();
+    await _loadGsBlockedMembers();
     _renderGsRemovableMembers();
     renderSidebar();
   } catch (e) {
@@ -1736,6 +1762,74 @@ async function removeGroupMemberFromSettings() {
       btn.disabled = false;
       btn.textContent = 'Mitglied entfernen';
     }
+  }
+}
+
+async function _loadGsBlockedMembers() {
+  try {
+    const { blockedMembers } = await apiCall(`/groups/${curGroupId}/blocks`, 'GET');
+    groupBlockedMembers = blockedMembers || [];
+  } catch (e) {
+    groupBlockedMembers = [];
+  }
+  _renderGsBlockedList();
+}
+
+function _renderGsBlockedList() {
+  const el = $('gs-blocked-list');
+  const empty = $('gs-blocked-empty');
+  if (!el) return;
+
+  if (!groupBlockedMembers.length) {
+    el.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+
+  if (empty) empty.style.display = 'none';
+  el.innerHTML = groupBlockedMembers
+    .map((entry) => {
+      const blockedUser = entry.user || {};
+      const blockerUser = entry.blockedByUser || {};
+      const blockedName = blockedUser.name || blockedUser.username || entry.userId;
+      const blockedByName =
+        blockerUser.name || blockerUser.username || entry.blockedBy || 'Unbekannt';
+      const reason = entry.blockedReason?.trim() || 'Kein Grund hinterlegt';
+      const blockedAt = entry.createdAt ? new Date(entry.createdAt).toLocaleString('de-DE') : '';
+      return `
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="flex-shrink:0">${avatarHtml(blockedUser, 26)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(blockedName)}</div>
+          <button onclick="unblockGsMember('${entry.userId}')" style="background:none;border:1.5px solid var(--border);color:var(--accent);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Entblocken</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5">Grund: ${esc(reason)}</div>
+        <div style="font-size:12px;color:var(--muted2);margin-top:2px">Geblockt von ${esc(blockedByName)}${blockedAt ? ` · ${esc(blockedAt)}` : ''}</div>
+      </div>
+    </div>`;
+    })
+    .join('');
+}
+
+async function unblockGsMember(userId) {
+  const member = groupBlockedMembers.find((entry) => entry.userId === userId);
+  const memberName = member?.user?.name || member?.user?.username || 'diesen User';
+  const confirmed = await showConfirmDlg(
+    'Blockierung aufheben',
+    `${memberName} darf danach wieder über Code oder Invite der Gruppe beitreten.`,
+    'Entblocken',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiCall(`/groups/${curGroupId}/blocks/${userId}`, 'DELETE');
+    toast('Blockierung aufgehoben', 'success');
+    await _loadGsBlockedMembers();
+  } catch (e) {
+    toast(e.serverMessage || 'Blockierung konnte nicht aufgehoben werden', 'error');
   }
 }
 
@@ -6651,7 +6745,7 @@ function showGroupCode() {
 
   const isOwner = g.createdBy === me.id;
   const isDeputy = groupDeputies.some((d) => d.id === me.id);
-  if (!isOwner && !isDeputy && !g.inviteCodeVisibleToMembers) {
+  if (me?.role !== 'admin' && !isOwner && !isDeputy && !g.inviteCodeVisibleToMembers) {
     toast('Der Einladungscode ist nur für Owner/Vertreter sichtbar', 'error');
     return;
   }
@@ -8285,9 +8379,12 @@ Object.assign(window, {
   saveGroupMemberLimit,
   openDeputyModalFromSettings,
   _loadGsDeputies,
+  _loadGsBlockedMembers,
   _renderGsDeputyList,
+  _renderGsBlockedList,
   addGsDeputy,
   removeGsDeputy,
+  unblockGsMember,
   openDeputyModal,
   closeDeputyModal,
   addDeputy,

@@ -29,6 +29,10 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-Franks Fotoalbum}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_OWNER: ${GITHUB_OWNER:-}
+      GITHUB_FEEDBACK_COMMON_LABELS: ${GITHUB_FEEDBACK_COMMON_LABELS:-from-feedback,triage}
     depends_on:
       postgres:
         condition: service_healthy
