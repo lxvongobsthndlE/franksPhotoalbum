@@ -686,10 +686,13 @@ export default async function groupsRoutes(fastify) {
       const groupId = request.params.id;
       const targetUserId = request.params.memberId;
       const requesterId = request.user.id;
-      const { blockUser = false } = request.body || {};
+      const { blockUser = false, blockReason = '' } = request.body || {};
 
       if (typeof blockUser !== 'boolean') {
         return reply.code(400).send({ error: 'blockUser muss boolean sein' });
+      }
+      if (blockUser && typeof blockReason !== 'string') {
+        return reply.code(400).send({ error: 'blockReason muss string sein' });
       }
 
       const group = await fastify.prisma.group.findUnique({
@@ -754,6 +757,11 @@ export default async function groupsRoutes(fastify) {
           entityType: 'group',
         }).catch(() => {});
         return reply.code(202).send({ status: 'admin_removal_requested' });
+      }
+
+      const normalizedBlockReason = blockReason.trim();
+      if (blockUser && !normalizedBlockReason) {
+        return reply.code(400).send({ error: 'blockReason ist erforderlich' });
       }
 
       const targetGroupCount = await fastify.prisma.groupMember.count({
@@ -830,8 +838,16 @@ export default async function groupsRoutes(fastify) {
         if (blockUser) {
           await tx.groupBlock.upsert({
             where: { groupId_userId: { groupId, userId: targetUserId } },
-            create: { groupId, userId: targetUserId, blockedBy: requesterId },
-            update: { blockedBy: requesterId },
+            create: {
+              groupId,
+              userId: targetUserId,
+              blockedBy: requesterId,
+              blockedReason: normalizedBlockReason,
+            },
+            update: {
+              blockedBy: requesterId,
+              blockedReason: normalizedBlockReason,
+            },
           });
         }
       });
@@ -845,7 +861,7 @@ export default async function groupsRoutes(fastify) {
         type: 'system',
         title: `Du wurdest aus „${group.name}” entfernt`,
         body: blockUser
-          ? 'Deine Inhalte und Rollen in dieser Gruppe wurden entfernt. Ein erneuter Beitritt ist blockiert.'
+          ? `Deine Inhalte und Rollen in dieser Gruppe wurden entfernt. Ein erneuter Beitritt ist blockiert. Grund: ${normalizedBlockReason}`
           : 'Deine Inhalte und Rollen in dieser Gruppe wurden entfernt.',
         entityId: groupId,
         entityType: 'group',
@@ -863,6 +879,128 @@ export default async function groupsRoutes(fastify) {
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Mitglied konnte nicht entfernt werden' });
+    }
+  });
+
+  // GET /api/groups/:id/blocks - Geblockte Mitglieder auflisten (Owner/Vertreter/Admin)
+  fastify.get('/:id/blocks', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const groupId = request.params.id;
+      const requesterId = request.user.id;
+
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, createdBy: true },
+      });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: requesterId },
+        select: { role: true },
+      });
+      const requesterIsOwner = group.createdBy === requesterId;
+      const requesterIsDeputy = !requesterIsOwner
+        ? await isGroupDeputy(groupId, requesterId)
+        : false;
+      const requesterIsAdmin = requester?.role === 'admin';
+      if (!requesterIsOwner && !requesterIsDeputy && !requesterIsAdmin) {
+        return reply
+          .code(403)
+          .send({ error: 'Nur Owner oder Vertreter dürfen die Blockliste ansehen' });
+      }
+
+      const blockedMembers = await fastify.prisma.groupBlock.findMany({
+        where: { groupId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+              avatar: true,
+              displayNameField: true,
+            },
+          },
+          blockedByUser: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return {
+        blockedMembers: blockedMembers.map((entry) => ({
+          groupId: entry.groupId,
+          userId: entry.userId,
+          blockedReason: entry.blockedReason,
+          createdAt: entry.createdAt,
+          user: {
+            ...entry.user,
+            avatar:
+              entry.user.avatar && !entry.user.avatar.startsWith('/api/')
+                ? `/api/auth/avatar/${entry.user.id}`
+                : entry.user.avatar,
+          },
+          blockedByUser: entry.blockedByUser,
+        })),
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Fehler beim Laden der Blockliste' });
+    }
+  });
+
+  // DELETE /api/groups/:id/blocks/:memberId - Block aufheben (Owner/Vertreter/Admin)
+  fastify.delete('/:id/blocks/:memberId', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const groupId = request.params.id;
+      const targetUserId = request.params.memberId;
+      const requesterId = request.user.id;
+
+      const group = await fastify.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, createdBy: true },
+      });
+      if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
+
+      const requester = await fastify.prisma.user.findUnique({
+        where: { id: requesterId },
+        select: { role: true },
+      });
+      const requesterIsOwner = group.createdBy === requesterId;
+      const requesterIsDeputy = !requesterIsOwner
+        ? await isGroupDeputy(groupId, requesterId)
+        : false;
+      const requesterIsAdmin = requester?.role === 'admin';
+      if (!requesterIsOwner && !requesterIsDeputy && !requesterIsAdmin) {
+        return reply
+          .code(403)
+          .send({ error: 'Nur Owner oder Vertreter dürfen Blockierungen aufheben' });
+      }
+
+      const blocked = await fastify.prisma.groupBlock.findUnique({
+        where: { groupId_userId: { groupId, userId: targetUserId } },
+      });
+      if (!blocked) {
+        return reply.code(404).send({ error: 'Der User ist nicht für diese Gruppe blockiert' });
+      }
+
+      await fastify.prisma.groupBlock.delete({
+        where: { groupId_userId: { groupId, userId: targetUserId } },
+      });
+
+      return { ok: true };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Blockierung konnte nicht aufgehoben werden' });
     }
   });
 

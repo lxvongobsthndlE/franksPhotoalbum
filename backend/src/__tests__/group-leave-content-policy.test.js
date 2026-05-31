@@ -254,7 +254,7 @@ describe('group leave content policy', () => {
     const { reply, result } = await callGroupRoute('POST', '/:id/members/:memberId/remove', {
       user: { id: 'owner-1' },
       params: { id: 'group-1', memberId: 'admin-2' },
-      body: { blockUser: true },
+      body: { blockUser: true, blockReason: 'Regelverstoß' },
     });
 
     expect(reply.statusCode).toBe(202);
@@ -298,7 +298,7 @@ describe('group leave content policy', () => {
     const { result } = await callGroupRoute('POST', '/:id/members/:memberId/remove', {
       user: { id: 'owner-1' },
       params: { id: 'group-1', memberId: 'member-2' },
-      body: { blockUser: true },
+      body: { blockUser: true, blockReason: 'Mehrfaches Trollen' },
     });
 
     expect(result).toEqual({
@@ -312,9 +312,91 @@ describe('group leave content policy', () => {
     });
     expect(prisma.groupBlock.upsert).toHaveBeenCalledWith({
       where: { groupId_userId: { groupId: 'group-1', userId: 'member-2' } },
-      create: { groupId: 'group-1', userId: 'member-2', blockedBy: 'owner-1' },
-      update: { blockedBy: 'owner-1' },
+      create: {
+        groupId: 'group-1',
+        userId: 'member-2',
+        blockedBy: 'owner-1',
+        blockedReason: 'Mehrfaches Trollen',
+      },
+      update: { blockedBy: 'owner-1', blockedReason: 'Mehrfaches Trollen' },
     });
     expect(deleteGroupPhotoObjects).toHaveBeenCalledWith(['photos/p1.jpg']);
+  });
+
+  it('rejects blocking without a reason', async () => {
+    prisma.group.findUnique.mockResolvedValue({
+      id: 'group-1',
+      name: 'Team',
+      createdBy: 'owner-1',
+    });
+    prisma.groupMember.findUnique.mockResolvedValue({ userId: 'member-2', groupId: 'group-1' });
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'user',
+      name: 'Member Two',
+      username: 'member2',
+    });
+
+    const { reply } = await callGroupRoute('POST', '/:id/members/:memberId/remove', {
+      user: { id: 'owner-1' },
+      params: { id: 'group-1', memberId: 'member-2' },
+      body: { blockUser: true, blockReason: '   ' },
+    });
+
+    expect(reply.statusCode).toBe(400);
+    expect(reply.payload).toEqual({ error: 'blockReason ist erforderlich' });
+  });
+
+  it('lists blocked members and allows unblocking', async () => {
+    prisma.group.findUnique.mockResolvedValue({
+      id: 'group-1',
+      createdBy: 'owner-1',
+    });
+    prisma.user.findUnique.mockResolvedValue({ role: 'user' });
+    prisma.groupDeputy.findUnique.mockResolvedValue(null);
+    prisma.groupBlock.findMany.mockResolvedValue([
+      {
+        groupId: 'group-1',
+        userId: 'member-2',
+        blockedReason: 'Mehrfaches Trollen',
+        createdAt: new Date('2026-05-30T10:00:00Z'),
+        user: {
+          id: 'member-2',
+          name: 'Member Two',
+          username: 'member2',
+          role: 'user',
+          avatar: null,
+          displayNameField: 'name',
+        },
+        blockedByUser: { id: 'owner-1', name: 'Owner One', username: 'owner1', role: 'user' },
+      },
+    ]);
+
+    const listResult = await callGroupRoute('GET', '/:id/blocks', {
+      user: { id: 'owner-1' },
+      params: { id: 'group-1' },
+    });
+
+    expect(listResult.result).toMatchObject({
+      blockedMembers: [
+        {
+          groupId: 'group-1',
+          userId: 'member-2',
+          blockedReason: 'Mehrfaches Trollen',
+        },
+      ],
+    });
+
+    prisma.groupBlock.findUnique.mockResolvedValue({ groupId: 'group-1', userId: 'member-2' });
+    prisma.groupBlock.delete.mockResolvedValue({});
+
+    const unblockResult = await callGroupRoute('DELETE', '/:id/blocks/:memberId', {
+      user: { id: 'owner-1' },
+      params: { id: 'group-1', memberId: 'member-2' },
+    });
+
+    expect(unblockResult.result).toEqual({ ok: true });
+    expect(prisma.groupBlock.delete).toHaveBeenCalledWith({
+      where: { groupId_userId: { groupId: 'group-1', userId: 'member-2' } },
+    });
   });
 });

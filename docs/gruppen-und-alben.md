@@ -127,7 +127,22 @@ Owner und Vertreter können Mitglieder aus einer Gruppe entfernen. Dabei wird de
 - eigene Album-Ownerrollen in der Gruppe (Alben werden gelöscht)
 - eigene Contributor-Links in Gruppen-Alben
 
-Optional kann beim Entfernen zusätzlich `blockUser=true` gesetzt werden, damit ein erneuter Beitritt per Code/Invite blockiert wird.
+Optional kann beim Entfernen zusätzlich `blockUser=true` gesetzt werden, damit ein erneuter Beitritt per Code/Invite blockiert wird. In diesem Fall ist zusätzlich ein `blockReason` erforderlich.
+
+### Blockierte Mitglieder verwalten
+
+Owner und Vertreter können die Blockliste einer Gruppe einsehen und Blockierungen wieder aufheben.
+
+- Die Blockliste zeigt den blockierten User, den Block-Grund und wer den Block gesetzt hat
+- Beim Blocken wird der Grund serverseitig und im UI als Pflichtfeld geprüft
+- Blockierungen können über die Gruppenverwaltung wieder aufgehoben werden
+
+**API:**
+
+| Methode  | Pfad                               | Beschreibung                              |
+| -------- | ---------------------------------- | ----------------------------------------- |
+| `GET`    | `/api/groups/:id/blocks`           | Blockierte Mitglieder auflisten           |
+| `DELETE` | `/api/groups/:id/blocks/:userId`   | Blockierung für ein Mitglied aufheben     |
 
 Rollenregeln:
 

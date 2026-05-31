@@ -89,13 +89,6 @@ Falls ja:
 * State-Store aus auth.js in eigenes Regis auslagern (persist over restart + multi instance support)
 * Admin Restriktion aufheben: User aus letzter Gruppe löschen
 
-* Admins sollen Einladungscode in Gruppen immer sehen dürfen (auch wenn in Group-Settings anders konfiguriert)
-* Blocked Member Verwaltung! Entblocken, Grund ansehen, wer hat geblockt ansehen. Dafür nötig: Verpflichtende ANgabe von Grund beim Blocken.
-
-Plan: Group Moderation Feature Set
-- Block-Prüfung in Join-Flows: Verhindert Wiederbeitritt per Einladungslink.
-
-
 ### DONE
 * ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~
     * ~~Admins bekommen im Gruppen verwalten Modal die Möglichkeit das Gruppenlimit zu ändern und zu sperren~~
@@ -142,4 +135,6 @@ Plan: Group Moderation Feature Set
         * ~~Erzeugung Zip darf Betriebsfluss nicht negativ beeinflussen!~~
         * ~~Endpunkt muss striktes rate-limiting haben (Vorschlag: 1x per day) um unnötige Erzeugung von Exporten zu verhindern.~~
         * ~~Die Zip's sollen eine Lebenszeit von 1 Monat haben.~~
-        * ~~Content exports sollen, genau wie Backups, den Admins im "Backups verwalten" Menü angezeigt werden. (Funktionen: Download, Link erneuern, Delete), das Menü kann dafür entsprechend umbenannt werden.~~
+        * ~~Content exports sollen, genau wie Backups, den Admins im "Backups verwalten" Menü angezeigt werden. (Funktionen: Download, Link erneuern, Delete), das Menü kann dafür entsprechend umbenannt werden~~
+* ~~Admins sollen Einladungscode in Gruppen immer sehen dürfen (auch wenn in Group-Settings anders konfiguriert)~~
+* ~~Blocked Member Verwaltung! Entblocken, Grund ansehen, wer hat geblockt ansehen. Dafür nötig: Verpflichtende ANgabe von Grund beim Blocken.~~

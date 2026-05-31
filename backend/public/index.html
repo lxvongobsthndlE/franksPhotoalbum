@@ -3149,7 +3149,7 @@
               <div style="margin-top: 10px">
                 <p style="font-size: 12px; color: var(--muted); margin: 0 0 10px; font-weight: 300">
                   Entfernt Mitglieder inkl. deren Gruppen-Content. Optional kann der Wiederbeitritt
-                  blockiert werden.
+                  blockiert werden, dann ist ein Block-Grund Pflicht.
                 </p>
                 <div
                   id="gs-remove-empty"
@@ -3201,6 +3201,49 @@
                 </button>
               </div>
             </details>
+
+            <div
+              id="gs-blocked-wrap"
+              style="border-top: 1px solid var(--border); padding-top: 14px"
+            >
+              <details id="gs-blocked-section">
+                <summary
+                  style="
+                    display: block;
+                    cursor: pointer;
+                    font-size: 11px;
+                    font-weight: 600;
+                    letter-spacing: 1.1px;
+                    text-transform: uppercase;
+                    color: var(--muted2);
+                    margin-bottom: 0;
+                    user-select: none;
+                  "
+                >
+                  Blockierte Mitglieder &#9656;
+                </summary>
+                <div style="margin-top: 10px">
+                  <p
+                    style="font-size: 12px; color: var(--muted); margin: 0 0 10px; font-weight: 300"
+                  >
+                    Owner und Vertreter können hier sehen, wer blockiert ist, wer den Block gesetzt
+                    hat und warum. Blockierungen können hier auch aufgehoben werden.
+                  </p>
+                  <div
+                    id="gs-blocked-empty"
+                    style="
+                      font-size: 12px;
+                      color: var(--muted2);
+                      margin: 0 0 10px;
+                      font-weight: 300;
+                    "
+                  >
+                    Keine blockierten Mitglieder vorhanden.
+                  </div>
+                  <div id="gs-blocked-list" style="min-height: 24px"></div>
+                </div>
+              </details>
+            </div>
 
             <div id="gs-invite-wrap" style="border-top: 1px solid var(--border); padding-top: 14px">
               <details id="gs-invite-section">

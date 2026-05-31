@@ -137,7 +137,9 @@ Hinweise:
 | `POST`   | `/api/groups/:id/code/rotate`      | Einladungscode neu generieren (Owner/Admin)                                             |
 | `DELETE` | `/api/groups/:id`                  | Gruppe löschen (Owner/Admin), erstellt bei vorhandenen Fotos ein ZIP-Backup             |
 | `DELETE` | `/api/groups/:id/leave`            | Gruppe verlassen (`successorId` bei Owner-Wechsel)                                      |
-| `POST`   | `/api/groups/:id/members/:memberId/remove` | Mitglied entfernen (Owner/Vertreter), löscht dessen Gruppen-Content und optional mit `blockUser=true` dauerhaft blocken |
+| `POST`   | `/api/groups/:id/members/:memberId/remove` | Mitglied entfernen (Owner/Vertreter), löscht dessen Gruppen-Content und optional mit `blockUser=true` dauerhaft blocken (dann `blockReason` Pflicht) |
+| `GET`    | `/api/groups/:id/blocks`           | Blockierte Mitglieder der Gruppe auflisten (Owner/Vertreter)                          |
+| `DELETE` | `/api/groups/:id/blocks/:memberId` | Blockierung eines Mitglieds aufheben (Owner/Vertreter)                                |
 Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 
 ```json
@@ -145,6 +147,7 @@ Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 ```
 
 - `deleteOwnContent=true` entfernt eigenen Content in der Zielgruppe (eigene Medien, eigene Kommentare, eigene Likes).
+- Bei `POST /api/groups/:id/members/:memberId/remove` ist `blockReason` erforderlich, wenn `blockUser=true` gesetzt wird.
 - Album-Verhalten beim Verlassen:
 	- `deleteOwnContent=true`: eigene Alben werden gelöscht; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
 	- `deleteOwnContent=false`: eigene Alben ohne Contributors werden gelöscht; eigene Alben mit Contributors werden an den ersten verfügbaren Contributor übertragen; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
