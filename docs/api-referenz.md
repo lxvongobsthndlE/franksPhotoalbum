@@ -292,9 +292,16 @@ Validierung:
 | `GET`    | `/api/admin/users`            | Alle Nutzer auflisten                                                                      |
 | `GET`    | `/api/admin/users/:id`        | Detailprofil eines Nutzers (Statistiken, Gruppen mit Rolle)                                |
 | `PATCH`  | `/api/admin/users/:id/role`   | Rolle eines Nutzers ändern (`user` oder `admin`)                                           |
-| `DELETE` | `/api/admin/users/:id`        | Nutzer löschen inkl. Fotos, Kommentare, Likes und MinIO-Cleanup                            |
+| `DELETE` | `/api/admin/users/:id`        | Nutzer endgültig löschen inkl. Fotos, Kommentare, Likes und MinIO-Cleanup (`reason`, `irreversibleConfirmed`, optional `blockAuthIdentity`) |
 | `POST`   | `/api/admin/users/:id/notify` | Gezielte System-Benachrichtigung an einzelnen Nutzer senden (`title`, `body`, `entityUrl`) |
 | `POST`   | `/api/admin/broadcast`        | System-Benachrichtigung an alle Nutzer senden (`title`, `body`, `imageUrl`, `entityUrl`)   |
+
+Hinweis zu `DELETE /api/admin/users/:id`:
+
+- Body ist Pflicht: `{ "reason": "...", "irreversibleConfirmed": true }`
+- `reason` darf nach `trim()` nicht leer sein.
+- `irreversibleConfirmed` muss exakt `true` sein.
+- Optional: `blockAuthIdentity: true` sperrt zukünftige Logins mit derselben E-Mail + Auth-Quelle.
 
 ---
 

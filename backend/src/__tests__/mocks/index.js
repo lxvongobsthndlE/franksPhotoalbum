@@ -161,6 +161,19 @@ export function createMockPrismaClient(overrides = {}) {
       delete: vi.fn(),
       ...overrides.accountDeletionRequest,
     },
+    adminActionLog: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      ...overrides.adminActionLog,
+    },
+    blockedLoginIdentity: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      create: vi.fn(),
+      ...overrides.blockedLoginIdentity,
+    },
     $transaction: vi.fn(),
     ...overrides,
   };

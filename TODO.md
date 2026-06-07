@@ -87,7 +87,32 @@ Falls ja:
     * MUST HAVE: Solides ServiceWorker management -> Workarounds für testing, etc.
 * Logo-Rework
 * State-Store aus auth.js in eigenes Regis auslagern (persist over restart + multi instance support)
-* Admin Restriktion aufheben: User aus letzter Gruppe löschen
+* Admin Action Log im FE
+* Admin Blocked Users einsehen und entblocken.
+* Module Feat
+    * Erweiterung der Gruppen Einstellungen um eine Sektion „Module“
+        * Dort werden alle verfügbaren Module als Kacheln angezeigt
+        * Aktivierbare Module (solche die ein Admin für die Gruppe freischält) können aktiviert und deaktiviert werden
+        * Die Gruppeneinstellungen des Moduls werden, wenn es aktiviert ist, als weitere Sektion in den Gruppen Einstellungen angezeigt 
+        * Verfügbare aber nicht aktivierbare Module sollen einen Hinweis geben, warum diese nicht aktiviert werden können (nicht freigeschaltet, paywall etc.)
+        * Hidden-Module (solche die ein Admin als hidden markiert) gelten als nicht verfügbar und werden somit nur angezeigt wenn von einem Admin freigeschalten
+    * Erweiterung der Admin Einstellungen um die Sektion „Module“
+        * Admins sollen für jedes installierte Modul die individuellen Admineinstellungen des Moduls vornehmen können. 
+        * Pro installiertem Modul folgende Einstellungen zusätzlich vornehmen können:
+            * Hidden ja/nein
+            * Zugewiesene Gruppen verwalten (crud)
+            * MasterSwitch um das Modul global komplett zu aktivieren/deaktivieren (überschreibt Gruppeneinstellungen etc.) -> Modul wird unsichtbar selbst für Gruppen die es freigeschalten haben.
+        * Es gilt: neue Module sind initial immer keiner Gruppe zugewiesen, hidden und master switch off 
+    * Module Definition
+        * Ein Modul hat einen Namen, einen Autor, eine verpflichtende Gruppenconfig und eine verpflichtende Adminconfig und stellt eine oder mehrere Seiten zur Verfügung 
+        * Module können (wenn aktiviert) ihre Seiten in einer eigenen Kategorie direkt im neuen HOME Bereich in der Sidebar einreihen.
+        * Neuer HOME Bereich in der Sidebar:
+            * "Fotos" umbenennen in "Home"
+            * Neue Toplevel Kategorie wie „Alle Fotos“ -> "Fotos"
+            * Bei Klick klappt Drunter aus:
+                * Alle Fotos, Meine Fotos, Diashow
+            * Module bekommen je eine Toplevel Kategorie
+
 
 ### DONE
 * ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~

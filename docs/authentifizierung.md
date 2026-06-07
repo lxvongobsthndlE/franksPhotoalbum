@@ -91,6 +91,18 @@ Die erste Admin-Zuweisung muss manuell in der Datenbank oder über den Admin-Ber
 
 > **Sicherheit:** Ein Admin kann sich nicht selbst degradieren, wenn er der letzte verbleibende Admin ist (`PATCH /api/admin/users/:id/role` gibt dann `409` zurück).
 
+### Admin-Login-Sperre nach Löschung
+
+Beim Admin-Löschen eines Nutzers kann optional `blockAuthIdentity` gesetzt werden.
+Dann legt das Backend eine Login-Sperre für die Kombination aus E-Mail und Auth-Quelle an
+(z. B. `authentik`).
+
+Folge:
+
+- OIDC-Callback (`/api/auth/callback`) verweigert den Login mit `403`.
+- Der Nutzer wird dadurch nicht erneut automatisch angelegt, selbst wenn beim IdP ein gültiger Account existiert.
+- Das ist eine app-interne Sperre (kein automatischer globaler Ban im IdP selbst).
+
 ---
 
 ## API-Endpunkte (Auth)

@@ -59,7 +59,9 @@ export async function handleOIDCCallback(code, state) {
 
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(err.error || 'Callback failed');
+      const callbackError = new Error(err.error || 'Callback failed');
+      callbackError.status = response.status;
+      throw callbackError;
     }
 
     const { accessToken: token, user, inviteResult } = await response.json();

@@ -38,6 +38,12 @@ function normalizePreferredUsername(value) {
   );
 }
 
+function normalizeAuthSourceClaim(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed ? trimmed.slice(0, 128) : null;
+}
+
 function createSessionTokens(fastify, userId, email, username) {
   // Access Token: 15 Minuten
   const accessToken = fastify.jwt.sign(
@@ -61,13 +67,27 @@ async function hasActiveDeletion(prisma, userId) {
   );
 }
 
+async function isBlockedLoginIdentity(prisma, email, authSource) {
+  const emailNormalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const authSourceNormalized = normalizeAuthSourceClaim(authSource) || 'authentik';
+  if (!emailNormalized) return false;
+
+  const blocked = await prisma.blockedLoginIdentity.findUnique({
+    where: {
+      emailNormalized_authSource: {
+        emailNormalized,
+        authSource: authSourceNormalized,
+      },
+    },
+    select: { id: true },
+  });
+  return !!blocked;
+}
+
 async function syncUserFromOIDC(fastify, userInfo) {
   const { email, preferred_username, name } = userInfo;
   const normalizedPreferredUsername = normalizePreferredUsername(preferred_username);
-  const authSourceClaim =
-    typeof userInfo?.auth_source === 'string' && userInfo.auth_source.trim()
-      ? userInfo.auth_source.trim().slice(0, 128)
-      : null;
+  const authSourceClaim = normalizeAuthSourceClaim(userInfo?.auth_source);
   // name: nur den echten name-Claim speichern, kein Fallback – null wenn nicht gesetzt
   const realName = name && name.trim() ? name.trim() : null;
 
@@ -190,6 +210,13 @@ export default async function authRoutes(fastify) {
       // Hole Token von Authentik
       const tokenSet = await handleCallback(code, state);
       const userInfo = tokenSet.claims();
+
+      if (await isBlockedLoginIdentity(fastify.prisma, userInfo?.email, userInfo?.auth_source)) {
+        stateStore.delete(state);
+        return reply.code(403).send({
+          error: 'Authentifizierung fehlgeschlagen. Du wurdest in dieser Anwendung geblockt.',
+        });
+      }
 
       // Sync/create user in DB
       const user = await syncUserFromOIDC(fastify, userInfo);

@@ -41,6 +41,8 @@ model User {
   createdInvites     GroupInvite[] @relation("GroupInviteCreator")
   exports            UserExport[]
   accountDeletionRequest AccountDeletionRequest?
+  adminActionLogs    AdminActionLog[]
+  blockedLoginIdentitiesCreated BlockedLoginIdentity[] @relation("BlockedLoginIdentityBlockedBy")
 }
 
 model Group {
@@ -267,6 +269,40 @@ model ChangelogEntry {
 
   @@index([createdAt(sort: Desc)])
   @@map("changelog_entries")
+}
+
+model AdminActionLog {
+  id          String   @id @default(cuid())
+  actorUserId String?  @map("actor_user_id")
+  actionType  String   @map("action_type")
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  reason      String
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actorUser User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@index([actionType, createdAt(sort: Desc)])
+  @@map("admin_action_logs")
+}
+
+model BlockedLoginIdentity {
+  id              String   @id @default(cuid())
+  email           String
+  emailNormalized String   @map("email_normalized")
+  authSource      String   @map("auth_source")
+  reason          String
+  blockedByUserId String?  @map("blocked_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  blockedByUser User? @relation("BlockedLoginIdentityBlockedBy", fields: [blockedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([emailNormalized, authSource])
+  @@index([createdAt(sort: Desc)])
+  @@map("blocked_login_identities")
 }
 
 model Notification {
