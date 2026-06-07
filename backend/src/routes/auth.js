@@ -213,11 +213,9 @@ export default async function authRoutes(fastify) {
 
       if (await isBlockedLoginIdentity(fastify.prisma, userInfo?.email, userInfo?.auth_source)) {
         stateStore.delete(state);
-        return reply
-          .code(403)
-          .send({
-            error: 'Authentifizierung fehlgeschlagen. Du wurdest in dieser Anwendung geblockt.',
-          });
+        return reply.code(403).send({
+          error: 'Authentifizierung fehlgeschlagen. Du wurdest in dieser Anwendung geblockt.',
+        });
       }
 
       // Sync/create user in DB
