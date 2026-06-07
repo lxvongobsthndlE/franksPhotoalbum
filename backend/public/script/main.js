@@ -251,7 +251,8 @@ window.addEventListener('load', async () => {
       return;
     } catch (e) {
       console.error('OIDC callback failed:', e);
-      showMsg('login-msg', 'error', '❌ Authentifizierung fehlgeschlagen. Versuche es erneut.');
+      const msg = e?.message || 'Authentifizierung fehlgeschlagen. Versuche es erneut.';
+      showMsg('login-msg', 'error', `❌ ${msg}`);
       return;
     }
   }
@@ -5506,9 +5507,13 @@ function showTextConfirmDlg(
   confirmLabel = 'OK',
   cancelLabel = 'Abbrechen',
   danger = false,
-  placeholder = ''
+  placeholder = '',
+  options = {}
 ) {
   return new Promise((resolve) => {
+    const checkboxLabel =
+      typeof options?.checkboxLabel === 'string' ? options.checkboxLabel.trim() : '';
+    const checkboxDefault = options?.checkboxDefault === true;
     document.getElementById('confirm-dlg')?.remove();
     const dlg = document.createElement('div');
     dlg.id = 'confirm-dlg';
@@ -5522,6 +5527,15 @@ function showTextConfirmDlg(
         <p style="font-size:13px;color:var(--muted);font-weight:300;margin:0 0 12px;line-height:1.5">${esc(text)}</p>
         <textarea id="cdlg-input" rows="4" maxlength="2000" placeholder="${esc(placeholder)}"
           style="width:100%;box-sizing:border-box;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:10px 12px;resize:vertical;min-height:96px;margin:0 0 16px"></textarea>
+        ${
+          checkboxLabel
+            ? `<label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--text);margin:0 0 14px;line-height:1.45;cursor:pointer">
+                <input id="cdlg-checkbox" type="checkbox" ${checkboxDefault ? 'checked' : ''}
+                  style="margin-top:2px;accent-color:var(--danger,#e05555)">
+                <span>${esc(checkboxLabel)}</span>
+              </label>`
+            : ''
+        }
         <div class="dlg-btns">
           <button id="cdlg-cancel" class="btn btn-ghost">${esc(cancelLabel)}</button>
           <button id="cdlg-confirm" class="btn ${danger ? 'btn-danger' : 'btn-primary'}">${esc(confirmLabel)}</button>
@@ -5529,20 +5543,21 @@ function showTextConfirmDlg(
       </div>`;
     document.body.appendChild(dlg);
     const input = dlg.querySelector('#cdlg-input');
+    const checkbox = dlg.querySelector('#cdlg-checkbox');
     input?.focus();
     dlg.querySelector('#cdlg-confirm').onclick = () => {
       const value = String(input?.value || '').trim();
       dlg.remove();
-      resolve({ confirmed: true, text: value });
+      resolve({ confirmed: true, text: value, checked: !!checkbox?.checked });
     };
     dlg.querySelector('#cdlg-cancel').onclick = () => {
       dlg.remove();
-      resolve({ confirmed: false, text: '' });
+      resolve({ confirmed: false, text: '', checked: false });
     };
     dlg.onclick = (e) => {
       if (e.target === dlg) {
         dlg.remove();
-        resolve({ confirmed: false, text: '' });
+        resolve({ confirmed: false, text: '', checked: false });
       }
     };
   });
@@ -5798,14 +5813,42 @@ async function adminSendUserNotification(userId) {
 }
 
 async function adminDeleteUser(userId, userName) {
-  if (
-    !confirm(
-      `Benutzer „${userName}" und alle zugehörigen Daten (Fotos, Kommentare, Likes) unwiderruflich löschen?`
-    )
-  )
+  const reasonPrompt = await showTextConfirmDlg(
+    'Benutzer dauerhaft löschen',
+    `Bitte einen Löschgrund für „${userName}" eingeben. Dieser wird protokolliert.`,
+    'Weiter',
+    'Abbrechen',
+    true,
+    'Löschgrund (Pflichtfeld)',
+    {
+      checkboxLabel:
+        'Zusätzlich Login mit demselben Auth-Account blockieren (empfohlen bei Missbrauch/Fake-Accounts).',
+    }
+  );
+  if (!reasonPrompt.confirmed) return;
+
+  const reason = String(reasonPrompt.text || '').trim();
+  const blockAuthIdentity = reasonPrompt.checked === true;
+  if (!reason) {
+    toast('Ein Löschgrund ist erforderlich', 'error');
     return;
+  }
+
+  const finalConfirm = await showConfirmDlg(
+    'Endgültig und irreversibel löschen',
+    `Diese Aktion löscht „${userName}" inklusive Fotos, Kommentaren und Likes dauerhaft. Sie ist nicht reversibel und kann nicht rückgängig gemacht werden.`,
+    'Endgültig löschen',
+    'Abbrechen',
+    true
+  );
+  if (!finalConfirm) return;
+
   try {
-    await apiCall(`/admin/users/${userId}`, 'DELETE');
+    await apiCall(`/admin/users/${userId}`, 'DELETE', {
+      reason,
+      irreversibleConfirmed: true,
+      blockAuthIdentity,
+    });
     toast(`Benutzer „${userName}" gelöscht`, 'success');
     delete _adminUserLoaded[userId];
     _adminUserExpanded.delete(userId);

@@ -162,15 +162,37 @@ export default async function adminRoutes(fastify) {
     if (stop) return;
 
     const userId = request.params.id;
+    const { reason, irreversibleConfirmed, blockAuthIdentity } = request.body || {};
+    const reasonText = typeof reason === 'string' ? reason.trim() : '';
+    if (!reasonText) {
+      return reply.code(400).send({ error: 'Löschgrund ist erforderlich.' });
+    }
+    if (irreversibleConfirmed !== true) {
+      return reply.code(400).send({ error: 'Finale Bestätigung für irreversible Löschung fehlt.' });
+    }
+    if (blockAuthIdentity !== undefined && typeof blockAuthIdentity !== 'boolean') {
+      return reply.code(400).send({ error: 'blockAuthIdentity muss boolean sein.' });
+    }
+
+    const shouldBlockAuthIdentity = blockAuthIdentity === true;
+
     if (userId === request.user.id) {
       return reply.code(400).send({ error: 'Du kannst deinen eigenen Account nicht löschen.' });
     }
 
     const target = await fastify.prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, name: true, username: true },
+      select: { role: true, name: true, username: true, email: true, auth_source: true },
     });
     if (!target) return reply.code(404).send({ error: 'User nicht gefunden' });
+
+    const targetEmailNormalized = String(target.email || '')
+      .trim()
+      .toLowerCase();
+    const targetAuthSource =
+      typeof target.auth_source === 'string' && target.auth_source.trim()
+        ? target.auth_source.trim().toLowerCase().slice(0, 128)
+        : 'authentik';
 
     if (target.role === 'admin') {
       const adminCount = await fastify.prisma.user.count({ where: { role: 'admin' } });
@@ -186,25 +208,68 @@ export default async function adminRoutes(fastify) {
     });
     const photoIds = photos.map((p) => p.id);
 
-    // DB-Einträge in korrekter Reihenfolge löschen
-    if (photoIds.length > 0) {
-      await fastify.prisma.like.deleteMany({ where: { photoId: { in: photoIds } } });
-      await fastify.prisma.comment.deleteMany({ where: { photoId: { in: photoIds } } });
-      await fastify.prisma.photoAlbum.deleteMany({ where: { photoId: { in: photoIds } } });
-    }
-    await fastify.prisma.like.deleteMany({ where: { userId } });
-    await fastify.prisma.comment.deleteMany({ where: { userId } });
-    await fastify.prisma.photo.deleteMany({ where: { uploaderId: userId } });
-    await fastify.prisma.albumContributor.deleteMany({ where: { userId } });
-    await fastify.prisma.album.deleteMany({ where: { createdBy: userId } });
-    await fastify.prisma.groupDeputy.deleteMany({ where: { userId } });
-    await fastify.prisma.groupMember.deleteMany({ where: { userId } });
-    await fastify.prisma.group.updateMany({
-      where: { createdBy: userId },
-      data: { createdBy: null },
+    await fastify.prisma.$transaction(async (tx) => {
+      // DB-Einträge in korrekter Reihenfolge löschen und Audit-Event mitschreiben
+      if (photoIds.length > 0) {
+        await tx.like.deleteMany({ where: { photoId: { in: photoIds } } });
+        await tx.comment.deleteMany({ where: { photoId: { in: photoIds } } });
+        await tx.photoAlbum.deleteMany({ where: { photoId: { in: photoIds } } });
+      }
+      await tx.like.deleteMany({ where: { userId } });
+      await tx.comment.deleteMany({ where: { userId } });
+      await tx.photo.deleteMany({ where: { uploaderId: userId } });
+      await tx.albumContributor.deleteMany({ where: { userId } });
+      await tx.album.deleteMany({ where: { createdBy: userId } });
+      await tx.groupDeputy.deleteMany({ where: { userId } });
+      await tx.groupMember.deleteMany({ where: { userId } });
+      await tx.group.updateMany({
+        where: { createdBy: userId },
+        data: { createdBy: null },
+      });
+      await tx.notificationPreference.deleteMany({ where: { userId } });
+
+      if (shouldBlockAuthIdentity) {
+        await tx.blockedLoginIdentity.upsert({
+          where: {
+            emailNormalized_authSource: {
+              emailNormalized: targetEmailNormalized,
+              authSource: targetAuthSource,
+            },
+          },
+          create: {
+            email: target.email,
+            emailNormalized: targetEmailNormalized,
+            authSource: targetAuthSource,
+            reason: reasonText,
+            blockedByUserId: request.user.id,
+          },
+          update: {
+            email: target.email,
+            reason: reasonText,
+            blockedByUserId: request.user.id,
+          },
+        });
+      }
+
+      await tx.user.delete({ where: { id: userId } });
+      await tx.adminActionLog.create({
+        data: {
+          actorUserId: request.user.id,
+          actionType: 'user.delete.permanent',
+          targetType: 'user',
+          targetId: userId,
+          reason: reasonText,
+          metadata: {
+            irreversibleConfirmed: true,
+            blockedLoginIdentity: shouldBlockAuthIdentity,
+            blockedAuthSource: shouldBlockAuthIdentity ? targetAuthSource : null,
+            deletedPhotoCount: photoIds.length,
+            targetName: target.name || null,
+            targetUsername: target.username || null,
+          },
+        },
+      });
     });
-    await fastify.prisma.notificationPreference.deleteMany({ where: { userId } });
-    await fastify.prisma.user.delete({ where: { id: userId } });
 
     // MinIO-Cleanup (fire-and-forget)
     deleteGroupPhotoObjects(photos.map((p) => p.path).filter(Boolean)).catch(() => {});
@@ -335,24 +400,17 @@ export default async function adminRoutes(fastify) {
     const userId = request.params.id;
     const groupId = request.params.groupId;
 
-    const [user, group, membership, groupCount] = await Promise.all([
+    const [user, group, membership] = await Promise.all([
       fastify.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
       fastify.prisma.group.findUnique({
         where: { id: groupId },
         select: { id: true, createdBy: true },
       }),
       fastify.prisma.groupMember.findUnique({ where: { userId_groupId: { userId, groupId } } }),
-      fastify.prisma.groupMember.count({ where: { userId } }),
     ]);
     if (!user) return reply.code(404).send({ error: 'User nicht gefunden' });
     if (!group) return reply.code(404).send({ error: 'Gruppe nicht gefunden' });
     if (!membership) return reply.code(404).send({ error: 'User ist kein Mitglied dieser Gruppe' });
-
-    if (groupCount <= 1) {
-      return reply
-        .code(409)
-        .send({ error: 'User kann nicht aus der letzten Gruppe entfernt werden' });
-    }
     if (group.createdBy === userId) {
       return reply
         .code(409)

@@ -261,6 +261,32 @@ describe('auth routes', () => {
         })
       );
     });
+
+    it('blocks callback login when identity is on blocked list', async () => {
+      oidc.handleCallback.mockResolvedValue({
+        claims: () => ({
+          email: 'blocked@example.com',
+          preferred_username: 'blocked-user',
+          name: 'Blocked User',
+          auth_source: 'authentik',
+        }),
+      });
+      prisma.blockedLoginIdentity.findUnique.mockResolvedValue({ id: 'bli-1' });
+
+      const loginResult = await callRoute('GET', '/login');
+      const state = new URL(loginResult.result.loginUrl).searchParams.get('state');
+
+      const { reply } = await callRoute('GET', '/callback', {
+        query: { code: 'oidc-code', state },
+      });
+
+      expect(reply.statusCode).toBe(403);
+      expect(reply.payload).toEqual({
+        error: 'Authentifizierung fehlgeschlagen. Du wurdest in dieser Anwendung geblockt.',
+      });
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('mirrored helper invariants', () => {
