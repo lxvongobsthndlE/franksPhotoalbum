@@ -174,6 +174,11 @@ function removeTransientUrlParams({ keepInvite = false, keepFeedPost = true } = 
   });
 }
 
+window.onThumbLoad = function onThumbLoad(img) {
+  img.classList.remove('loading');
+  img.classList.add('loaded');
+};
+
 function updateFeedPostUrl(postId) {
   replaceCurrentQueryParams((params) => {
     params.delete('code');
@@ -463,10 +468,11 @@ window.startOIDCLogin = startLoginWithContext;
 
 // Hängt den Access-Token als ?t= an Foto-URLs (nötig da <img src> keinen Auth-Header sendet)
 function photoSrc(url) {
-  if (!url) return url;
+  if (!url) return '';
+  const safeUrl = encodeURI(String(url));
   const t = sessionStorage.getItem('accessToken');
-  if (!t) return url;
-  return url + (url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(t);
+  if (!t) return safeUrl;
+  return `${safeUrl}${safeUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(t)}`;
 }
 
 function revokeObjectUrlSafe(url) {
@@ -1443,6 +1449,7 @@ async function switchAlbum(id) {
   renderSidebar();
   await loadPhotos(true);
 }
+window.switchAlbum = switchAlbum;
 
 // ── GALLERY ──────────────────────────────────────────────
 function folderTitle() {
@@ -1643,6 +1650,14 @@ function canManageAlbum() {
   return groupDeputies.some((d) => d.id === me.id);
 }
 
+function canShareAlbumToFeed(albumId = curAlbum) {
+  if (!albumId) return false;
+  const album = allAlbums.find((entry) => entry.id === albumId);
+  if (!album) return false;
+  if (album.createdBy === me?.id) return true;
+  return (album.contributors || []).some((contributor) => contributor.id === me?.id);
+}
+
 async function switchToUser(userId) {
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
@@ -1712,10 +1727,33 @@ async function loadPhotos(reset = false) {
       const gear = document.getElementById('album-rename-btn');
       if (gear) gear.remove();
     }
+
+    const albumShareBtn = document.getElementById('album-share-btn');
+    if (canShareAlbumToFeed(curAlbum)) {
+      if (!albumShareBtn) {
+        const share = document.createElement('button');
+        share.id = 'album-share-btn';
+        share.className = 'btn-ghost btn';
+        share.title = 'Album im Feed teilen';
+        share.style.cssText =
+          'padding:5px 7px;font-size:11px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;color:var(--muted)';
+        share.innerHTML = `${ICON_LINK} Teilen`;
+        share.onclick = () => openShareAlbumToFeedModal(curAlbum);
+        const anchor =
+          document.getElementById('album-rename-btn') ||
+          document.getElementById('album-add-btn') ||
+          $('upload-btn');
+        anchor?.after(share);
+      }
+    } else if (albumShareBtn) {
+      albumShareBtn.remove();
+    }
   } else {
     if (albumAddBtn) albumAddBtn.remove();
     const gear = document.getElementById('album-rename-btn');
     if (gear) gear.remove();
+    const share = document.getElementById('album-share-btn');
+    if (share) share.remove();
   }
   if (!curGroupId) {
     renderGrid(0);
@@ -2071,10 +2109,195 @@ async function openPhotoInFotosModule(photoId, uploaderId = null) {
   }
 }
 
+async function openAlbumFromFeed(albumId, photoId = null, groupIdHint = null) {
+  if (!albumId) return;
+
+  const hintedGroupId = groupIdHint || null;
+  if (hintedGroupId && hintedGroupId !== curGroupId) {
+    await switchGroup(hintedGroupId);
+  } else {
+    const album = allAlbums.find((entry) => entry.id === albumId);
+    if (album?.groupId && album.groupId !== curGroupId) {
+      await switchGroup(album.groupId);
+    }
+  }
+
+  await switchAlbum(albumId);
+
+  if (!photoId) return;
+  const idx = photos.findIndex((photo) => photo.id === photoId);
+  if (idx === -1) {
+    toast('Bild konnte nicht gefunden werden', 'error');
+    return;
+  }
+  openLB(idx);
+}
+window.openAlbumFromFeed = openAlbumFromFeed;
+
 async function openUploaderPhotosFromFeed(uploaderId) {
   if (!uploaderId) return;
   await switchToUser(uploaderId);
 }
+
+function openShareAlbumToFeedModal(albumId = curAlbum) {
+  if (!albumId) return;
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return;
+  }
+  if (!canShareAlbumToFeed(albumId)) {
+    toast('Du darfst dieses Album nicht teilen', 'error');
+    return;
+  }
+
+  const album = allAlbums.find((entry) => entry.id === albumId);
+  if (!album) {
+    toast('Album konnte nicht gefunden werden', 'error');
+    return;
+  }
+
+  const modal = $('share-album-feed-modal');
+  if (!modal) return;
+  const albumIdInput = $('share-album-feed-album-id');
+  const titleInput = $('share-album-feed-title');
+  const bodyInput = $('share-album-feed-body');
+
+  if (albumIdInput) albumIdInput.value = albumId;
+  if (titleInput) titleInput.value = `Album: ${album.name}`;
+  if (bodyInput) bodyInput.value = '';
+
+  show('share-album-feed-modal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+  modal.style.zIndex = '4000';
+  setTimeout(() => titleInput?.focus(), 50);
+}
+
+function closeShareAlbumToFeedModal() {
+  const modal = $('share-album-feed-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.style.zIndex = '';
+  }
+  hide('share-album-feed-modal');
+  const btn = $('share-album-feed-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Teilen';
+  }
+}
+
+async function submitAlbumShareToFeed() {
+  const albumId = String($('share-album-feed-album-id')?.value || '').trim();
+  if (!albumId) return;
+
+  const title = String($('share-album-feed-title')?.value || '').trim();
+  const body = String($('share-album-feed-body')?.value || '').trim();
+  const btn = $('share-album-feed-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird geteilt...';
+  }
+
+  const ok = await shareAlbumToFeed(albumId, { title, body });
+  if (ok) {
+    closeShareAlbumToFeedModal();
+    return;
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Teilen';
+  }
+}
+
+async function shareAlbumToFeed(albumId, options = {}) {
+  if (!albumId) return;
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return false;
+  }
+  if (!canShareAlbumToFeed(albumId)) {
+    toast('Du darfst dieses Album nicht teilen', 'error');
+    return false;
+  }
+
+  const btn = document.getElementById('album-share-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `${ICON_LINK}`;
+  }
+
+  try {
+    const album = allAlbums.find((entry) => entry.id === albumId);
+    if (!album) {
+      toast('Album konnte nicht gefunden werden', 'error');
+      return false;
+    }
+
+    const params = new URLSearchParams({
+      groupId: curGroupId,
+      albumId,
+      skip: '0',
+      limit: '6',
+      order: 'desc',
+    });
+    const res = await apiCall(`/photos?${params.toString()}`, 'GET');
+    const albumPhotos = (res.photos || []).map((photo) => ({
+      id: photo.id,
+      mediaType: photo.mediaType || 'image',
+      videoDuration:
+        Number.isFinite(photo.videoDuration) || photo.videoDuration === 0 ? photo.videoDuration : null,
+      exists: true,
+    }));
+    if (!albumPhotos.length) {
+      toast('Das Album enthält keine Fotos', 'error');
+      return false;
+    }
+
+    const totalPhotos = Number.isFinite(res.total) ? res.total : albumPhotos.length;
+    const coverPhotoId = albumPhotos[0]?.id || null;
+    const customTitle = String(options?.title || '').trim();
+    const customBody = String(options?.body || '').trim();
+    const title = customTitle || `Album: ${album.name}`;
+    const body =
+      customBody || `Schau dir mein Album „${album.name}“ an${totalPhotos ? ` mit ${totalPhotos} Fotos` : ''}`;
+
+    await apiCall('/group-feed', 'POST', {
+      groupId: curGroupId,
+      contentType: 'album_share',
+      title,
+      body,
+      entityType: 'album',
+      entityId: albumId,
+      imageUrl: coverPhotoId ? `/api/photos/${coverPhotoId}/file` : null,
+      metadata: {
+        groupId: curGroupId,
+        groupName: myGroups.find((g) => g.id === curGroupId)?.name || null,
+        albumId,
+        albumName: album.name,
+        albumPhotos,
+        totalPhotos,
+        albumCoverPhotoId: coverPhotoId,
+      },
+    });
+
+    if (curModule === 'feed') await loadFeedPosts(true);
+    toast('Album im Feed geteilt', 'success');
+    return true;
+  } catch (e) {
+    toast(e.serverMessage || 'Album konnte nicht im Feed geteilt werden', 'error');
+    return false;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `${ICON_LINK} Teilen`;
+    }
+  }
+}
+window.shareAlbumToFeed = shareAlbumToFeed;
+window.openShareAlbumToFeedModal = openShareAlbumToFeedModal;
+window.closeShareAlbumToFeedModal = closeShareAlbumToFeedModal;
+window.submitAlbumShareToFeed = submitAlbumShareToFeed;
 
 function renderFeedGrid() {
   const grid = $('grid');
@@ -2142,6 +2365,11 @@ function renderFeedGrid() {
           uploadedItems.find((item) => item.id === post.entityId)?.videoDuration ??
           post?.metadata?.primaryVideoDuration ??
           null;
+        const albumPhotos = Array.isArray(post?.metadata?.albumPhotos) ? post.metadata.albumPhotos : [];
+        const albumShareAlbumId = post?.metadata?.albumId || post.entityId || '';
+        const albumShareAlbumName = post?.metadata?.albumName || post.title || 'Album';
+        const albumShareTotal = Number(post?.metadata?.totalPhotos) || albumPhotos.length;
+        const albumShareGroupId = post?.metadata?.groupId || post.groupId || null;
         const videoOverlay = (seconds) => {
           const showDuration = Number.isFinite(Number(seconds));
           const playSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.45)"/><polygon points="9.5,7 19,12 9.5,17" fill="white"/></svg>`;
@@ -2166,7 +2394,12 @@ function renderFeedGrid() {
               : `<img src="${esc(tileSrc)}" alt="Feed-Medium ${idx + 1}" loading="lazy" style="width:100%;height:100%;object-fit:cover">`;
           const ratio = options.fillHeight ? '' : 'aspect-ratio:1/1;';
           const overlay = tileMediaType === 'video' ? videoOverlay(item?.videoDuration) : '';
-          return `<button onclick="openPhotoInFotosModule('${item.id}','${postUploaderId || ''}')" title="${tileMediaType === 'video' ? 'Video' : 'Bild'} in Fotos öffnen" style="position:relative;border:1px solid var(--border);border-radius:${tileRadius}px;overflow:hidden;background:var(--bg);padding:0;cursor:pointer;width:100%;height:100%;${ratio}">${media}${overlay}</button>`;
+          const tileHandler =
+            options.onClick ||
+            `openPhotoInFotosModule(${JSON.stringify(item.id)}, ${JSON.stringify(postUploaderId || null)})`;
+          const tileTitle =
+            options.title || `${tileMediaType === 'video' ? 'Video' : 'Bild'} in Fotos öffnen`;
+          return `<button onclick="${esc(tileHandler)}" title="${esc(tileTitle)}" style="position:relative;border:1px solid var(--border);border-radius:${tileRadius}px;overflow:hidden;background:var(--bg);padding:0;cursor:pointer;width:100%;height:100%;${ratio}">${media}${overlay}</button>`;
         };
         const mediaPreview = (() => {
           if (post.contentType === 'upload_summary' && uploadedItems.length > 1) {
@@ -2200,6 +2433,44 @@ function renderFeedGrid() {
             const cols = isMobileFeed ? 2 : 3;
             return `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
           }
+          if (post.contentType === 'album_share' && albumPhotos.length) {
+            const hasOverflow = albumShareTotal > 6;
+            const visibleItems = hasOverflow ? albumPhotos.slice(0, 5) : albumPhotos.slice(0, 6);
+            const tiles = visibleItems.map((item, idx) =>
+              renderTile(item, idx, {
+                onClick: `openAlbumFromFeed(${JSON.stringify(albumShareAlbumId)}, ${JSON.stringify(item.id)}, ${JSON.stringify(albumShareGroupId)})`,
+                title: `${albumShareAlbumName} öffnen`,
+              })
+            );
+            if (hasOverflow) {
+              const moreCount = Math.max(0, albumShareTotal - 5);
+              const openAlbumHandler = `openAlbumFromFeed(${JSON.stringify(albumShareAlbumId)}, null, ${JSON.stringify(albumShareGroupId)})`;
+              tiles.push(
+                `<button onclick="${esc(openAlbumHandler)}" title="Album öffnen" style="border:1px dashed var(--border2);border-radius:${tileRadius}px;background:var(--bg);padding:0;cursor:pointer;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:${isMobileFeed ? 12 : 13}px;font-weight:700">+${moreCount}</button>`
+              );
+            }
+            const count = tiles.length;
+            if (count === 1) {
+              return `<div style="display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            if (count === 2) {
+              return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            if (count === 3) {
+              return `<div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:${tileGap}px;margin:0 0 10px;min-height:${isMobileFeed ? 168 : 220}px">
+              <div>${tiles[0]}</div>
+              <div style="display:grid;grid-template-rows:repeat(2,minmax(0,1fr));gap:${tileGap}px">
+                ${tiles[1]}
+                ${tiles[2]}
+              </div>
+            </div>`;
+            }
+            if (count === 4) {
+              return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            const cols = isMobileFeed ? 2 : 3;
+            return `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+          }
           if (post.imageUrl && post.entityType === 'photo' && post.entityId) {
             if (entityMissing) {
               return `<div title="Medium wurde gelöscht" style="width:100%;border:1px dashed var(--border2);border-radius:${tileRadius}px;margin:0 0 10px;min-height:140px;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--muted);font-size:12px;font-weight:700">${isVideoPreview ? 'Video gelöscht' : 'Bild gelöscht'}</div>`;
@@ -2218,9 +2489,9 @@ function renderFeedGrid() {
           return '';
         })();
         const openEntityBtn =
-          post.entityType !== 'photo' && entityHref
-            ? `<a href="${esc(entityHref)}" target="_blank" rel="noopener" style="font-size:${isMobileFeed ? 11 : 12}px;color:var(--accent);text-decoration:none;font-weight:600">Inhalt öffnen</a>`
-            : '';
+          post.entityType !== 'photo' && post.entityType !== 'album' && entityHref
+              ? `<a href="${esc(entityHref)}" target="_blank" rel="noopener" style="font-size:${isMobileFeed ? 11 : 12}px;color:var(--accent);text-decoration:none;font-weight:600">Inhalt öffnen</a>`
+              : '';
         const editedHint = post.isEdited
           ? ` · <button class="feed-post-edited-btn" onclick="openFeedPostHistory('${post.id}')" title="Bearbeitungshistorie anzeigen">bearbeitet</button>`
           : '';
@@ -2255,6 +2526,7 @@ function renderFeedGrid() {
         </div>
         ${title}
         ${body}
+        ${openEntityBtn ? `<div style="margin:0 0 10px">${openEntityBtn}</div>` : ''}
         ${mediaPreview}
       </article>`;
       })
@@ -3969,26 +4241,33 @@ async function openLB(i) {
   const url = urlCache[p.id] || p.url || '';
   const lbImg = $('lb-img');
   let lbVideo = $('lb-video');
+  const mediaUrl = url ? photoSrc(url) : '';
   if (p.mediaType === 'video') {
     lbVideo = resetLbVideoElement() || lbVideo;
     lbImg.style.display = 'none';
-    lbImg.src = '';
+    lbImg.removeAttribute('src');
     lbVideo.currentTime = 0;
     lbVideo.autoplay = false;
     lbVideo.onended = null;
-    lbVideo.src = photoSrc(url);
-    lbVideo.load();
-    lbVideo.pause();
-    lbVideo.style.display = 'block';
+    if (mediaUrl) {
+      lbVideo.src = mediaUrl;
+      lbVideo.load();
+      lbVideo.pause();
+      lbVideo.style.display = 'block';
+    } else {
+      lbVideo.removeAttribute('src');
+      lbVideo.style.display = 'none';
+    }
   } else {
     if (lbVideo) {
       lbVideo.pause();
-      lbVideo.src = '';
+      lbVideo.removeAttribute('src');
       lbVideo.load();
       lbVideo.style.display = 'none';
     }
     lbImg.style.display = '';
-    lbImg.src = photoSrc(url);
+    if (mediaUrl) lbImg.src = mediaUrl;
+    else lbImg.removeAttribute('src');
   }
   $('lb-av').innerHTML = avatarHtml(u, 32);
   $('lb-av').style.background = u.avatar ? 'transparent' : u.color || '#888';
@@ -4030,6 +4309,20 @@ async function openLB(i) {
   if (dn) dn.innerHTML = ICON_DOWNLOAD;
   const ab = $('lb-album-btn');
   if (ab) ab.innerHTML = ICON_ALBUM;
+  const shareBtn = $('lb-share-btn');
+  if (shareBtn) {
+    shareBtn.innerHTML = ICON_LINK;
+    shareBtn.classList.toggle(
+      'hidden',
+      !canPostToFeedInCurrentGroup() || p.uploaderId !== me.id
+    );
+    shareBtn.type = 'button';
+    shareBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openSharePhotoToFeedModal();
+    };
+  }
   updateFullviewBtn();
   updateLbAlbumTag(p);
   // Copy Image ID (Admin only)
@@ -4051,6 +4344,106 @@ async function openLB(i) {
   }
   await loadLBMeta(p.id);
 }
+
+function openSharePhotoToFeedModal() {
+  const p = photos[lbIdx];
+  if (!p) return;
+  if (p.uploaderId !== me.id) {
+    toast('Du kannst nur deine eigenen Bilder teilen', 'error');
+    return;
+  }
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return;
+  }
+
+  const modal = $('share-photo-feed-modal');
+  if (!modal) return;
+  const titleInput = $('share-photo-feed-title');
+  const bodyInput = $('share-photo-feed-body');
+  if (titleInput) {
+    titleInput.value = p.description?.trim()
+      ? `Foto: ${p.description.trim().slice(0, 80)}`
+      : '';
+  }
+  if (bodyInput) bodyInput.value = '';
+  show('share-photo-feed-modal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+  modal.style.zIndex = '4000';
+  setTimeout(() => titleInput?.focus(), 50);
+}
+
+function closeSharePhotoToFeedModal() {
+  const modal = $('share-photo-feed-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.style.zIndex = '';
+  }
+  hide('share-photo-feed-modal');
+  const btn = $('share-photo-feed-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Teilen';
+  }
+}
+
+async function submitPhotoShareToFeed() {
+  const p = photos[lbIdx];
+  if (!p) return;
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return;
+  }
+
+  const titleInput = $('share-photo-feed-title');
+  const bodyInput = $('share-photo-feed-body');
+  const btn = $('share-photo-feed-btn');
+  const title = String(titleInput?.value || '').trim();
+  const body = String(bodyInput?.value || '').trim() || 'Schau dir dieses Bild an';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird geteilt...';
+  }
+
+  try {
+    await apiCall('/group-feed', 'POST', {
+      groupId: curGroupId,
+      contentType: 'photo_share',
+      title: title || null,
+      body,
+      entityType: 'photo',
+      entityId: p.id,
+      imageUrl: `/api/photos/${p.id}/file`,
+      metadata: {
+        groupId: curGroupId,
+        photoId: p.id,
+        mediaType: p.mediaType || 'image',
+        videoDuration: Number.isFinite(p.videoDuration) ? p.videoDuration : null,
+        uploaderId: p.uploaderId || null,
+      },
+    });
+    closeSharePhotoToFeedModal();
+    if (curModule === 'feed') await loadFeedPosts(true);
+    toast('Bild im Feed geteilt', 'success');
+  } catch (e) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Teilen';
+    }
+    toast(e.serverMessage || 'Bild konnte nicht im Feed geteilt werden', 'error');
+  }
+}
+
+window.openSharePhotoToFeedModal = openSharePhotoToFeedModal;
+window.closeSharePhotoToFeedModal = closeSharePhotoToFeedModal;
+window.submitPhotoShareToFeed = submitPhotoShareToFeed;
+window.openShareAlbumToFeedModal = openShareAlbumToFeedModal;
+window.closeShareAlbumToFeedModal = closeShareAlbumToFeedModal;
+window.submitAlbumShareToFeed = submitAlbumShareToFeed;
+window.openAlbumFromFeed = openAlbumFromFeed;
+window.shareAlbumToFeed = shareAlbumToFeed;
 
 async function loadLBMeta(photoId) {
   try {
@@ -4298,7 +4691,7 @@ function closeLB() {
   }
   if (lbVideo) {
     lbVideo.pause();
-    lbVideo.src = '';
+    lbVideo.removeAttribute('src');
     lbVideo.style.display = 'none';
   }
   resetLbVideoElement();
@@ -5052,8 +5445,8 @@ async function requestMyContentExport() {
 
   try {
     const data = await apiCall('/exports/request', 'POST');
-    const status = data?.export?.status
-      ? ` (Status: ${exportStatusLabel(data.export.status)})`
+    const status = data?.export?.status 
+      ? ` (Status: ${exportStatusLabel(data.export.status)})` 
       : '';
     flashInlineMessage('profile-export-msg', 'success', `✓ Export angefordert${status}`);
     toast('Export wurde gestartet.', 'success');
@@ -8883,6 +9276,7 @@ function onThumbLoad(img) {
   img.classList.remove('loading');
   img.classList.add('loaded');
 }
+window.onThumbLoad = onThumbLoad;
 
 // ── FULLVIEW MODE ─────────────────────────────────────────
 async function toggleFullview() {
@@ -9631,6 +10025,12 @@ Object.assign(window, {
   switchToFeed,
   openPhotoInFotosModule,
   openUploaderPhotosFromFeed,
+  openSharePhotoToFeedModal,
+  closeSharePhotoToFeedModal,
+  submitPhotoShareToFeed,
+  openShareAlbumToFeedModal,
+  closeShareAlbumToFeedModal,
+  submitAlbumShareToFeed,
   createFeedPost,
   copyFeedPostLink,
   toggleFeedPostMenu,

@@ -113,11 +113,7 @@ Falls ja:
                 * Alle Fotos, Meine Fotos, Diashow
             * Module bekommen je eine Toplevel Kategorie
 * Feed-Module
-    * Jeder Post soll eigene ID erhalten und direkt per Link ansteuerbar sein.
-    * Gespeicherte Posts müssen persistent werden (bisher LocalStorage im Browser)
     * Likes, Kommentare, Erwähnungen
-    * Bearbeiten von Posts
-    * Erstellen von Posts manuell (Text)
     * Posts suchen/filtern
     * Fotos haben nun in der Lightbox eine Teilen Schaltfläche zum teilen des Bilds in den Feed
         * optional soll man dabei titel+text eingeben können
@@ -127,6 +123,10 @@ Falls ja:
 
 
 ### DONE
+* ~~Feed-Module~~
+    * ~~Jeder Post soll eigene ID erhalten und direkt per Link ansteuerbar sein.~~
+    * ~~Gespeicherte Posts müssen persistent werden (bisher LocalStorage im Browser).~~
+    * ~~Bearbeiten von Posts.~~
 * ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~
     * ~~Admins bekommen im Gruppen verwalten Modal die Möglichkeit das Gruppenlimit zu ändern und zu sperren~~
     * ~~Join wird bei voller Gruppe mit Hinweis blockiert~~

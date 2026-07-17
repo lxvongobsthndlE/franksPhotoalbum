@@ -875,6 +875,13 @@
               ></button>
               <button
                 class="lb-act-btn"
+                id="lb-share-btn"
+                type="button"
+                onclick="openSharePhotoToFeedModal()"
+                title="Im Feed teilen"
+              ></button>
+              <button
+                class="lb-act-btn"
                 id="lb-full-btn"
                 onclick="toggleFullview()"
                 title="Vollbild"
@@ -1005,6 +1012,113 @@
           >
             Neue Alben sind in dieser Gruppe für normale Mitglieder gesperrt.
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LIGHTBOX SHARE MODAL ── -->
+    <div
+      id="share-photo-feed-modal"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeSharePhotoToFeedModal();"
+    >
+      <div class="modal-box broadcast-modal-box" onclick="event.stopPropagation()">
+        <div class="modal-hdr">
+          <span>Im Feed teilen</span>
+          <button class="modal-close" onclick="closeSharePhotoToFeedModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="broadcast-hint">
+            Dieses Bild wird mit Vorschaubild in den Gruppen-Feed geteilt.
+          </p>
+          <label class="broadcast-label">Titel (optional)</label>
+          <input
+            id="share-photo-feed-title"
+            class="broadcast-input"
+            type="text"
+            maxlength="160"
+            placeholder="z.B. Mein Lieblingsbild"
+          />
+          <label class="broadcast-label" style="margin-top: 10px">Text (optional)</label>
+          <textarea
+            id="share-photo-feed-body"
+            class="broadcast-input broadcast-textarea"
+            maxlength="500"
+            rows="3"
+            placeholder="Schreib noch etwas dazu..."
+          ></textarea>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn btn-ghost"
+            onclick="closeSharePhotoToFeedModal()"
+            style="padding: 8px 16px; font-size: 13px"
+          >
+            Abbrechen
+          </button>
+          <button
+            class="btn btn-primary"
+            id="share-photo-feed-btn"
+            onclick="submitPhotoShareToFeed()"
+            style="width: auto; padding: 8px 20px; margin-top: 0"
+          >
+            Teilen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ALBUM SHARE MODAL ── -->
+    <div
+      id="share-album-feed-modal"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeShareAlbumToFeedModal();"
+    >
+      <div class="modal-box broadcast-modal-box" onclick="event.stopPropagation()">
+        <div class="modal-hdr">
+          <span>Album im Feed teilen</span>
+          <button class="modal-close" onclick="closeShareAlbumToFeedModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="broadcast-hint">
+            Dieses Album wird mit Vorschaukacheln im Gruppen-Feed geteilt.
+          </p>
+          <input id="share-album-feed-album-id" type="hidden" />
+          <label class="broadcast-label">Titel (optional)</label>
+          <input
+            id="share-album-feed-title"
+            class="broadcast-input"
+            type="text"
+            maxlength="160"
+            placeholder="z.B. Unsere Urlaubsfotos"
+          />
+          <label class="broadcast-label" style="margin-top: 10px">Text (optional)</label>
+          <textarea
+            id="share-album-feed-body"
+            class="broadcast-input broadcast-textarea"
+            maxlength="500"
+            rows="3"
+            placeholder="Schreib noch etwas zum Album..."
+          ></textarea>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn btn-ghost"
+            onclick="closeShareAlbumToFeedModal()"
+            style="padding: 8px 16px; font-size: 13px"
+          >
+            Abbrechen
+          </button>
+          <button
+            class="btn btn-primary"
+            id="share-album-feed-btn"
+            onclick="submitAlbumShareToFeed()"
+            style="width: auto; padding: 8px 20px; margin-top: 0"
+          >
+            Teilen
+          </button>
         </div>
       </div>
     </div>
