@@ -15,6 +15,9 @@ User ──< GroupMember >── Group ──< Album ──< AlbumContributor >�
   │
   ├──< UserExport
   ├──  AccountDeletionRequest
+  ├──< GroupFeedPostSave >── GroupFeedPost ──< GroupFeedPostHistory
+  │
+  ├──< GroupFeedPost >── Group
   │
   ├──< FeedbackReport ──< FeedbackMessage
   │          │
@@ -189,6 +192,78 @@ model Like {
   createdAt DateTime @default(now())
 
   @@unique([photoId, userId])   // Jeder User kann ein Foto nur einmal liken
+}
+```
+
+---
+
+### GroupFeedPost
+
+Feed-Post innerhalb einer Gruppe. Kann reine Text-Posts sowie Shares auf Fotos oder andere Entitäten abbilden.
+
+```prisma
+model GroupFeedPost {
+  id          String   @id @default(cuid())
+  groupId     String
+  createdById String
+  contentType String   @default("post")
+  title       String?
+  body        String
+  entityType  String?
+  entityId    String?
+  imageUrl    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([groupId, createdAt(sort: Desc)])
+  @@index([createdById, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+}
+```
+
+Hinweise:
+
+- `id` ist stabil und wird direkt für Share-/Deep-Link-URLs verwendet.
+- `metadata` speichert zusätzliche Share-Daten, z. B. Upload-Zusammenfassungen mit mehreren Medien.
+- `updatedAt` wird für die Bearbeitet-Kennzeichnung im Frontend verwendet; frühere Versionen liegen in `GroupFeedPostHistory`.
+
+---
+
+### GroupFeedPostSave
+
+Userbezogene Speicherung eines Feed-Posts für die Ansicht "Gespeicherte Beiträge".
+
+```prisma
+model GroupFeedPostSave {
+  userId  String
+  postId  String
+  savedAt DateTime @default(now())
+
+  @@id([userId, postId])
+  @@index([userId, savedAt(sort: Desc)])
+  @@index([postId])
+}
+```
+
+---
+
+### GroupFeedPostHistory
+
+Versionierte Snapshots früherer Post-Inhalte. Bei jeder Bearbeitung wird der vorherige Titel/Text als eigener Datensatz gespeichert.
+
+```prisma
+model GroupFeedPostHistory {
+  id              String   @id @default(cuid())
+  postId          String
+  editedById      String?
+  previousTitle   String?
+  previousBody    String
+  previousMetadata Json?
+  createdAt       DateTime @default(now())
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([editedById, createdAt(sort: Desc)])
 }
 ```
 
@@ -421,25 +496,27 @@ REFRESH MATERIALIZED VIEW mv_group_overview;
 
 ## Migrationen
 
-| Migration                                            | Beschreibung                                                                        |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `20260416095944_init`                                | Initiales Schema: User, Group, GroupMember, Photo, Album, PhotoAlbum, Comment, Like |
-| `20260416101506_add_oidc_support`                    | OIDC-Felder am User, Refresh-Token-Tabelle                                          |
-| `20260417132645_photo_multi_album`                   | Photo→Album n:m (PhotoAlbum Join-Tabelle ersetzt direkten FK)                       |
-| `20260419111845_album_contributors`                  | AlbumContributor (erweiterte Bearbeitungsrechte)                                    |
-| `20260419130737_add_group_deputies`                  | GroupDeputy + `createdBy` (Owner) an Group                                          |
-| `20260419133307_add_group_backups`                   | GroupBackup-Modell (ZIP-Archiv-Metadaten)                                           |
-| `20260419143604_add_backup_deleted_by`               | `deletedByName` an GroupBackup                                                      |
-| `20260419162052_add_notifications`                   | Notification + NotificationPreference                                               |
-| `20260427194000_add_group_member_limit_lock`         | `Group.maxMembers` (optional) + `Group.memberLimitLocked` (default `false`)         |
-| `20260419170520_update_notif_defaults`               | Standard-Werte für Benachrichtigungs-Präferenzen                                    |
-| `20260420100000_add_imageurl_entityurl_system_notif` | `imageUrl`, `entityUrl` an Notification; `system`-Typ                               |
-| `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen           |
-| `20260421100000_add_display_name_field`              | `displayName` am User                                                               |
-| `20260423120000_add_user_migration_metadata`         | `migrationStatus`, `migratedAt` am User                                             |
-| `20260427123000_add_group_invite_visibility`         | `inviteCodeVisibleToMembers` an Group                                               |
-| `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen           |
-| `20260427201000_add_changelog_entries`               | Neue Tabelle `changelog_entries` für Versionseinträge                               |
-| `20260429200000_add_feedback_reports`                | Neue Tabelle `feedback_reports`                                                     |
-| `20260429210000_add_feedback_messages`               | Neue Tabelle `feedback_messages` + `resolution` an `feedback_reports`               |
-| `20260429223000_add_feedback_waiting_unread_flags`   | Workflow-Felder `waitingFor`, `unreadAdmin`, `unreadUser` an `feedback_reports`     |
+| Migration                                            | Beschreibung                                                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `20260416095944_init`                                | Initiales Schema: User, Group, GroupMember, Photo, Album, PhotoAlbum, Comment, Like            |
+| `20260416101506_add_oidc_support`                    | OIDC-Felder am User, Refresh-Token-Tabelle                                                     |
+| `20260417132645_photo_multi_album`                   | Photo→Album n:m (PhotoAlbum Join-Tabelle ersetzt direkten FK)                                  |
+| `20260419111845_album_contributors`                  | AlbumContributor (erweiterte Bearbeitungsrechte)                                               |
+| `20260419130737_add_group_deputies`                  | GroupDeputy + `createdBy` (Owner) an Group                                                     |
+| `20260419133307_add_group_backups`                   | GroupBackup-Modell (ZIP-Archiv-Metadaten)                                                      |
+| `20260419143604_add_backup_deleted_by`               | `deletedByName` an GroupBackup                                                                 |
+| `20260419162052_add_notifications`                   | Notification + NotificationPreference                                                          |
+| `20260427194000_add_group_member_limit_lock`         | `Group.maxMembers` (optional) + `Group.memberLimitLocked` (default `false`)                    |
+| `20260419170520_update_notif_defaults`               | Standard-Werte für Benachrichtigungs-Präferenzen                                               |
+| `20260420100000_add_imageurl_entityurl_system_notif` | `imageUrl`, `entityUrl` an Notification; `system`-Typ                                          |
+| `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen                      |
+| `20260421100000_add_display_name_field`              | `displayName` am User                                                                          |
+| `20260423120000_add_user_migration_metadata`         | `migrationStatus`, `migratedAt` am User                                                        |
+| `20260427123000_add_group_invite_visibility`         | `inviteCodeVisibleToMembers` an Group                                                          |
+| `20260427153000_add_reporting_views`                 | Reporting-Views und Materialized Views für User- und Gruppen-Auswertungen                      |
+| `20260427201000_add_changelog_entries`               | Neue Tabelle `changelog_entries` für Versionseinträge                                          |
+| `20260429200000_add_feedback_reports`                | Neue Tabelle `feedback_reports`                                                                |
+| `20260429210000_add_feedback_messages`               | Neue Tabelle `feedback_messages` + `resolution` an `feedback_reports`                          |
+| `20260429223000_add_feedback_waiting_unread_flags`   | Workflow-Felder `waitingFor`, `unreadAdmin`, `unreadUser` an `feedback_reports`                |
+| `20260630153000_add_group_feed_module`               | Gruppen-Feed mit `GroupFeedPost` und Feed-Posting-Lock auf Gruppen                             |
+| `20260717120000_add_group_feed_saves_history`        | Gespeicherte Feed-Posts (`GroupFeedPostSave`) und Bearbeitungsverlauf (`GroupFeedPostHistory`) |

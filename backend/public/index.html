@@ -718,6 +718,70 @@
               />
             </div>
 
+            <label
+              for="upload-share-feed"
+              style="
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 10px 12px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: var(--bg);
+                margin-top: 12px;
+                cursor: pointer;
+              "
+            >
+              <input
+                id="upload-share-feed"
+                type="checkbox"
+                style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
+              />
+              <div style="font-size: 13px; color: var(--text)">
+                Nach Upload im Feed teilen
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px">
+                  Erstellt einen Feed-Beitrag mit kurzer Upload-Zusammenfassung.
+                </div>
+              </div>
+            </label>
+            <div
+              id="upload-share-feed-hint"
+              class="hidden"
+              style="font-size: 11px; color: var(--muted2); margin-top: 6px; line-height: 1.4"
+            ></div>
+            <div id="upload-share-feed-fields" class="hidden" style="margin-top: 10px">
+              <label
+                for="upload-share-feed-body"
+                style="
+                  display: block;
+                  font-size: 12px;
+                  font-weight: 600;
+                  color: var(--muted2);
+                  margin-bottom: 6px;
+                "
+              >
+                Feed-Text (optional)
+              </label>
+              <textarea
+                id="upload-share-feed-body"
+                rows="3"
+                maxlength="500"
+                placeholder="Optionaler Text für den Feed-Beitrag…"
+                style="
+                  width: 100%;
+                  padding: 10px 13px;
+                  border-radius: 10px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg);
+                  color: var(--text);
+                  font-size: 14px;
+                  outline: none;
+                  resize: vertical;
+                  min-height: 88px;
+                "
+              ></textarea>
+            </div>
+
             <!-- Upload-Button -->
             <button
               class="btn btn-primary"
@@ -2822,6 +2886,34 @@
                 Neue Alben für normale Mitglieder sperren
                 <div style="font-size: 11px; color: var(--muted); margin-top: 2px">
                   Nur Owner, Vertreter und Admins dürfen dann noch neue Alben anlegen.
+                </div>
+              </div>
+            </label>
+
+            <label
+              for="group-settings-feed-lock"
+              style="
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 10px 12px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: var(--bg);
+                margin-bottom: 20px;
+                cursor: pointer;
+              "
+            >
+              <input
+                id="group-settings-feed-lock"
+                type="checkbox"
+                style="margin-top: 2px; accent-color: var(--accent); cursor: pointer"
+                onchange="saveGroupFeedPostingRestriction()"
+              />
+              <div style="font-size: 13px; color: var(--text)">
+                Feed-Posts für normale Mitglieder sperren
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px">
+                  Nur Owner, Vertreter und Admins dürfen dann noch im Feed posten.
                 </div>
               </div>
             </label>

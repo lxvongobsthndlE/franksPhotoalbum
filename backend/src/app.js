@@ -27,6 +27,7 @@ import changelogRoutes from './routes/changelog.js';
 import feedbackRoutes from './routes/feedback.js';
 import invitesRoutes from './routes/invites.js';
 import exportsRoutes from './routes/exports.js';
+import groupFeedRoutes from './routes/group-feed.js';
 import accountDeletionRoutes, {
   createActiveDeletionGuard,
   startAccountDeletionPurgeTask,
@@ -119,6 +120,7 @@ app.register(changelogRoutes, { prefix: '/api/changelog' });
 app.register(feedbackRoutes, { prefix: '/api/feedback' });
 app.register(invitesRoutes, { prefix: '/api/invites' });
 app.register(exportsRoutes, { prefix: '/api/exports' });
+app.register(groupFeedRoutes, { prefix: '/api/group-feed' });
 app.register(accountDeletionRoutes, { prefix: '/api/account-deletion' });
 
 // OIDC Callback: Authentik redirectet auf /auth/callback → Frontend-SPA laden, die den Code verarbeitet

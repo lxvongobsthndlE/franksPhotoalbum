@@ -137,6 +137,35 @@ describe('auth routes', () => {
       expect(result.loginUrl).toContain('https://oidc.example/auth');
     });
 
+    it('stores feed post context in state and returns it after callback', async () => {
+      const existingUser = createMockUser({
+        id: 'user-77',
+        username: 'feed-user',
+        email: 'feed@example.com',
+      });
+
+      prisma.user.findUnique.mockResolvedValueOnce(existingUser);
+      prisma.user.update.mockResolvedValue(existingUser);
+      oidc.handleCallback.mockResolvedValue({
+        claims: () => ({
+          email: 'feed@example.com',
+          preferred_username: 'feed-user',
+          name: 'Feed User',
+        }),
+      });
+
+      const loginResult = await callRoute('GET', '/login', {
+        query: { feedPost: 'cmfeedpost1234' },
+      });
+      const state = new URL(loginResult.result.loginUrl).searchParams.get('state');
+
+      const { result } = await callRoute('GET', '/callback', {
+        query: { code: 'oidc-code', state },
+      });
+
+      expect(result.loginContext).toEqual({ feedPostId: 'cmfeedpost1234' });
+    });
+
     it('rejects callback requests with an unknown state', async () => {
       const { reply } = await callRoute('GET', '/callback', {
         query: { code: 'oidc-code', state: 'missing-state' },

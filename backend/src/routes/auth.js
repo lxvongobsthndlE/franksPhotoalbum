@@ -44,6 +44,15 @@ function normalizeAuthSourceClaim(value) {
   return trimmed ? trimmed.slice(0, 128) : null;
 }
 
+function normalizeFeedPostId(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^[a-zA-Z0-9]+$/.test(trimmed)) return null;
+  if (trimmed.length < 8 || trimmed.length > 64) return null;
+  return trimmed;
+}
+
 function createSessionTokens(fastify, userId, email, username) {
   // Access Token: 15 Minuten
   const accessToken = fastify.jwt.sign(
@@ -168,9 +177,10 @@ export default async function authRoutes(fastify) {
       const state = generateState();
       const nonce = generateNonce();
       const inviteToken = normalizeInviteToken(request.query?.invite);
+      const feedPostId = normalizeFeedPostId(request.query?.feedPost);
 
       // Speichere state/nonce für Validation beim Callback
-      stateStore.set(state, { nonce, createdAt: Date.now(), inviteToken });
+      stateStore.set(state, { nonce, createdAt: Date.now(), inviteToken, feedPostId });
 
       const authUrl = getAuthorizationUrl(state, nonce);
       fastify.log.info('LOGIN: Generated auth URL');
@@ -265,6 +275,9 @@ export default async function authRoutes(fastify) {
       return {
         accessToken,
         inviteResult,
+        loginContext: {
+          feedPostId: storedState.feedPostId || null,
+        },
         user: {
           id: user.id,
           email: user.email,

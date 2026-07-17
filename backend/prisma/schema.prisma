@@ -11,72 +11,130 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  name      String?
-  color     String?
-  avatar    String?
-  displayNameField String? @default("name") // "name" oder "username"
-  role      String   @default("user") // "user" oder "admin"
-  migratedFrom String?
-  migratedAt DateTime?
-  lastLoginAt DateTime?
-  createdAt DateTime @default(now())
-  auth_source String? // "authentik", "google", "plex", "github" etc.
+  id               String    @id @default(cuid())
+  email            String    @unique
+  username         String    @unique
+  name             String?
+  color            String?
+  avatar           String?
+  displayNameField String?   @default("name") // "name" oder "username"
+  role             String    @default("user") // "user" oder "admin"
+  migratedFrom     String?
+  migratedAt       DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  auth_source      String? // "authentik", "google", "plex", "github" etc.
 
-  groups             GroupMember[]
-  photos             Photo[]
-  comments           Comment[]
-  likes              Like[]
-  albumContributions AlbumContributor[]
-  groupDeputies      GroupDeputy[]
-  blockedInGroups    GroupBlock[] @relation("BlockedUser")
-  blockedByInGroups  GroupBlock[] @relation("BlockedByUser")
-  notifications      Notification[]
-  notifPreference    NotificationPreference?
-  feedbackReports    FeedbackReport[]
-  reportedInFeedback FeedbackReport[] @relation("ReportedUser")
-  feedbackMessages   FeedbackMessage[]
-  createdInvites     GroupInvite[] @relation("GroupInviteCreator")
-  exports            UserExport[]
-  accountDeletionRequest AccountDeletionRequest?
-  adminActionLogs    AdminActionLog[]
-  blockedLoginIdentitiesCreated BlockedLoginIdentity[] @relation("BlockedLoginIdentityBlockedBy")
+  groups                        GroupMember[]
+  photos                        Photo[]
+  comments                      Comment[]
+  likes                         Like[]
+  albumContributions            AlbumContributor[]
+  groupDeputies                 GroupDeputy[]
+  blockedInGroups               GroupBlock[]            @relation("BlockedUser")
+  blockedByInGroups             GroupBlock[]            @relation("BlockedByUser")
+  notifications                 Notification[]
+  notifPreference               NotificationPreference?
+  feedbackReports               FeedbackReport[]
+  reportedInFeedback            FeedbackReport[]        @relation("ReportedUser")
+  feedbackMessages              FeedbackMessage[]
+  createdInvites                GroupInvite[]           @relation("GroupInviteCreator")
+  exports                       UserExport[]
+  accountDeletionRequest        AccountDeletionRequest?
+  adminActionLogs               AdminActionLog[]
+  blockedLoginIdentitiesCreated BlockedLoginIdentity[]  @relation("BlockedLoginIdentityBlockedBy")
+  feedPosts                     GroupFeedPost[]
+  savedFeedPosts                GroupFeedPostSave[]
+  feedPostHistoryEntries        GroupFeedPostHistory[]  @relation("GroupFeedPostHistoryEditor")
 }
 
 model Group {
-  id                          String   @id @default(cuid())
-  name                        String
-  code                        String   @unique
-  createdBy                   String?
-  inviteCodeVisibleToMembers  Boolean  @default(true)
-  uploadsRestrictedToModerators Boolean @default(false)
-  albumsRestrictedToModerators Boolean @default(false)
-  maxMembers                  Int?
-  memberLimitLocked           Boolean  @default(false)
-  createdAt                   DateTime @default(now())
-  
+  id                                String   @id @default(cuid())
+  name                              String
+  code                              String   @unique
+  createdBy                         String?
+  inviteCodeVisibleToMembers        Boolean  @default(true)
+  uploadsRestrictedToModerators     Boolean  @default(false)
+  albumsRestrictedToModerators      Boolean  @default(false)
+  feedPostingRestrictedToModerators Boolean  @default(false)
+  maxMembers                        Int?
+  memberLimitLocked                 Boolean  @default(false)
+  createdAt                         DateTime @default(now())
+
   members   GroupMember[]
   albums    Album[]
   photos    Photo[]
   deputies  GroupDeputy[]
   blocks    GroupBlock[]
   invites   GroupInviteGroup[]
+  feedPosts GroupFeedPost[]
+}
+
+model GroupFeedPost {
+  id          String   @id @default(cuid())
+  groupId     String
+  createdById String
+  contentType String   @default("post")
+  title       String?
+  body        String
+  entityType  String?
+  entityId    String?
+  imageUrl    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  group          Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy      User                   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  savedBy        GroupFeedPostSave[]
+  historyEntries GroupFeedPostHistory[]
+
+  @@index([groupId, createdAt(sort: Desc)])
+  @@index([createdById, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+}
+
+model GroupFeedPostSave {
+  userId  String
+  postId  String
+  savedAt DateTime @default(now())
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post GroupFeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([userId, savedAt(sort: Desc)])
+  @@index([postId])
+}
+
+model GroupFeedPostHistory {
+  id               String   @id @default(cuid())
+  postId           String
+  editedById       String?
+  previousTitle    String?
+  previousBody     String
+  previousMetadata Json?
+  createdAt        DateTime @default(now())
+
+  post     GroupFeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  editedBy User?         @relation("GroupFeedPostHistoryEditor", fields: [editedById], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([editedById, createdAt(sort: Desc)])
 }
 
 model GroupInvite {
-  id               String   @id @default(cuid())
-  token            String   @unique
+  id               String    @id @default(cuid())
+  token            String    @unique
   createdBy        String
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
   expiresAt        DateTime?
   maxUses          Int?
-  useCount         Int      @default(0)
+  useCount         Int       @default(0)
   notificationText String?
-  isActive         Boolean  @default(true)
+  isActive         Boolean   @default(true)
 
-  creator User             @relation("GroupInviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  creator User               @relation("GroupInviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   groups  GroupInviteGroup[]
 
   @@index([createdBy])
@@ -95,12 +153,12 @@ model GroupInviteGroup {
 }
 
 model GroupMember {
-  userId String
+  userId  String
   groupId String
-  
-  user   User   @relation(fields: [userId], references: [id])
-  group  Group  @relation(fields: [groupId], references: [id])
-  
+
+  user  User  @relation(fields: [userId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+
   @@id([userId, groupId])
 }
 
@@ -110,7 +168,7 @@ model Album {
   groupId   String
   createdBy String
   createdAt DateTime @default(now())
-  
+
   group        Group              @relation(fields: [groupId], references: [id])
   photos       PhotoAlbum[]
   contributors AlbumContributor[]
@@ -120,36 +178,36 @@ model AlbumContributor {
   albumId String
   userId  String
 
-  album   Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([albumId, userId])
 }
 
 model Photo {
-  id          String   @id @default(cuid())
-  uploaderId  String
-  groupId     String
-  filename    String
-  path        String   @unique
+  id            String   @id @default(cuid())
+  uploaderId    String
+  groupId       String
+  filename      String
+  path          String   @unique
   description   String?
   mediaType     String   @default("image")
   videoDuration Int?
   createdAt     DateTime @default(now())
-  
-  uploader    User         @relation(fields: [uploaderId], references: [id])
-  group       Group        @relation(fields: [groupId], references: [id])
-  albums      PhotoAlbum[]
-  comments    Comment[]
-  likes       Like[]
+
+  uploader User         @relation(fields: [uploaderId], references: [id])
+  group    Group        @relation(fields: [groupId], references: [id])
+  albums   PhotoAlbum[]
+  comments Comment[]
+  likes    Like[]
 }
 
 model PhotoAlbum {
   photoId String
   albumId String
 
-  photo   Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
-  album   Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
   @@id([photoId, albumId])
 }
@@ -160,9 +218,9 @@ model Comment {
   userId    String
   content   String
   createdAt DateTime @default(now())
-  
-  photo     Photo    @relation(fields: [photoId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+
+  photo Photo @relation(fields: [photoId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
 }
 
 model Like {
@@ -170,10 +228,10 @@ model Like {
   photoId   String
   userId    String
   createdAt DateTime @default(now())
-  
-  photo     Photo    @relation(fields: [photoId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  
+
+  photo Photo @relation(fields: [photoId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
   @@unique([photoId, userId])
 }
 
@@ -181,18 +239,18 @@ model GroupDeputy {
   groupId String
   userId  String
 
-  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([groupId, userId])
 }
 
 model GroupBlock {
-  groupId   String
-  userId    String
-  blockedBy String?
+  groupId       String
+  userId        String
+  blockedBy     String?
   blockedReason String?
-  createdAt DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   group         Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user          User  @relation("BlockedUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -217,15 +275,15 @@ model GroupBackup {
 }
 
 model UserExport {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  zipKey        String   @unique
-  downloadToken String   @unique
-  status        String   @default("queued") // queued | running | ready | failed
-  photoCount    Int      @default(0)
+  zipKey        String    @unique
+  downloadToken String    @unique
+  status        String    @default("queued") // queued | running | ready | failed
+  photoCount    Int       @default(0)
   sizeBytes     BigInt?
   errorMessage  String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
   readyAt       DateTime?
   linkExpiry    DateTime
 
@@ -238,19 +296,19 @@ model UserExport {
 }
 
 model AccountDeletionRequest {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  codeHash          String
-  codeExpiresAt     DateTime
-  requestedAt       DateTime @default(now())
-  lastCodeSentAt    DateTime @default(now())
-  confirmAttempts   Int      @default(0)
-  status            String   @default("pending") // pending | confirmed | reactivated | purged
-  keepContent       Boolean?
-  successorUserId   String?
-  confirmedAt       DateTime?
-  purgeAt           DateTime?
-  reactivatedAt     DateTime?
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  codeHash        String
+  codeExpiresAt   DateTime
+  requestedAt     DateTime  @default(now())
+  lastCodeSentAt  DateTime  @default(now())
+  confirmAttempts Int       @default(0)
+  status          String    @default("pending") // pending | confirmed | reactivated | purged
+  keepContent     Boolean?
+  successorUserId String?
+  confirmedAt     DateTime?
+  purgeAt         DateTime?
+  reactivatedAt   DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -259,13 +317,13 @@ model AccountDeletionRequest {
 }
 
 model ChangelogEntry {
-  id           String   @id @default(cuid())
-  version      String
-  title        String
-  body         String?
-  createdById  String?  @map("created_by_id")
-  createdByName String? @map("created_by_name")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  version       String
+  title         String
+  body          String?
+  createdById   String?  @map("created_by_id")
+  createdByName String?  @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([createdAt(sort: Desc)])
   @@map("changelog_entries")
@@ -306,19 +364,19 @@ model BlockedLoginIdentity {
 }
 
 model Notification {
-  id          String   @id @default(cuid())
-  userId      String
-  type        String   // deputyAdded | deputyRemoved | contributorAdded | contributorRemoved | groupMemberJoined | groupMemberLeft | groupDeleted | photoLiked | photoCommented | newPhoto | newAlbum
-  title       String
-  body        String
-  entityId    String?  // ID des betroffenen Objekts (Photo, Group, Album...)
-  entityType  String?  // "group" | "photo" | "album" | "external"
-  imageUrl    String?  // Optionale Bild-URL für Vorschau in der Benachrichtigung
-  entityUrl   String?  // Optionale externe URL für Navigation
-  read        Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  type       String // deputyAdded | deputyRemoved | contributorAdded | contributorRemoved | groupMemberJoined | groupMemberLeft | groupDeleted | photoLiked | photoCommented | newPhoto | newAlbum
+  title      String
+  body       String
+  entityId   String? // ID des betroffenen Objekts (Photo, Group, Album...)
+  entityType String? // "group" | "photo" | "album" | "external"
+  imageUrl   String? // Optionale Bild-URL für Vorschau in der Benachrichtigung
+  entityUrl  String? // Optionale externe URL für Navigation
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
   @@index([userId, createdAt(sort: Desc)])
@@ -328,56 +386,56 @@ model NotificationPreference {
   userId String @id
 
   // In-App Einstellungen
-  inApp_deputyAdded          Boolean @default(true)
-  inApp_deputyRemoved        Boolean @default(true)
-  inApp_contributorAdded     Boolean @default(true)
-  inApp_contributorRemoved   Boolean @default(true)
-  inApp_groupMemberJoined    Boolean @default(true)
-  inApp_groupMemberLeft      Boolean @default(true)
-  inApp_groupDeleted         Boolean @default(true)
-  inApp_photoLiked           Boolean @default(true)
-  inApp_photoCommented       Boolean @default(true)
-  inApp_newPhoto             Boolean @default(true)
-  inApp_newAlbum             Boolean @default(true)
-  inApp_system               Boolean @default(true)
+  inApp_deputyAdded        Boolean @default(true)
+  inApp_deputyRemoved      Boolean @default(true)
+  inApp_contributorAdded   Boolean @default(true)
+  inApp_contributorRemoved Boolean @default(true)
+  inApp_groupMemberJoined  Boolean @default(true)
+  inApp_groupMemberLeft    Boolean @default(true)
+  inApp_groupDeleted       Boolean @default(true)
+  inApp_photoLiked         Boolean @default(true)
+  inApp_photoCommented     Boolean @default(true)
+  inApp_newPhoto           Boolean @default(true)
+  inApp_newAlbum           Boolean @default(true)
+  inApp_system             Boolean @default(true)
 
   // E-Mail Einstellungen
-  email_deputyAdded          Boolean @default(true)
-  email_deputyRemoved        Boolean @default(false)
-  email_contributorAdded     Boolean @default(true)
-  email_contributorRemoved   Boolean @default(false)
-  email_groupMemberJoined    Boolean @default(false)
-  email_groupMemberLeft      Boolean @default(false)
-  email_groupDeleted         Boolean @default(true)
-  email_photoLiked           Boolean @default(false)
-  email_photoCommented       Boolean @default(false)
-  email_newPhoto             Boolean @default(false)
-  email_newAlbum             Boolean @default(false)
-  email_system               Boolean @default(false)
+  email_deputyAdded        Boolean @default(true)
+  email_deputyRemoved      Boolean @default(false)
+  email_contributorAdded   Boolean @default(true)
+  email_contributorRemoved Boolean @default(false)
+  email_groupMemberJoined  Boolean @default(false)
+  email_groupMemberLeft    Boolean @default(false)
+  email_groupDeleted       Boolean @default(true)
+  email_photoLiked         Boolean @default(false)
+  email_photoCommented     Boolean @default(false)
+  email_newPhoto           Boolean @default(false)
+  email_newAlbum           Boolean @default(false)
+  email_system             Boolean @default(false)
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model FeedbackReport {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category       String   // "bug" | "feature" | "help" | "report_user" | "other"
-  subject        String
-  body           String
-  anonymous      Boolean  @default(false)
-  reportedUserId String?
-  reportedUser   User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
-  status         String   @default("open") // "open" | "closed" | "accepted" | "rejected"
-  waitingFor     String   @default("support") // "support" | "user" | "none"
-  unreadAdmin    Boolean  @default(true)
-  unreadUser     Boolean  @default(false)
-  resolution     String?  // "no_action" | "action_taken" — nur für report_user
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          String // "bug" | "feature" | "help" | "report_user" | "other"
+  subject           String
+  body              String
+  anonymous         Boolean  @default(false)
+  reportedUserId    String?
+  reportedUser      User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  status            String   @default("open") // "open" | "closed" | "accepted" | "rejected"
+  waitingFor        String   @default("support") // "support" | "user" | "none"
+  unreadAdmin       Boolean  @default(true)
+  unreadUser        Boolean  @default(false)
+  resolution        String? // "no_action" | "action_taken" — nur für report_user
   githubIssueNumber Int?
-  githubIssueUrl String?
-  createdAt      DateTime @default(now())
+  githubIssueUrl    String?
+  createdAt         DateTime @default(now())
 
-  messages  FeedbackMessage[]
+  messages FeedbackMessage[]
 
   @@index([status])
   @@index([createdAt(sort: Desc)])

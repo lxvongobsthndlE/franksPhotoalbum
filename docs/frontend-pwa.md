@@ -95,6 +95,23 @@ Auf Mobilgeräten wird der Gruppenwechsel über ein eigenes Bottom Sheet geöffn
 - Schließen: per Overlay, Close-Button oder nach erfolgreicher Auswahl
 - Ziel: schneller Gruppenwechsel ohne die Sidebar vollständig öffnen zu müssen
 
+## Feed-Modul
+
+Das Feed-Modul ist Teil des Home-Bereichs in der Sidebar und läuft vollständig in `script/main.js`.
+
+- Feed-Views: `Alle Beiträge`, `Meine Beiträge`, `Erwähnungen`, `Gespeicherte Beiträge`
+- Gespeicherte Beiträge sind userbezogen serverseitig persistent und nicht mehr nur Browser-LocalStorage
+- Jeder Feed-Post besitzt einen stabilen Direktlink über `?feedPost=<postId>`
+- Direktlinks öffnen bevorzugt die normale Feed-Liste und scrollen zum Zielpost; bei mehr als 50 neueren Beiträgen fällt das Frontend auf eine fokussierte Einzelansicht zurück
+- Der Link-Zielpost wird visuell hervorgehoben, damit Sharing-Links auch in langen Feeds klar auffindbar bleiben
+
+Bearbeiten und Historie:
+
+- Eigene Feed-Posts können direkt aus der Kartenansicht bearbeitet werden
+- Bearbeitete Posts werden in der Karte mit `bearbeitet` gekennzeichnet
+- Ein Klick auf die Kennzeichnung öffnet die Historie mit früheren Titel-/Textständen und Zeitpunkten
+- Die Historie nutzt einen normalen Dialog und denselben API-Client wie andere SPA-Module
+
 ## Gruppenverwaltung-Modal (Rollenmodus)
 
 Der Eintrag "Gruppe verwalten" ist in der Sidebar für Owner und Vertreter sichtbar.
