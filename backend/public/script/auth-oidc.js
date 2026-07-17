@@ -33,12 +33,16 @@ export async function checkSession() {
 }
 
 // ── LOGIN: REDIRECT TO AUTHENTIK ────────────────────────────
-export async function startOIDCLogin(inviteToken = null) {
+export async function startOIDCLogin(inviteToken = null, options = {}) {
   try {
-    const query =
-      typeof inviteToken === 'string' && inviteToken.trim()
-        ? `?invite=${encodeURIComponent(inviteToken.trim())}`
-        : '';
+    const params = new URLSearchParams();
+    if (typeof inviteToken === 'string' && inviteToken.trim()) {
+      params.set('invite', inviteToken.trim());
+    }
+    if (typeof options?.feedPostId === 'string' && options.feedPostId.trim()) {
+      params.set('feedPost', options.feedPostId.trim());
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
     const response = await fetch(`${API_BASE}/auth/login${query}`);
     const { loginUrl } = await response.json();
 
@@ -64,7 +68,7 @@ export async function handleOIDCCallback(code, state) {
       throw callbackError;
     }
 
-    const { accessToken: token, user, inviteResult } = await response.json();
+    const { accessToken: token, user, inviteResult, loginContext } = await response.json();
 
     // Store access token in sessionStorage (NOT localStorage for security)
     sessionStorage.setItem('accessToken', token);
@@ -73,7 +77,7 @@ export async function handleOIDCCallback(code, state) {
     // Start token refresh timer
     startTokenRefreshTimer();
 
-    return { user, inviteResult };
+    return { user, inviteResult, loginContext };
   } catch (e) {
     console.error('Callback processing failed:', e);
     throw e;
@@ -144,6 +148,17 @@ export async function logout() {
   window.location.href = endSessionUrl || '/';
 }
 
+async function parseApiResponse(response) {
+  if (response.status === 204) return null;
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 // ── API CALL HELPER WITH AUTO-AUTHORIZATION ────────────────
 export async function apiCall(endpoint, method = 'GET', body = null) {
   const options = {
@@ -170,7 +185,22 @@ export async function apiCall(endpoint, method = 'GET', body = null) {
     if (response.status === 401) {
       await refreshAccessToken();
       options.headers['Authorization'] = `Bearer ${accessToken}`;
-      return fetch(`${API_BASE}${endpoint}`, options).then((r) => r.json());
+      const retryResponse = await fetch(`${API_BASE}${endpoint}`, options);
+      if (!retryResponse.ok) {
+        let serverMsg = '';
+        let serverCode = '';
+        try {
+          const j = await parseApiResponse(retryResponse);
+          serverMsg = j?.error || j?.message || '';
+          serverCode = j?.code || '';
+        } catch (_) {}
+        const err = new Error(serverMsg || `HTTP ${retryResponse.status}`);
+        err.status = retryResponse.status;
+        err.serverMessage = serverMsg;
+        err.serverCode = serverCode;
+        throw err;
+      }
+      return parseApiResponse(retryResponse);
     }
 
     if (!response.ok) {
@@ -188,7 +218,7 @@ export async function apiCall(endpoint, method = 'GET', body = null) {
       throw err;
     }
 
-    return response.json();
+    return parseApiResponse(response);
   } catch (e) {
     console.error(`API call failed: ${endpoint}`, e);
     throw e;

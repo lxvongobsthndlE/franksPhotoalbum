@@ -234,12 +234,14 @@ export default async function groupsRoutes(fastify) {
       const hasMaxMembers = hasOwn(body, 'maxMembers');
       const hasUploadRestriction = hasOwn(body, 'uploadsRestrictedToModerators');
       const hasAlbumRestriction = hasOwn(body, 'albumsRestrictedToModerators');
+      const hasFeedPostingRestriction = hasOwn(body, 'feedPostingRestrictedToModerators');
 
       if (
         !hasInviteCodeVisibility &&
         !hasMaxMembers &&
         !hasUploadRestriction &&
-        !hasAlbumRestriction
+        !hasAlbumRestriction &&
+        !hasFeedPostingRestriction
       ) {
         return reply.code(400).send({ error: 'Mindestens eine Einstellung muss angegeben werden' });
       }
@@ -252,6 +254,14 @@ export default async function groupsRoutes(fastify) {
       }
       if (hasAlbumRestriction && typeof body.albumsRestrictedToModerators !== 'boolean') {
         return reply.code(400).send({ error: 'albumsRestrictedToModerators muss boolean sein' });
+      }
+      if (
+        hasFeedPostingRestriction &&
+        typeof body.feedPostingRestrictedToModerators !== 'boolean'
+      ) {
+        return reply
+          .code(400)
+          .send({ error: 'feedPostingRestrictedToModerators muss boolean sein' });
       }
 
       const group = await fastify.prisma.group.findUnique({
@@ -274,6 +284,9 @@ export default async function groupsRoutes(fastify) {
       if (hasAlbumRestriction && group.createdBy !== userId) {
         return reply.code(403).send({ error: 'Nur der Owner kann den Album-Lock ändern' });
       }
+      if (hasFeedPostingRestriction && group.createdBy !== userId) {
+        return reply.code(403).send({ error: 'Nur der Owner kann den Feed-Lock ändern' });
+      }
 
       const isAdmin = requester?.role === 'admin';
       const data = {};
@@ -288,6 +301,10 @@ export default async function groupsRoutes(fastify) {
 
       if (hasAlbumRestriction) {
         data.albumsRestrictedToModerators = body.albumsRestrictedToModerators;
+      }
+
+      if (hasFeedPostingRestriction) {
+        data.feedPostingRestrictedToModerators = body.feedPostingRestrictedToModerators;
       }
 
       if (hasMaxMembers) {

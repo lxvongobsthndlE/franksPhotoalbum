@@ -83,10 +83,15 @@ let curGroupId = null,
   groupDeputies = [],
   groupBlockedMembers = [];
 let curFilterUserId = null;
+let curModule = 'feed';
+let curFeedView = 'all';
 let allProfiles = {},
   photos = [],
   pgFrom = 0,
   hasMore = false;
+let feedPosts = [];
+let feedSkip = 0;
+let feedHasMore = false;
 let allAlbums = [];
 let urlCache = {};
 let lbIdx = 0,
@@ -100,6 +105,307 @@ let pendingLoggedInInviteToken = null;
 let adminGroupsCache = [];
 let profileExportsLoading = false;
 let profileDeletionCandidatesLoaded = false;
+const sidebarUiState = {
+  fotosExpanded: false,
+  feedExpanded: true,
+};
+const FEED_PAGE_SIZE = 20;
+const FEED_VIEWS = new Set(['all', 'mine', 'mentions', 'saved']);
+const FEED_DEEP_LINK_LIST_LIMIT = 50;
+const FEED_POST_QUERY_PARAM = 'feedPost';
+const FEED_POST_STORAGE_KEY = 'pendingFeedPostId';
+
+let pendingFeedPostId = null;
+let pendingFeedPostNewerCount = 0;
+let activeSingleFeedPost = null;
+let feedTargetedPostId = null;
+let resolvingFeedPostTarget = false;
+let feedTargetFocusTimer = null;
+let activeFeedPostMenuId = null;
+let feedPostMenuOutsideCloseBound = false;
+
+function normalizeFeedView(view) {
+  return FEED_VIEWS.has(view) ? view : 'all';
+}
+
+function sanitizeFeedPostId(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  if (!/^[a-zA-Z0-9]+$/.test(normalized)) return null;
+  if (normalized.length < 8 || normalized.length > 64) return null;
+  return normalized;
+}
+
+function readFeedPostTargetFromUrl() {
+  return sanitizeFeedPostId(new URLSearchParams(window.location.search).get(FEED_POST_QUERY_PARAM));
+}
+
+function readPersistedFeedPostTarget() {
+  try {
+    return sanitizeFeedPostId(sessionStorage.getItem(FEED_POST_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function persistFeedPostTarget(postId) {
+  try {
+    if (postId) sessionStorage.setItem(FEED_POST_STORAGE_KEY, postId);
+    else sessionStorage.removeItem(FEED_POST_STORAGE_KEY);
+  } catch {
+    // Ignore sessionStorage failures
+  }
+}
+
+function replaceCurrentQueryParams(mutator) {
+  const params = new URLSearchParams(window.location.search);
+  mutator(params);
+  const query = params.toString();
+  const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+  window.history.replaceState({}, document.title, nextUrl);
+}
+
+function removeTransientUrlParams({ keepInvite = false, keepFeedPost = true } = {}) {
+  replaceCurrentQueryParams((params) => {
+    params.delete('code');
+    params.delete('state');
+    if (!keepInvite) params.delete('invite');
+    if (!keepFeedPost) params.delete(FEED_POST_QUERY_PARAM);
+  });
+}
+
+function updateFeedPostUrl(postId) {
+  replaceCurrentQueryParams((params) => {
+    params.delete('code');
+    params.delete('state');
+    if (postId) params.set(FEED_POST_QUERY_PARAM, postId);
+    else params.delete(FEED_POST_QUERY_PARAM);
+  });
+}
+
+function setPendingFeedPostTarget(postId) {
+  const safePostId = sanitizeFeedPostId(postId);
+  pendingFeedPostId = safePostId;
+  persistFeedPostTarget(safePostId);
+}
+
+function clearFeedPostTargetState({ removeUrl = false } = {}) {
+  pendingFeedPostId = null;
+  pendingFeedPostNewerCount = 0;
+  activeSingleFeedPost = null;
+  feedTargetedPostId = null;
+  persistFeedPostTarget(null);
+  if (feedTargetFocusTimer) {
+    clearTimeout(feedTargetFocusTimer);
+    feedTargetFocusTimer = null;
+  }
+  if (removeUrl) updateFeedPostUrl(null);
+}
+
+function findFeedPostById(postId) {
+  if (!postId) return null;
+  if (activeSingleFeedPost?.id === postId) return activeSingleFeedPost;
+  return feedPosts.find((post) => post.id === postId) || null;
+}
+
+function replaceFeedPostInState(updatedPost) {
+  if (!updatedPost?.id) return;
+  feedPosts = feedPosts.map((post) => (post.id === updatedPost.id ? updatedPost : post));
+  if (activeSingleFeedPost?.id === updatedPost.id) activeSingleFeedPost = updatedPost;
+}
+
+function isOwnFeedPost(post) {
+  return !!post && post.createdById === me?.id;
+}
+
+function canEditFeedPost(post) {
+  return isOwnFeedPost(post);
+}
+
+function canDeleteFeedPost(post) {
+  if (!post) return false;
+  if (isOwnFeedPost(post)) return true;
+  return isCurrentGroupModerator();
+}
+
+function buildFeedPostShareUrl(postId) {
+  const url = new URL(window.location.pathname, window.location.origin);
+  url.searchParams.set(FEED_POST_QUERY_PARAM, postId);
+  return url.toString();
+}
+
+function focusTargetedFeedPost(scrollIntoView = true, targetPostId = feedTargetedPostId) {
+  if (!targetPostId) return;
+  window.requestAnimationFrame(() => {
+    const card = document.getElementById(`feed-post-${targetPostId}`);
+    if (!card) return;
+    card.classList.add('is-targeted');
+    if (scrollIntoView) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    if (feedTargetFocusTimer) clearTimeout(feedTargetFocusTimer);
+    feedTargetFocusTimer = window.setTimeout(() => {
+      card.classList.remove('is-targeted');
+      feedTargetFocusTimer = null;
+    }, 6000);
+  });
+}
+
+function getPendingFeedPostLoginTarget() {
+  return pendingFeedPostId || readFeedPostTargetFromUrl() || readPersistedFeedPostTarget();
+}
+
+function startLoginWithContext() {
+  const feedPostId = getPendingFeedPostLoginTarget();
+  if (feedPostId) setPendingFeedPostTarget(feedPostId);
+  return startOIDCLogin(pendingInviteToken, { feedPostId });
+}
+
+async function copyFeedPostLink(postId) {
+  const safePostId = sanitizeFeedPostId(postId);
+  if (!safePostId) return;
+  navigator.clipboard
+    .writeText(buildFeedPostShareUrl(safePostId))
+    .then(() => toast('Beitragslink kopiert', 'success'))
+    .catch(() => toast('Kopieren nicht möglich', 'error'));
+}
+
+function closeFeedPostMenu() {
+  activeFeedPostMenuId = null;
+  feedPostMenuOutsideCloseBound = false;
+  renderFeedGrid();
+}
+
+function toggleFeedPostMenu(postId) {
+  activeFeedPostMenuId = activeFeedPostMenuId === postId ? null : postId;
+  feedPostMenuOutsideCloseBound = false;
+  renderFeedGrid();
+}
+
+function bindFeedPostMenuOutsideClose() {
+  if (!activeFeedPostMenuId || feedPostMenuOutsideCloseBound) return;
+  feedPostMenuOutsideCloseBound = true;
+  setTimeout(() => {
+    document.addEventListener('click', function handler(event) {
+      const menuRoot = document.querySelector(`[data-feed-menu-root="${activeFeedPostMenuId}"]`);
+      if (menuRoot && menuRoot.contains(event.target)) return;
+      activeFeedPostMenuId = null;
+      feedPostMenuOutsideCloseBound = false;
+      document.removeEventListener('click', handler);
+      renderFeedGrid();
+    });
+  }, 10);
+}
+
+function renderFeedDeepLinkBanner() {
+  if (!activeSingleFeedPost) return '';
+  return `
+    <div class="feed-post-single-banner">
+      <div>
+        <strong>Direktlink aktiv</strong>
+        <p>Dieser Beitrag wird einzeln angezeigt, weil zu viele neuere Beiträge geladen werden müssten.</p>
+      </div>
+      <button class="btn btn-ghost" onclick="exitFeedPostFocus()">Zur Übersicht</button>
+    </div>`;
+}
+
+async function exitFeedPostFocus() {
+  clearFeedPostTargetState({ removeUrl: true });
+  await switchToFeed('all', { preserveTarget: false, removeTargetUrl: false });
+}
+
+async function handlePendingFeedPostTarget() {
+  const targetPostId =
+    pendingFeedPostId || readFeedPostTargetFromUrl() || readPersistedFeedPostTarget();
+  if (!targetPostId || !me?.id || resolvingFeedPostTarget) return;
+
+  resolvingFeedPostTarget = true;
+  setPendingFeedPostTarget(targetPostId);
+
+  try {
+    const data = await apiCall(`/group-feed/${encodeURIComponent(targetPostId)}`, 'GET');
+    const targetPost = data?.post;
+    if (!targetPost?.id) {
+      clearFeedPostTargetState({ removeUrl: true });
+      return;
+    }
+
+    setPendingFeedPostTarget(targetPost.id);
+    feedTargetedPostId = targetPost.id;
+    pendingFeedPostNewerCount = Math.max(0, Number(data?.newerPostsCount) || 0);
+
+    if (targetPost.groupId && targetPost.groupId !== curGroupId) {
+      await switchGroup(targetPost.groupId);
+    }
+
+    curModule = 'feed';
+    curFeedView = 'all';
+    sidebarUiState.feedExpanded = true;
+    sidebarUiState.fotosExpanded = false;
+    saveLastModuleState();
+    renderSidebar();
+
+    if (pendingFeedPostNewerCount > FEED_DEEP_LINK_LIST_LIMIT) {
+      activeSingleFeedPost = targetPost;
+      feedPosts = [];
+      renderFeedGrid();
+      focusTargetedFeedPost(false, targetPost.id);
+      pendingFeedPostId = null;
+      pendingFeedPostNewerCount = 0;
+      persistFeedPostTarget(null);
+      return;
+    }
+
+    activeSingleFeedPost = null;
+    await loadFeedPosts(true);
+    pendingFeedPostId = null;
+    pendingFeedPostNewerCount = 0;
+    persistFeedPostTarget(null);
+  } catch (e) {
+    console.error('Feed-Direktlink fehlgeschlagen:', e);
+    toast(e.serverMessage || 'Feed-Beitrag konnte nicht geöffnet werden', 'error');
+    clearFeedPostTargetState({ removeUrl: true });
+  } finally {
+    resolvingFeedPostTarget = false;
+  }
+}
+
+function getLastModuleStorageKey(groupId = curGroupId) {
+  return `lastModule:${groupId || 'none'}`;
+}
+
+function readLastModuleState(groupId = curGroupId) {
+  const fallback = { module: 'feed', feedView: 'all' };
+  try {
+    const raw = localStorage.getItem(getLastModuleStorageKey(groupId));
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const module = parsed.module === 'photos' ? 'photos' : 'feed';
+    const feedView = normalizeFeedView(parsed.feedView);
+    return { module, feedView };
+  } catch {
+    return fallback;
+  }
+}
+
+function applyLastModuleState(groupId = curGroupId) {
+  const state = readLastModuleState(groupId);
+  curModule = state.module;
+  curFeedView = state.feedView;
+  sidebarUiState.feedExpanded = curModule === 'feed';
+  sidebarUiState.fotosExpanded = curModule === 'photos';
+}
+
+function saveLastModuleState(groupId = curGroupId) {
+  try {
+    const module = curModule === 'photos' ? 'photos' : 'feed';
+    const payload = { module, feedView: normalizeFeedView(curFeedView) };
+    localStorage.setItem(getLastModuleStorageKey(groupId), JSON.stringify(payload));
+  } catch {
+    // Ignore localStorage failures
+  }
+}
 
 async function loadInvitePreview(token) {
   try {
@@ -153,7 +459,7 @@ function copyInviteUrl(url) {
     .catch(() => toast('Kopieren nicht möglich', 'error'));
 }
 
-window.startOIDCLogin = () => startOIDCLogin(pendingInviteToken);
+window.startOIDCLogin = startLoginWithContext;
 
 // Hängt den Access-Token als ?t= an Foto-URLs (nötig da <img src> keinen Auth-Header sendet)
 function photoSrc(url) {
@@ -161,6 +467,15 @@ function photoSrc(url) {
   const t = sessionStorage.getItem('accessToken');
   if (!t) return url;
   return url + (url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(t);
+}
+
+function revokeObjectUrlSafe(url) {
+  if (!url) return;
+  const api = window.URL || window.webkitURL;
+  if (!api || typeof api.revokeObjectURL !== 'function') return;
+  try {
+    api.revokeObjectURL(url);
+  } catch {}
 }
 
 /** Formatiert Sekunden als m:ss für Video-Badges. */
@@ -200,6 +515,10 @@ const ICON_ALBUM = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 const ICON_PLAY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
 const ICON_PLUS = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 const ICON_GRID = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>`;
+const ICON_LINK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 1 0 7.07 7.07L13 20"/></svg>`;
+const ICON_HISTORY = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>`;
+const ICON_MORE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
+const ICON_CHEVRON_RIGHT = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`;
 const ICON_GEAR = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 const ICON_UPLOAD = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
 const ICON_HAMBURGER = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`;
@@ -224,20 +543,25 @@ window.addEventListener('load', async () => {
   // Check if we're returning from OIDC callback
   const params = new URLSearchParams(window.location.search);
   const inviteTokenFromUrl = (params.get('invite') || '').trim().toUpperCase();
+  const feedPostTargetFromUrl = sanitizeFeedPostId(params.get(FEED_POST_QUERY_PARAM));
+  if (feedPostTargetFromUrl) setPendingFeedPostTarget(feedPostTargetFromUrl);
+  else if (!pendingFeedPostId) pendingFeedPostId = readPersistedFeedPostTarget();
   if (params.has('code')) {
     const code = params.get('code');
     const state = params.get('state');
 
     try {
       // Process OIDC callback
-      const { user, inviteResult } = await handleOIDCCallback(code, state);
+      const { user, inviteResult, loginContext } = await handleOIDCCallback(code, state);
       me = user;
+      if (loginContext?.feedPostId) setPendingFeedPostTarget(loginContext.feedPostId);
 
       // Clean up URL (remove code/state params)
-      window.history.replaceState({}, document.title, window.location.pathname);
+      removeTransientUrlParams({ keepFeedPost: true });
 
       // Start app
       await startApp();
+      await handlePendingFeedPostTarget();
 
       if (inviteResult?.status === 'joined') {
         toast('Einladung erfolgreich eingelöst.', 'success');
@@ -263,6 +587,7 @@ window.addEventListener('load', async () => {
     me = session;
     try {
       await startApp();
+      await handlePendingFeedPostTarget();
 
       if (inviteTokenFromUrl) {
         const preview = await loadInvitePreview(inviteTokenFromUrl);
@@ -271,7 +596,7 @@ window.addEventListener('load', async () => {
           showInviteBanner(preview.invite);
         } else {
           toast(preview.error || 'Einladungslink ist ungültig.', 'error');
-          window.history.replaceState({}, document.title, window.location.pathname);
+          removeTransientUrlParams({ keepFeedPost: true });
         }
       }
       return;
@@ -295,7 +620,7 @@ window.addEventListener('load', async () => {
 });
 
 // Make startOIDCLogin available globally for the HTML onclick handler
-window.startOIDCLogin = () => startOIDCLogin(pendingInviteToken);
+window.startOIDCLogin = startLoginWithContext;
 
 function showInviteBanner(invite) {
   const groupNames = (invite?.groups || []).map((g) => g?.name).filter(Boolean);
@@ -315,7 +640,7 @@ async function confirmInviteJoin() {
   const inviteRedeem = await redeemInviteViaApi(token);
   hide('invite-banner');
   pendingLoggedInInviteToken = null;
-  window.history.replaceState({}, document.title, window.location.pathname);
+  removeTransientUrlParams({ keepFeedPost: true });
   if (inviteRedeem.ok) {
     const status = inviteRedeem.result?.status;
     if (status === 'joined') toast('Einladung erfolgreich eingelöst.', 'success');
@@ -344,7 +669,7 @@ async function confirmInviteJoin() {
 function dismissInviteBanner() {
   hide('invite-banner');
   pendingLoggedInInviteToken = null;
-  window.history.replaceState({}, document.title, window.location.pathname);
+  removeTransientUrlParams({ keepFeedPost: true });
 }
 
 window.confirmInviteJoin = confirmInviteJoin;
@@ -439,6 +764,10 @@ async function startApp() {
   updateMobileAv();
 
   // Load basic UI (albums, etc. - for now kept simple)
+  curModule = 'feed';
+  curFeedView = 'all';
+  sidebarUiState.fotosExpanded = false;
+  sidebarUiState.feedExpanded = true;
   curFolder = SHARED;
   curAlbum = null;
   curFilter = null;
@@ -459,6 +788,8 @@ async function startApp() {
       // Letzte aktive Gruppe wiederherstellen
       const saved = localStorage.getItem('activeGroup');
       curGroupId = saved && myGroups.find((g) => g.id === saved) ? saved : myGroups[0].id;
+      applyLastModuleState(curGroupId);
+      saveLastModuleState(curGroupId);
     }
   } catch (e) {
     console.error('Gruppen laden fehlgeschlagen:', e);
@@ -492,8 +823,10 @@ async function startApp() {
   loadAppVersion();
 
   // Fotos laden
-  if (curGroupId) await loadPhotos(true);
-  else toast('Keine Gruppe gefunden – ein Album wird automatisch erstellt.', 'info');
+  if (curGroupId) {
+    if (curModule === 'feed') await loadFeedPosts(true);
+    else await loadPhotos(true);
+  } else toast('Keine Gruppe gefunden – ein Album wird automatisch erstellt.', 'info');
 
   // Notifications initialisieren
   loadNotifications();
@@ -600,25 +933,80 @@ function renderSidebar() {
       ? `${allMembers.length}/${curGroup.maxMembers}`
       : null;
 
+  if (sidebarUiState.feedExpanded && sidebarUiState.fotosExpanded) {
+    if (curModule === 'photos') sidebarUiState.feedExpanded = false;
+    else sidebarUiState.fotosExpanded = false;
+  }
+  const activeHomeModule = sidebarUiState.feedExpanded
+    ? 'feed'
+    : sidebarUiState.fotosExpanded
+      ? 'photos'
+      : null;
+  const fotosExpanded = sidebarUiState.fotosExpanded;
+
   $('sidebar').innerHTML = `
-    <span class="sb-label">Fotos</span>
-    <button class="fb ${!curAlbum && !curFilter && !curFilterUserId ? 'active' : ''}" onclick="switchFolder(null)">
+    <span class="sb-label">Home</span>
+    <button class="fb fb-parent ${sidebarUiState.feedExpanded ? 'expanded' : ''} ${activeHomeModule === 'feed' ? 'module-active' : ''}" onclick="toggleSidebarFeed()" aria-expanded="${sidebarUiState.feedExpanded ? 'true' : 'false'}">
+      <span class="fi">${ICON_COMMENT}</span>
+      <span class="fn">Feed</span>
+      <span class="fb-alpha-pill" aria-hidden="true">Alpha</span>
+      <span class="fb-chevron" aria-hidden="true">${ICON_CHEVRON_RIGHT}</span>
+    </button>
+    ${
+      activeHomeModule === 'feed'
+        ? `
+    <button class="fb fb-sub ${curModule === 'feed' && curFeedView === 'all' ? 'active' : ''}" onclick="switchToFeed('all')">
+      <span class="fi">${ICON_GRID}</span>
+      <span class="fn">Alle Beiträge</span>
+    </button>`
+        : ''
+    }
+    <button class="fb fb-parent ${fotosExpanded ? 'expanded' : ''} ${activeHomeModule === 'photos' ? 'module-active' : ''}" onclick="toggleSidebarFotos()" aria-expanded="${fotosExpanded ? 'true' : 'false'}">
+      <span class="fi">${ICON_GRID}</span>
+      <span class="fn">Fotos</span>
+      <span class="fb-chevron" aria-hidden="true">${ICON_CHEVRON_RIGHT}</span>
+    </button>
+    ${
+      activeHomeModule === 'photos'
+        ? `
+    <button class="fb fb-sub ${!curAlbum && !curFilter && !curFilterUserId ? 'active' : ''}" onclick="switchFolder(null)">
       <span class="fi">${ICON_GRID}</span>
       <span class="fn">Alle Fotos</span>
       <span class="fc" id="fc-all">…</span>
     </button>
-    <button class="fb ${curFilter === 'mine' && !curAlbum ? 'active' : ''}" onclick="switchFolder('mine')">
+    <button class="fb fb-sub ${curFilter === 'mine' && !curAlbum ? 'active' : ''}" onclick="switchFolder('mine')">
       <span class="fi">${avatarHtml(meProfile, 20)}</span>
       <span class="fn">Meine Fotos</span>
       <span class="fc" id="fc-mine">…</span>
     </button>
-    <button class="fb" onclick="openSS()${window.innerWidth <= 900 ? ';closeSidebar()' : ''}">
+    <button class="fb fb-sub" onclick="openSS()${window.innerWidth <= 900 ? ';closeSidebar()' : ''}">
       <span class="fi">${ICON_PLAY}</span>
       <span class="fn">Diashow</span>
-    </button>
+    </button>`
+        : ''
+    }
     <div class="sb-div"></div>
+    ${
+      activeHomeModule === 'feed'
+        ? `
+    <span class="sb-label sb-module-cat" style="padding:0 20px"><span class="sb-module-cat-icon">${ICON_COMMENT}</span>Mein Bereich</span>
+    <button class="fb fb-sub ${curModule === 'feed' && curFeedView === 'mine' ? 'active' : ''}" onclick="switchToFeed('mine')">
+      <span class="fi">${avatarHtml(meProfile, 20)}</span>
+      <span class="fn">Meine Beiträge</span>
+    </button>
+    <button class="fb fb-sub ${curModule === 'feed' && curFeedView === 'mentions' ? 'active' : ''}" onclick="switchToFeed('mentions')">
+      <span class="fi">@</span>
+      <span class="fn">Erwähnungen</span>
+    </button>
+    <button class="fb fb-sub ${curModule === 'feed' && curFeedView === 'saved' ? 'active' : ''}" onclick="switchToFeed('saved')">
+      <span class="fi">★</span>
+      <span class="fn">Gespeichert</span>
+    </button>
+    <div class="sb-div"></div>`
+        : activeHomeModule === 'photos'
+          ? `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px 4px">
-      <span class="sb-label" style="padding:0">Alben</span>
+      <span class="sb-label sb-module-cat" style="padding:0"><span class="sb-module-cat-icon">${ICON_GRID}</span>Alben</span>
       ${
         allowAlbumCreation
           ? `<button onclick="openNewAlbumInline()" title="Neues Album" style="background:none;border:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;padding:2px;border-radius:6px;transition:background .15s" onmouseover="this.style.background='var(--accent-l)'" onmouseout="this.style.background='none'">
@@ -642,10 +1030,12 @@ function renderSidebar() {
       <span class="fi">${ICON_ALBUM_MANAGE}</span>
       <span class="fn">Alben verwalten</span>
     </button>
+    <div class="sb-div"></div>`
+          : ''
+    }
     ${
       allMembers.length
         ? `
-      <div class="sb-div"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px 4px;gap:8px">
         <span class="sb-label" style="padding:0">Mitglieder</span>
         ${membersCounter ? `<span style="font-size:11px;color:var(--muted);font-weight:600">${membersCounter}</span>` : ''}
@@ -1030,6 +1420,10 @@ async function loadSidebarAvatars() {
   // No-op: avatarHtml() is used directly in renderSidebar() now
 }
 async function switchFolder(f) {
+  curModule = 'photos';
+  sidebarUiState.fotosExpanded = true;
+  sidebarUiState.feedExpanded = false;
+  saveLastModuleState();
   curAlbum = null;
   curFilter = f;
   curFilterUserId = null;
@@ -1038,6 +1432,10 @@ async function switchFolder(f) {
   await loadPhotos(true);
 }
 async function switchAlbum(id) {
+  curModule = 'photos';
+  sidebarUiState.fotosExpanded = true;
+  sidebarUiState.feedExpanded = false;
+  saveLastModuleState();
   curAlbum = id;
   curFilter = null;
   curFilterUserId = null;
@@ -1106,6 +1504,123 @@ function updateUploadShortcutVisibility() {
   btn.classList.toggle('hidden', !canUpload());
 }
 
+function setContentMode(mode) {
+  const row2 = document.querySelector('.gal-row2');
+  if (row2) row2.style.display = mode === 'feed' ? 'none' : '';
+}
+
+function clearModuleContentActions() {
+  const albumAddBtn = document.getElementById('album-add-btn');
+  if (albumAddBtn) albumAddBtn.remove();
+  const albumSettingsBtn = document.getElementById('album-rename-btn');
+  if (albumSettingsBtn) albumSettingsBtn.remove();
+}
+
+function renderNoModuleOpenState() {
+  clearModuleContentActions();
+  setContentMode('none');
+  hide('more-btn');
+  const grid = $('grid');
+  if (grid) {
+    grid.innerHTML = '';
+    grid.className = 'grid';
+  }
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+  const title = $('gal-title');
+  if (title) title.textContent = 'Kein Modul geöffnet';
+
+  const icon = $('empty-icon');
+  const text = $('empty-text');
+  const actions = $('empty-actions');
+  if (icon) icon.textContent = '🧭';
+  if (text) text.textContent = 'Kein Modul geöffnet. Öffne ein Modul in der Sidebar.';
+  if (actions) {
+    actions.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-top:2px">Aktuell ist kein Modul aktiv. Klappe links „Fotos“ auf, um Inhalte anzuzeigen.</p>`;
+  }
+  show('empty');
+}
+
+function hasAnyOpenModule() {
+  return !!(sidebarUiState.fotosExpanded || sidebarUiState.feedExpanded);
+}
+
+async function switchToFeed(view = 'all') {
+  clearFeedPostTargetState({ removeUrl: true });
+  curModule = 'feed';
+  curFeedView = normalizeFeedView(view);
+  sidebarUiState.feedExpanded = true;
+  sidebarUiState.fotosExpanded = false;
+  saveLastModuleState();
+  closeSidebar();
+  renderSidebar();
+  await loadFeedPosts(true);
+}
+
+async function toggleSidebarFeed() {
+  sidebarUiState.feedExpanded = !sidebarUiState.feedExpanded;
+  if (sidebarUiState.feedExpanded) {
+    sidebarUiState.fotosExpanded = false;
+    curModule = 'feed';
+    if (!curFeedView) curFeedView = 'all';
+    curFeedView = normalizeFeedView(curFeedView);
+    saveLastModuleState();
+    renderSidebar();
+    await loadFeedPosts(true);
+    return;
+  }
+
+  if (curModule === 'feed') {
+    if (sidebarUiState.fotosExpanded) {
+      curModule = 'photos';
+      saveLastModuleState();
+      renderSidebar();
+      await loadPhotos(true);
+      return;
+    }
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  renderSidebar();
+}
+
+async function toggleSidebarFotos() {
+  sidebarUiState.fotosExpanded = !sidebarUiState.fotosExpanded;
+  if (sidebarUiState.fotosExpanded) {
+    sidebarUiState.feedExpanded = false;
+    curModule = 'photos';
+    saveLastModuleState();
+    renderSidebar();
+    await loadPhotos(true);
+    return;
+  }
+
+  if (curModule === 'photos') {
+    if (sidebarUiState.feedExpanded) {
+      curModule = 'feed';
+      saveLastModuleState();
+      renderSidebar();
+      await loadFeedPosts(true);
+      return;
+    }
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  if (!hasAnyOpenModule()) {
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  renderSidebar();
+}
+
 // Prüft ob der User Fotos zum aktuell geöffneten Album hinzufügen/entfernen darf
 function canAddToAlbum() {
   if (!curAlbum) return false;
@@ -1129,6 +1644,10 @@ function canManageAlbum() {
 }
 
 async function switchToUser(userId) {
+  curModule = 'photos';
+  sidebarUiState.fotosExpanded = true;
+  sidebarUiState.feedExpanded = false;
+  saveLastModuleState();
   curAlbum = null;
   curFilter = null;
   curFilterUserId = userId;
@@ -1136,8 +1655,13 @@ async function switchToUser(userId) {
   renderSidebar();
   await loadPhotos(true);
 }
-
 async function loadPhotos(reset = false) {
+  if (curModule !== 'photos') return;
+  if (!sidebarUiState.fotosExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+  setContentMode('photos');
   if (reset) {
     photos = [];
     pgFrom = 0;
@@ -1272,6 +1796,659 @@ async function loadPhotos(reset = false) {
     }
     console.error('Fotos laden fehlgeschlagen:', err);
     renderGrid(0);
+  }
+}
+
+function feedTitleByView() {
+  if (curFeedView === 'mine') return 'Meine Beiträge';
+  if (curFeedView === 'mentions') return 'Erwähnungen';
+  if (curFeedView === 'saved') return 'Gespeicherte Beiträge';
+  return 'Alle Beiträge';
+}
+
+async function loadFeedPosts(reset = false) {
+  if (curModule !== 'feed') return;
+  if (!sidebarUiState.feedExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+
+  if (curFeedView === 'all' && activeSingleFeedPost) {
+    feedPosts = [];
+    feedHasMore = false;
+    feedSkip = 0;
+    renderFeedGrid();
+    focusTargetedFeedPost(false);
+    return;
+  }
+
+  setContentMode('feed');
+  clearModuleContentActions();
+  hide('more-btn');
+
+  if (reset) {
+    feedPosts = [];
+    feedSkip = 0;
+    feedHasMore = false;
+  }
+
+  const title = $('gal-title');
+  if (title) title.textContent = feedTitleByView();
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+
+  const grid = $('grid');
+  if (grid) {
+    grid.className = 'grid';
+    grid.innerHTML =
+      '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  }
+  hide('empty');
+
+  try {
+    if (!curGroupId) {
+      feedPosts = [];
+      renderFeedGrid();
+      return;
+    }
+
+    const pageLimit =
+      reset &&
+      curFeedView === 'all' &&
+      pendingFeedPostId &&
+      pendingFeedPostNewerCount > 0 &&
+      pendingFeedPostNewerCount <= FEED_DEEP_LINK_LIST_LIMIT
+        ? Math.max(FEED_PAGE_SIZE, pendingFeedPostNewerCount + 1)
+        : FEED_PAGE_SIZE;
+
+    const params = new URLSearchParams({
+      groupId: curGroupId,
+      view: curFeedView,
+      skip: String(feedSkip),
+      limit: String(pageLimit),
+    });
+    const data = await apiCall(`/group-feed?${params.toString()}`, 'GET');
+    const batch = data.posts || [];
+    feedPosts = reset ? batch : [...feedPosts, ...batch];
+    feedHasMore = !!data.hasMore;
+    feedSkip = feedPosts.length;
+    renderFeedGrid();
+    if (feedTargetedPostId) {
+      const targetPostId = feedTargetedPostId;
+      feedTargetedPostId = null;
+      focusTargetedFeedPost(true, targetPostId);
+    }
+  } catch (e) {
+    const icon = $('empty-icon');
+    const text = $('empty-text');
+    const actions = $('empty-actions');
+    if (icon) icon.textContent = '⚠️';
+    if (text) text.textContent = 'Feed konnte nicht geladen werden.';
+    if (actions)
+      actions.innerHTML =
+        '<p style="font-size:13px;color:var(--muted);margin-top:2px">Bitte versuche es gleich erneut.</p>';
+    show('empty');
+  }
+}
+
+function feedEntityHref(post) {
+  if (!post) return '';
+  if (post.entityType === 'photo' && post.entityId) {
+    return photoSrc(`/api/photos/${post.entityId}/file`);
+  }
+  return '';
+}
+
+function feedPostBodyText(post) {
+  if (post?.contentType === 'upload_summary' && post?.metadata?.hideBody) return '';
+  const body = String(post?.body || '').trim();
+  if (!body) return '';
+  return esc(body).replace(/\n/g, '<br>');
+}
+
+function feedAuthorName(post) {
+  const user = post?.createdBy;
+  return (
+    getVisibleName(user, user?.displayNameField) || user?.name || user?.username || 'Unbekannt'
+  );
+}
+
+function formatFeedDate(value) {
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function renderFeedComposer(isMobileFeed) {
+  const canPost = canPostToFeedInCurrentGroup();
+  if (curFeedView === 'saved' || curFeedView === 'mentions') return '';
+  return `
+    <article id="feed-compose-card" class="feed-compose-card${canPost ? '' : ' is-locked'}" style="border-radius:${isMobileFeed ? 12 : 14}px">
+      <div class="feed-compose-head">
+        <span class="feed-compose-title">Beitrag verfassen</span>
+      </div>
+      <input
+        id="feed-post-title"
+        class="feed-compose-input"
+        type="text"
+        maxlength="160"
+        placeholder="Titel (optional)"
+        ${canPost ? '' : 'disabled'}
+      />
+      <textarea
+        id="feed-post-body"
+        class="feed-compose-textarea"
+        maxlength="3000"
+        placeholder="Beitrag verfassen..."
+        ${canPost ? '' : 'disabled'}
+      ></textarea>
+      <div class="feed-compose-row">
+        <span class="feed-compose-hint">${
+          canPost
+            ? 'Tipp: Mit Strg+Enter kannst du direkt posten.'
+            : 'In dieser Gruppe ist Feed-Posten für normale Mitglieder aktuell gesperrt.'
+        }</span>
+        <button id="feed-post-submit" class="btn btn-primary feed-compose-submit" onclick="createFeedPost()" ${canPost ? '' : 'disabled'}>Posten</button>
+      </div>
+      ${
+        canPost
+          ? ''
+          : '<div class="feed-compose-locked-note">Feed-Posten ist in dieser Gruppe für Mitglieder gesperrt.</div>'
+      }
+    </article>`;
+}
+
+function bindFeedComposerInteractions() {
+  const card = $('feed-compose-card');
+  const titleEl = $('feed-post-title');
+  const bodyEl = $('feed-post-body');
+  if (!card || !bodyEl) return;
+
+  const updateState = () => {
+    const hasFocus = document.activeElement === bodyEl || document.activeElement === titleEl;
+    const hasContent =
+      String(titleEl?.value || '').trim().length > 0 ||
+      String(bodyEl?.value || '').trim().length > 0;
+    card.classList.toggle('is-active', hasFocus || hasContent);
+  };
+
+  bodyEl.addEventListener('focus', updateState);
+  bodyEl.addEventListener('blur', updateState);
+  bodyEl.addEventListener('input', updateState);
+  bodyEl.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      createFeedPost();
+    }
+  });
+  if (titleEl) {
+    titleEl.addEventListener('focus', updateState);
+    titleEl.addEventListener('blur', updateState);
+    titleEl.addEventListener('input', updateState);
+  }
+
+  updateState();
+}
+
+async function createFeedPost() {
+  if (!curGroupId) {
+    toast('Keine aktive Gruppe ausgewählt', 'error');
+    return;
+  }
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('Posten im Feed ist in dieser Gruppe für Mitglieder gesperrt', 'error');
+    return;
+  }
+
+  const titleEl = $('feed-post-title');
+  const bodyEl = $('feed-post-body');
+  const submitBtn = $('feed-post-submit');
+  const title = String(titleEl?.value || '').trim();
+  const body = String(bodyEl?.value || '').trim();
+
+  if (!body) {
+    toast('Bitte einen Text eingeben', 'error');
+    bodyEl?.focus();
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Posting...';
+  }
+
+  try {
+    await apiCall('/group-feed', 'POST', {
+      groupId: curGroupId,
+      contentType: 'post',
+      title: title || null,
+      body,
+    });
+
+    if (titleEl) titleEl.value = '';
+    if (bodyEl) bodyEl.value = '';
+    clearFeedPostTargetState({ removeUrl: true });
+    curFeedView = 'all';
+    saveLastModuleState();
+    renderSidebar();
+    await loadFeedPosts(true);
+    toast('Beitrag veröffentlicht', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Beitrag konnte nicht erstellt werden', 'error');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = !canPostToFeedInCurrentGroup();
+      submitBtn.textContent = 'Posten';
+    }
+  }
+}
+
+async function openPhotoInFotosModule(photoId, uploaderId = null) {
+  if (!photoId) return;
+  try {
+    const photo = await apiCall(`/photos/${encodeURIComponent(photoId)}`, 'GET');
+    if (!photo || !photo.id) return;
+    if (photo.groupId && photo.groupId !== curGroupId) await switchGroup(photo.groupId);
+    const resolvedUploaderId = uploaderId || photo.uploaderId || photo?.uploader?.id || null;
+
+    curModule = 'photos';
+    sidebarUiState.fotosExpanded = true;
+    sidebarUiState.feedExpanded = false;
+    saveLastModuleState();
+    curAlbum = null;
+    curFilter = null;
+    curFilterUserId = resolvedUploaderId;
+
+    renderSidebar();
+    await loadPhotos(true);
+    const idx = photos.findIndex((p) => p.id === photo.id);
+    if (idx !== -1) openLB(idx);
+    else toast('Foto nicht mehr verfügbar', 'error');
+  } catch (e) {
+    toast('Foto konnte nicht geöffnet werden', 'error');
+  }
+}
+
+async function openUploaderPhotosFromFeed(uploaderId) {
+  if (!uploaderId) return;
+  await switchToUser(uploaderId);
+}
+
+function renderFeedGrid() {
+  const grid = $('grid');
+  if (!grid) return;
+  grid.className = 'grid feed-grid';
+
+  const isMobileFeed = window.matchMedia('(max-width: 640px)').matches;
+  const tileGap = isMobileFeed ? 4 : 6;
+  const tileRadius = isMobileFeed ? 8 : 10;
+  const cardPadding = isMobileFeed ? '10px 10px 14px' : '12px 13px 16px';
+  const cardRadius = isMobileFeed ? 12 : 14;
+  const headerGap = isMobileFeed ? 7 : 8;
+  const singlePreviewHeightVideo = isMobileFeed ? 210 : 300;
+  const singlePreviewHeightImage = isMobileFeed ? 185 : 280;
+  const composerHtml = renderFeedComposer(isMobileFeed);
+  const displayedPosts =
+    activeSingleFeedPost && curFeedView === 'all' ? [activeSingleFeedPost] : feedPosts;
+
+  if (!displayedPosts.length) {
+    grid.innerHTML = composerHtml;
+    bindFeedComposerInteractions();
+    const icon = $('empty-icon');
+    const text = $('empty-text');
+    const actions = $('empty-actions');
+    if (icon) icon.textContent = '📰';
+    if (text) text.textContent = 'Noch keine Beiträge im Feed.';
+    if (actions)
+      actions.innerHTML =
+        '<p style="font-size:13px;color:var(--muted);margin-top:2px">Teile etwas aus einem Modul oder erstelle den ersten Beitrag.</p>';
+    show('empty');
+    return;
+  }
+
+  hide('empty');
+  grid.innerHTML =
+    composerHtml +
+    renderFeedDeepLinkBanner() +
+    displayedPosts
+      .map((post) => {
+        const canDelete = canDeleteFeedPost(post);
+        const canEdit = canEditFeedPost(post);
+        const saved = !!post.isSaved;
+        const entityHref = feedEntityHref(post);
+        const isTargeted = feedTargetedPostId === post.id;
+        const isMenuOpen = activeFeedPostMenuId === post.id;
+        const title = post.title
+          ? `<h4 style="margin:0 0 6px;font-size:${isMobileFeed ? 14 : 15}px;color:var(--text)">${esc(post.title)}</h4>`
+          : '';
+        const bodyText = feedPostBodyText(post);
+        const body = bodyText
+          ? `<p style="margin:0 0 10px;font-size:${isMobileFeed ? 12 : 13}px;line-height:1.55;color:var(--text2)">${bodyText}</p>`
+          : '';
+        const previewSrc = post.imageUrl ? photoSrc(post.imageUrl) : '';
+        const isVideoPreview =
+          post?.entityMediaType === 'video' || post?.metadata?.primaryMediaType === 'video';
+        const entityMissing = !!post?.entityMissing;
+        const uploadedItems = Array.isArray(post?.metadata?.uploadedItems)
+          ? post.metadata.uploadedItems.filter((item) => item?.id)
+          : Array.isArray(post?.metadata?.uploadedIds)
+            ? post.metadata.uploadedIds.filter(Boolean).map((id) => ({ id, mediaType: null }))
+            : [];
+        const postUploaderId = post.createdById || post?.createdBy?.id || null;
+        const primaryVideoDuration =
+          post?.entityVideoDuration ??
+          uploadedItems.find((item) => item.id === post.entityId)?.videoDuration ??
+          post?.metadata?.primaryVideoDuration ??
+          null;
+        const videoOverlay = (seconds) => {
+          const showDuration = Number.isFinite(Number(seconds));
+          const playSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.45)"/><polygon points="9.5,7 19,12 9.5,17" fill="white"/></svg>`;
+          return `<div class="p-thumb-play">${playSvg}</div>${showDuration ? `<span class="media-duration-badge">${formatMediaDuration(Number(seconds))}</span>` : ''}`;
+        };
+        const renderTile = (item, idx, options = {}) => {
+          const missing = item?.exists === false;
+          const tileMediaType =
+            item.mediaType ||
+            (item.id === post.entityId
+              ? post?.entityMediaType || post?.metadata?.primaryMediaType || null
+              : null) ||
+            'image';
+          if (missing) {
+            const ratio = options.fillHeight ? '' : 'aspect-ratio:1/1;';
+            return `<div title="Medium wurde gelöscht" style="position:relative;border:1px dashed var(--border2);border-radius:${tileRadius}px;overflow:hidden;background:var(--bg);padding:0;width:100%;height:100%;${ratio};display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;font-weight:700;text-align:center;line-height:1.35">${tileMediaType === 'video' ? 'Video gelöscht' : 'Bild gelöscht'}</div>`;
+          }
+          const tileSrc = photoSrc(`/api/photos/${encodeURIComponent(item.id)}/file`);
+          const media =
+            tileMediaType === 'video'
+              ? `<video src="${esc(tileSrc)}#t=0.1" preload="metadata" muted playsinline webkit-playsinline style="width:100%;height:100%;object-fit:cover;background:#000"></video>`
+              : `<img src="${esc(tileSrc)}" alt="Feed-Medium ${idx + 1}" loading="lazy" style="width:100%;height:100%;object-fit:cover">`;
+          const ratio = options.fillHeight ? '' : 'aspect-ratio:1/1;';
+          const overlay = tileMediaType === 'video' ? videoOverlay(item?.videoDuration) : '';
+          return `<button onclick="openPhotoInFotosModule('${item.id}','${postUploaderId || ''}')" title="${tileMediaType === 'video' ? 'Video' : 'Bild'} in Fotos öffnen" style="position:relative;border:1px solid var(--border);border-radius:${tileRadius}px;overflow:hidden;background:var(--bg);padding:0;cursor:pointer;width:100%;height:100%;${ratio}">${media}${overlay}</button>`;
+        };
+        const mediaPreview = (() => {
+          if (post.contentType === 'upload_summary' && uploadedItems.length > 1) {
+            const hasOverflow = uploadedItems.length > 6;
+            const visibleItems = hasOverflow
+              ? uploadedItems.slice(0, 5)
+              : uploadedItems.slice(0, 6);
+            const tiles = visibleItems.map((item, idx) => renderTile(item, idx));
+            if (hasOverflow) {
+              const moreCount = uploadedItems.length - 5;
+              tiles.push(
+                `<button onclick="openUploaderPhotosFromFeed('${postUploaderId || ''}')" title="Weitere Uploads von ${esc(feedAuthorName(post))}" style="border:1px dashed var(--border2);border-radius:${tileRadius}px;background:var(--bg);padding:0;cursor:pointer;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:${isMobileFeed ? 12 : 13}px;font-weight:700">+${moreCount}</button>`
+              );
+            }
+            const count = tiles.length;
+            if (count === 2) {
+              return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            if (count === 3) {
+              return `<div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:${tileGap}px;margin:0 0 10px;min-height:${isMobileFeed ? 168 : 220}px">
+              <div>${renderTile(visibleItems[0], 0, { fillHeight: true })}</div>
+              <div style="display:grid;grid-template-rows:repeat(2,minmax(0,1fr));gap:${tileGap}px">
+                ${tiles[1]}
+                ${tiles[2]}
+              </div>
+            </div>`;
+            }
+            if (count === 4) {
+              return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            const cols = isMobileFeed ? 2 : 3;
+            return `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+          }
+          if (post.imageUrl && post.entityType === 'photo' && post.entityId) {
+            if (entityMissing) {
+              return `<div title="Medium wurde gelöscht" style="width:100%;border:1px dashed var(--border2);border-radius:${tileRadius}px;margin:0 0 10px;min-height:140px;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--muted);font-size:12px;font-weight:700">${isVideoPreview ? 'Video gelöscht' : 'Bild gelöscht'}</div>`;
+            }
+            const media = isVideoPreview
+              ? `<video src="${esc(previewSrc)}#t=0.1" preload="metadata" muted playsinline webkit-playsinline style="width:100%;height:${singlePreviewHeightVideo}px;border-radius:${tileRadius}px;border:1px solid var(--border);margin:0;background:#000;object-fit:contain;pointer-events:none"></video>`
+              : `<img src="${esc(previewSrc)}" alt="Feed-Vorschau" style="width:100%;height:${singlePreviewHeightImage}px;border-radius:${tileRadius}px;border:1px solid var(--border);margin:0;object-fit:contain;background:var(--bg)">`;
+            const overlay = isVideoPreview ? videoOverlay(primaryVideoDuration) : '';
+            return `<button onclick="openPhotoInFotosModule('${post.entityId}','${postUploaderId || ''}')" title="${isVideoPreview ? 'Video in Fotos öffnen' : 'Bild in Fotos öffnen'}" style="position:relative;width:100%;background:none;border:none;padding:0;margin:0 0 10px;cursor:pointer">${media}${overlay}</button>`;
+          }
+          if (post.imageUrl) {
+            return isVideoPreview
+              ? `<div style="position:relative;margin:0 0 10px"><video src="${esc(previewSrc)}#t=0.1" preload="metadata" muted playsinline webkit-playsinline style="width:100%;height:${singlePreviewHeightVideo}px;border-radius:${tileRadius}px;border:1px solid var(--border);background:#000;object-fit:contain;pointer-events:none"></video>${videoOverlay(primaryVideoDuration)}</div>`
+              : `<img src="${esc(previewSrc)}" alt="Feed-Vorschau" style="width:100%;height:${singlePreviewHeightImage}px;border-radius:${tileRadius}px;border:1px solid var(--border);margin:0 0 10px;object-fit:contain;background:var(--bg)">`;
+          }
+          return '';
+        })();
+        const openEntityBtn =
+          post.entityType !== 'photo' && entityHref
+            ? `<a href="${esc(entityHref)}" target="_blank" rel="noopener" style="font-size:${isMobileFeed ? 11 : 12}px;color:var(--accent);text-decoration:none;font-weight:600">Inhalt öffnen</a>`
+            : '';
+        const editedHint = post.isEdited
+          ? ` · <button class="feed-post-edited-btn" onclick="openFeedPostHistory('${post.id}')" title="Bearbeitungshistorie anzeigen">bearbeitet</button>`
+          : '';
+        const menuItems = [
+          `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();copyFeedPostLink('${post.id}')">${ICON_LINK}<span>Teilen</span></button>`,
+          `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();toggleFeedSaved('${post.id}')">★<span>${saved ? 'Gespeichert' : 'Speichern'}</span></button>`,
+          post.isEdited
+            ? `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();openFeedPostHistory('${post.id}')">${ICON_HISTORY}<span>Historie</span></button>`
+            : '',
+          canEdit
+            ? `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();editFeedPost('${post.id}')">${ICON_ALBUM_MANAGE}<span>Bearbeiten</span></button>`
+            : '',
+          canDelete
+            ? `<button class="feed-post-menu-item danger" onclick="closeFeedPostMenu();deleteFeedPost('${post.id}')">${ICON_TRASH}<span>Löschen</span></button>`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('');
+        return `
+      <article id="feed-post-${post.id}" class="feed-post-card${isTargeted ? ' is-targeted' : ''}" style="position:relative;border:1px solid var(--border);border-radius:${cardRadius}px;background:var(--card);padding:${cardPadding};margin:0 0 ${isMobileFeed ? 8 : 10}px;box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;gap:${headerGap}px;margin:0 0 10px">
+          <span>${avatarHtml(post.createdBy || {}, 26)}</span>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:${isMobileFeed ? 12 : 13}px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(feedAuthorName(post))}</div>
+            <div style="font-size:11px;color:var(--muted)">${esc(formatFeedDate(post.createdAt))}${editedHint}</div>
+          </div>
+          <div class="feed-post-menu-anchor" data-feed-menu-root="${post.id}">
+            ${saved ? `<span class="feed-post-saved-indicator" title="Gespeichert">★</span>` : ''}
+            <button class="feed-post-menu-toggle" onclick="toggleFeedPostMenu('${post.id}')" title="Beitragsaktionen">${ICON_MORE}</button>
+            ${isMenuOpen ? `<div class="feed-post-menu">${menuItems}</div>` : ''}
+          </div>
+        </div>
+        ${title}
+        ${body}
+        ${mediaPreview}
+      </article>`;
+      })
+      .join('');
+  bindFeedComposerInteractions();
+  bindFeedPostMenuOutsideClose();
+}
+
+async function toggleFeedSaved(postId) {
+  const post = findFeedPostById(postId);
+  if (!post) return;
+
+  try {
+    if (post.isSaved) {
+      await apiCall(`/group-feed/${encodeURIComponent(postId)}/save`, 'DELETE');
+      if (curFeedView === 'saved') {
+        feedPosts = feedPosts.filter((item) => item.id !== postId);
+        if (activeSingleFeedPost?.id === postId) activeSingleFeedPost = null;
+      } else {
+        replaceFeedPostInState({ ...post, isSaved: false });
+      }
+      toast('Beitrag aus Gespeichert entfernt', 'success');
+    } else {
+      await apiCall(`/group-feed/${encodeURIComponent(postId)}/save`, 'POST');
+      replaceFeedPostInState({ ...post, isSaved: true });
+      toast('Beitrag gespeichert', 'success');
+    }
+    renderFeedGrid();
+  } catch (e) {
+    toast(e.serverMessage || 'Speicherstatus konnte nicht geändert werden', 'error');
+  }
+}
+
+async function deleteFeedPost(postId) {
+  const post = findFeedPostById(postId);
+  if (!canDeleteFeedPost(post)) {
+    toast('Du darfst diesen Beitrag nicht löschen', 'error');
+    return;
+  }
+
+  const confirmed = await showConfirmDlg(
+    'Feed-Beitrag löschen',
+    'Möchtest du diesen Beitrag wirklich löschen?',
+    'Löschen',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiCall(`/group-feed/${encodeURIComponent(postId)}`, 'DELETE');
+    feedPosts = feedPosts.filter((post) => post.id !== postId);
+    if (activeSingleFeedPost?.id === postId) activeSingleFeedPost = null;
+    if (feedTargetedPostId === postId || pendingFeedPostId === postId) {
+      clearFeedPostTargetState({ removeUrl: true });
+    }
+    renderFeedGrid();
+    toast('Feed-Beitrag gelöscht', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Beitrag konnte nicht gelöscht werden', 'error');
+  }
+}
+
+function showFeedPostEditorDlg(post) {
+  return new Promise((resolve) => {
+    document.getElementById('confirm-dlg')?.remove();
+    const dlg = document.createElement('div');
+    dlg.id = 'confirm-dlg';
+    dlg.className = 'dlg-bg';
+    dlg.innerHTML = `
+      <div class="dlg" style="max-width:560px;width:calc(100% - 28px);text-align:left;padding:28px 28px 24px">
+        <div class="dlg-ico">✏️</div>
+        <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 12px">Beitrag bearbeiten</h3>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--muted2);margin:0 0 6px">Titel</label>
+        <input id="feed-edit-title" type="text" maxlength="160" value="${esc(post?.title || '')}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:10px 12px;margin:0 0 14px;font:inherit">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--muted2);margin:0 0 6px">Text</label>
+        <textarea id="feed-edit-body" rows="6" maxlength="3000" style="width:100%;box-sizing:border-box;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:10px 12px;resize:vertical;min-height:140px;margin:0 0 18px;font:inherit">${esc(post?.body || '')}</textarea>
+        <div class="dlg-btns dlg-btns--feed-edit">
+          <button id="feed-edit-cancel" class="btn btn-ghost">Abbrechen</button>
+          <button id="feed-edit-save" class="btn btn-primary">Speichern</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+
+    const titleInput = dlg.querySelector('#feed-edit-title');
+    const bodyInput = dlg.querySelector('#feed-edit-body');
+    titleInput?.focus();
+
+    const close = (payload) => {
+      dlg.remove();
+      resolve(payload);
+    };
+
+    dlg.querySelector('#feed-edit-save').onclick = () => {
+      close({
+        confirmed: true,
+        title: String(titleInput?.value || '').trim(),
+        body: String(bodyInput?.value || '').trim(),
+      });
+    };
+    dlg.querySelector('#feed-edit-cancel').onclick = () => close({ confirmed: false });
+    dlg.onclick = (event) => {
+      if (event.target === dlg) close({ confirmed: false });
+    };
+  });
+}
+
+async function editFeedPost(postId) {
+  const post = findFeedPostById(postId);
+  if (!canEditFeedPost(post)) return;
+
+  const result = await showFeedPostEditorDlg(post);
+  if (!result?.confirmed) return;
+  if (!result.body) {
+    toast('Bitte einen Text eingeben', 'error');
+    return;
+  }
+
+  try {
+    const response = await apiCall(`/group-feed/${encodeURIComponent(postId)}`, 'PATCH', {
+      title: result.title || null,
+      body: result.body,
+    });
+    replaceFeedPostInState(response.post);
+    renderFeedGrid();
+    focusTargetedFeedPost(false);
+    toast('Beitrag aktualisiert', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Beitrag konnte nicht bearbeitet werden', 'error');
+  }
+}
+
+async function openFeedPostHistory(postId) {
+  const post = findFeedPostById(postId);
+  if (!post) return;
+
+  document.getElementById('confirm-dlg')?.remove();
+  const dlg = document.createElement('div');
+  dlg.id = 'confirm-dlg';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg" style="max-width:620px;width:calc(100% - 28px);text-align:left;padding:28px 28px 24px">
+      <div class="dlg-ico">🕘</div>
+      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">Bearbeitungshistorie</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Frühere Versionen von „${esc(post.title || 'Beitrag')}“</p>
+      <div id="feed-history-list" style="display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow:auto;padding-right:4px">
+        <div style="display:flex;justify-content:center;padding:20px"><div class="spinner"></div></div>
+      </div>
+      <div class="dlg-btns" style="justify-content:flex-end;margin-top:18px">
+        <button id="feed-history-close" class="btn btn-primary">Schließen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const close = () => dlg.remove();
+  dlg.querySelector('#feed-history-close').onclick = close;
+  dlg.onclick = (event) => {
+    if (event.target === dlg) close();
+  };
+
+  try {
+    const response = await apiCall(`/group-feed/${encodeURIComponent(postId)}/history`, 'GET');
+    const history = response.history || [];
+    const list = dlg.querySelector('#feed-history-list');
+    if (!list) return;
+    if (!history.length) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Keine Historie vorhanden</strong><p>Für diesen Beitrag wurde noch keine frühere Version gespeichert.</p></div>';
+      return;
+    }
+    list.innerHTML = history
+      .map((entry) => {
+        const editorName =
+          getVisibleName(entry.editedBy, entry?.editedBy?.displayNameField) ||
+          entry?.editedBy?.name ||
+          entry?.editedBy?.username ||
+          'Unbekannt';
+        return `
+          <div class="feed-history-entry">
+            <div class="feed-history-entry-head">
+              <strong>${esc(formatFeedDate(entry.createdAt))}</strong>
+              <span>${esc(editorName)}</span>
+            </div>
+            ${entry.previousTitle ? `<div class="feed-history-entry-title">${esc(entry.previousTitle)}</div>` : ''}
+            <p>${esc(entry.previousBody || '').replace(/\n/g, '<br>')}</p>
+          </div>`;
+      })
+      .join('');
+  } catch (e) {
+    const list = dlg.querySelector('#feed-history-list');
+    if (list) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Fehler</strong><p>Historie konnte nicht geladen werden.</p></div>';
+    }
   }
 }
 
@@ -1493,7 +2670,86 @@ async function doLike(photoId) {
 // ── UPLOAD ───────────────────────────────────────────────
 const UPLOAD_MAX_FILES = 100;
 const UPLOAD_PREVIEW_VISIBLE = 12;
+const UPLOAD_FEED_DEFAULT_TEXT = 'Schau dir meine neuen Bilder an';
 let _stagedFiles = [];
+let uploadShareToFeedEnabled = true;
+
+function canPostToFeedInCurrentGroup() {
+  const group = myGroups.find((g) => g.id === curGroupId);
+  if (!group) return false;
+  if (isCurrentGroupModerator()) return true;
+  return !group.feedPostingRestrictedToModerators;
+}
+
+async function postUploadSummaryToFeed({ uploadedItems, failedCount, albumId, description }) {
+  if (!uploadedItems?.length || !curGroupId) return;
+  const uploadedIds = uploadedItems.map((item) => item.id).filter(Boolean);
+  if (!uploadedIds.length) return;
+  const count = uploadedIds.length;
+  const primaryMediaType = uploadedItems[0]?.mediaType || 'image';
+  const curGroup = myGroups.find((g) => g.id === curGroupId);
+  const album = albumId ? allAlbums.find((a) => a.id === albumId) : null;
+  const trimmedDescription = description ? String(description).trim() : '';
+  const title = 'Neuer Upload in Fotos';
+  const body = trimmedDescription || UPLOAD_FEED_DEFAULT_TEXT;
+
+  await apiCall('/group-feed', 'POST', {
+    groupId: curGroupId,
+    contentType: 'upload_summary',
+    title,
+    body,
+    entityType: 'photo',
+    entityId: uploadedIds[0],
+    imageUrl: `/api/photos/${uploadedIds[0]}/file`,
+    metadata: {
+      groupId: curGroupId,
+      groupName: curGroup?.name || null,
+      albumId: albumId || null,
+      albumName: album?.name || null,
+      uploadedIds,
+      uploadedItems: uploadedItems.map((item) => ({
+        id: item.id,
+        mediaType: item.mediaType || 'image',
+        videoDuration: Number.isFinite(item.videoDuration) ? item.videoDuration : null,
+      })),
+      uploadedCount: count,
+      failedCount: failedCount || 0,
+      primaryMediaType,
+      primaryVideoDuration: Number.isFinite(uploadedItems[0]?.videoDuration)
+        ? uploadedItems[0].videoDuration
+        : null,
+      hideBody: false,
+    },
+  });
+}
+
+function syncUploadShareFeedUi() {
+  const shareChk = $('upload-share-feed');
+  const shareHint = $('upload-share-feed-hint');
+  const shareFields = $('upload-share-feed-fields');
+  const canShareFeed = canPostToFeedInCurrentGroup();
+  const shareEnabled = !!(shareChk?.checked && canShareFeed);
+
+  if (shareChk) {
+    shareChk.disabled = !canShareFeed;
+    if (!canShareFeed) shareChk.checked = false;
+  }
+
+  if (shareHint) {
+    if (canShareFeed) {
+      shareHint.classList.add('hidden');
+      shareHint.textContent = '';
+    } else {
+      shareHint.classList.remove('hidden');
+      shareHint.textContent =
+        'In dieser Gruppe ist Feed-Posten für normale Mitglieder aktuell gesperrt.';
+    }
+  }
+
+  if (shareFields) {
+    shareFields.classList.toggle('hidden', !shareEnabled);
+  }
+}
 
 function openModal() {
   const asel = $('asel');
@@ -1502,6 +2758,14 @@ function openModal() {
     allAlbums.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
   if (curAlbum) asel.value = curAlbum;
   if ($('desc-input')) $('desc-input').value = '';
+  if ($('upload-share-feed-body')) $('upload-share-feed-body').value = '';
+  const shareChk = $('upload-share-feed');
+  const canShareFeed = canPostToFeedInCurrentGroup();
+  if (shareChk) {
+    shareChk.checked = uploadShareToFeedEnabled && canShareFeed;
+    shareChk.onchange = syncUploadShareFeedUi;
+  }
+  syncUploadShareFeedUi();
   _stagedFiles = [];
   _renderStagedPreviews();
   show('up-modal');
@@ -1535,9 +2799,12 @@ async function _fetchVideoQuota() {
   }
 }
 function closeModal() {
+  const shareChk = $('upload-share-feed');
+  if (shareChk) uploadShareToFeedEnabled = !!shareChk.checked;
   hide('up-modal');
   $('fi').value = '';
   _stagedFiles = [];
+  if ($('upload-share-feed-body')) $('upload-share-feed-body').value = '';
 }
 
 // ── GRUPPE UMBENENNEN ─────────────────────────────────────
@@ -1598,6 +2865,7 @@ function openGroupSettingsModal() {
   const visibilityChk = $('group-settings-code-visible');
   const uploadLockChk = $('group-settings-upload-lock');
   const albumLockChk = $('group-settings-album-lock');
+  const feedLockChk = $('group-settings-feed-lock');
   const limitEnabled = $('group-settings-limit-enabled');
   const limitInput = $('group-settings-limit-input');
   const lockHint = $('group-settings-limit-lock-hint');
@@ -1608,6 +2876,7 @@ function openGroupSettingsModal() {
   if (visibilityChk) visibilityChk.checked = !!group.inviteCodeVisibleToMembers;
   if (uploadLockChk) uploadLockChk.checked = !!group.uploadsRestrictedToModerators;
   if (albumLockChk) albumLockChk.checked = !!group.albumsRestrictedToModerators;
+  if (feedLockChk) feedLockChk.checked = !!group.feedPostingRestrictedToModerators;
   if (limitEnabled)
     limitEnabled.checked = group.maxMembers !== null && group.maxMembers !== undefined;
   if (limitInput) {
@@ -2150,6 +3419,28 @@ async function saveGroupAlbumRestriction() {
   }
 }
 
+async function saveGroupFeedPostingRestriction() {
+  const enabled = !!$('group-settings-feed-lock')?.checked;
+
+  try {
+    const { group } = await apiCall(`/groups/${curGroupId}/settings`, 'PATCH', {
+      feedPostingRestrictedToModerators: enabled,
+    });
+    const idx = myGroups.findIndex((g) => g.id === curGroupId);
+    if (idx !== -1) myGroups[idx] = { ...myGroups[idx], ...group };
+    toast(
+      enabled
+        ? 'Feed-Posts für Mitglieder gesperrt (Owner/Vertreter/Admin weiterhin erlaubt)'
+        : 'Feed-Posts für Mitglieder wieder erlaubt',
+      'success'
+    );
+  } catch (e) {
+    const chk = $('group-settings-feed-lock');
+    if (chk) chk.checked = !enabled;
+    toast('Feed-Sperre konnte nicht gespeichert werden', 'error');
+  }
+}
+
 function copyGroupSettingsCode() {
   const code = myGroups.find((g) => g.id === curGroupId)?.code;
   if (!code) return;
@@ -2452,7 +3743,7 @@ function _renderStagedPreviews() {
     </div>`;
         }
         return `<div class="dz-thumb" id="dz-thumb-${i}">
-      <img src="${url}" alt="${esc(f.name)}" onload="URL.revokeObjectURL(this.src)">
+      <img src="${url}" alt="${esc(f.name)}" onload="revokeObjectUrlSafe(this.src)">
       <button class="dz-thumb-del" onclick="_removeStagedFile(${i})" title="Entfernen">✕</button>
     </div>`;
       })
@@ -2539,19 +3830,22 @@ async function startUpload() {
   if (!files.length) return;
   const folder = SHARED;
   const desc = $('desc-input')?.value?.trim() || null;
+  const feedBody = $('upload-share-feed-body')?.value?.trim() || null;
   const albumId = $('asel')?.value || null;
+  const shareToFeed = !!$('upload-share-feed')?.checked;
+  uploadShareToFeedEnabled = shareToFeed;
   hide('dz-wrap');
   show('prog-wrap');
   const PARALLEL = 3;
   let done = 0,
     failed = 0;
-  const uploadedIds = [];
+  const uploadedItems = [];
 
   // Process in parallel batches of 3
   async function uploadWithProgress(file) {
     try {
-      const id = await uploadOne(file, folder, desc, albumId);
-      if (id) uploadedIds.push(id);
+      const uploaded = await uploadOne(file, folder, desc, albumId);
+      if (uploaded?.id) uploadedItems.push(uploaded);
       done++;
     } catch (e) {
       console.error('Upload failed:', file.name, e);
@@ -2575,7 +3869,21 @@ async function startUpload() {
     ? `Fertig! ${done - failed} hochgeladen, ${failed} fehlgeschlagen`
     : `Fertig! ${done - failed} Dateien hochgeladen`;
 
-  if (uploadedIds.length > 0) invalidateCounts();
+  if (uploadedItems.length > 0) invalidateCounts();
+  if (uploadedItems.length > 0 && shareToFeed && canPostToFeedInCurrentGroup()) {
+    try {
+      await postUploadSummaryToFeed({
+        uploadedItems,
+        failedCount: failed,
+        albumId,
+        description: feedBody || desc,
+      });
+      if (curModule === 'feed') await loadFeedPosts(true);
+      toast('Upload im Feed geteilt', 'success');
+    } catch (e) {
+      toast(e.serverMessage || 'Upload konnte nicht im Feed geteilt werden', 'error');
+    }
+  }
   setTimeout(closeModal, 800);
   if (curFolder === folder) await loadPhotos(true);
   renderSidebar();
@@ -2623,7 +3931,16 @@ async function uploadOne(file, folder = SHARED, desc = null, albumId = null) {
     throw new Error(errMsg);
   }
   const { photo } = await resp.json();
-  return photo?.id;
+  return {
+    id: photo?.id,
+    mediaType: photo?.mediaType || (isVideo ? 'video' : 'image'),
+    videoDuration:
+      Number.isFinite(photo?.videoDuration) || photo?.videoDuration === 0
+        ? photo.videoDuration
+        : Number.isFinite(file?._videoDurationSeconds)
+          ? file._videoDurationSeconds
+          : null,
+  };
 }
 // Drag&Drop-Listener werden in openModal() registriert (DOM erst dann vorhanden)
 
@@ -5451,10 +6768,19 @@ async function switchGroup(groupId) {
   curAlbum = null;
   curFilter = null;
   curFilterUserId = null;
+  feedPosts = [];
+  feedSkip = 0;
+  feedHasMore = false;
   await loadAlbums();
+  applyLastModuleState(curGroupId);
+  saveLastModuleState(curGroupId);
   renderSidebar();
   renderGroupSwitcher();
-  await loadPhotos(true);
+  if (curModule === 'feed' && sidebarUiState.feedExpanded) {
+    await loadFeedPosts(true);
+  } else {
+    await loadPhotos(true);
+  }
   toast(`Gewechselt zu „${myGroups.find((g) => g.id === groupId)?.name}"`, 'success');
 }
 
@@ -7907,19 +9233,7 @@ async function _notifNavigate(item) {
   const { entityId, entityType } = item;
   try {
     if (entityType === 'photo') {
-      // Foto-Details laden um groupId zu ermitteln
-      const photo = await apiCall(`/photos/${entityId}`);
-      if (!photo || !photo.id) return;
-      // Ggf. Gruppe wechseln
-      if (photo.groupId !== curGroupId) await switchGroup(photo.groupId);
-      // Alle Fotos der Gruppe (aktueller Filter) laden und Lightbox öffnen
-      curAlbum = null;
-      curFilter = null;
-      curFilterUserId = null;
-      await loadPhotos(true);
-      const idx = photos.findIndex((p) => p.id === entityId);
-      if (idx !== -1) openLB(idx);
-      else toast('Foto nicht mehr verfügbar', 'error');
+      await openPhotoInFotosModule(entityId);
     } else if (entityType === 'album') {
       const album = allAlbums.find((a) => a.id === entityId);
       if (album) {
@@ -8312,6 +9626,20 @@ Object.assign(window, {
   toggleSidebar,
   openSidebar,
   closeSidebar,
+  toggleSidebarFotos,
+  toggleSidebarFeed,
+  switchToFeed,
+  openPhotoInFotosModule,
+  openUploaderPhotosFromFeed,
+  createFeedPost,
+  copyFeedPostLink,
+  toggleFeedPostMenu,
+  closeFeedPostMenu,
+  toggleFeedSaved,
+  editFeedPost,
+  openFeedPostHistory,
+  exitFeedPostFocus,
+  deleteFeedPost,
   switchFolder,
   switchAlbum,
   switchToUser,
@@ -8411,6 +9739,7 @@ Object.assign(window, {
   saveGroupInviteCodeVisibility,
   saveGroupUploadRestriction,
   saveGroupAlbumRestriction,
+  saveGroupFeedPostingRestriction,
   copyGroupSettingsCode,
   copyInviteUrl,
   createGroupInvite,

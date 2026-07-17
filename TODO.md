@@ -112,6 +112,18 @@ Falls ja:
             * Bei Klick klappt Drunter aus:
                 * Alle Fotos, Meine Fotos, Diashow
             * Module bekommen je eine Toplevel Kategorie
+* Feed-Module
+    * Jeder Post soll eigene ID erhalten und direkt per Link ansteuerbar sein.
+    * Gespeicherte Posts müssen persistent werden (bisher LocalStorage im Browser)
+    * Likes, Kommentare, Erwähnungen
+    * Bearbeiten von Posts
+    * Erstellen von Posts manuell (Text)
+    * Posts suchen/filtern
+    * Fotos haben nun in der Lightbox eine Teilen Schaltfläche zum teilen des Bilds in den Feed
+        * optional soll man dabei titel+text eingeben können
+    * Alben haben nun einen neuen Button (wenn geöffnet oben rechts neben Album-Einstellungen) teilen zum Teilen des Albums in den Feed
+        * Dabei werden die ersten 6 Bilder des Albums gerendert (wenn mehr als 6 im Album nur 5 rendern und 6te Kachel +X) (Selbe Logik wie bei Upload-Shares)
+        * Links führen zum Album + öffnen Lightbox
 
 
 ### DONE

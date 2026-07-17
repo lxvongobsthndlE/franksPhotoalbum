@@ -24,15 +24,15 @@ Authorization: Bearer <accessToken>
 
 ## Content-Export (`/api/exports`)
 
-| Methode  | Pfad                                | Beschreibung                                                                                      | Auth        |
-| -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- | ----------- |
-| `POST`   | `/api/exports/request`              | Export anfordern (asynchron, `202`), strikt auf 1 Request pro 24h pro User limitiert            | JWT         |
-| `GET`    | `/api/exports/mine`                 | Eigene Export-Historie inkl. Status (`queued`, `running`, `ready`, `failed`)                    | JWT         |
-| `GET`    | `/api/exports/:id/download`         | ZIP-Export herunterladen (nur Owner oder Admin, Rate-Limit: 10 req/min/IP)                       | JWT         |
-| `GET`    | `/api/exports/admin/exports`        | Admin: alle User-Exporte laden (inkl. User-Label und Status)                                     | JWT (Admin) |
-| `POST`   | `/api/exports/admin/exports/:id/refresh` | Admin: Export-Link um 30 Tage verlaengern                                                   | JWT (Admin) |
-| `DELETE` | `/api/exports/admin/exports/:id`    | Admin: Export endgueltig aus MinIO + DB loeschen                                                 | JWT (Admin) |
-| `POST`   | `/api/exports/admin/exports/cleanup`| Admin: abgelaufene Exporte manuell aufraeumen                                                    | JWT (Admin) |
+| Methode  | Pfad                                     | Beschreibung                                                                         | Auth        |
+| -------- | ---------------------------------------- | ------------------------------------------------------------------------------------ | ----------- |
+| `POST`   | `/api/exports/request`                   | Export anfordern (asynchron, `202`), strikt auf 1 Request pro 24h pro User limitiert | JWT         |
+| `GET`    | `/api/exports/mine`                      | Eigene Export-Historie inkl. Status (`queued`, `running`, `ready`, `failed`)         | JWT         |
+| `GET`    | `/api/exports/:id/download`              | ZIP-Export herunterladen (nur Owner oder Admin, Rate-Limit: 10 req/min/IP)           | JWT         |
+| `GET`    | `/api/exports/admin/exports`             | Admin: alle User-Exporte laden (inkl. User-Label und Status)                         | JWT (Admin) |
+| `POST`   | `/api/exports/admin/exports/:id/refresh` | Admin: Export-Link um 30 Tage verlaengern                                            | JWT (Admin) |
+| `DELETE` | `/api/exports/admin/exports/:id`         | Admin: Export endgueltig aus MinIO + DB loeschen                                     | JWT (Admin) |
+| `POST`   | `/api/exports/admin/exports/cleanup`     | Admin: abgelaufene Exporte manuell aufraeumen                                        | JWT (Admin) |
 
 Hinweise:
 
@@ -47,12 +47,12 @@ Hinweise:
 
 ## Account-Löschung (`/api/account-deletion`)
 
-| Methode | Pfad                            | Beschreibung                                                                    | Auth |
-| ------- | ------------------------------- | ------------------------------------------------------------------------------- | ---- |
-| `POST`  | `/api/account-deletion/request` | Sendet einen Bestätigungscode per Mail für die Account-Löschung                | JWT  |
-| `GET`   | `/api/account-deletion/status`  | Liefert aktuellen Löschstatus (`none`, `pending`, `scheduled`, `reactivated`) | JWT  |
-| `POST`  | `/api/account-deletion/confirm` | Bestätigt Löschung mit Code; Account wird 14 Tage deaktiviert                  | JWT  |
-| `POST`  | `/api/account-deletion/reactivate` | Hebt eine geplante Löschung vor Erreichen von `purgeAt` auf                 | JWT  |
+| Methode | Pfad                               | Beschreibung                                                                  | Auth |
+| ------- | ---------------------------------- | ----------------------------------------------------------------------------- | ---- |
+| `POST`  | `/api/account-deletion/request`    | Sendet einen Bestätigungscode per Mail für die Account-Löschung               | JWT  |
+| `GET`   | `/api/account-deletion/status`     | Liefert aktuellen Löschstatus (`none`, `pending`, `scheduled`, `reactivated`) | JWT  |
+| `POST`  | `/api/account-deletion/confirm`    | Bestätigt Löschung mit Code; Account wird 14 Tage deaktiviert                 | JWT  |
+| `POST`  | `/api/account-deletion/reactivate` | Hebt eine geplante Löschung vor Erreichen von `purgeAt` auf                   | JWT  |
 
 Hinweise:
 
@@ -78,7 +78,7 @@ Hinweise:
 | `GET`    | `/api/photos/:id/file`    | Medien-Datei streamen; Token als `?t=<accessToken>` übergeben                                                       |
 | `PATCH`  | `/api/photos/:id`         | Beschreibung oder Album-Zuordnung ändern                                                                            |
 | `PATCH`  | `/api/photos/batch-album` | Mehrere Medien einem Album zuordnen/entfernen                                                                       |
-| `DELETE` | `/api/photos/:id`         | Medium löschen (eigene oder als Gruppenmoderation: Owner/Vertreter, Admin nur als Gruppenmitglied)                 |
+| `DELETE` | `/api/photos/:id`         | Medium löschen (eigene oder als Gruppenmoderation: Owner/Vertreter, Admin nur als Gruppenmitglied)                  |
 
 **Berechtigung:**
 
@@ -126,20 +126,21 @@ Hinweise:
 
 ## Gruppen (`/api/groups`)
 
-| Methode  | Pfad                               | Beschreibung                                                                            |
-| -------- | ---------------------------------- | --------------------------------------------------------------------------------------- | ------------------------- | -------- |
-| `GET`    | `/api/groups/my`                   | Eigene Gruppen (erstellt ggf. Auto-Gruppe)                                              |
-| `POST`   | `/api/groups`                      | Neue Gruppe erstellen (`name`)                                                          |
-| `POST`   | `/api/groups/join`                 | Gruppe per Code beitreten (`code`); bei aktivem und erreichtem Limit: `409`             |
-| `GET`    | `/api/groups/:id/members`          | Mitglieder der Gruppe                                                                   |
-| `PATCH`  | `/api/groups/:id`                  | Gruppe umbenennen (nur Owner)                                                           |
-| `PATCH`  | `/api/groups/:id/settings`         | Gruppeneinstellungen ändern (Owner/Admin). Felder: `inviteCodeVisibleToMembers`, `maxMembers`; `uploadsRestrictedToModerators` und `albumsRestrictedToModerators` nur Owner |
-| `POST`   | `/api/groups/:id/code/rotate`      | Einladungscode neu generieren (Owner/Admin)                                             |
-| `DELETE` | `/api/groups/:id`                  | Gruppe löschen (Owner/Admin), erstellt bei vorhandenen Fotos ein ZIP-Backup             |
-| `DELETE` | `/api/groups/:id/leave`            | Gruppe verlassen (`successorId` bei Owner-Wechsel)                                      |
-| `POST`   | `/api/groups/:id/members/:memberId/remove` | Mitglied entfernen (Owner/Vertreter), löscht dessen Gruppen-Content und optional mit `blockUser=true` dauerhaft blocken (dann `blockReason` Pflicht) |
-| `GET`    | `/api/groups/:id/blocks`           | Blockierte Mitglieder der Gruppe auflisten (Owner/Vertreter)                          |
-| `DELETE` | `/api/groups/:id/blocks/:memberId` | Blockierung eines Mitglieds aufheben (Owner/Vertreter)                                |
+| Methode  | Pfad                                       | Beschreibung                                                                                                                                                                |
+| -------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/groups/my`                           | Eigene Gruppen (erstellt ggf. Auto-Gruppe)                                                                                                                                  |
+| `POST`   | `/api/groups`                              | Neue Gruppe erstellen (`name`)                                                                                                                                              |
+| `POST`   | `/api/groups/join`                         | Gruppe per Code beitreten (`code`); bei aktivem und erreichtem Limit: `409`                                                                                                 |
+| `GET`    | `/api/groups/:id/members`                  | Mitglieder der Gruppe                                                                                                                                                       |
+| `PATCH`  | `/api/groups/:id`                          | Gruppe umbenennen (nur Owner)                                                                                                                                               |
+| `PATCH`  | `/api/groups/:id/settings`                 | Gruppeneinstellungen ändern (Owner/Admin). Felder: `inviteCodeVisibleToMembers`, `maxMembers`; `uploadsRestrictedToModerators` und `albumsRestrictedToModerators` nur Owner |
+| `POST`   | `/api/groups/:id/code/rotate`              | Einladungscode neu generieren (Owner/Admin)                                                                                                                                 |
+| `DELETE` | `/api/groups/:id`                          | Gruppe löschen (Owner/Admin), erstellt bei vorhandenen Fotos ein ZIP-Backup                                                                                                 |
+| `DELETE` | `/api/groups/:id/leave`                    | Gruppe verlassen (`successorId` bei Owner-Wechsel)                                                                                                                          |
+| `POST`   | `/api/groups/:id/members/:memberId/remove` | Mitglied entfernen (Owner/Vertreter), löscht dessen Gruppen-Content und optional mit `blockUser=true` dauerhaft blocken (dann `blockReason` Pflicht)                        |
+| `GET`    | `/api/groups/:id/blocks`                   | Blockierte Mitglieder der Gruppe auflisten (Owner/Vertreter)                                                                                                                |
+| `DELETE` | `/api/groups/:id/blocks/:memberId`         | Blockierung eines Mitglieds aufheben (Owner/Vertreter)                                                                                                                      |
+
 Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 
 ```json
@@ -149,14 +150,38 @@ Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 - `deleteOwnContent=true` entfernt eigenen Content in der Zielgruppe (eigene Medien, eigene Kommentare, eigene Likes).
 - Bei `POST /api/groups/:id/members/:memberId/remove` ist `blockReason` erforderlich, wenn `blockUser=true` gesetzt wird.
 - Album-Verhalten beim Verlassen:
-	- `deleteOwnContent=true`: eigene Alben werden gelöscht; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
-	- `deleteOwnContent=false`: eigene Alben ohne Contributors werden gelöscht; eigene Alben mit Contributors werden an den ersten verfügbaren Contributor übertragen; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
+  - `deleteOwnContent=true`: eigene Alben werden gelöscht; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
+  - `deleteOwnContent=false`: eigene Alben ohne Contributors werden gelöscht; eigene Alben mit Contributors werden an den ersten verfügbaren Contributor übertragen; Contributor-Rechte des Users in Gruppen-Alben werden entfernt.
 - Response enthält Zähler (`deletedPhotos`, `deletedComments`, `deletedLikes`, `deletedOwnedAlbums`, `transferredOwnedAlbums`, `removedAlbumContributorLinks`).
 
-| `DELETE` | `/api/groups/:id/dissolve`         | Gruppe auflösen – nur Owner als letztes Mitglied; erstellt ZIP-Backup                   |
-| `GET`    | `/api/groups/:id/deputies`         | Vertreter auflisten                                                                     |
-| `POST`   | `/api/groups/:id/deputies`         | Vertreter ernennen (nur Owner) – Body: `{ "userId": "…" }`                              |
-| `DELETE` | `/api/groups/:id/deputies/:userId` | Vertreter entfernen (nur Owner)                                                         |
+| `DELETE` | `/api/groups/:id/dissolve` | Gruppe auflösen – nur Owner als letztes Mitglied; erstellt ZIP-Backup |
+| `GET` | `/api/groups/:id/deputies` | Vertreter auflisten |
+| `POST` | `/api/groups/:id/deputies` | Vertreter ernennen (nur Owner) – Body: `{ "userId": "…" }` |
+| `DELETE` | `/api/groups/:id/deputies/:userId` | Vertreter entfernen (nur Owner) |
+
+---
+
+## Feed (`/api/group-feed`)
+
+| Methode  | Pfad                          | Beschreibung                                                                     |
+| -------- | ----------------------------- | -------------------------------------------------------------------------------- | ---- | -------- | ------------------------ |
+| `GET`    | `/api/group-feed`             | Feed einer Gruppe laden (`groupId`, `view=all                                    | mine | mentions | saved`, `skip`, `limit`) |
+| `POST`   | `/api/group-feed`             | Neuen Feed-Post erstellen (`groupId`, `body`, optional `title`, Share-Metadaten) |
+| `GET`    | `/api/group-feed/:id`         | Einzelnen Feed-Post für Direktlink/Sharing laden                                 |
+| `PATCH`  | `/api/group-feed/:id`         | Eigenen Feed-Post bearbeiten (`title`, `body`)                                   |
+| `DELETE` | `/api/group-feed/:id`         | Feed-Post löschen (Owner oder Gruppenmoderation)                                 |
+| `GET`    | `/api/group-feed/:id/history` | Historie früherer Versionen eines Posts laden                                    |
+| `POST`   | `/api/group-feed/:id/save`    | Feed-Post für den eingeloggten User speichern                                    |
+| `DELETE` | `/api/group-feed/:id/save`    | Gespeicherten Feed-Post wieder entfernen                                         |
+
+Hinweise:
+
+- `view=saved` ist serverseitig userbezogen und ersetzt die frühere Browser-Only-Filterung.
+- `GET /api/group-feed/:id` liefert zusätzlich `newerPostsCount`, damit das Frontend zwischen Listenfokus und Einzelansicht für Direktlinks entscheiden kann.
+- Listen- und Einzelpost-Responses enthalten `isSaved`, `isEdited` und `historyCount` für die UI.
+- `PATCH /api/group-feed/:id` ist aktuell nur für den Owner des Posts erlaubt; leere `body`-Werte werden mit `400` abgelehnt.
+- Jede erfolgreiche Bearbeitung legt vor dem Update einen History-Snapshot mit vorherigem Titel/Text an.
+- Gruppenzugriff ist für alle Feed-Endpunkte Pflicht; bei fehlender Mitgliedschaft liefert die API `403` mit `code=not_group_member`.
 
 ---
 
@@ -198,10 +223,10 @@ Hinweise:
 
 ## Kommentare (`/api/comments`)
 
-| Methode  | Pfad                     | Beschreibung                               |
-| -------- | ------------------------ | ------------------------------------------ |
-| `GET`    | `/api/comments/:photoId` | Kommentare eines Fotos                     |
-| `POST`   | `/api/comments`          | Kommentar erstellen (`photoId`, `content`) |
+| Methode  | Pfad                     | Beschreibung                                                                                          |
+| -------- | ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/comments/:photoId` | Kommentare eines Fotos                                                                                |
+| `POST`   | `/api/comments`          | Kommentar erstellen (`photoId`, `content`)                                                            |
 | `DELETE` | `/api/comments/:id`      | Kommentar löschen (eigene oder als Gruppenmoderation: Owner/Vertreter, Admin nur als Gruppenmitglied) |
 
 **Berechtigung:**
@@ -241,7 +266,7 @@ Hinweise:
 ## Feedback & Meldungen (`/api/feedback`)
 
 | Methode  | Pfad                              | Beschreibung                                                                                   |
-| -------- | --------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
+| -------- | --------------------------------- | ---------------------------------------------------------------------------------------------- | ------ | -------- | --------------------------- |
 | `GET`    | `/api/feedback/eligible-users`    | Nutzerliste für "Nutzer melden" (gleiche Gruppen wie der aufrufende User)                      |
 | `POST`   | `/api/feedback`                   | Neues Ticket erstellen (`category`, `subject`, `body`, optional `anonymous`, `reportedUserId`) |
 | `GET`    | `/api/feedback`                   | Admin: Tickets auflisten (`?status=open                                                        | closed | accepted | rejected`, `?category=...`) |
@@ -287,14 +312,14 @@ Validierung:
 
 ## Admin (`/api/admin`)
 
-| Methode  | Pfad                          | Beschreibung                                                                               |
-| -------- | ----------------------------- | ------------------------------------------------------------------------------------------ |
-| `GET`    | `/api/admin/users`            | Alle Nutzer auflisten                                                                      |
-| `GET`    | `/api/admin/users/:id`        | Detailprofil eines Nutzers (Statistiken, Gruppen mit Rolle)                                |
-| `PATCH`  | `/api/admin/users/:id/role`   | Rolle eines Nutzers ändern (`user` oder `admin`)                                           |
+| Methode  | Pfad                          | Beschreibung                                                                                                                                |
+| -------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/admin/users`            | Alle Nutzer auflisten                                                                                                                       |
+| `GET`    | `/api/admin/users/:id`        | Detailprofil eines Nutzers (Statistiken, Gruppen mit Rolle)                                                                                 |
+| `PATCH`  | `/api/admin/users/:id/role`   | Rolle eines Nutzers ändern (`user` oder `admin`)                                                                                            |
 | `DELETE` | `/api/admin/users/:id`        | Nutzer endgültig löschen inkl. Fotos, Kommentare, Likes und MinIO-Cleanup (`reason`, `irreversibleConfirmed`, optional `blockAuthIdentity`) |
-| `POST`   | `/api/admin/users/:id/notify` | Gezielte System-Benachrichtigung an einzelnen Nutzer senden (`title`, `body`, `entityUrl`) |
-| `POST`   | `/api/admin/broadcast`        | System-Benachrichtigung an alle Nutzer senden (`title`, `body`, `imageUrl`, `entityUrl`)   |
+| `POST`   | `/api/admin/users/:id/notify` | Gezielte System-Benachrichtigung an einzelnen Nutzer senden (`title`, `body`, `entityUrl`)                                                  |
+| `POST`   | `/api/admin/broadcast`        | System-Benachrichtigung an alle Nutzer senden (`title`, `body`, `imageUrl`, `entityUrl`)                                                    |
 
 Hinweis zu `DELETE /api/admin/users/:id`:
 
@@ -307,17 +332,17 @@ Hinweis zu `DELETE /api/admin/users/:id`:
 
 ## Fehlercodes
 
-| Code  | Bedeutung                                              |
-| ----- | ------------------------------------------------------ |
-| `400` | Ungültige oder fehlende Parameter                      |
-| `401` | Kein oder ungültiger JWT                               |
-| `403` | Berechtigung fehlt (falsche Rolle oder nicht Mitglied) |
-| `404` | Ressource nicht gefunden                               |
-| `409` | Konflikt (z. B. bereits Mitglied, letzter Admin)       |
-| `413` | Payload zu groß (z. B. Video-Datei > 200 MB)           |
+| Code  | Bedeutung                                                 |
+| ----- | --------------------------------------------------------- |
+| `400` | Ungültige oder fehlende Parameter                         |
+| `401` | Kein oder ungültiger JWT                                  |
+| `403` | Berechtigung fehlt (falsche Rolle oder nicht Mitglied)    |
+| `404` | Ressource nicht gefunden                                  |
+| `409` | Konflikt (z. B. bereits Mitglied, letzter Admin)          |
+| `413` | Payload zu groß (z. B. Video-Datei > 200 MB)              |
 | `410` | Download-Link abgelaufen (z. B. Backup- oder Export-Link) |
-| `429` | Rate-Limit überschritten                               |
-| `500` | Interner Serverfehler                                  |
+| `429` | Rate-Limit überschritten                                  |
+| `500` | Interner Serverfehler                                     |
 
 Hinweise zu `409` bei Gruppen:
 
