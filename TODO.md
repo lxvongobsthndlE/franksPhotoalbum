@@ -113,20 +113,21 @@ Falls ja:
                 * Alle Fotos, Meine Fotos, Diashow
             * Module bekommen je eine Toplevel Kategorie
 * Feed-Module
-    * Likes, Kommentare, Erwähnungen
     * Posts suchen/filtern
-    * Fotos haben nun in der Lightbox eine Teilen Schaltfläche zum teilen des Bilds in den Feed
-        * optional soll man dabei titel+text eingeben können
-    * Alben haben nun einen neuen Button (wenn geöffnet oben rechts neben Album-Einstellungen) teilen zum Teilen des Albums in den Feed
-        * Dabei werden die ersten 6 Bilder des Albums gerendert (wenn mehr als 6 im Album nur 5 rendern und 6te Kachel +X) (Selbe Logik wie bei Upload-Shares)
-        * Links führen zum Album + öffnen Lightbox
+
 
 
 ### DONE
 * ~~Feed-Module~~
+    * ~~Likes, Kommentare, Erwähnungen~~
     * ~~Jeder Post soll eigene ID erhalten und direkt per Link ansteuerbar sein.~~
     * ~~Gespeicherte Posts müssen persistent werden (bisher LocalStorage im Browser).~~
     * ~~Bearbeiten von Posts.~~
+    * ~~Fotos haben nun in der Lightbox eine Teilen Schaltfläche zum teilen des Bilds in den Feed~~
+        * ~~optional soll man dabei titel+text eingeben können~~
+    * ~~Alben haben nun einen neuen Button (wenn geöffnet oben rechts neben Album-Einstellungen) teilen zum Teilen des Albums in den Feed~~
+        * ~~Dabei werden die ersten 6 Bilder des Albums gerendert (wenn mehr als 6 im Album nur 5 rendern und 6te Kachel +X) (Selbe Logik wie bei Upload-Shares)~~
+        * ~~Links führen zum Album + öffnen Lightbox~~
 * ~~Optionale max. Mitglieder in einer Gruppe. Nur Owner kann einstellen. (indirekt whitelist, voll nice)~~
     * ~~Admins bekommen im Gruppen verwalten Modal die Möglichkeit das Gruppenlimit zu ändern und zu sperren~~
     * ~~Join wird bei voller Gruppe mit Hinweis blockiert~~
