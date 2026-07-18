@@ -17,7 +17,9 @@ function trimContent(value) {
 }
 
 function sanitizeForNotification(text, max = 100) {
-  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  const normalized = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!normalized) return '';
   return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized;
 }
@@ -601,7 +603,9 @@ export default async function groupFeedCommentsRoutes(fastify) {
         return reply.code(400).send({ error: 'Antworten auf Antworten sind nicht erlaubt' });
       }
       if (parent.deletedAt) {
-        return reply.code(400).send({ error: 'Auf gelöschte Kommentare kann nicht geantwortet werden' });
+        return reply
+          .code(400)
+          .send({ error: 'Auf gelöschte Kommentare kann nicht geantwortet werden' });
       }
       if (!(await ensureGroupAccess(reply, parent.groupId, userId))) return;
 
@@ -693,7 +697,9 @@ export default async function groupFeedCommentsRoutes(fastify) {
         return reply.code(403).send({ error: 'Du darfst nur eigene Kommentare bearbeiten' });
       }
       if (comment.deletedAt) {
-        return reply.code(400).send({ error: 'Gelöschte Kommentare können nicht bearbeitet werden' });
+        return reply
+          .code(400)
+          .send({ error: 'Gelöschte Kommentare können nicht bearbeitet werden' });
       }
 
       const mentionUsernames = extractMentionUsernames(content);

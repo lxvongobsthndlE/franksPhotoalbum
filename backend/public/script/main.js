@@ -2136,14 +2136,16 @@ function handleFeedMentionKeydown(event) {
   if (!feedMentionState.open || feedMentionState.inputId !== event.currentTarget?.id) return;
   if (event.key === 'ArrowDown') {
     event.preventDefault();
-    feedMentionState.activeIndex = (feedMentionState.activeIndex + 1) % feedMentionState.items.length;
+    feedMentionState.activeIndex =
+      (feedMentionState.activeIndex + 1) % feedMentionState.items.length;
     renderFeedMentionPopup();
     return;
   }
   if (event.key === 'ArrowUp') {
     event.preventDefault();
     feedMentionState.activeIndex =
-      (feedMentionState.activeIndex - 1 + feedMentionState.items.length) % feedMentionState.items.length;
+      (feedMentionState.activeIndex - 1 + feedMentionState.items.length) %
+      feedMentionState.items.length;
     renderFeedMentionPopup();
     return;
   }
@@ -2254,7 +2256,9 @@ function bindFeedCommentMenuOutsideClose() {
   feedCommentMenuOutsideCloseBound = true;
   setTimeout(() => {
     function onOutside(event) {
-      const root = document.querySelector(`[data-feed-comment-menu-root="${activeFeedCommentMenuId}"]`);
+      const root = document.querySelector(
+        `[data-feed-comment-menu-root="${activeFeedCommentMenuId}"]`
+      );
       if (root && root.contains(event.target)) return;
       closeFeedCommentMenu();
       document.removeEventListener('click', onOutside, true);
@@ -2303,12 +2307,15 @@ function mergeFeedCommentServerData(existing, server) {
 
 function feedCommentAuthorName(comment) {
   const user = comment?.user;
-  return getVisibleName(user, user?.displayNameField) || user?.name || user?.username || 'Unbekannt';
+  return (
+    getVisibleName(user, user?.displayNameField) || user?.name || user?.username || 'Unbekannt'
+  );
 }
 
 function feedCommentBodyHtml(comment) {
   const text = String(comment?.content || '').trim();
-  if (!text || comment?.deleted) return '<span style="color:var(--muted);font-style:italic">Kommentar gelöscht</span>';
+  if (!text || comment?.deleted)
+    return '<span style="color:var(--muted);font-style:italic">Kommentar gelöscht</span>';
   return esc(text).replace(/\n/g, '<br>');
 }
 
@@ -2329,7 +2336,9 @@ function updateCommentInSection(postId, commentId, updater) {
     if (Array.isArray(comment._replies) && comment._replies.length) {
       return {
         ...comment,
-        _replies: comment._replies.map((reply) => (reply.id === commentId ? updater(reply) : reply)),
+        _replies: comment._replies.map((reply) =>
+          reply.id === commentId ? updater(reply) : reply
+        ),
       };
     }
     return comment;
@@ -2363,7 +2372,9 @@ async function loadFeedComments(postId, { reset = false } = {}) {
   try {
     const params = new URLSearchParams({ limit: '15' });
     if (!reset && section.nextCursor) params.set('cursor', section.nextCursor);
-    const data = await apiCall(`/group-feed/${encodeURIComponent(postId)}/comments?${params.toString()}`);
+    const data = await apiCall(
+      `/group-feed/${encodeURIComponent(postId)}/comments?${params.toString()}`
+    );
     const incoming = Array.isArray(data?.comments) ? data.comments.map(enrichFeedComment) : [];
     section.items = reset ? incoming : [...section.items, ...incoming];
     section.nextCursor = data?.paging?.nextCursor || null;
@@ -2457,7 +2468,9 @@ async function submitFeedComment(postId) {
   section.submitting = true;
   renderFeedCommentArea(postId);
   try {
-    const data = await apiCall(`/group-feed/${encodeURIComponent(postId)}/comments`, 'POST', { content });
+    const data = await apiCall(`/group-feed/${encodeURIComponent(postId)}/comments`, 'POST', {
+      content,
+    });
     const created = data?.comment ? enrichFeedComment(data.comment) : null;
     if (created) {
       section.items = [created, ...section.items];
@@ -2491,9 +2504,13 @@ async function submitFeedReply(postId, commentId) {
   renderFeedCommentArea(postId);
 
   try {
-    const data = await apiCall(`/group-feed/comments/${encodeURIComponent(commentId)}/replies`, 'POST', {
-      content,
-    });
+    const data = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/replies`,
+      'POST',
+      {
+        content,
+      }
+    );
     const created = data?.comment ? enrichFeedComment(data.comment) : null;
     if (created) {
       updateCommentInSection(postId, commentId, (comment) => ({
@@ -2511,7 +2528,10 @@ async function submitFeedReply(postId, commentId) {
   } catch (e) {
     toast(e?.serverMessage || 'Antwort konnte nicht gespeichert werden', 'error');
   } finally {
-    updateCommentInSection(postId, commentId, (comment) => ({ ...comment, _replySubmitting: false }));
+    updateCommentInSection(postId, commentId, (comment) => ({
+      ...comment,
+      _replySubmitting: false,
+    }));
     renderFeedCommentArea(postId);
   }
 }
@@ -2640,7 +2660,10 @@ async function openFeedCommentHistory(postId, commentId) {
   };
 
   try {
-    const response = await apiCall(`/group-feed/comments/${encodeURIComponent(commentId)}/history`, 'GET');
+    const response = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/history`,
+      'GET'
+    );
     const history = response?.history || [];
     const list = dlg.querySelector('#feed-comment-history-list');
     if (!list) return;
@@ -2708,7 +2731,10 @@ async function openFeedCommentLikers(postId, commentId) {
   };
 
   try {
-    const response = await apiCall(`/group-feed/comments/${encodeURIComponent(commentId)}/likes`, 'GET');
+    const response = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/likes`,
+      'GET'
+    );
     const likes = Array.isArray(response?.likes) ? response.likes : [];
     const list = dlg.querySelector('#feed-comment-likers-list');
     if (!list) return;
@@ -2849,7 +2875,8 @@ function renderFeedReplies(postId, comment) {
   const list = rows
     .map((reply) => {
       const showReplyHistory = !reply.deleted && (Number(reply.historyCount) || 0) > 0;
-      const replyEditedHint = !reply.deleted && ((Number(reply.historyCount) || 0) > 0 || reply.edited);
+      const replyEditedHint =
+        !reply.deleted && ((Number(reply.historyCount) || 0) > 0 || reply.edited);
       const menuItems = [
         canEditFeedComment(reply)
           ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();${reply._editing ? `cancelFeedCommentEdit('${postId}','${reply.id}')` : `startFeedCommentEdit('${postId}','${reply.id}')`}">${ICON_ALBUM_MANAGE}<span>${reply._editing ? 'Bearbeitung abbrechen' : 'Bearbeiten'}</span></button>`
@@ -2923,7 +2950,8 @@ function renderFeedCommentSection(postId, section) {
         ? `<textarea id="feed-edit-input-${comment.id}" data-feed-mention-input="true" rows="3" maxlength="1200" style="resize:none;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:7px 9px;background:var(--card);color:var(--text);font:inherit">${esc(comment.content || '')}</textarea>`
         : feedCommentBodyHtml(comment);
       const showCommentHistory = !comment.deleted && (Number(comment.historyCount) || 0) > 0;
-      const commentEditedHint = !comment.deleted && ((Number(comment.historyCount) || 0) > 0 || comment.edited);
+      const commentEditedHint =
+        !comment.deleted && ((Number(comment.historyCount) || 0) > 0 || comment.edited);
       const menuItems = [
         canEditFeedComment(comment)
           ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();${comment._editing ? `cancelFeedCommentEdit('${postId}','${comment.id}')` : `startFeedCommentEdit('${postId}','${comment.id}')`}">${ICON_ALBUM_MANAGE}<span>${comment._editing ? 'Bearbeitung abbrechen' : 'Bearbeiten'}</span></button>`
@@ -2977,7 +3005,7 @@ function renderFeedCommentSection(postId, section) {
       </div>
       ${section.loading ? '<div style="font-size:12px;color:var(--muted);padding:6px 2px">Kommentare werden geladen…</div>' : ''}
       ${section.error ? `<div style="font-size:12px;color:var(--danger);padding:6px 2px">${esc(section.error)}</div>` : ''}
-      ${!section.loading && !section.error ? (list || '<div style="font-size:12px;color:var(--muted)">Noch keine Kommentare.</div>') : ''}
+      ${!section.loading && !section.error ? list || '<div style="font-size:12px;color:var(--muted)">Noch keine Kommentare.</div>' : ''}
       ${section.hasMore ? `<button class="btn btn-ghost" style="margin-top:6px;font-size:11px;padding:4px 9px" onclick="loadOlderFeedComments('${postId}')" ${section.loadingMore ? 'disabled' : ''}>${section.loadingMore ? 'Lädt…' : 'Ältere Kommentare laden'}</button>` : ''}
     </section>`;
 }
@@ -3292,7 +3320,9 @@ async function shareAlbumToFeed(albumId, options = {}) {
       id: photo.id,
       mediaType: photo.mediaType || 'image',
       videoDuration:
-        Number.isFinite(photo.videoDuration) || photo.videoDuration === 0 ? photo.videoDuration : null,
+        Number.isFinite(photo.videoDuration) || photo.videoDuration === 0
+          ? photo.videoDuration
+          : null,
       exists: true,
     }));
     if (!albumPhotos.length) {
@@ -3306,7 +3336,8 @@ async function shareAlbumToFeed(albumId, options = {}) {
     const customBody = String(options?.body || '').trim();
     const title = customTitle || `Album: ${album.name}`;
     const body =
-      customBody || `Schau dir mein Album „${album.name}“ an${totalPhotos ? ` mit ${totalPhotos} Fotos` : ''}`;
+      customBody ||
+      `Schau dir mein Album „${album.name}“ an${totalPhotos ? ` mit ${totalPhotos} Fotos` : ''}`;
 
     await apiCall('/group-feed', 'POST', {
       groupId: curGroupId,
@@ -3412,7 +3443,9 @@ function renderFeedGrid() {
           uploadedItems.find((item) => item.id === post.entityId)?.videoDuration ??
           post?.metadata?.primaryVideoDuration ??
           null;
-        const albumPhotos = Array.isArray(post?.metadata?.albumPhotos) ? post.metadata.albumPhotos : [];
+        const albumPhotos = Array.isArray(post?.metadata?.albumPhotos)
+          ? post.metadata.albumPhotos
+          : [];
         const albumShareAlbumId = post?.metadata?.albumId || post.entityId || '';
         const albumShareAlbumName = post?.metadata?.albumName || post.title || 'Album';
         const albumShareTotal = Number(post?.metadata?.totalPhotos) || albumPhotos.length;
@@ -3537,8 +3570,8 @@ function renderFeedGrid() {
         })();
         const openEntityBtn =
           post.entityType !== 'photo' && post.entityType !== 'album' && entityHref
-              ? `<a href="${esc(entityHref)}" target="_blank" rel="noopener" style="font-size:${isMobileFeed ? 11 : 12}px;color:var(--accent);text-decoration:none;font-weight:600">Inhalt öffnen</a>`
-              : '';
+            ? `<a href="${esc(entityHref)}" target="_blank" rel="noopener" style="font-size:${isMobileFeed ? 11 : 12}px;color:var(--accent);text-decoration:none;font-weight:600">Inhalt öffnen</a>`
+            : '';
         const commentSection = ensureFeedCommentState(post.id);
         const commentCount = Math.max(
           Number(post.commentsCount) || 0,
@@ -5461,10 +5494,7 @@ async function openLB(i) {
   const shareBtn = $('lb-share-btn');
   if (shareBtn) {
     shareBtn.innerHTML = ICON_LINK;
-    shareBtn.classList.toggle(
-      'hidden',
-      !canPostToFeedInCurrentGroup() || p.uploaderId !== me.id
-    );
+    shareBtn.classList.toggle('hidden', !canPostToFeedInCurrentGroup() || p.uploaderId !== me.id);
     shareBtn.type = 'button';
     shareBtn.onclick = (event) => {
       event.preventDefault();
@@ -5511,9 +5541,7 @@ function openSharePhotoToFeedModal() {
   const titleInput = $('share-photo-feed-title');
   const bodyInput = $('share-photo-feed-body');
   if (titleInput) {
-    titleInput.value = p.description?.trim()
-      ? `Foto: ${p.description.trim().slice(0, 80)}`
-      : '';
+    titleInput.value = p.description?.trim() ? `Foto: ${p.description.trim().slice(0, 80)}` : '';
   }
   if (bodyInput) bodyInput.value = '';
   bindFeedMentionInputs();
@@ -6595,8 +6623,8 @@ async function requestMyContentExport() {
 
   try {
     const data = await apiCall('/exports/request', 'POST');
-    const status = data?.export?.status 
-      ? ` (Status: ${exportStatusLabel(data.export.status)})` 
+    const status = data?.export?.status
+      ? ` (Status: ${exportStatusLabel(data.export.status)})`
       : '';
     flashInlineMessage('profile-export-msg', 'success', `✓ Export angefordert${status}`);
     toast('Export wurde gestartet.', 'success');

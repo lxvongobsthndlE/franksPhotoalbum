@@ -459,7 +459,11 @@ describe('group feed comment routes', () => {
       _count: { replies: 0, historyEntries: 0 },
     });
     prisma.groupMember.findMany.mockResolvedValue([]);
-    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Kommentator', username: 'kommentator' });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      name: 'Kommentator',
+      username: 'kommentator',
+    });
 
     await callRoute('POST', '/:postId/comments', {
       jwtVerify: vi.fn().mockResolvedValue(undefined),
@@ -560,7 +564,11 @@ describe('group feed comment routes', () => {
       likes: [],
       _count: { replies: 0, historyEntries: 0 },
     });
-    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Antworter', username: 'antworter' });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      name: 'Antworter',
+      username: 'antworter',
+    });
 
     await callRoute('POST', '/comments/:commentId/replies', {
       jwtVerify: vi.fn().mockResolvedValue(undefined),
