@@ -1,6 +1,68 @@
 // Likes Routes
 import { createNotification } from '../utils/notifications.js';
+
+const LIKE_NOTIFICATION_DELAY_MS =
+  Number.parseInt(process.env.LIKE_NOTIFICATION_DELAY_MS || '2500', 10) || 2500;
+const pendingPhotoLikeNotifications = new Map();
+
+function buildPhotoLikeKey(photoId, likerUserId) {
+  return `${photoId}:${likerUserId}`;
+}
+
 export default async function likesRoutes(fastify) {
+  function schedulePhotoLikeNotification({ photoId, uploaderId, likerUserId }) {
+    if (!uploaderId || uploaderId === likerUserId) return;
+
+    const key = buildPhotoLikeKey(photoId, likerUserId);
+    const previousTimeout = pendingPhotoLikeNotifications.get(key);
+    if (previousTimeout) clearTimeout(previousTimeout);
+
+    const timeout = setTimeout(async () => {
+      pendingPhotoLikeNotifications.delete(key);
+
+      try {
+        const existing = await fastify.prisma.like.findUnique({
+          where: {
+            photoId_userId: {
+              photoId,
+              userId: likerUserId,
+            },
+          },
+          select: { photoId: true },
+        });
+        if (!existing) return;
+
+        const liker = await fastify.prisma.user.findUnique({
+          where: { id: likerUserId },
+          select: { name: true, username: true },
+        });
+        const likerName = liker?.name || liker?.username || 'Jemand';
+
+        await createNotification(fastify.prisma, {
+          userId: uploaderId,
+          type: 'photoLiked',
+          title: 'Jemand mag dein Foto',
+          body: `${likerName} hat dein Foto geliked.`,
+          entityId: photoId,
+          entityType: 'photo',
+        });
+      } catch (err) {
+        fastify.log.error(err);
+      }
+    }, LIKE_NOTIFICATION_DELAY_MS);
+
+    if (typeof timeout.unref === 'function') timeout.unref();
+    pendingPhotoLikeNotifications.set(key, timeout);
+  }
+
+  function cancelPhotoLikeNotification(photoId, likerUserId) {
+    const key = buildPhotoLikeKey(photoId, likerUserId);
+    const timeout = pendingPhotoLikeNotifications.get(key);
+    if (!timeout) return;
+    clearTimeout(timeout);
+    pendingPhotoLikeNotifications.delete(key);
+  }
+
   async function canAccessGroup(groupId, userId) {
     const user = await fastify.prisma.user.findUnique({
       where: { id: userId },
@@ -57,22 +119,11 @@ export default async function likesRoutes(fastify) {
         },
       });
 
-      // Foto-Owner benachrichtigen (nicht sich selbst)
-      if (photo && photo.uploaderId !== request.user.id) {
-        const liker = await fastify.prisma.user.findUnique({
-          where: { id: request.user.id },
-          select: { name: true, username: true },
-        });
-        const likerName = liker?.name || liker?.username || 'Jemand';
-        createNotification(fastify.prisma, {
-          userId: photo.uploaderId,
-          type: 'photoLiked',
-          title: 'Jemand mag dein Foto',
-          body: `${likerName} hat dein Foto geliked.`,
-          entityId: photoId,
-          entityType: 'photo',
-        }).catch(() => {});
-      }
+      schedulePhotoLikeNotification({
+        photoId,
+        uploaderId: photo.uploaderId,
+        likerUserId: request.user.id,
+      });
 
       return { status: 'liked', like };
     } catch (err) {
@@ -120,6 +171,8 @@ export default async function likesRoutes(fastify) {
           userId: request.user.id,
         },
       });
+
+      cancelPhotoLikeNotification(photoId, request.user.id);
 
       return { status: 'unliked' };
     } catch (err) {

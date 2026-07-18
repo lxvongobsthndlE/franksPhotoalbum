@@ -46,6 +46,11 @@ model User {
   feedPosts                     GroupFeedPost[]
   savedFeedPosts                GroupFeedPostSave[]
   feedPostHistoryEntries        GroupFeedPostHistory[]  @relation("GroupFeedPostHistoryEditor")
+  likedFeedPosts                GroupFeedPostLike[]
+  feedComments                  GroupFeedComment[]
+  feedCommentHistoryEntries     GroupFeedCommentHistory[] @relation("GroupFeedCommentHistoryEditor")
+  likedFeedComments             GroupFeedCommentLike[]
+  feedCommentsDeleted           GroupFeedComment[] @relation("GroupFeedCommentDeletedBy")
 }
 
 model Group {
@@ -68,6 +73,7 @@ model Group {
   blocks    GroupBlock[]
   invites   GroupInviteGroup[]
   feedPosts GroupFeedPost[]
+  feedComments GroupFeedComment[]
 }
 
 model GroupFeedPost {
@@ -87,11 +93,25 @@ model GroupFeedPost {
   group          Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdBy      User                   @relation(fields: [createdById], references: [id], onDelete: Cascade)
   savedBy        GroupFeedPostSave[]
+  likes          GroupFeedPostLike[]
   historyEntries GroupFeedPostHistory[]
+  comments       GroupFeedComment[]
 
   @@index([groupId, createdAt(sort: Desc)])
   @@index([createdById, createdAt(sort: Desc)])
   @@index([entityType, entityId])
+}
+
+model GroupFeedPostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post GroupFeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model GroupFeedPostSave {
@@ -121,6 +141,60 @@ model GroupFeedPostHistory {
 
   @@index([postId, createdAt(sort: Desc)])
   @@index([editedById, createdAt(sort: Desc)])
+}
+
+model GroupFeedComment {
+  id              String   @id @default(cuid())
+  postId          String
+  groupId         String
+  userId          String
+  parentCommentId String?
+  content         String
+  mentions        Json?
+  deletedAt       DateTime?
+  deletedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  post          GroupFeedPost           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  group         Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentComment GroupFeedComment?       @relation("GroupFeedCommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       GroupFeedComment[]      @relation("GroupFeedCommentReplies")
+  deletedBy     User?                   @relation("GroupFeedCommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  likes         GroupFeedCommentLike[]
+  historyEntries GroupFeedCommentHistory[]
+
+  @@index([postId, parentCommentId, createdAt(sort: Desc)])
+  @@index([parentCommentId, createdAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([groupId, createdAt(sort: Desc)])
+}
+
+model GroupFeedCommentHistory {
+  id              String   @id @default(cuid())
+  commentId       String
+  editedById      String?
+  previousContent String
+  createdAt       DateTime @default(now())
+
+  comment  GroupFeedComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  editedBy User?            @relation("GroupFeedCommentHistoryEditor", fields: [editedById], references: [id], onDelete: SetNull)
+
+  @@index([commentId, createdAt(sort: Desc)])
+  @@index([editedById, createdAt(sort: Desc)])
+}
+
+model GroupFeedCommentLike {
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment GroupFeedComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model GroupInvite {
@@ -366,7 +440,7 @@ model BlockedLoginIdentity {
 model Notification {
   id         String   @id @default(cuid())
   userId     String
-  type       String // deputyAdded | deputyRemoved | contributorAdded | contributorRemoved | groupMemberJoined | groupMemberLeft | groupDeleted | photoLiked | photoCommented | newPhoto | newAlbum
+  type       String // deputyAdded | deputyRemoved | contributorAdded | contributorRemoved | groupMemberJoined | groupMemberLeft | groupDeleted | photoLiked | photoCommented | feedPostLiked | feedPostCommented | feedCommentMentioned | feedCommentReplied | feedCommentLiked | newPhoto | newAlbum
   title      String
   body       String
   entityId   String? // ID des betroffenen Objekts (Photo, Group, Album...)
@@ -395,6 +469,11 @@ model NotificationPreference {
   inApp_groupDeleted       Boolean @default(true)
   inApp_photoLiked         Boolean @default(true)
   inApp_photoCommented     Boolean @default(true)
+  inApp_feedPostLiked      Boolean @default(true)
+  inApp_feedPostCommented  Boolean @default(true)
+  inApp_feedCommentMentioned Boolean @default(true)
+  inApp_feedCommentReplied Boolean @default(true)
+  inApp_feedCommentLiked   Boolean @default(true)
   inApp_newPhoto           Boolean @default(true)
   inApp_newAlbum           Boolean @default(true)
   inApp_system             Boolean @default(true)
@@ -409,6 +488,11 @@ model NotificationPreference {
   email_groupDeleted       Boolean @default(true)
   email_photoLiked         Boolean @default(false)
   email_photoCommented     Boolean @default(false)
+  email_feedPostLiked      Boolean @default(false)
+  email_feedPostCommented  Boolean @default(false)
+  email_feedCommentMentioned Boolean @default(false)
+  email_feedCommentReplied Boolean @default(false)
+  email_feedCommentLiked   Boolean @default(false)
   email_newPhoto           Boolean @default(false)
   email_newAlbum           Boolean @default(false)
   email_system             Boolean @default(false)

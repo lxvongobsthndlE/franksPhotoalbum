@@ -1,3 +1,13 @@
+import { createNotification } from '../utils/notifications.js';
+
+const LIKE_NOTIFICATION_DELAY_MS =
+  Number.parseInt(process.env.LIKE_NOTIFICATION_DELAY_MS || '2500', 10) || 2500;
+const pendingFeedPostLikeNotifications = new Map();
+
+function buildFeedPostLikeKey(postId, likerUserId) {
+  return `${postId}:${likerUserId}`;
+}
+
 export default async function groupFeedRoutes(fastify) {
   function getFeedPostInclude() {
     return {
@@ -14,9 +24,68 @@ export default async function groupFeedRoutes(fastify) {
       _count: {
         select: {
           historyEntries: true,
+          comments: true,
+        },
+      },
+      likes: {
+        select: {
+          userId: true,
         },
       },
     };
+  }
+
+  function scheduleFeedPostLikeNotification({ post, likerUserId }) {
+    if (!post?.id || !post?.createdById || post.createdById === likerUserId) return;
+
+    const key = buildFeedPostLikeKey(post.id, likerUserId);
+    const previousTimeout = pendingFeedPostLikeNotifications.get(key);
+    if (previousTimeout) clearTimeout(previousTimeout);
+
+    const timeout = setTimeout(async () => {
+      pendingFeedPostLikeNotifications.delete(key);
+
+      try {
+        const existing = await fastify.prisma.groupFeedPostLike.findUnique({
+          where: {
+            postId_userId: {
+              postId: post.id,
+              userId: likerUserId,
+            },
+          },
+          select: { postId: true },
+        });
+        if (!existing) return;
+
+        const liker = await fastify.prisma.user.findUnique({
+          where: { id: likerUserId },
+          select: { name: true, username: true },
+        });
+        const likerName = liker?.name || liker?.username || 'Jemand';
+
+        await createNotification(fastify.prisma, {
+          userId: post.createdById,
+          type: 'feedPostLiked',
+          title: 'Like auf deinen Feed-Post',
+          body: `${likerName} hat deinen Feed-Post geliked.`,
+          entityId: post.id,
+          entityType: 'groupFeedPost',
+        });
+      } catch (err) {
+        fastify.log.error(err);
+      }
+    }, LIKE_NOTIFICATION_DELAY_MS);
+
+    if (typeof timeout.unref === 'function') timeout.unref();
+    pendingFeedPostLikeNotifications.set(key, timeout);
+  }
+
+  function cancelFeedPostLikeNotification(postId, likerUserId) {
+    const key = buildFeedPostLikeKey(postId, likerUserId);
+    const timeout = pendingFeedPostLikeNotifications.get(key);
+    if (!timeout) return;
+    clearTimeout(timeout);
+    pendingFeedPostLikeNotifications.delete(key);
   }
 
   async function getUserRole(userId) {
@@ -164,6 +233,10 @@ export default async function groupFeedRoutes(fastify) {
       const entityMissing =
         post.entityType === 'photo' && post.entityId ? !mediaByPhotoId.has(post.entityId) : false;
       const historyCount = post?._count?.historyEntries || 0;
+      const commentsCount = post?._count?.comments || 0;
+      const likes = Array.isArray(post?.likes) ? post.likes : [];
+      const likesCount = likes.length;
+      const likedByMe = userId ? likes.some((entry) => entry?.userId === userId) : false;
 
       normalizedPosts.push({
         ...post,
@@ -183,6 +256,9 @@ export default async function groupFeedRoutes(fastify) {
             : null,
         entityMissing,
         historyCount,
+        commentsCount,
+        likesCount,
+        likedByMe,
         isEdited: historyCount > 0,
         editedAt: historyCount > 0 ? post.updatedAt : null,
         isSaved: savedPostIds.has(post.id),
@@ -407,6 +483,117 @@ export default async function groupFeedRoutes(fastify) {
     } catch (err) {
       fastify.log.error(err);
       return reply.code(500).send({ error: 'Feed-Post konnte nicht gespeichert werden' });
+    }
+  });
+
+  fastify.get('/:id/likes', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = request.user.id;
+      const postId = request.params.id;
+
+      const post = await fastify.prisma.groupFeedPost.findUnique({
+        where: { id: postId },
+        select: { id: true, groupId: true },
+      });
+      if (!post) return reply.code(404).send({ error: 'Feed-Post nicht gefunden' });
+      if (!(await ensureGroupAccess(reply, post.groupId, userId))) return;
+
+      const likes = await fastify.prisma.groupFeedPostLike.findMany({
+        where: { postId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              displayNameField: true,
+              avatar: true,
+              color: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { userId: 'asc' }],
+      });
+
+      return {
+        likes: likes.map((entry) => ({
+          userId: entry.userId,
+          createdAt: entry.createdAt,
+          user: entry.user,
+        })),
+        total: likes.length,
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Likes konnten nicht geladen werden' });
+    }
+  });
+
+  fastify.post('/:id/like', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = request.user.id;
+      const postId = request.params.id;
+
+      const post = await fastify.prisma.groupFeedPost.findUnique({
+        where: { id: postId },
+        select: { id: true, groupId: true, createdById: true },
+      });
+      if (!post) return reply.code(404).send({ error: 'Feed-Post nicht gefunden' });
+      if (!(await ensureGroupAccess(reply, post.groupId, userId))) return;
+
+      const existingLike = await fastify.prisma.groupFeedPostLike.findUnique({
+        where: { postId_userId: { postId, userId } },
+      });
+
+      if (!existingLike) {
+        await fastify.prisma.groupFeedPostLike.create({
+          data: { postId, userId },
+        });
+        scheduleFeedPostLikeNotification({ post, likerUserId: userId });
+      }
+
+      const likesCount = await fastify.prisma.groupFeedPostLike.count({ where: { postId } });
+
+      return {
+        liked: true,
+        likesCount,
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Like konnte nicht gesetzt werden' });
+    }
+  });
+
+  fastify.delete('/:id/like', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = request.user.id;
+      const postId = request.params.id;
+
+      const post = await fastify.prisma.groupFeedPost.findUnique({
+        where: { id: postId },
+        select: { id: true, groupId: true },
+      });
+      if (!post) return reply.code(404).send({ error: 'Feed-Post nicht gefunden' });
+      if (!(await ensureGroupAccess(reply, post.groupId, userId))) return;
+
+      await fastify.prisma.groupFeedPostLike.deleteMany({
+        where: { postId, userId },
+      });
+
+      cancelFeedPostLikeNotification(postId, userId);
+
+      const likesCount = await fastify.prisma.groupFeedPostLike.count({ where: { postId } });
+
+      return {
+        liked: false,
+        likesCount,
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'Like konnte nicht entfernt werden' });
     }
   });
 

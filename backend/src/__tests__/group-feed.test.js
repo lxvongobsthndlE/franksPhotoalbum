@@ -31,6 +31,7 @@ describe('group feed routes', () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'user-1', role: 'user' });
     prisma.photo.findMany.mockResolvedValue([]);
     prisma.groupFeedPostSave.findMany.mockResolvedValue([]);
+    prisma.groupFeedPostLike.findMany.mockResolvedValue([]);
     prisma.groupFeedPost.deleteMany.mockResolvedValue({ count: 0 });
     prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
 
@@ -58,6 +59,7 @@ describe('group feed routes', () => {
         avatar: null,
         color: '#333',
       },
+      likes: [{ userId: 'user-1' }],
       _count: { historyEntries: 2 },
     });
     prisma.groupFeedPost.count.mockResolvedValue(7);
@@ -74,6 +76,8 @@ describe('group feed routes', () => {
     expect(result.post.isSaved).toBe(true);
     expect(result.post.isEdited).toBe(true);
     expect(result.post.historyCount).toBe(2);
+    expect(result.post.likesCount).toBe(1);
+    expect(result.post.likedByMe).toBe(true);
   });
 
   it('filters saved posts on the backend for the saved view', async () => {
@@ -284,5 +288,71 @@ describe('group feed routes', () => {
     );
     expect(result.history).toHaveLength(1);
     expect(result.history[0].previousBody).toBe('Vorher');
+  });
+
+  it('loads users who liked a feed post', async () => {
+    prisma.groupFeedPost.findUnique.mockResolvedValue({ id: 'post-1', groupId: 'group-1' });
+    prisma.groupFeedPostLike.findMany.mockResolvedValue([
+      {
+        postId: 'post-1',
+        userId: 'user-2',
+        createdAt: new Date('2026-07-18T18:00:00.000Z'),
+        user: {
+          id: 'user-2',
+          name: 'Anna',
+          username: 'anna',
+          displayNameField: 'name',
+          avatar: null,
+          color: '#123',
+        },
+      },
+    ]);
+
+    const { result } = await callRoute('GET', '/:id/likes', {
+      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      user: { id: 'user-1' },
+      params: { id: 'post-1' },
+    });
+
+    expect(prisma.groupFeedPostLike.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { postId: 'post-1' } })
+    );
+    expect(result.total).toBe(1);
+    expect(result.likes[0]).toEqual(
+      expect.objectContaining({
+        userId: 'user-2',
+        user: expect.objectContaining({ id: 'user-2', username: 'anna' }),
+      })
+    );
+  });
+
+  it('likes and unlikes a feed post idempotently', async () => {
+    prisma.groupFeedPost.findUnique.mockResolvedValue({
+      id: 'post-1',
+      groupId: 'group-1',
+      createdById: 'user-2',
+    });
+    prisma.groupFeedPostLike.findUnique.mockResolvedValueOnce(null);
+    prisma.groupFeedPostLike.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+    const { result: likeResult } = await callRoute('POST', '/:id/like', {
+      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      user: { id: 'user-1' },
+      params: { id: 'post-1' },
+    });
+    expect(prisma.groupFeedPostLike.create).toHaveBeenCalledWith({
+      data: { postId: 'post-1', userId: 'user-1' },
+    });
+    expect(likeResult).toEqual({ liked: true, likesCount: 1 });
+
+    const { result: unlikeResult } = await callRoute('DELETE', '/:id/like', {
+      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      user: { id: 'user-1' },
+      params: { id: 'post-1' },
+    });
+    expect(prisma.groupFeedPostLike.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1', userId: 'user-1' },
+    });
+    expect(unlikeResult).toEqual({ liked: false, likesCount: 0 });
   });
 });

@@ -123,6 +123,18 @@ let resolvingFeedPostTarget = false;
 let feedTargetFocusTimer = null;
 let activeFeedPostMenuId = null;
 let feedPostMenuOutsideCloseBound = false;
+let feedCommentUiState = {};
+let activeFeedCommentsPostId = null;
+let activeFeedCommentMenuId = null;
+let feedCommentMenuOutsideCloseBound = false;
+let feedMentionState = {
+  open: false,
+  inputId: null,
+  tokenStart: -1,
+  tokenEnd: -1,
+  activeIndex: 0,
+  items: [],
+};
 
 function normalizeFeedView(view) {
   return FEED_VIEWS.has(view) ? view : 'all';
@@ -173,6 +185,11 @@ function removeTransientUrlParams({ keepInvite = false, keepFeedPost = true } = 
     if (!keepFeedPost) params.delete(FEED_POST_QUERY_PARAM);
   });
 }
+
+window.onThumbLoad = function onThumbLoad(img) {
+  img.classList.remove('loading');
+  img.classList.add('loaded');
+};
 
 function updateFeedPostUrl(postId) {
   replaceCurrentQueryParams((params) => {
@@ -273,13 +290,28 @@ async function copyFeedPostLink(postId) {
 function closeFeedPostMenu() {
   activeFeedPostMenuId = null;
   feedPostMenuOutsideCloseBound = false;
-  renderFeedGrid();
+  syncFeedMenuVisibilityInDom();
 }
 
 function toggleFeedPostMenu(postId) {
   activeFeedPostMenuId = activeFeedPostMenuId === postId ? null : postId;
   feedPostMenuOutsideCloseBound = false;
-  renderFeedGrid();
+  syncFeedMenuVisibilityInDom();
+}
+
+function syncFeedMenuVisibilityInDom() {
+  document.querySelectorAll('[data-feed-menu-root]').forEach((root) => {
+    const id = root.getAttribute('data-feed-menu-root');
+    const menu = root.querySelector('.feed-post-menu');
+    if (!menu) return;
+    menu.style.display = id === activeFeedPostMenuId ? 'block' : 'none';
+  });
+  document.querySelectorAll('[data-feed-comment-menu-root]').forEach((root) => {
+    const id = root.getAttribute('data-feed-comment-menu-root');
+    const menu = root.querySelector('.feed-post-menu');
+    if (!menu) return;
+    menu.style.display = id === activeFeedCommentMenuId ? 'block' : 'none';
+  });
 }
 
 function bindFeedPostMenuOutsideClose() {
@@ -292,7 +324,7 @@ function bindFeedPostMenuOutsideClose() {
       activeFeedPostMenuId = null;
       feedPostMenuOutsideCloseBound = false;
       document.removeEventListener('click', handler);
-      renderFeedGrid();
+      syncFeedMenuVisibilityInDom();
     });
   }, 10);
 }
@@ -463,10 +495,11 @@ window.startOIDCLogin = startLoginWithContext;
 
 // Hängt den Access-Token als ?t= an Foto-URLs (nötig da <img src> keinen Auth-Header sendet)
 function photoSrc(url) {
-  if (!url) return url;
+  if (!url) return '';
+  const safeUrl = encodeURI(String(url));
   const t = sessionStorage.getItem('accessToken');
-  if (!t) return url;
-  return url + (url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(t);
+  if (!t) return safeUrl;
+  return `${safeUrl}${safeUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(t)}`;
 }
 
 function revokeObjectUrlSafe(url) {
@@ -1443,6 +1476,7 @@ async function switchAlbum(id) {
   renderSidebar();
   await loadPhotos(true);
 }
+window.switchAlbum = switchAlbum;
 
 // ── GALLERY ──────────────────────────────────────────────
 function folderTitle() {
@@ -1643,6 +1677,14 @@ function canManageAlbum() {
   return groupDeputies.some((d) => d.id === me.id);
 }
 
+function canShareAlbumToFeed(albumId = curAlbum) {
+  if (!albumId) return false;
+  const album = allAlbums.find((entry) => entry.id === albumId);
+  if (!album) return false;
+  if (album.createdBy === me?.id) return true;
+  return (album.contributors || []).some((contributor) => contributor.id === me?.id);
+}
+
 async function switchToUser(userId) {
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
@@ -1712,10 +1754,33 @@ async function loadPhotos(reset = false) {
       const gear = document.getElementById('album-rename-btn');
       if (gear) gear.remove();
     }
+
+    const albumShareBtn = document.getElementById('album-share-btn');
+    if (canShareAlbumToFeed(curAlbum)) {
+      if (!albumShareBtn) {
+        const share = document.createElement('button');
+        share.id = 'album-share-btn';
+        share.className = 'btn-ghost btn';
+        share.title = 'Album im Feed teilen';
+        share.style.cssText =
+          'padding:5px 7px;font-size:11px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;color:var(--muted)';
+        share.innerHTML = `${ICON_LINK} Teilen`;
+        share.onclick = () => openShareAlbumToFeedModal(curAlbum);
+        const anchor =
+          document.getElementById('album-rename-btn') ||
+          document.getElementById('album-add-btn') ||
+          $('upload-btn');
+        anchor?.after(share);
+      }
+    } else if (albumShareBtn) {
+      albumShareBtn.remove();
+    }
   } else {
     if (albumAddBtn) albumAddBtn.remove();
     const gear = document.getElementById('album-rename-btn');
     if (gear) gear.remove();
+    const share = document.getElementById('album-share-btn');
+    if (share) share.remove();
   }
   if (!curGroupId) {
     renderGrid(0);
@@ -1830,6 +1895,8 @@ async function loadFeedPosts(reset = false) {
     feedPosts = [];
     feedSkip = 0;
     feedHasMore = false;
+    feedCommentUiState = {};
+    activeFeedCommentsPostId = null;
   }
 
   const title = $('gal-title');
@@ -1921,6 +1988,1049 @@ function formatFeedDate(value) {
   return dt.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function getFeedMentionPopup() {
+  let popup = document.getElementById('feed-mention-popup');
+  if (popup) return popup;
+  popup = document.createElement('div');
+  popup.id = 'feed-mention-popup';
+  popup.style.cssText =
+    'position:fixed;z-index:5005;min-width:200px;max-width:280px;max-height:220px;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow2);padding:4px;display:none';
+  document.body.appendChild(popup);
+  return popup;
+}
+
+function hideFeedMentionPopup() {
+  const popup = document.getElementById('feed-mention-popup');
+  if (popup) popup.style.display = 'none';
+  feedMentionState.open = false;
+  feedMentionState.inputId = null;
+  feedMentionState.tokenStart = -1;
+  feedMentionState.tokenEnd = -1;
+  feedMentionState.activeIndex = 0;
+  feedMentionState.items = [];
+}
+
+function getMentionCandidates(query) {
+  const q = String(query || '').toLowerCase();
+  const members = Array.isArray(groupMembers) ? groupMembers : [];
+  const dedupe = new Set();
+  return members
+    .map((member) => member?.user || member)
+    .filter((user) => user?.id && user?.username)
+    .filter((user) => {
+      if (dedupe.has(user.id)) return false;
+      dedupe.add(user.id);
+      return true;
+    })
+    .filter((user) => {
+      const username = String(user.username || '').toLowerCase();
+      const visibleName = String(getVisibleName(user, user?.displayNameField) || '').toLowerCase();
+      if (!q) return true;
+      return username.includes(q) || visibleName.includes(q);
+    })
+    .slice(0, 8)
+    .map((user) => ({
+      id: user.id,
+      username: user.username,
+      label: getVisibleName(user, user?.displayNameField) || user.name || user.username,
+    }));
+}
+
+function getMentionTokenAtCaret(input) {
+  const caret = Number(input?.selectionStart);
+  if (!Number.isFinite(caret) || caret < 0) return null;
+  const value = String(input?.value || '');
+  const left = value.slice(0, caret);
+  const match = left.match(/(^|\s)@([a-zA-Z0-9_.-]{0,32})$/);
+  if (!match) return null;
+  const mentionText = match[2] || '';
+  const atIndex = left.lastIndexOf('@');
+  if (atIndex < 0) return null;
+  return {
+    query: mentionText,
+    start: atIndex,
+    end: caret,
+  };
+}
+
+function applyMentionFromPopup(index) {
+  const input = document.getElementById(feedMentionState.inputId || '');
+  if (!input) {
+    hideFeedMentionPopup();
+    return;
+  }
+  const item = feedMentionState.items[index];
+  if (!item?.username) {
+    hideFeedMentionPopup();
+    return;
+  }
+  const value = String(input.value || '');
+  const start = Math.max(0, feedMentionState.tokenStart);
+  const end = Math.max(start, feedMentionState.tokenEnd);
+  const insertion = `@${item.username} `;
+  input.value = `${value.slice(0, start)}${insertion}${value.slice(end)}`;
+  const nextCaret = start + insertion.length;
+  input.focus();
+  input.setSelectionRange(nextCaret, nextCaret);
+  hideFeedMentionPopup();
+}
+
+function renderFeedMentionPopup() {
+  const popup = getFeedMentionPopup();
+  const input = document.getElementById(feedMentionState.inputId || '');
+  if (!popup || !input || !feedMentionState.items.length) {
+    hideFeedMentionPopup();
+    return;
+  }
+
+  popup.innerHTML = feedMentionState.items
+    .map((item, idx) => {
+      const active = idx === feedMentionState.activeIndex;
+      return `<button type="button" data-feed-mention-index="${idx}" style="display:flex;width:100%;gap:8px;align-items:center;text-align:left;border:none;border-radius:8px;padding:7px 8px;cursor:pointer;background:${active ? 'var(--accent-l)' : 'transparent'};color:${active ? 'var(--accent)' : 'var(--text)'}">
+        <span style="font-size:12px;font-weight:700">@${esc(item.username)}</span>
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.label)}</span>
+      </button>`;
+    })
+    .join('');
+
+  popup.querySelectorAll('[data-feed-mention-index]').forEach((btn) => {
+    btn.addEventListener('mousedown', (event) => event.preventDefault());
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      const idx = Number(btn.getAttribute('data-feed-mention-index'));
+      if (Number.isFinite(idx)) applyMentionFromPopup(idx);
+    });
+  });
+
+  const rect = input.getBoundingClientRect();
+  popup.style.left = `${Math.max(8, Math.round(rect.left))}px`;
+  popup.style.top = `${Math.round(rect.bottom + 6)}px`;
+  popup.style.display = 'block';
+  feedMentionState.open = true;
+}
+
+function updateFeedMentionForInput(input) {
+  if (!input?.id) return;
+  const token = getMentionTokenAtCaret(input);
+  if (!token) {
+    if (feedMentionState.inputId === input.id) hideFeedMentionPopup();
+    return;
+  }
+
+  const candidates = getMentionCandidates(token.query);
+  if (!candidates.length) {
+    if (feedMentionState.inputId === input.id) hideFeedMentionPopup();
+    return;
+  }
+
+  feedMentionState.inputId = input.id;
+  feedMentionState.tokenStart = token.start;
+  feedMentionState.tokenEnd = token.end;
+  feedMentionState.items = candidates;
+  feedMentionState.activeIndex = Math.min(feedMentionState.activeIndex, candidates.length - 1);
+  if (feedMentionState.activeIndex < 0) feedMentionState.activeIndex = 0;
+  renderFeedMentionPopup();
+}
+
+function handleFeedMentionKeydown(event) {
+  if (!feedMentionState.open || feedMentionState.inputId !== event.currentTarget?.id) return;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    feedMentionState.activeIndex =
+      (feedMentionState.activeIndex + 1) % feedMentionState.items.length;
+    renderFeedMentionPopup();
+    return;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    feedMentionState.activeIndex =
+      (feedMentionState.activeIndex - 1 + feedMentionState.items.length) %
+      feedMentionState.items.length;
+    renderFeedMentionPopup();
+    return;
+  }
+  if (event.key === 'Enter' || event.key === 'Tab') {
+    event.preventDefault();
+    applyMentionFromPopup(feedMentionState.activeIndex);
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    hideFeedMentionPopup();
+  }
+}
+
+function bindFeedMentionInputs() {
+  document.querySelectorAll('[data-feed-mention-input="true"]').forEach((input) => {
+    if (input.dataset.feedMentionBound === '1') return;
+    input.dataset.feedMentionBound = '1';
+
+    input.addEventListener('input', () => updateFeedMentionForInput(input));
+    input.addEventListener('click', () => updateFeedMentionForInput(input));
+    input.addEventListener('keyup', () => updateFeedMentionForInput(input));
+    input.addEventListener('keydown', handleFeedMentionKeydown);
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (document.activeElement?.id !== feedMentionState.inputId) hideFeedMentionPopup();
+      }, 120);
+    });
+  });
+}
+
+function ensureFeedCommentState(postId) {
+  if (!postId) return null;
+  if (!feedCommentUiState[postId]) {
+    feedCommentUiState[postId] = {
+      open: false,
+      _closing: false,
+      loading: false,
+      loaded: false,
+      error: '',
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      loadingMore: false,
+      submitting: false,
+    };
+  }
+  return feedCommentUiState[postId];
+}
+
+function pruneFeedCommentState(visiblePosts) {
+  const keep = new Set((Array.isArray(visiblePosts) ? visiblePosts : []).map((post) => post?.id));
+  for (const postId of Object.keys(feedCommentUiState)) {
+    if (!keep.has(postId)) delete feedCommentUiState[postId];
+  }
+  if (activeFeedCommentsPostId && !keep.has(activeFeedCommentsPostId)) {
+    activeFeedCommentsPostId = null;
+  }
+}
+
+function focusFeedCommentInput(postId) {
+  window.requestAnimationFrame(() => {
+    const input = document.getElementById(`feed-comment-input-${postId}`);
+    if (!input) return;
+    input.focus();
+    const len = String(input.value || '').length;
+    input.setSelectionRange(len, len);
+  });
+}
+
+function focusFeedReplyInput(commentId) {
+  window.requestAnimationFrame(() => {
+    const input = document.getElementById(`feed-reply-input-${commentId}`);
+    if (!input) return;
+    input.focus();
+    const len = String(input.value || '').length;
+    input.setSelectionRange(len, len);
+  });
+}
+
+function findFeedCommentInSection(postId, commentId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return null;
+  for (const comment of section.items) {
+    if (comment?.id === commentId) return comment;
+    if (Array.isArray(comment?._replies)) {
+      const reply = comment._replies.find((entry) => entry?.id === commentId);
+      if (reply) return reply;
+    }
+  }
+  return null;
+}
+
+function closeFeedCommentMenu() {
+  activeFeedCommentMenuId = null;
+  feedCommentMenuOutsideCloseBound = false;
+  syncFeedMenuVisibilityInDom();
+}
+
+function toggleFeedCommentMenu(commentId) {
+  activeFeedCommentMenuId = activeFeedCommentMenuId === commentId ? null : commentId;
+  feedCommentMenuOutsideCloseBound = false;
+  syncFeedMenuVisibilityInDom();
+}
+
+function bindFeedCommentMenuOutsideClose() {
+  if (!activeFeedCommentMenuId || feedCommentMenuOutsideCloseBound) return;
+  feedCommentMenuOutsideCloseBound = true;
+  setTimeout(() => {
+    function onOutside(event) {
+      const root = document.querySelector(
+        `[data-feed-comment-menu-root="${activeFeedCommentMenuId}"]`
+      );
+      if (root && root.contains(event.target)) return;
+      closeFeedCommentMenu();
+      document.removeEventListener('click', onOutside, true);
+    }
+    document.addEventListener('click', onOutside, true);
+  }, 0);
+}
+
+function enrichFeedComment(item) {
+  return {
+    ...item,
+    _replyOpen: false,
+    _replySubmitting: false,
+    _repliesOpen: false,
+    _repliesLoaded: false,
+    _repliesLoading: false,
+    _repliesLoadingMore: false,
+    _repliesError: '',
+    _replies: [],
+    _repliesNextCursor: null,
+    _repliesHasMore: false,
+    _editing: false,
+    _editSubmitting: false,
+  };
+}
+
+function mergeFeedCommentServerData(existing, server) {
+  const normalized = enrichFeedComment(server || {});
+  if (!existing) return normalized;
+  return {
+    ...normalized,
+    _replyOpen: existing._replyOpen,
+    _replySubmitting: false,
+    _repliesOpen: existing._repliesOpen,
+    _repliesLoaded: existing._repliesLoaded,
+    _repliesLoading: false,
+    _repliesLoadingMore: false,
+    _repliesError: '',
+    _replies: Array.isArray(existing._replies) ? existing._replies : [],
+    _repliesNextCursor: existing._repliesNextCursor || null,
+    _repliesHasMore: !!existing._repliesHasMore,
+    _editing: false,
+    _editSubmitting: false,
+  };
+}
+
+function feedCommentAuthorName(comment) {
+  const user = comment?.user;
+  return (
+    getVisibleName(user, user?.displayNameField) || user?.name || user?.username || 'Unbekannt'
+  );
+}
+
+function feedCommentBodyHtml(comment) {
+  const text = String(comment?.content || '').trim();
+  if (!text || comment?.deleted)
+    return '<span style="color:var(--muted);font-style:italic">Kommentar gelöscht</span>';
+  return esc(text).replace(/\n/g, '<br>');
+}
+
+function bumpFeedPostCommentCount(postId, delta) {
+  const post = findFeedPostById(postId);
+  if (!post) return;
+  replaceFeedPostInState({
+    ...post,
+    commentsCount: Math.max(0, (Number(post.commentsCount) || 0) + delta),
+  });
+}
+
+function updateCommentInSection(postId, commentId, updater) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return;
+  section.items = section.items.map((comment) => {
+    if (comment.id === commentId) return updater(comment);
+    if (Array.isArray(comment._replies) && comment._replies.length) {
+      return {
+        ...comment,
+        _replies: comment._replies.map((reply) =>
+          reply.id === commentId ? updater(reply) : reply
+        ),
+      };
+    }
+    return comment;
+  });
+}
+
+function canEditFeedComment(comment) {
+  if (!comment || comment.deleted) return false;
+  return comment.userId === me?.id;
+}
+
+function canDeleteFeedComment(comment) {
+  if (!comment || comment.deleted) return false;
+  return canDeleteCommentInCurrentGroup(comment);
+}
+
+async function loadFeedComments(postId, { reset = false } = {}) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return;
+  if (section.loading || section.loadingMore) return;
+
+  section.error = '';
+  if (reset) {
+    section.loading = true;
+    section.nextCursor = null;
+  } else {
+    section.loadingMore = true;
+  }
+  renderFeedCommentArea(postId);
+
+  try {
+    const params = new URLSearchParams({ limit: '15' });
+    if (!reset && section.nextCursor) params.set('cursor', section.nextCursor);
+    const data = await apiCall(
+      `/group-feed/${encodeURIComponent(postId)}/comments?${params.toString()}`
+    );
+    const incoming = Array.isArray(data?.comments) ? data.comments.map(enrichFeedComment) : [];
+    section.items = reset ? incoming : [...section.items, ...incoming];
+    section.nextCursor = data?.paging?.nextCursor || null;
+    section.hasMore = !!data?.paging?.hasMore;
+    section.loaded = true;
+  } catch (e) {
+    section.error = e?.serverMessage || 'Kommentare konnten nicht geladen werden';
+  } finally {
+    section.loading = false;
+    section.loadingMore = false;
+    renderFeedCommentArea(postId);
+  }
+}
+
+async function toggleFeedComments(postId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return;
+
+  if (section.open) {
+    section._closing = true;
+    if (activeFeedCommentsPostId === postId) activeFeedCommentsPostId = null;
+    hideFeedMentionPopup();
+    closeFeedCommentMenu();
+    renderFeedCommentArea(postId);
+    setTimeout(() => {
+      const fresh = ensureFeedCommentState(postId);
+      if (!fresh) return;
+      fresh._closing = false;
+      fresh.open = false;
+      renderFeedCommentArea(postId);
+    }, 180);
+    return;
+  }
+
+  if (activeFeedCommentsPostId && activeFeedCommentsPostId !== postId) {
+    const currentOpenSection = ensureFeedCommentState(activeFeedCommentsPostId);
+    if (currentOpenSection) {
+      currentOpenSection._closing = true;
+      const prevPostId = activeFeedCommentsPostId;
+      setTimeout(() => {
+        const prev = ensureFeedCommentState(prevPostId);
+        if (!prev) return;
+        prev._closing = false;
+        prev.open = false;
+        renderFeedCommentArea(prevPostId);
+      }, 180);
+    }
+  }
+  section.open = true;
+  section._closing = false;
+  activeFeedCommentsPostId = postId;
+  closeFeedCommentMenu();
+  renderFeedCommentArea(postId);
+  focusFeedCommentInput(postId);
+
+  if (!section.loaded) {
+    await loadFeedComments(postId, { reset: true });
+    focusFeedCommentInput(postId);
+  }
+}
+
+async function loadOlderFeedComments(postId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section?.hasMore || !section.nextCursor) return;
+  await loadFeedComments(postId, { reset: false });
+}
+
+function toggleFeedReplyComposer(postId, commentId) {
+  let nextOpen = false;
+  updateCommentInSection(postId, commentId, (comment) => {
+    nextOpen = !comment._replyOpen;
+    return {
+      ...comment,
+      _replyOpen: nextOpen,
+    };
+  });
+  renderFeedCommentArea(postId);
+  if (nextOpen) focusFeedReplyInput(commentId);
+}
+
+async function submitFeedComment(postId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section || section.submitting) return;
+  const input = document.getElementById(`feed-comment-input-${postId}`);
+  const content = String(input?.value || '').trim();
+  if (!content) {
+    toast('Bitte einen Kommentar eingeben', 'error');
+    return;
+  }
+
+  section.submitting = true;
+  renderFeedCommentArea(postId);
+  try {
+    const data = await apiCall(`/group-feed/${encodeURIComponent(postId)}/comments`, 'POST', {
+      content,
+    });
+    const created = data?.comment ? enrichFeedComment(data.comment) : null;
+    if (created) {
+      section.items = [created, ...section.items];
+      section.loaded = true;
+      bumpFeedPostCommentCount(postId, 1);
+    }
+    if (input) input.value = '';
+    hideFeedMentionPopup();
+  } catch (e) {
+    toast(e?.serverMessage || 'Kommentar konnte nicht gespeichert werden', 'error');
+  } finally {
+    section.submitting = false;
+    renderFeedCommentArea(postId);
+  }
+}
+
+async function submitFeedReply(postId, commentId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return;
+  const parent = section.items.find((entry) => entry.id === commentId);
+  if (!parent || parent._replySubmitting) return;
+
+  const input = document.getElementById(`feed-reply-input-${commentId}`);
+  const content = String(input?.value || '').trim();
+  if (!content) {
+    toast('Bitte eine Antwort eingeben', 'error');
+    return;
+  }
+
+  updateCommentInSection(postId, commentId, (comment) => ({ ...comment, _replySubmitting: true }));
+  renderFeedCommentArea(postId);
+
+  try {
+    const data = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/replies`,
+      'POST',
+      {
+        content,
+      }
+    );
+    const created = data?.comment ? enrichFeedComment(data.comment) : null;
+    if (created) {
+      updateCommentInSection(postId, commentId, (comment) => ({
+        ...comment,
+        _replyOpen: false,
+        repliesCount: (Number(comment.repliesCount) || 0) + 1,
+        _repliesLoaded: true,
+        _repliesOpen: true,
+        _replies: [...(Array.isArray(comment._replies) ? comment._replies : []), created],
+      }));
+      bumpFeedPostCommentCount(postId, 1);
+    }
+    if (input) input.value = '';
+    hideFeedMentionPopup();
+  } catch (e) {
+    toast(e?.serverMessage || 'Antwort konnte nicht gespeichert werden', 'error');
+  } finally {
+    updateCommentInSection(postId, commentId, (comment) => ({
+      ...comment,
+      _replySubmitting: false,
+    }));
+    renderFeedCommentArea(postId);
+  }
+}
+
+function startFeedCommentEdit(postId, commentId) {
+  closeFeedCommentMenu();
+  updateCommentInSection(postId, commentId, (comment) => {
+    if (!canEditFeedComment(comment)) return comment;
+    return {
+      ...comment,
+      _editing: true,
+      _replyOpen: false,
+    };
+  });
+  renderFeedCommentArea(postId);
+}
+
+function cancelFeedCommentEdit(postId, commentId) {
+  updateCommentInSection(postId, commentId, (comment) => ({
+    ...comment,
+    _editing: false,
+    _editSubmitting: false,
+  }));
+  renderFeedCommentArea(postId);
+}
+
+async function saveFeedCommentEdit(postId, commentId) {
+  const input = document.getElementById(`feed-edit-input-${commentId}`);
+  const content = String(input?.value || '').trim();
+  if (!content) {
+    toast('Kommentar darf nicht leer sein', 'error');
+    return;
+  }
+
+  updateCommentInSection(postId, commentId, (comment) => ({
+    ...comment,
+    _editSubmitting: true,
+  }));
+  renderFeedCommentArea(postId);
+
+  try {
+    const data = await apiCall(`/group-feed/comments/${encodeURIComponent(commentId)}`, 'PATCH', {
+      content,
+    });
+    const updated = data?.comment || null;
+    if (updated) {
+      updateCommentInSection(postId, commentId, (comment) =>
+        mergeFeedCommentServerData(comment, updated)
+      );
+    } else {
+      updateCommentInSection(postId, commentId, (comment) => ({
+        ...comment,
+        content,
+        _editing: false,
+        _editSubmitting: false,
+      }));
+    }
+    hideFeedMentionPopup();
+  } catch (e) {
+    updateCommentInSection(postId, commentId, (comment) => ({
+      ...comment,
+      _editSubmitting: false,
+    }));
+    toast(e?.serverMessage || 'Kommentar konnte nicht gespeichert werden', 'error');
+  } finally {
+    renderFeedCommentArea(postId);
+  }
+}
+
+async function deleteFeedComment(postId, commentId) {
+  closeFeedCommentMenu();
+  const confirmed = await showConfirmDlg(
+    'Kommentar löschen',
+    'Möchtest du diesen Kommentar wirklich löschen?',
+    'Löschen',
+    'Abbrechen',
+    true
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiCall(`/group-feed/comments/${encodeURIComponent(commentId)}`, 'DELETE');
+    updateCommentInSection(postId, commentId, (comment) => ({
+      ...comment,
+      content: null,
+      deleted: true,
+      deletedAt: new Date().toISOString(),
+      _editing: false,
+      _replyOpen: false,
+    }));
+    hideFeedMentionPopup();
+    renderFeedCommentArea(postId);
+  } catch (e) {
+    toast(e?.serverMessage || 'Kommentar konnte nicht gelöscht werden', 'error');
+  }
+}
+
+async function openFeedCommentHistory(postId, commentId) {
+  closeFeedCommentMenu();
+  const comment = findFeedCommentInSection(postId, commentId);
+  if (!comment || comment.deleted || (Number(comment.historyCount) || 0) <= 0) {
+    return;
+  }
+  document.getElementById('confirm-dlg')?.remove();
+  const dlg = document.createElement('div');
+  dlg.id = 'confirm-dlg';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg" style="max-width:620px;width:calc(100% - 28px);text-align:left;padding:28px 28px 24px">
+      <div class="dlg-ico">🕘</div>
+      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">Kommentar-Historie</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Frühere Versionen dieses Kommentars</p>
+      <div id="feed-comment-history-list" style="display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow:auto;padding-right:4px">
+        <div style="display:flex;justify-content:center;padding:20px"><div class="spinner"></div></div>
+      </div>
+      <div class="dlg-btns" style="justify-content:flex-end;margin-top:18px">
+        <button id="feed-comment-history-close" class="btn btn-primary">Schließen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const close = () => dlg.remove();
+  dlg.querySelector('#feed-comment-history-close').onclick = close;
+  dlg.onclick = (event) => {
+    if (event.target === dlg) close();
+  };
+
+  try {
+    const response = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/history`,
+      'GET'
+    );
+    const history = response?.history || [];
+    const list = dlg.querySelector('#feed-comment-history-list');
+    if (!list) return;
+    if (!history.length) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Keine Historie vorhanden</strong><p>Für diesen Kommentar wurde noch keine frühere Version gespeichert.</p></div>';
+      return;
+    }
+    list.innerHTML = history
+      .map((entry) => {
+        const editorName =
+          getVisibleName(entry.editedBy, entry?.editedBy?.displayNameField) ||
+          entry?.editedBy?.name ||
+          entry?.editedBy?.username ||
+          'Unbekannt';
+        return `<div class="feed-history-entry">
+          <div class="feed-history-entry-head">
+            <strong>${esc(formatFeedDate(entry.createdAt))}</strong>
+            <span>${esc(editorName)}</span>
+          </div>
+          <p>${esc(entry.previousContent || '').replace(/\n/g, '<br>')}</p>
+        </div>`;
+      })
+      .join('');
+  } catch {
+    const list = dlg.querySelector('#feed-comment-history-list');
+    if (list) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Fehler</strong><p>Historie konnte nicht geladen werden.</p></div>';
+    }
+  } finally {
+    renderFeedCommentArea(postId);
+    focusFeedCommentInput(postId);
+  }
+}
+
+async function openFeedCommentLikers(postId, commentId) {
+  closeFeedCommentMenu();
+  const comment = findFeedCommentInSection(postId, commentId);
+  const likesCount = Number(comment?.likesCount) || 0;
+  if (!comment || likesCount <= 0) return;
+
+  document.getElementById('confirm-dlg')?.remove();
+  const dlg = document.createElement('div');
+  dlg.id = 'confirm-dlg';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg" style="max-width:560px;width:calc(100% - 28px);text-align:left;padding:28px 28px 24px">
+      <div class="dlg-ico">❤️</div>
+      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">Likes auf Kommentar</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Wer hat diesen Kommentar geliked?</p>
+      <div id="feed-comment-likers-list" style="display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;padding-right:4px">
+        <div style="display:flex;justify-content:center;padding:20px"><div class="spinner"></div></div>
+      </div>
+      <div class="dlg-btns" style="justify-content:flex-end;margin-top:18px">
+        <button id="feed-comment-likers-close" class="btn btn-primary">Schließen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const close = () => dlg.remove();
+  dlg.querySelector('#feed-comment-likers-close').onclick = close;
+  dlg.onclick = (event) => {
+    if (event.target === dlg) close();
+  };
+
+  try {
+    const response = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/likes`,
+      'GET'
+    );
+    const likes = Array.isArray(response?.likes) ? response.likes : [];
+    const list = dlg.querySelector('#feed-comment-likers-list');
+    if (!list) return;
+
+    if (!likes.length) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Noch keine Likes</strong><p>Für diesen Kommentar wurden bisher keine Likes vergeben.</p></div>';
+      return;
+    }
+
+    list.innerHTML = likes
+      .map((entry) => {
+        const user = entry?.user || {};
+        const name =
+          getVisibleName(user, user?.displayNameField) ||
+          user?.name ||
+          user?.username ||
+          'Unbekannt';
+        return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--card)">
+          <span style="flex-shrink:0">${avatarHtml(user, 28)}</span>
+          <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+            <strong style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</strong>
+            <span style="font-size:11px;color:var(--muted)">${esc(formatFeedDate(entry?.createdAt))}</span>
+          </div>
+        </div>`;
+      })
+      .join('');
+  } catch (e) {
+    const list = dlg.querySelector('#feed-comment-likers-list');
+    if (list) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Fehler</strong><p>Likes konnten nicht geladen werden.</p></div>';
+    }
+  }
+}
+
+async function toggleFeedReplies(postId, commentId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return;
+  const comment = section.items.find((entry) => entry.id === commentId);
+  if (!comment) return;
+
+  if (comment._repliesLoaded) {
+    updateCommentInSection(postId, commentId, (entry) => ({
+      ...entry,
+      _repliesOpen: !entry._repliesOpen,
+    }));
+    renderFeedCommentArea(postId);
+    return;
+  }
+
+  updateCommentInSection(postId, commentId, (entry) => ({
+    ...entry,
+    _repliesLoading: true,
+    _repliesError: '',
+  }));
+  renderFeedCommentArea(postId);
+
+  try {
+    const params = new URLSearchParams({ limit: '15' });
+    const data = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/replies?${params.toString()}`
+    );
+    const replies = Array.isArray(data?.replies) ? data.replies.map(enrichFeedComment) : [];
+    updateCommentInSection(postId, commentId, (entry) => ({
+      ...entry,
+      _repliesLoading: false,
+      _repliesLoaded: true,
+      _repliesOpen: true,
+      _replies: replies,
+      _repliesNextCursor: data?.paging?.nextCursor || null,
+      _repliesHasMore: !!data?.paging?.hasMore,
+    }));
+  } catch (e) {
+    updateCommentInSection(postId, commentId, (entry) => ({
+      ...entry,
+      _repliesLoading: false,
+      _repliesError: e?.serverMessage || 'Antworten konnten nicht geladen werden',
+    }));
+  } finally {
+    renderFeedCommentArea(postId);
+  }
+}
+
+async function loadOlderFeedReplies(postId, commentId) {
+  const section = ensureFeedCommentState(postId);
+  if (!section) return;
+  const comment = section.items.find((entry) => entry.id === commentId);
+  if (!comment?._repliesHasMore || !comment?._repliesNextCursor || comment?._repliesLoadingMore) {
+    return;
+  }
+
+  updateCommentInSection(postId, commentId, (entry) => ({ ...entry, _repliesLoadingMore: true }));
+  renderFeedCommentArea(postId);
+
+  try {
+    const params = new URLSearchParams({ limit: '15', cursor: comment._repliesNextCursor });
+    const data = await apiCall(
+      `/group-feed/comments/${encodeURIComponent(commentId)}/replies?${params.toString()}`
+    );
+    const replies = Array.isArray(data?.replies) ? data.replies.map(enrichFeedComment) : [];
+    updateCommentInSection(postId, commentId, (entry) => ({
+      ...entry,
+      _repliesLoadingMore: false,
+      _replies: [...(Array.isArray(entry._replies) ? entry._replies : []), ...replies],
+      _repliesNextCursor: data?.paging?.nextCursor || null,
+      _repliesHasMore: !!data?.paging?.hasMore,
+    }));
+  } catch (e) {
+    updateCommentInSection(postId, commentId, (entry) => ({
+      ...entry,
+      _repliesLoadingMore: false,
+      _repliesError: e?.serverMessage || 'Weitere Antworten konnten nicht geladen werden',
+    }));
+  } finally {
+    renderFeedCommentArea(postId);
+  }
+}
+
+async function toggleFeedCommentLike(postId, commentId, likedByMe) {
+  const endpoint = `/group-feed/comments/${encodeURIComponent(commentId)}/like`;
+  try {
+    const result = likedByMe ? await apiCall(endpoint, 'DELETE') : await apiCall(endpoint, 'POST');
+    updateCommentInSection(postId, commentId, (comment) => ({
+      ...comment,
+      likedByMe: !likedByMe,
+      likesCount: Number(result?.likesCount) || 0,
+    }));
+    renderFeedCommentArea(postId);
+  } catch (e) {
+    toast(e?.serverMessage || 'Like konnte nicht aktualisiert werden', 'error');
+  }
+}
+
+function renderFeedReplies(postId, comment) {
+  if (!comment?._repliesOpen) return '';
+  const rows = Array.isArray(comment._replies) ? comment._replies : [];
+  const list = rows
+    .map((reply) => {
+      const showReplyHistory = !reply.deleted && (Number(reply.historyCount) || 0) > 0;
+      const replyEditedHint =
+        !reply.deleted && ((Number(reply.historyCount) || 0) > 0 || reply.edited);
+      const menuItems = [
+        canEditFeedComment(reply)
+          ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();${reply._editing ? `cancelFeedCommentEdit('${postId}','${reply.id}')` : `startFeedCommentEdit('${postId}','${reply.id}')`}">${ICON_ALBUM_MANAGE}<span>${reply._editing ? 'Bearbeitung abbrechen' : 'Bearbeiten'}</span></button>`
+          : '',
+        showReplyHistory
+          ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();openFeedCommentHistory('${postId}','${reply.id}')">${ICON_HISTORY}<span>Historie</span></button>`
+          : '',
+        Number(reply.likesCount) > 0
+          ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();openFeedCommentLikers('${postId}','${reply.id}')">❤️<span>Likes anzeigen (${Number(reply.likesCount) || 0})</span></button>`
+          : '',
+        canDeleteFeedComment(reply)
+          ? `<button class="feed-post-menu-item danger" onclick="closeFeedCommentMenu();deleteFeedComment('${postId}','${reply.id}')">${ICON_TRASH}<span>Löschen</span></button>`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('');
+      return `
+      <div style="border-left:2px solid var(--border);padding:8px 0 8px 10px;margin:0 0 8px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+            <span style="flex-shrink:0">${avatarHtml(reply.user || {}, 22)}</span>
+            <div style="font-size:12px;color:var(--muted);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(feedCommentAuthorName(reply))} · ${esc(formatFeedDate(reply.createdAt))}${replyEditedHint ? ' · bearbeitet' : ''}</div>
+          </div>
+          <div class="feed-post-menu-anchor" data-feed-comment-menu-root="${reply.id}">
+            <button class="feed-post-menu-toggle" onclick="toggleFeedCommentMenu('${reply.id}')" title="Kommentaraktionen">${ICON_MORE}</button>
+            <div class="feed-post-menu" style="display:${activeFeedCommentMenuId === reply.id ? 'block' : 'none'}">${menuItems}</div>
+          </div>
+        </div>
+        <div style="margin-top:3px;font-size:13px;line-height:1.45;color:var(--text2)">${
+          reply._editing
+            ? `<textarea id="feed-edit-input-${reply.id}" data-feed-mention-input="true" rows="2" maxlength="1200" style="resize:none;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:7px 9px;background:var(--card);color:var(--text);font:inherit">${esc(reply.content || '')}</textarea>`
+            : feedCommentBodyHtml(reply)
+        }</div>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${reply._editing ? '' : `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="toggleFeedCommentLike('${postId}','${reply.id}',${reply.likedByMe ? 'true' : 'false'})">${reply.likedByMe ? '❤️' : '🤍'} ${Number(reply.likesCount) || 0}</button>`}
+          ${reply._editing ? `<button class="btn btn-primary" style="font-size:11px;padding:3px 8px" onclick="saveFeedCommentEdit('${postId}','${reply.id}')" ${reply._editSubmitting ? 'disabled' : ''}>${reply._editSubmitting ? '…' : 'Speichern'}</button>` : ''}
+          ${reply._editing ? `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="cancelFeedCommentEdit('${postId}','${reply.id}')">Abbrechen</button>` : ''}
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  const moreBtn = comment._repliesHasMore
+    ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 9px" onclick="loadOlderFeedReplies('${postId}','${comment.id}')" ${comment._repliesLoadingMore ? 'disabled' : ''}>${comment._repliesLoadingMore ? 'Lädt…' : 'Ältere Antworten laden'}</button>`
+    : '';
+
+  return `<div style="margin-top:8px">${list || '<div style="font-size:12px;color:var(--muted)">Noch keine Antworten.</div>'}${moreBtn}</div>`;
+}
+
+function renderFeedCommentSection(postId, section) {
+  const comments = Array.isArray(section?.items) ? section.items : [];
+  const list = comments
+    .map((comment) => {
+      const replyInput = comment._replyOpen
+        ? `<div style="margin-top:8px;display:flex;gap:8px;align-items:flex-start">
+            <textarea id="feed-reply-input-${comment.id}" data-feed-mention-input="true" rows="2" maxlength="1200" placeholder="Antwort schreiben…" style="resize:none;flex:1;min-height:54px;border:1px solid var(--border);border-radius:8px;padding:7px 9px;background:var(--bg);color:var(--text);font:inherit"></textarea>
+            <button class="btn btn-primary" style="width:34px;height:34px;border-radius:999px;padding:0;display:inline-flex;align-items:center;justify-content:center" onclick="submitFeedReply('${postId}','${comment.id}')" title="Antwort senden" ${comment._replySubmitting ? 'disabled' : ''}>${comment._replySubmitting ? '…' : ICON_SEND}</button>
+          </div>`
+        : '';
+      const repliesToggle = Number(comment.repliesCount) > 0 || comment._repliesLoaded;
+      const repliesToggleBtn = repliesToggle
+        ? `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="toggleFeedReplies('${postId}','${comment.id}')">${comment._repliesOpen ? 'Antworten ausblenden' : `Antworten (${Number(comment.repliesCount) || 0})`}</button>`
+        : '';
+      const repliesLoading = comment._repliesLoading
+        ? '<div style="margin-top:6px;font-size:12px;color:var(--muted)">Antworten werden geladen…</div>'
+        : '';
+      const repliesError = comment._repliesError
+        ? `<div style="margin-top:6px;font-size:12px;color:var(--danger)">${esc(comment._repliesError)}</div>`
+        : '';
+      const commentBody = comment._editing
+        ? `<textarea id="feed-edit-input-${comment.id}" data-feed-mention-input="true" rows="3" maxlength="1200" style="resize:none;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:7px 9px;background:var(--card);color:var(--text);font:inherit">${esc(comment.content || '')}</textarea>`
+        : feedCommentBodyHtml(comment);
+      const showCommentHistory = !comment.deleted && (Number(comment.historyCount) || 0) > 0;
+      const commentEditedHint =
+        !comment.deleted && ((Number(comment.historyCount) || 0) > 0 || comment.edited);
+      const menuItems = [
+        canEditFeedComment(comment)
+          ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();${comment._editing ? `cancelFeedCommentEdit('${postId}','${comment.id}')` : `startFeedCommentEdit('${postId}','${comment.id}')`}">${ICON_ALBUM_MANAGE}<span>${comment._editing ? 'Bearbeitung abbrechen' : 'Bearbeiten'}</span></button>`
+          : '',
+        showCommentHistory
+          ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();openFeedCommentHistory('${postId}','${comment.id}')">${ICON_HISTORY}<span>Historie</span></button>`
+          : '',
+        Number(comment.likesCount) > 0
+          ? `<button class="feed-post-menu-item" onclick="closeFeedCommentMenu();openFeedCommentLikers('${postId}','${comment.id}')">❤️<span>Likes anzeigen (${Number(comment.likesCount) || 0})</span></button>`
+          : '',
+        canDeleteFeedComment(comment)
+          ? `<button class="feed-post-menu-item danger" onclick="closeFeedCommentMenu();deleteFeedComment('${postId}','${comment.id}')">${ICON_TRASH}<span>Löschen</span></button>`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('');
+
+      return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:9px 10px;margin:0 0 8px;background:var(--bg)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+            <span style="flex-shrink:0">${avatarHtml(comment.user || {}, 24)}</span>
+            <div style="font-size:12px;color:var(--muted);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(feedCommentAuthorName(comment))} · ${esc(formatFeedDate(comment.createdAt))}${commentEditedHint ? ' · bearbeitet' : ''}</div>
+          </div>
+          <div class="feed-post-menu-anchor" data-feed-comment-menu-root="${comment.id}">
+            <button class="feed-post-menu-toggle" onclick="toggleFeedCommentMenu('${comment.id}')" title="Kommentaraktionen">${ICON_MORE}</button>
+            <div class="feed-post-menu" style="display:${activeFeedCommentMenuId === comment.id ? 'block' : 'none'}">${menuItems}</div>
+          </div>
+        </div>
+        <div style="margin-top:3px;font-size:13px;line-height:1.5;color:var(--text2)">${commentBody}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px">
+          ${comment._editing ? '' : `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="toggleFeedCommentLike('${postId}','${comment.id}',${comment.likedByMe ? 'true' : 'false'})">${comment.likedByMe ? '❤️' : '🤍'} ${Number(comment.likesCount) || 0}</button>`}
+          ${comment._editing ? `<button class="btn btn-primary" style="font-size:11px;padding:3px 8px" onclick="saveFeedCommentEdit('${postId}','${comment.id}')" ${comment._editSubmitting ? 'disabled' : ''}>${comment._editSubmitting ? '…' : 'Speichern'}</button>` : ''}
+          ${comment._editing ? `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="cancelFeedCommentEdit('${postId}','${comment.id}')">Abbrechen</button>` : ''}
+          ${comment.deleted || comment._editing ? '' : `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="toggleFeedReplyComposer('${postId}','${comment.id}')">${comment._replyOpen ? 'Abbrechen' : 'Antworten'}</button>`}
+          ${repliesToggleBtn}
+        </div>
+        ${replyInput}
+        ${repliesLoading}
+        ${repliesError}
+        ${renderFeedReplies(postId, comment)}
+      </div>`;
+    })
+    .join('');
+
+  return `
+    <section class="feed-comment-section" style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--card2);overflow:hidden;animation:${section._closing ? 'fadeOut .18s ease' : 'fadeIn .18s ease'}">
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">
+        <textarea id="feed-comment-input-${postId}" data-feed-mention-input="true" rows="2" maxlength="1200" placeholder="Kommentar schreiben…" style="resize:none;flex:1;min-height:60px;border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:var(--bg);color:var(--text);font:inherit"></textarea>
+        <button class="btn btn-primary" style="width:36px;height:36px;border-radius:999px;padding:0;display:inline-flex;align-items:center;justify-content:center" onclick="submitFeedComment('${postId}')" title="Kommentar senden" ${section.submitting ? 'disabled' : ''}>${section.submitting ? '…' : ICON_SEND}</button>
+      </div>
+      ${section.loading ? '<div style="font-size:12px;color:var(--muted);padding:6px 2px">Kommentare werden geladen…</div>' : ''}
+      ${section.error ? `<div style="font-size:12px;color:var(--danger);padding:6px 2px">${esc(section.error)}</div>` : ''}
+      ${!section.loading && !section.error ? list || '<div style="font-size:12px;color:var(--muted)">Noch keine Kommentare.</div>' : ''}
+      ${section.hasMore ? `<button class="btn btn-ghost" style="margin-top:6px;font-size:11px;padding:4px 9px" onclick="loadOlderFeedComments('${postId}')" ${section.loadingMore ? 'disabled' : ''}>${section.loadingMore ? 'Lädt…' : 'Ältere Kommentare laden'}</button>` : ''}
+    </section>`;
+}
+
+function renderFeedCommentArea(postId) {
+  const post = findFeedPostById(postId);
+  const section = ensureFeedCommentState(postId);
+  const host = document.getElementById(`feed-comments-wrap-${postId}`);
+  if (!post || !section || !host) {
+    renderFeedGrid();
+    return;
+  }
+
+  const commentCount = Math.max(
+    Number(post.commentsCount) || 0,
+    Array.isArray(section?.items) ? section.items.length : 0
+  );
+  const commentsToggle = `<button class="btn btn-ghost" style="font-size:11px;padding:4px 9px" onclick="toggleFeedComments('${post.id}')">${section?.open ? 'Kommentare schließen' : `Kommentare (${commentCount})`}</button>`;
+
+  host.innerHTML = `<div style="margin-top:2px">${commentsToggle}</div>${section?.open || section?._closing ? renderFeedCommentSection(post.id, section) : ''}`;
+  bindFeedCommentMenuOutsideClose();
+  bindFeedMentionInputs();
+  syncFeedMenuVisibilityInDom();
+}
+
 function renderFeedComposer(isMobileFeed) {
   const canPost = canPostToFeedInCurrentGroup();
   if (curFeedView === 'saved' || curFeedView === 'mentions') return '';
@@ -1939,6 +3049,7 @@ function renderFeedComposer(isMobileFeed) {
       />
       <textarea
         id="feed-post-body"
+        data-feed-mention-input="true"
         class="feed-compose-textarea"
         maxlength="3000"
         placeholder="Beitrag verfassen..."
@@ -2071,10 +3182,199 @@ async function openPhotoInFotosModule(photoId, uploaderId = null) {
   }
 }
 
+async function openAlbumFromFeed(albumId, photoId = null, groupIdHint = null) {
+  if (!albumId) return;
+
+  const hintedGroupId = groupIdHint || null;
+  if (hintedGroupId && hintedGroupId !== curGroupId) {
+    await switchGroup(hintedGroupId);
+  } else {
+    const album = allAlbums.find((entry) => entry.id === albumId);
+    if (album?.groupId && album.groupId !== curGroupId) {
+      await switchGroup(album.groupId);
+    }
+  }
+
+  await switchAlbum(albumId);
+
+  if (!photoId) return;
+  const idx = photos.findIndex((photo) => photo.id === photoId);
+  if (idx === -1) {
+    toast('Bild konnte nicht gefunden werden', 'error');
+    return;
+  }
+  openLB(idx);
+}
+window.openAlbumFromFeed = openAlbumFromFeed;
+
 async function openUploaderPhotosFromFeed(uploaderId) {
   if (!uploaderId) return;
   await switchToUser(uploaderId);
 }
+
+function openShareAlbumToFeedModal(albumId = curAlbum) {
+  if (!albumId) return;
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return;
+  }
+  if (!canShareAlbumToFeed(albumId)) {
+    toast('Du darfst dieses Album nicht teilen', 'error');
+    return;
+  }
+
+  const album = allAlbums.find((entry) => entry.id === albumId);
+  if (!album) {
+    toast('Album konnte nicht gefunden werden', 'error');
+    return;
+  }
+
+  const modal = $('share-album-feed-modal');
+  if (!modal) return;
+  const albumIdInput = $('share-album-feed-album-id');
+  const titleInput = $('share-album-feed-title');
+  const bodyInput = $('share-album-feed-body');
+
+  if (albumIdInput) albumIdInput.value = albumId;
+  if (titleInput) titleInput.value = `Album: ${album.name}`;
+  if (bodyInput) bodyInput.value = '';
+  bindFeedMentionInputs();
+
+  show('share-album-feed-modal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+  modal.style.zIndex = '4000';
+  setTimeout(() => titleInput?.focus(), 50);
+}
+
+function closeShareAlbumToFeedModal() {
+  const modal = $('share-album-feed-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.style.zIndex = '';
+  }
+  hide('share-album-feed-modal');
+  const btn = $('share-album-feed-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Teilen';
+  }
+}
+
+async function submitAlbumShareToFeed() {
+  const albumId = String($('share-album-feed-album-id')?.value || '').trim();
+  if (!albumId) return;
+
+  const title = String($('share-album-feed-title')?.value || '').trim();
+  const body = String($('share-album-feed-body')?.value || '').trim();
+  const btn = $('share-album-feed-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird geteilt...';
+  }
+
+  const ok = await shareAlbumToFeed(albumId, { title, body });
+  if (ok) {
+    closeShareAlbumToFeedModal();
+    return;
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Teilen';
+  }
+}
+
+async function shareAlbumToFeed(albumId, options = {}) {
+  if (!albumId) return;
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return false;
+  }
+  if (!canShareAlbumToFeed(albumId)) {
+    toast('Du darfst dieses Album nicht teilen', 'error');
+    return false;
+  }
+
+  const btn = document.getElementById('album-share-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `${ICON_LINK}`;
+  }
+
+  try {
+    const album = allAlbums.find((entry) => entry.id === albumId);
+    if (!album) {
+      toast('Album konnte nicht gefunden werden', 'error');
+      return false;
+    }
+
+    const params = new URLSearchParams({
+      groupId: curGroupId,
+      albumId,
+      skip: '0',
+      limit: '6',
+      order: 'desc',
+    });
+    const res = await apiCall(`/photos?${params.toString()}`, 'GET');
+    const albumPhotos = (res.photos || []).map((photo) => ({
+      id: photo.id,
+      mediaType: photo.mediaType || 'image',
+      videoDuration:
+        Number.isFinite(photo.videoDuration) || photo.videoDuration === 0
+          ? photo.videoDuration
+          : null,
+      exists: true,
+    }));
+    if (!albumPhotos.length) {
+      toast('Das Album enthält keine Fotos', 'error');
+      return false;
+    }
+
+    const totalPhotos = Number.isFinite(res.total) ? res.total : albumPhotos.length;
+    const coverPhotoId = albumPhotos[0]?.id || null;
+    const customTitle = String(options?.title || '').trim();
+    const customBody = String(options?.body || '').trim();
+    const title = customTitle || `Album: ${album.name}`;
+    const body =
+      customBody ||
+      `Schau dir mein Album „${album.name}“ an${totalPhotos ? ` mit ${totalPhotos} Fotos` : ''}`;
+
+    await apiCall('/group-feed', 'POST', {
+      groupId: curGroupId,
+      contentType: 'album_share',
+      title,
+      body,
+      entityType: 'album',
+      entityId: albumId,
+      imageUrl: coverPhotoId ? `/api/photos/${coverPhotoId}/file` : null,
+      metadata: {
+        groupId: curGroupId,
+        groupName: myGroups.find((g) => g.id === curGroupId)?.name || null,
+        albumId,
+        albumName: album.name,
+        albumPhotos,
+        totalPhotos,
+        albumCoverPhotoId: coverPhotoId,
+      },
+    });
+
+    if (curModule === 'feed') await loadFeedPosts(true);
+    toast('Album im Feed geteilt', 'success');
+    return true;
+  } catch (e) {
+    toast(e.serverMessage || 'Album konnte nicht im Feed geteilt werden', 'error');
+    return false;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `${ICON_LINK} Teilen`;
+    }
+  }
+}
+window.shareAlbumToFeed = shareAlbumToFeed;
+window.openShareAlbumToFeedModal = openShareAlbumToFeedModal;
+window.closeShareAlbumToFeedModal = closeShareAlbumToFeedModal;
+window.submitAlbumShareToFeed = submitAlbumShareToFeed;
 
 function renderFeedGrid() {
   const grid = $('grid');
@@ -2092,6 +3392,7 @@ function renderFeedGrid() {
   const composerHtml = renderFeedComposer(isMobileFeed);
   const displayedPosts =
     activeSingleFeedPost && curFeedView === 'all' ? [activeSingleFeedPost] : feedPosts;
+  pruneFeedCommentState(displayedPosts);
 
   if (!displayedPosts.length) {
     grid.innerHTML = composerHtml;
@@ -2142,6 +3443,13 @@ function renderFeedGrid() {
           uploadedItems.find((item) => item.id === post.entityId)?.videoDuration ??
           post?.metadata?.primaryVideoDuration ??
           null;
+        const albumPhotos = Array.isArray(post?.metadata?.albumPhotos)
+          ? post.metadata.albumPhotos
+          : [];
+        const albumShareAlbumId = post?.metadata?.albumId || post.entityId || '';
+        const albumShareAlbumName = post?.metadata?.albumName || post.title || 'Album';
+        const albumShareTotal = Number(post?.metadata?.totalPhotos) || albumPhotos.length;
+        const albumShareGroupId = post?.metadata?.groupId || post.groupId || null;
         const videoOverlay = (seconds) => {
           const showDuration = Number.isFinite(Number(seconds));
           const playSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.45)"/><polygon points="9.5,7 19,12 9.5,17" fill="white"/></svg>`;
@@ -2166,7 +3474,12 @@ function renderFeedGrid() {
               : `<img src="${esc(tileSrc)}" alt="Feed-Medium ${idx + 1}" loading="lazy" style="width:100%;height:100%;object-fit:cover">`;
           const ratio = options.fillHeight ? '' : 'aspect-ratio:1/1;';
           const overlay = tileMediaType === 'video' ? videoOverlay(item?.videoDuration) : '';
-          return `<button onclick="openPhotoInFotosModule('${item.id}','${postUploaderId || ''}')" title="${tileMediaType === 'video' ? 'Video' : 'Bild'} in Fotos öffnen" style="position:relative;border:1px solid var(--border);border-radius:${tileRadius}px;overflow:hidden;background:var(--bg);padding:0;cursor:pointer;width:100%;height:100%;${ratio}">${media}${overlay}</button>`;
+          const tileHandler =
+            options.onClick ||
+            `openPhotoInFotosModule(${JSON.stringify(item.id)}, ${JSON.stringify(postUploaderId || null)})`;
+          const tileTitle =
+            options.title || `${tileMediaType === 'video' ? 'Video' : 'Bild'} in Fotos öffnen`;
+          return `<button onclick="${esc(tileHandler)}" title="${esc(tileTitle)}" style="position:relative;border:1px solid var(--border);border-radius:${tileRadius}px;overflow:hidden;background:var(--bg);padding:0;cursor:pointer;width:100%;height:100%;${ratio}">${media}${overlay}</button>`;
         };
         const mediaPreview = (() => {
           if (post.contentType === 'upload_summary' && uploadedItems.length > 1) {
@@ -2200,6 +3513,44 @@ function renderFeedGrid() {
             const cols = isMobileFeed ? 2 : 3;
             return `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
           }
+          if (post.contentType === 'album_share' && albumPhotos.length) {
+            const hasOverflow = albumShareTotal > 6;
+            const visibleItems = hasOverflow ? albumPhotos.slice(0, 5) : albumPhotos.slice(0, 6);
+            const tiles = visibleItems.map((item, idx) =>
+              renderTile(item, idx, {
+                onClick: `openAlbumFromFeed(${JSON.stringify(albumShareAlbumId)}, ${JSON.stringify(item.id)}, ${JSON.stringify(albumShareGroupId)})`,
+                title: `${albumShareAlbumName} öffnen`,
+              })
+            );
+            if (hasOverflow) {
+              const moreCount = Math.max(0, albumShareTotal - 5);
+              const openAlbumHandler = `openAlbumFromFeed(${JSON.stringify(albumShareAlbumId)}, null, ${JSON.stringify(albumShareGroupId)})`;
+              tiles.push(
+                `<button onclick="${esc(openAlbumHandler)}" title="Album öffnen" style="border:1px dashed var(--border2);border-radius:${tileRadius}px;background:var(--bg);padding:0;cursor:pointer;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:${isMobileFeed ? 12 : 13}px;font-weight:700">+${moreCount}</button>`
+              );
+            }
+            const count = tiles.length;
+            if (count === 1) {
+              return `<div style="display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            if (count === 2) {
+              return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            if (count === 3) {
+              return `<div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:${tileGap}px;margin:0 0 10px;min-height:${isMobileFeed ? 168 : 220}px">
+              <div>${tiles[0]}</div>
+              <div style="display:grid;grid-template-rows:repeat(2,minmax(0,1fr));gap:${tileGap}px">
+                ${tiles[1]}
+                ${tiles[2]}
+              </div>
+            </div>`;
+            }
+            if (count === 4) {
+              return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+            }
+            const cols = isMobileFeed ? 2 : 3;
+            return `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${tileGap}px;margin:0 0 10px">${tiles.join('')}</div>`;
+          }
           if (post.imageUrl && post.entityType === 'photo' && post.entityId) {
             if (entityMissing) {
               return `<div title="Medium wurde gelöscht" style="width:100%;border:1px dashed var(--border2);border-radius:${tileRadius}px;margin:0 0 10px;min-height:140px;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--muted);font-size:12px;font-weight:700">${isVideoPreview ? 'Video gelöscht' : 'Bild gelöscht'}</div>`;
@@ -2218,15 +3569,25 @@ function renderFeedGrid() {
           return '';
         })();
         const openEntityBtn =
-          post.entityType !== 'photo' && entityHref
+          post.entityType !== 'photo' && post.entityType !== 'album' && entityHref
             ? `<a href="${esc(entityHref)}" target="_blank" rel="noopener" style="font-size:${isMobileFeed ? 11 : 12}px;color:var(--accent);text-decoration:none;font-weight:600">Inhalt öffnen</a>`
             : '';
+        const commentSection = ensureFeedCommentState(post.id);
+        const commentCount = Math.max(
+          Number(post.commentsCount) || 0,
+          Array.isArray(commentSection?.items) ? commentSection.items.length : 0
+        );
+        const commentsToggle = `<button class="btn btn-ghost" style="font-size:11px;padding:4px 9px" onclick="toggleFeedComments('${post.id}')">${commentSection?.open ? 'Kommentare schließen' : `Kommentare (${commentCount})`}</button>`;
+        const likeBtn = `<button class="btn btn-ghost" style="font-size:11px;padding:4px 9px" onclick="toggleFeedPostLike('${post.id}',${post.likedByMe ? 'true' : 'false'})">${post.likedByMe ? '❤️' : '🤍'} ${Number(post.likesCount) || 0}</button>`;
         const editedHint = post.isEdited
           ? ` · <button class="feed-post-edited-btn" onclick="openFeedPostHistory('${post.id}')" title="Bearbeitungshistorie anzeigen">bearbeitet</button>`
           : '';
         const menuItems = [
           `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();copyFeedPostLink('${post.id}')">${ICON_LINK}<span>Teilen</span></button>`,
           `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();toggleFeedSaved('${post.id}')">★<span>${saved ? 'Gespeichert' : 'Speichern'}</span></button>`,
+          Number(post.likesCount) > 0
+            ? `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();openFeedPostLikers('${post.id}')">❤️<span>Likes anzeigen (${Number(post.likesCount) || 0})</span></button>`
+            : '',
           post.isEdited
             ? `<button class="feed-post-menu-item" onclick="closeFeedPostMenu();openFeedPostHistory('${post.id}')">${ICON_HISTORY}<span>Historie</span></button>`
             : '',
@@ -2250,17 +3611,24 @@ function renderFeedGrid() {
           <div class="feed-post-menu-anchor" data-feed-menu-root="${post.id}">
             ${saved ? `<span class="feed-post-saved-indicator" title="Gespeichert">★</span>` : ''}
             <button class="feed-post-menu-toggle" onclick="toggleFeedPostMenu('${post.id}')" title="Beitragsaktionen">${ICON_MORE}</button>
-            ${isMenuOpen ? `<div class="feed-post-menu">${menuItems}</div>` : ''}
+            <div class="feed-post-menu" style="display:${isMenuOpen ? 'block' : 'none'}">${menuItems}</div>
           </div>
         </div>
         ${title}
         ${body}
+        ${openEntityBtn ? `<div style="margin:0 0 10px">${openEntityBtn}</div>` : ''}
         ${mediaPreview}
+        <div id="feed-comments-wrap-${post.id}">
+          <div style="margin-top:2px;display:flex;gap:6px;flex-wrap:wrap">${likeBtn}${commentsToggle}</div>
+          ${commentSection?.open || commentSection?._closing ? renderFeedCommentSection(post.id, commentSection) : ''}
+        </div>
       </article>`;
       })
       .join('');
   bindFeedComposerInteractions();
   bindFeedPostMenuOutsideClose();
+  bindFeedCommentMenuOutsideClose();
+  bindFeedMentionInputs();
 }
 
 async function toggleFeedSaved(postId) {
@@ -2285,6 +3653,91 @@ async function toggleFeedSaved(postId) {
     renderFeedGrid();
   } catch (e) {
     toast(e.serverMessage || 'Speicherstatus konnte nicht geändert werden', 'error');
+  }
+}
+
+async function toggleFeedPostLike(postId, likedByMe) {
+  const endpoint = `/group-feed/${encodeURIComponent(postId)}/like`;
+  try {
+    const result = likedByMe ? await apiCall(endpoint, 'DELETE') : await apiCall(endpoint, 'POST');
+    const post = findFeedPostById(postId);
+    if (!post) return;
+    replaceFeedPostInState({
+      ...post,
+      likedByMe: !likedByMe,
+      likesCount: Number(result?.likesCount) || 0,
+    });
+    renderFeedGrid();
+  } catch (e) {
+    toast(e?.serverMessage || 'Like konnte nicht aktualisiert werden', 'error');
+  }
+}
+
+async function openFeedPostLikers(postId) {
+  closeFeedPostMenu();
+  const post = findFeedPostById(postId);
+  const likesCount = Number(post?.likesCount) || 0;
+  if (!post || likesCount <= 0) return;
+
+  document.getElementById('confirm-dlg')?.remove();
+  const dlg = document.createElement('div');
+  dlg.id = 'confirm-dlg';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg" style="max-width:560px;width:calc(100% - 28px);text-align:left;padding:28px 28px 24px">
+      <div class="dlg-ico">❤️</div>
+      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">Likes auf Beitrag</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Wer hat diesen Feed-Post geliked?</p>
+      <div id="feed-post-likers-list" style="display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;padding-right:4px">
+        <div style="display:flex;justify-content:center;padding:20px"><div class="spinner"></div></div>
+      </div>
+      <div class="dlg-btns" style="justify-content:flex-end;margin-top:18px">
+        <button id="feed-post-likers-close" class="btn btn-primary">Schließen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const close = () => dlg.remove();
+  dlg.querySelector('#feed-post-likers-close').onclick = close;
+  dlg.onclick = (event) => {
+    if (event.target === dlg) close();
+  };
+
+  try {
+    const response = await apiCall(`/group-feed/${encodeURIComponent(postId)}/likes`, 'GET');
+    const likes = Array.isArray(response?.likes) ? response.likes : [];
+    const list = dlg.querySelector('#feed-post-likers-list');
+    if (!list) return;
+
+    if (!likes.length) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Noch keine Likes</strong><p>Für diesen Beitrag wurden bisher keine Likes vergeben.</p></div>';
+      return;
+    }
+
+    list.innerHTML = likes
+      .map((entry) => {
+        const user = entry?.user || {};
+        const name =
+          getVisibleName(user, user?.displayNameField) ||
+          user?.name ||
+          user?.username ||
+          'Unbekannt';
+        return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--card)">
+          <span style="flex-shrink:0">${avatarHtml(user, 28)}</span>
+          <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+            <strong style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</strong>
+            <span style="font-size:11px;color:var(--muted)">${esc(formatFeedDate(entry?.createdAt))}</span>
+          </div>
+        </div>`;
+      })
+      .join('');
+  } catch {
+    const list = dlg.querySelector('#feed-post-likers-list');
+    if (list) {
+      list.innerHTML =
+        '<div class="feed-history-entry"><strong>Fehler</strong><p>Likes konnten nicht geladen werden.</p></div>';
+    }
   }
 }
 
@@ -2766,6 +4219,7 @@ function openModal() {
     shareChk.onchange = syncUploadShareFeedUi;
   }
   syncUploadShareFeedUi();
+  bindFeedMentionInputs();
   _stagedFiles = [];
   _renderStagedPreviews();
   show('up-modal');
@@ -3935,7 +5389,7 @@ async function uploadOne(file, folder = SHARED, desc = null, albumId = null) {
     id: photo?.id,
     mediaType: photo?.mediaType || (isVideo ? 'video' : 'image'),
     videoDuration:
-      Number.isFinite(photo?.videoDuration) || photo?.videoDuration === 0
+      photo?.videoDuration !== undefined && photo?.videoDuration !== null
         ? photo.videoDuration
         : Number.isFinite(file?._videoDurationSeconds)
           ? file._videoDurationSeconds
@@ -3969,26 +5423,33 @@ async function openLB(i) {
   const url = urlCache[p.id] || p.url || '';
   const lbImg = $('lb-img');
   let lbVideo = $('lb-video');
+  const mediaUrl = url ? photoSrc(url) : '';
   if (p.mediaType === 'video') {
     lbVideo = resetLbVideoElement() || lbVideo;
     lbImg.style.display = 'none';
-    lbImg.src = '';
+    lbImg.removeAttribute('src');
     lbVideo.currentTime = 0;
     lbVideo.autoplay = false;
     lbVideo.onended = null;
-    lbVideo.src = photoSrc(url);
-    lbVideo.load();
-    lbVideo.pause();
-    lbVideo.style.display = 'block';
+    if (mediaUrl) {
+      lbVideo.src = mediaUrl;
+      lbVideo.load();
+      lbVideo.pause();
+      lbVideo.style.display = 'block';
+    } else {
+      lbVideo.removeAttribute('src');
+      lbVideo.style.display = 'none';
+    }
   } else {
     if (lbVideo) {
       lbVideo.pause();
-      lbVideo.src = '';
+      lbVideo.removeAttribute('src');
       lbVideo.load();
       lbVideo.style.display = 'none';
     }
     lbImg.style.display = '';
-    lbImg.src = photoSrc(url);
+    if (mediaUrl) lbImg.src = mediaUrl;
+    else lbImg.removeAttribute('src');
   }
   $('lb-av').innerHTML = avatarHtml(u, 32);
   $('lb-av').style.background = u.avatar ? 'transparent' : u.color || '#888';
@@ -4030,6 +5491,17 @@ async function openLB(i) {
   if (dn) dn.innerHTML = ICON_DOWNLOAD;
   const ab = $('lb-album-btn');
   if (ab) ab.innerHTML = ICON_ALBUM;
+  const shareBtn = $('lb-share-btn');
+  if (shareBtn) {
+    shareBtn.innerHTML = ICON_LINK;
+    shareBtn.classList.toggle('hidden', !canPostToFeedInCurrentGroup() || p.uploaderId !== me.id);
+    shareBtn.type = 'button';
+    shareBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openSharePhotoToFeedModal();
+    };
+  }
   updateFullviewBtn();
   updateLbAlbumTag(p);
   // Copy Image ID (Admin only)
@@ -4051,6 +5523,105 @@ async function openLB(i) {
   }
   await loadLBMeta(p.id);
 }
+
+function openSharePhotoToFeedModal() {
+  const p = photos[lbIdx];
+  if (!p) return;
+  if (p.uploaderId !== me.id) {
+    toast('Du kannst nur deine eigenen Bilder teilen', 'error');
+    return;
+  }
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return;
+  }
+
+  const modal = $('share-photo-feed-modal');
+  if (!modal) return;
+  const titleInput = $('share-photo-feed-title');
+  const bodyInput = $('share-photo-feed-body');
+  if (titleInput) {
+    titleInput.value = p.description?.trim() ? `Foto: ${p.description.trim().slice(0, 80)}` : '';
+  }
+  if (bodyInput) bodyInput.value = '';
+  bindFeedMentionInputs();
+  show('share-photo-feed-modal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+  modal.style.zIndex = '4000';
+  setTimeout(() => titleInput?.focus(), 50);
+}
+
+function closeSharePhotoToFeedModal() {
+  const modal = $('share-photo-feed-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.style.zIndex = '';
+  }
+  hide('share-photo-feed-modal');
+  const btn = $('share-photo-feed-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Teilen';
+  }
+}
+
+async function submitPhotoShareToFeed() {
+  const p = photos[lbIdx];
+  if (!p) return;
+  if (!canPostToFeedInCurrentGroup()) {
+    toast('In dieser Gruppe ist Feed-Posten für Mitglieder gesperrt', 'error');
+    return;
+  }
+
+  const titleInput = $('share-photo-feed-title');
+  const bodyInput = $('share-photo-feed-body');
+  const btn = $('share-photo-feed-btn');
+  const title = String(titleInput?.value || '').trim();
+  const body = String(bodyInput?.value || '').trim() || 'Schau dir dieses Bild an';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird geteilt...';
+  }
+
+  try {
+    await apiCall('/group-feed', 'POST', {
+      groupId: curGroupId,
+      contentType: 'photo_share',
+      title: title || null,
+      body,
+      entityType: 'photo',
+      entityId: p.id,
+      imageUrl: `/api/photos/${p.id}/file`,
+      metadata: {
+        groupId: curGroupId,
+        photoId: p.id,
+        mediaType: p.mediaType || 'image',
+        videoDuration: Number.isFinite(p.videoDuration) ? p.videoDuration : null,
+        uploaderId: p.uploaderId || null,
+      },
+    });
+    closeSharePhotoToFeedModal();
+    if (curModule === 'feed') await loadFeedPosts(true);
+    toast('Bild im Feed geteilt', 'success');
+  } catch (e) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Teilen';
+    }
+    toast(e.serverMessage || 'Bild konnte nicht im Feed geteilt werden', 'error');
+  }
+}
+
+window.openSharePhotoToFeedModal = openSharePhotoToFeedModal;
+window.closeSharePhotoToFeedModal = closeSharePhotoToFeedModal;
+window.submitPhotoShareToFeed = submitPhotoShareToFeed;
+window.openShareAlbumToFeedModal = openShareAlbumToFeedModal;
+window.closeShareAlbumToFeedModal = closeShareAlbumToFeedModal;
+window.submitAlbumShareToFeed = submitAlbumShareToFeed;
+window.openAlbumFromFeed = openAlbumFromFeed;
+window.shareAlbumToFeed = shareAlbumToFeed;
 
 async function loadLBMeta(photoId) {
   try {
@@ -4298,7 +5869,7 @@ function closeLB() {
   }
   if (lbVideo) {
     lbVideo.pause();
-    lbVideo.src = '';
+    lbVideo.removeAttribute('src');
     lbVideo.style.display = 'none';
   }
   resetLbVideoElement();
@@ -8883,6 +10454,7 @@ function onThumbLoad(img) {
   img.classList.remove('loading');
   img.classList.add('loaded');
 }
+window.onThumbLoad = onThumbLoad;
 
 // ── FULLVIEW MODE ─────────────────────────────────────────
 async function toggleFullview() {
@@ -9126,6 +10698,11 @@ const _NOTIF_LABELS = {
   newPhoto: '🖼',
   photoCommented: '💬',
   photoLiked: '❤️',
+  feedPostCommented: '💬',
+  feedPostLiked: '❤️',
+  feedCommentMentioned: '@',
+  feedCommentReplied: '↩️',
+  feedCommentLiked: '❤️',
   system: '📢',
 };
 
@@ -9229,6 +10806,33 @@ async function _notifClick(id) {
   }
 }
 
+function _notifExtractGroupIdFromEntityUrl(entityUrl) {
+  if (!entityUrl) return null;
+  try {
+    const parsed = new URL(entityUrl, window.location.origin);
+    const groupId = parsed.searchParams.get('groupId');
+    return groupId ? String(groupId).trim() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function _notifResolveFeedPostGroupId(item) {
+  if (item?.groupId) return item.groupId;
+
+  const fromUrl = _notifExtractGroupIdFromEntityUrl(item?.entityUrl);
+  if (fromUrl) return fromUrl;
+
+  if (!item?.entityId) return null;
+
+  try {
+    const data = await apiCall(`/group-feed/${encodeURIComponent(item.entityId)}`, 'GET');
+    return data?.post?.groupId || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function _notifNavigate(item) {
   const { entityId, entityType } = item;
   try {
@@ -9239,6 +10843,15 @@ async function _notifNavigate(item) {
       if (album) {
         if (album.groupId && album.groupId !== curGroupId) await switchGroup(album.groupId);
         await switchAlbum(entityId);
+      }
+    } else if (entityType === 'groupFeedPost') {
+      const targetGroupId = await _notifResolveFeedPostGroupId(item);
+      if (targetGroupId && targetGroupId !== curGroupId) {
+        await switchGroup(targetGroupId);
+      }
+      if (entityId) {
+        setPendingFeedPostTarget(entityId);
+        await handlePendingFeedPostTarget();
       }
     } else if (entityType === 'group') {
       if (item.type === 'groupDeleted') {
@@ -9407,6 +11020,26 @@ const _NOTIF_PREF_LABELS = {
   photoLiked: {
     label: 'Like auf dein Foto',
     hint: 'Jemand hat eines deiner Fotos mit einem Like markiert.',
+  },
+  feedPostCommented: {
+    label: 'Kommentar auf deinen Feed-Post',
+    hint: 'Jemand hat einen Kommentar unter deinen Feed-Post geschrieben.',
+  },
+  feedPostLiked: {
+    label: 'Like auf deinen Feed-Post',
+    hint: 'Jemand hat deinen Feed-Post geliked.',
+  },
+  feedCommentMentioned: {
+    label: 'Erwähnung in Feed-Kommentar',
+    hint: 'Du wurdest in einem Feed-Kommentar mit @username erwähnt.',
+  },
+  feedCommentReplied: {
+    label: 'Antwort auf deinen Feed-Kommentar',
+    hint: 'Jemand hat auf deinen Feed-Kommentar geantwortet.',
+  },
+  feedCommentLiked: {
+    label: 'Like auf deinen Feed-Kommentar',
+    hint: 'Jemand hat deinen Feed-Kommentar geliked.',
   },
   system: {
     label: 'System-Benachrichtigungen',
@@ -9631,13 +11264,37 @@ Object.assign(window, {
   switchToFeed,
   openPhotoInFotosModule,
   openUploaderPhotosFromFeed,
+  openSharePhotoToFeedModal,
+  closeSharePhotoToFeedModal,
+  submitPhotoShareToFeed,
+  openShareAlbumToFeedModal,
+  closeShareAlbumToFeedModal,
+  submitAlbumShareToFeed,
   createFeedPost,
+  toggleFeedComments,
+  loadOlderFeedComments,
+  submitFeedComment,
+  toggleFeedReplyComposer,
+  submitFeedReply,
+  toggleFeedReplies,
+  loadOlderFeedReplies,
+  toggleFeedCommentLike,
+  toggleFeedCommentMenu,
+  closeFeedCommentMenu,
+  openFeedCommentHistory,
+  openFeedCommentLikers,
+  startFeedCommentEdit,
+  cancelFeedCommentEdit,
+  saveFeedCommentEdit,
+  deleteFeedComment,
   copyFeedPostLink,
   toggleFeedPostMenu,
   closeFeedPostMenu,
   toggleFeedSaved,
   editFeedPost,
   openFeedPostHistory,
+  toggleFeedPostLike,
+  openFeedPostLikers,
   exitFeedPostFocus,
   deleteFeedPost,
   switchFolder,
