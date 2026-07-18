@@ -112,6 +112,19 @@ Bearbeiten und Historie:
 - Ein Klick auf die Kennzeichnung öffnet die Historie mit früheren Titel-/Textständen und Zeitpunkten
 - Die Historie nutzt einen normalen Dialog und denselben API-Client wie andere SPA-Module
 
+Kommentarsektion (Feed):
+
+- Jeder Feed-Post hat eine Inline-Aktion `Kommentare (x)` direkt in der Karte
+- Klick öffnet die Kommentarsektion im selben Card-Flow (kein Modal)
+- Accordion-Verhalten: Es ist immer nur eine geöffnete Kommentarsektion gleichzeitig aktiv
+- Initial werden 15 Hauptkommentare geladen; ältere Kommentare werden per `Ältere Kommentare laden` cursorbasiert nachgeladen
+- Antworten sind als Thread-Stufe 2 eingebunden (keine Antworten auf Antworten)
+- Antworten werden chronologisch dargestellt und können ebenfalls seitenweise nachgeladen werden
+- Likes auf Kommentare/Antworten werden inline getoggelt und sofort in der UI aktualisiert
+- Mention-Autocomplete in Kommentar- und Antwortfeldern: `@` + Eingabe zeigt Gruppenmitglieder als Vorschlagsliste; Auswahl per Klick, `Enter` oder `Tab`
+- Kommentare und Antworten können inline bearbeitet werden (nur eigene Kommentare)
+- Soft-Delete für Kommentare/Antworten ist in der UI als Aktion verfügbar (eigene oder moderierbare Kommentare)
+
 ## Gruppenverwaltung-Modal (Rollenmodus)
 
 Der Eintrag "Gruppe verwalten" ist in der Sidebar für Owner und Vertreter sichtbar.

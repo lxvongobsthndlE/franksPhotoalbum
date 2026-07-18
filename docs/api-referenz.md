@@ -164,8 +164,8 @@ Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 ## Feed (`/api/group-feed`)
 
 | Methode  | Pfad                          | Beschreibung                                                                     |
-| -------- | ----------------------------- | -------------------------------------------------------------------------------- | ---- | -------- | ------------------------ |
-| `GET`    | `/api/group-feed`             | Feed einer Gruppe laden (`groupId`, `view=all                                    | mine | mentions | saved`, `skip`, `limit`) |
+| -------- | ----------------------------- | -------------------------------------------------------------------------------- |
+| `GET`    | `/api/group-feed`             | Feed einer Gruppe laden (`groupId`, `view=all|mine|mentions|saved`, `skip`, `limit`) |
 | `POST`   | `/api/group-feed`             | Neuen Feed-Post erstellen (`groupId`, `body`, optional `title`, Share-Metadaten) |
 | `GET`    | `/api/group-feed/:id`         | Einzelnen Feed-Post für Direktlink/Sharing laden                                 |
 | `PATCH`  | `/api/group-feed/:id`         | Eigenen Feed-Post bearbeiten (`title`, `body`)                                   |
@@ -173,6 +173,9 @@ Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 | `GET`    | `/api/group-feed/:id/history` | Historie früherer Versionen eines Posts laden                                    |
 | `POST`   | `/api/group-feed/:id/save`    | Feed-Post für den eingeloggten User speichern                                    |
 | `DELETE` | `/api/group-feed/:id/save`    | Gespeicherten Feed-Post wieder entfernen                                         |
+| `POST`   | `/api/group-feed/:id/like`    | Feed-Post liken (idempotent)                                                     |
+| `DELETE` | `/api/group-feed/:id/like`    | Feed-Post-Unlike                                                                  |
+| `GET`    | `/api/group-feed/:id/likes`   | User-Liste der Feed-Post-Likes laden                                              |
 
 Hinweise:
 
@@ -182,6 +185,32 @@ Hinweise:
 - `PATCH /api/group-feed/:id` ist aktuell nur für den Owner des Posts erlaubt; leere `body`-Werte werden mit `400` abgelehnt.
 - Jede erfolgreiche Bearbeitung legt vor dem Update einen History-Snapshot mit vorherigem Titel/Text an.
 - Gruppenzugriff ist für alle Feed-Endpunkte Pflicht; bei fehlender Mitgliedschaft liefert die API `403` mit `code=not_group_member`.
+
+### Feed-Kommentare (`/api/group-feed`)
+
+| Methode  | Pfad                                       | Beschreibung |
+| -------- | ------------------------------------------ | ------------ |
+| `GET`    | `/api/group-feed/:postId/comments`         | Hauptkommentare eines Feed-Posts laden (cursorbasiert, Standard `limit=15`) |
+| `POST`   | `/api/group-feed/:postId/comments`         | Hauptkommentar erstellen (`content`) |
+| `GET`    | `/api/group-feed/comments/:commentId/replies` | Antworten zu einem Hauptkommentar laden (cursorbasiert, Standard `limit=15`) |
+| `POST`   | `/api/group-feed/comments/:commentId/replies` | Antwort auf Hauptkommentar erstellen (`content`) |
+| `PATCH`  | `/api/group-feed/comments/:commentId`      | Eigenen Kommentar bearbeiten (`content`) |
+| `DELETE` | `/api/group-feed/comments/:commentId`      | Kommentar soft-löschen (eigener Kommentar oder Moderation) |
+| `GET`    | `/api/group-feed/comments/:commentId/history` | Bearbeitungshistorie eines Kommentars laden |
+| `GET`    | `/api/group-feed/comments/:commentId/likes` | User-Liste der Kommentar-Likes laden |
+| `POST`   | `/api/group-feed/comments/:commentId/like` | Kommentar liken (idempotent) |
+| `DELETE` | `/api/group-feed/comments/:commentId/like` | Kommentar-Unlike |
+
+Hinweise:
+
+- Threading ist auf zwei Ebenen begrenzt: Antworten auf Antworten sind nicht erlaubt (`400`).
+- Gelöschte Kommentare werden soft-deleted (`deletedAt`, `deletedById`) und bleiben für Thread-/Mod-Zusammenhang erhalten.
+- Cursor-Paginierung liefert `paging: { limit, hasMore, nextCursor }`.
+- Antworten werden im API-Response chronologisch (älteste zuerst) zurückgegeben; geladen wird intern weiterhin cursorbasiert.
+- Kommentar-Rate-Limit: maximal `10` neue Kommentare/Antworten pro Nutzer und Gruppe pro Minute (`429`, `code=comment_rate_limited`).
+- Mention-Limit: maximal `5` Erwähnungen pro Kommentar (`400`, `code=too_many_mentions`).
+- Erwähnungen werden nur für User aufgelöst, die Mitglied derselben Gruppe sind; Selbst-Erwähnungen werden ignoriert.
+- Notification-Typen: `feedPostCommented` (Post-Owner), `feedCommentMentioned` (erwähnte User), `feedCommentReplied` (Antwort auf Kommentar) und `feedCommentLiked` (Like auf Kommentar).
 
 ---
 

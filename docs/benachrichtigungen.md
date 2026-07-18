@@ -48,9 +48,19 @@ data: {"id":"…","type":"photoCommented","title":"…","body":"…","entityId":
 | `groupDeleted`       | Gruppe wurde gelöscht                    | ✅              | ✅              |
 | `photoLiked`         | Eigenes Foto wurde geliked               | ✅              | ❌              |
 | `photoCommented`     | Eigenes Foto wurde kommentiert           | ✅              | ❌              |
+| `feedPostLiked`      | Eigener Feed-Post wurde geliked          | ✅              | ❌              |
+| `feedPostCommented`  | Eigener Feed-Post wurde kommentiert      | ✅              | ❌              |
+| `feedCommentMentioned` | Erwähnung in Feed-Kommentar            | ✅              | ❌              |
+| `feedCommentReplied` | Antwort auf eigenen Feed-Kommentar       | ✅              | ❌              |
+| `feedCommentLiked`   | Eigener Feed-Kommentar wurde geliked     | ✅              | ❌              |
 | `newPhoto`           | Neues Foto in der Gruppe hochgeladen     | ✅              | ❌              |
 | `newAlbum`           | Neues Album in der Gruppe erstellt       | ✅              | ❌              |
 | `system`             | Admin-Broadcast-Nachricht                | ✅ (immer)      | ❌              |
+
+Hinweis zu Like-Benachrichtigungen:
+
+- Benachrichtigungen für Likes werden mit kurzer Verzögerung ausgelöst.
+- Wird ein Like direkt wieder entfernt, wird keine Benachrichtigung erstellt.
 
 Hinweis zu Medien-Uploads:
 
@@ -125,12 +135,10 @@ Die Hilfsfunktion `createNotification` in `backend/src/utils/notifications.js` p
 ```js
 await createNotification(prisma, {
   userId: "<empfängerUserId>",
-  type: "photoCommented",
-  title: "Neuer Kommentar",
-  body: "Max hat dein Foto kommentiert.",
-  entityId: "<photoId>",
-  entityType: "photo",
-  imageUrl: "/api/photos/<photoId>/file?t=…",
-  entityUrl: "/photos/<photoId>",
+  type: "feedPostCommented",
+  title: "Neuer Kommentar auf deinen Feed-Post",
+  body: "Max: \"Sehr cool!\"",
+  entityId: "<feedPostId>",
+  entityType: "groupFeedPost",
 });
 ```
