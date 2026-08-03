@@ -92,6 +92,11 @@ let allProfiles = {},
 let feedPosts = [];
 let feedSkip = 0;
 let feedHasMore = false;
+let tournamentPresets = [];
+let tournamentInstances = [];
+let activeTournamentInstance = null;
+let curTournamentView = 'instances';
+let activeTournamentPresetModal = null;
 let allAlbums = [];
 let urlCache = {};
 let lbIdx = 0,
@@ -108,6 +113,7 @@ let profileDeletionCandidatesLoaded = false;
 const sidebarUiState = {
   fotosExpanded: false,
   feedExpanded: true,
+  tournamentsExpanded: false,
 };
 const FEED_PAGE_SIZE = 20;
 const FEED_VIEWS = new Set(['all', 'mine', 'mentions', 'saved']);
@@ -138,6 +144,14 @@ let feedMentionState = {
 
 function normalizeFeedView(view) {
   return FEED_VIEWS.has(view) ? view : 'all';
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function normalizeTournamentView(view) {
+  return view === 'presets' || view === 'instances' ? view : 'dashboard';
 }
 
 function sanitizeFeedPostId(value) {
@@ -407,15 +421,17 @@ function getLastModuleStorageKey(groupId = curGroupId) {
 }
 
 function readLastModuleState(groupId = curGroupId) {
-  const fallback = { module: 'feed', feedView: 'all' };
+  const fallback = { module: 'feed', feedView: 'all', tournamentView: 'dashboard' };
   try {
     const raw = localStorage.getItem(getLastModuleStorageKey(groupId));
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return fallback;
-    const module = parsed.module === 'photos' ? 'photos' : 'feed';
+    const allowedModules = new Set(['feed', 'photos', 'tournaments']);
+    const module = allowedModules.has(parsed.module) ? parsed.module : 'feed';
     const feedView = normalizeFeedView(parsed.feedView);
-    return { module, feedView };
+    const tournamentView = normalizeTournamentView(parsed.tournamentView);
+    return { module, feedView, tournamentView };
   } catch {
     return fallback;
   }
@@ -425,14 +441,20 @@ function applyLastModuleState(groupId = curGroupId) {
   const state = readLastModuleState(groupId);
   curModule = state.module;
   curFeedView = state.feedView;
+  curTournamentView = normalizeTournamentView(state.tournamentView);
   sidebarUiState.feedExpanded = curModule === 'feed';
   sidebarUiState.fotosExpanded = curModule === 'photos';
+  sidebarUiState.tournamentsExpanded = curModule === 'tournaments';
 }
 
 function saveLastModuleState(groupId = curGroupId) {
   try {
-    const module = curModule === 'photos' ? 'photos' : 'feed';
-    const payload = { module, feedView: normalizeFeedView(curFeedView) };
+    const module = ['feed', 'photos', 'tournaments'].includes(curModule) ? curModule : 'feed';
+    const payload = {
+      module,
+      feedView: normalizeFeedView(curFeedView),
+      tournamentView: normalizeTournamentView(curTournamentView),
+    };
     localStorage.setItem(getLastModuleStorageKey(groupId), JSON.stringify(payload));
   } catch {
     // Ignore localStorage failures
@@ -553,6 +575,7 @@ const ICON_HISTORY = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none
 const ICON_MORE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
 const ICON_CHEVRON_RIGHT = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`;
 const ICON_GEAR = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const ICON_EDIT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
 const ICON_UPLOAD = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
 const ICON_HAMBURGER = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`;
 const ICON_FULLSCREEN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
@@ -799,8 +822,10 @@ async function startApp() {
   // Load basic UI (albums, etc. - for now kept simple)
   curModule = 'feed';
   curFeedView = 'all';
+  curTournamentView = 'instances';
   sidebarUiState.fotosExpanded = false;
   sidebarUiState.feedExpanded = true;
+  sidebarUiState.tournamentsExpanded = false;
   curFolder = SHARED;
   curAlbum = null;
   curFilter = null;
@@ -855,9 +880,10 @@ async function startApp() {
   setTimeout(() => renderSidebar(), 100);
   loadAppVersion();
 
-  // Fotos laden
+  // Inhalt laden
   if (curGroupId) {
     if (curModule === 'feed') await loadFeedPosts(true);
+    else if (curModule === 'tournaments') await loadActiveTournamentView(true);
     else await loadPhotos(true);
   } else toast('Keine Gruppe gefunden – ein Album wird automatisch erstellt.', 'info');
 
@@ -966,16 +992,25 @@ function renderSidebar() {
       ? `${allMembers.length}/${curGroup.maxMembers}`
       : null;
 
-  if (sidebarUiState.feedExpanded && sidebarUiState.fotosExpanded) {
-    if (curModule === 'photos') sidebarUiState.feedExpanded = false;
-    else sidebarUiState.fotosExpanded = false;
+  const expandedModules = [
+    sidebarUiState.feedExpanded ? 'feed' : null,
+    sidebarUiState.fotosExpanded ? 'photos' : null,
+    sidebarUiState.tournamentsExpanded ? 'tournaments' : null,
+  ].filter(Boolean);
+  if (expandedModules.length > 1) {
+    sidebarUiState.feedExpanded = curModule === 'feed';
+    sidebarUiState.fotosExpanded = curModule === 'photos';
+    sidebarUiState.tournamentsExpanded = curModule === 'tournaments';
   }
   const activeHomeModule = sidebarUiState.feedExpanded
     ? 'feed'
     : sidebarUiState.fotosExpanded
       ? 'photos'
+      : sidebarUiState.tournamentsExpanded
+        ? 'tournaments'
       : null;
   const fotosExpanded = sidebarUiState.fotosExpanded;
+  const tournamentsExpanded = sidebarUiState.tournamentsExpanded;
 
   $('sidebar').innerHTML = `
     <span class="sb-label">Home</span>
@@ -1015,6 +1050,28 @@ function renderSidebar() {
     <button class="fb fb-sub" onclick="openSS()${window.innerWidth <= 900 ? ';closeSidebar()' : ''}">
       <span class="fi">${ICON_PLAY}</span>
       <span class="fn">Diashow</span>
+    </button>`
+        : ''
+    }
+    <button class="fb fb-parent ${tournamentsExpanded ? 'expanded' : ''} ${activeHomeModule === 'tournaments' ? 'module-active' : ''}" onclick="toggleSidebarTournaments()" aria-expanded="${tournamentsExpanded ? 'true' : 'false'}">
+      <span class="fi">🏆</span>
+      <span class="fn">Turniere</span>
+      <span class="fb-chevron" aria-hidden="true">${ICON_CHEVRON_RIGHT}</span>
+    </button>
+    ${
+      activeHomeModule === 'tournaments'
+        ? `
+    <button class="fb fb-sub ${curModule === 'tournaments' && curTournamentView === 'dashboard' ? 'active' : ''}" onclick="switchToTournaments('dashboard')">
+      <span class="fi">🏁</span>
+      <span class="fn">Dashboard</span>
+    </button>
+    <button class="fb fb-sub ${curModule === 'tournaments' && curTournamentView === 'instances' ? 'active' : ''}" onclick="switchToTournamentInstances()">
+      <span class="fi">🏆</span>
+      <span class="fn">Turniere</span>
+    </button>
+    <button class="fb fb-sub ${curModule === 'tournaments' && curTournamentView === 'presets' ? 'active' : ''}" onclick="switchToTournamentPresets()">
+      <span class="fi">🧩</span>
+      <span class="fn">Presets</span>
     </button>`
         : ''
     }
@@ -1456,6 +1513,7 @@ async function switchFolder(f) {
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
   sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   curAlbum = null;
   curFilter = f;
@@ -1468,6 +1526,7 @@ async function switchAlbum(id) {
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
   sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   curAlbum = id;
   curFilter = null;
@@ -1501,6 +1560,10 @@ function isCurrentGroupModerator() {
   if (!group) return false;
   if (group.createdBy === me.id) return true;
   return groupDeputies.some((d) => d.id === me.id);
+}
+
+function canManageTournamentPresetsInCurrentGroup() {
+  return isCurrentGroupModerator();
 }
 
 function canDeletePhotoInCurrentGroup(photo) {
@@ -1540,7 +1603,7 @@ function updateUploadShortcutVisibility() {
 
 function setContentMode(mode) {
   const row2 = document.querySelector('.gal-row2');
-  if (row2) row2.style.display = mode === 'feed' ? 'none' : '';
+  if (row2) row2.style.display = mode === 'feed' || mode === 'tournaments' ? 'none' : '';
 }
 
 function clearModuleContentActions() {
@@ -1548,6 +1611,14 @@ function clearModuleContentActions() {
   if (albumAddBtn) albumAddBtn.remove();
   const albumSettingsBtn = document.getElementById('album-rename-btn');
   if (albumSettingsBtn) albumSettingsBtn.remove();
+  const albumShareBtn = document.getElementById('album-share-btn');
+  if (albumShareBtn) albumShareBtn.remove();
+  const tournamentRefreshBtn = document.getElementById('tournament-refresh-btn');
+  if (tournamentRefreshBtn) tournamentRefreshBtn.remove();
+  const tournamentNewPresetBtn = document.getElementById('tournament-new-preset-btn');
+  if (tournamentNewPresetBtn) tournamentNewPresetBtn.remove();
+  const tournamentNewInstanceBtn = document.getElementById('tournament-new-instance-btn');
+  if (tournamentNewInstanceBtn) tournamentNewInstanceBtn.remove();
 }
 
 function renderNoModuleOpenState() {
@@ -1578,7 +1649,11 @@ function renderNoModuleOpenState() {
 }
 
 function hasAnyOpenModule() {
-  return !!(sidebarUiState.fotosExpanded || sidebarUiState.feedExpanded);
+  return !!(
+    sidebarUiState.fotosExpanded ||
+    sidebarUiState.feedExpanded ||
+    sidebarUiState.tournamentsExpanded
+  );
 }
 
 async function switchToFeed(view = 'all') {
@@ -1587,16 +1662,38 @@ async function switchToFeed(view = 'all') {
   curFeedView = normalizeFeedView(view);
   sidebarUiState.feedExpanded = true;
   sidebarUiState.fotosExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   closeSidebar();
   renderSidebar();
   await loadFeedPosts(true);
 }
 
+async function switchToTournaments(view = 'instances') {
+  curModule = 'tournaments';
+  curTournamentView = normalizeTournamentView(view);
+  sidebarUiState.feedExpanded = false;
+  sidebarUiState.fotosExpanded = false;
+  sidebarUiState.tournamentsExpanded = true;
+  saveLastModuleState();
+  closeSidebar();
+  renderSidebar();
+  await loadActiveTournamentView(true);
+}
+
+async function switchToTournamentInstances() {
+  await switchToTournaments('instances');
+}
+
+async function switchToTournamentPresets() {
+  await switchToTournaments('presets');
+}
+
 async function toggleSidebarFeed() {
   sidebarUiState.feedExpanded = !sidebarUiState.feedExpanded;
   if (sidebarUiState.feedExpanded) {
     sidebarUiState.fotosExpanded = false;
+    sidebarUiState.tournamentsExpanded = false;
     curModule = 'feed';
     if (!curFeedView) curFeedView = 'all';
     curFeedView = normalizeFeedView(curFeedView);
@@ -1614,6 +1711,13 @@ async function toggleSidebarFeed() {
       await loadPhotos(true);
       return;
     }
+    if (sidebarUiState.tournamentsExpanded) {
+      curModule = 'tournaments';
+      saveLastModuleState();
+      renderSidebar();
+      await loadActiveTournamentView(true);
+      return;
+    }
     renderSidebar();
     renderNoModuleOpenState();
     return;
@@ -1626,6 +1730,7 @@ async function toggleSidebarFotos() {
   sidebarUiState.fotosExpanded = !sidebarUiState.fotosExpanded;
   if (sidebarUiState.fotosExpanded) {
     sidebarUiState.feedExpanded = false;
+    sidebarUiState.tournamentsExpanded = false;
     curModule = 'photos';
     saveLastModuleState();
     renderSidebar();
@@ -1639,6 +1744,55 @@ async function toggleSidebarFotos() {
       saveLastModuleState();
       renderSidebar();
       await loadFeedPosts(true);
+      return;
+    }
+    if (sidebarUiState.tournamentsExpanded) {
+      curModule = 'tournaments';
+      saveLastModuleState();
+      renderSidebar();
+      await loadActiveTournamentView(true);
+      return;
+    }
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  if (!hasAnyOpenModule()) {
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  renderSidebar();
+}
+
+async function toggleSidebarTournaments() {
+  sidebarUiState.tournamentsExpanded = !sidebarUiState.tournamentsExpanded;
+  if (sidebarUiState.tournamentsExpanded) {
+    sidebarUiState.feedExpanded = false;
+    sidebarUiState.fotosExpanded = false;
+    curModule = 'tournaments';
+    curTournamentView = 'instances';
+    saveLastModuleState();
+    renderSidebar();
+    await loadActiveTournamentView(true);
+    return;
+  }
+
+  if (curModule === 'tournaments') {
+    if (sidebarUiState.feedExpanded) {
+      curModule = 'feed';
+      saveLastModuleState();
+      renderSidebar();
+      await loadFeedPosts(true);
+      return;
+    }
+    if (sidebarUiState.fotosExpanded) {
+      curModule = 'photos';
+      saveLastModuleState();
+      renderSidebar();
+      await loadPhotos(true);
       return;
     }
     renderSidebar();
@@ -1689,6 +1843,7 @@ async function switchToUser(userId) {
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
   sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   curAlbum = null;
   curFilter = null;
@@ -1957,6 +2112,1539 @@ async function loadFeedPosts(reset = false) {
       actions.innerHTML =
         '<p style="font-size:13px;color:var(--muted);margin-top:2px">Bitte versuche es gleich erneut.</p>';
     show('empty');
+  }
+}
+
+function tournamentPresetTypeLabel(baseType) {
+  const labels = {
+    single_elimination: 'Single Elimination',
+    double_elimination: 'Double Elimination',
+    round_robin: 'Round Robin',
+    group_plus_knockout: 'Gruppenphase + KO',
+    custom: 'Custom',
+  };
+  return labels[baseType] || baseType || '-';
+}
+
+function tournamentParticipantModeLabel(mode) {
+  if (mode === 'individual') return 'Einzel';
+  if (mode === 'pair') return '2er Team';
+  return 'Team';
+}
+
+function tournamentStageTypeLabel(stageType) {
+  const labels = {
+    single_elimination: 'Single Elimination',
+    double_elimination: 'Double Elimination',
+    round_robin: 'Round Robin',
+    group_plus_knockout: 'Group + KO',
+  };
+  return labels[stageType] || stageType || '-';
+}
+
+const TOURNAMENT_PRESET_BASE_TYPES = new Set([
+  'single_elimination',
+  'double_elimination',
+  'round_robin',
+  'group_plus_knockout',
+  'custom',
+]);
+
+const TOURNAMENT_STAGE_TYPES = new Set(['single_elimination', 'double_elimination', 'round_robin']);
+
+const TOURNAMENT_PRESET_STAGE_SIGNATURES = {
+  single_elimination: ['single_elimination'],
+  double_elimination: ['double_elimination', 'single_elimination'],
+  round_robin: ['round_robin'],
+  group_plus_knockout: ['round_robin', 'single_elimination'],
+};
+
+function inferTournamentPresetBaseType(stageRows) {
+  if (!Array.isArray(stageRows) || stageRows.length === 0) return 'custom';
+
+  const stageTypes = stageRows.map((stage) => String(stage?.stageType || 'single_elimination'));
+  if (stageTypes.some((stageType) => !TOURNAMENT_STAGE_TYPES.has(stageType))) return 'custom';
+
+  for (const [baseType, signature] of Object.entries(TOURNAMENT_PRESET_STAGE_SIGNATURES)) {
+    if (stageTypes.length !== signature.length) continue;
+    if (signature.every((stageType, index) => stageTypes[index] === stageType)) {
+      return baseType;
+    }
+  }
+
+  return 'custom';
+}
+
+function defaultStagesForPreset(baseType) {
+  if (baseType === 'custom') {
+    return [{ stageOrder: 1, name: 'KO-Phase', stageType: 'single_elimination' }];
+  }
+  if (baseType === 'round_robin') {
+    return [{ stageOrder: 1, name: 'Liga', stageType: 'round_robin' }];
+  }
+  if (baseType === 'double_elimination') {
+    return [
+      { stageOrder: 1, name: 'Winners Bracket', stageType: 'double_elimination' },
+      { stageOrder: 2, name: 'Finale', stageType: 'single_elimination' },
+    ];
+  }
+  if (baseType === 'group_plus_knockout') {
+    return [
+      { stageOrder: 1, name: 'Gruppenphase', stageType: 'round_robin' },
+      { stageOrder: 2, name: 'KO-Phase', stageType: 'single_elimination' },
+    ];
+  }
+  return [{ stageOrder: 1, name: 'KO-Phase', stageType: 'single_elimination' }];
+}
+
+function renderTournamentHeaderActions() {
+  const uploadBtn = $('upload-btn');
+  if (!uploadBtn) return;
+
+  const existingActionButtons = [
+    'tournament-refresh-btn',
+    'tournament-new-preset-btn',
+    'tournament-new-instance-btn',
+  ];
+  for (const id of existingActionButtons) {
+    const existing = document.getElementById(id);
+    if (existing) existing.remove();
+  }
+
+  const isPresetsView = normalizeTournamentView(curTournamentView) === 'presets';
+  const isInstancesView = normalizeTournamentView(curTournamentView) === 'instances';
+  const actionButtons = isPresetsView
+    ? [
+        {
+          id: 'tournament-new-preset-btn',
+          label: 'Neues Preset',
+          className: 'btn',
+          onClick: openCreateTournamentPreset,
+        },
+      ]
+    : isInstancesView
+      ? [
+        {
+          id: 'tournament-refresh-btn',
+          label: 'Aktualisieren',
+          className: 'btn btn-ghost',
+          onClick: () => loadActiveTournamentView(true),
+        },
+        {
+          id: 'tournament-new-instance-btn',
+          label: 'Neues Turnier',
+          className: 'btn btn-ghost',
+          onClick: openCreateTournamentInstance,
+        },
+        {
+          id: 'tournament-new-preset-btn',
+          label: 'Neues Preset',
+          className: 'btn',
+          onClick: openCreateTournamentPreset,
+        },
+      ]
+      : [];
+
+  let anchor = uploadBtn;
+  for (const item of actionButtons) {
+    const btn = document.createElement('button');
+    btn.id = item.id;
+    btn.className = `${item.className} tournament-header-btn`;
+    btn.type = 'button';
+    btn.textContent = item.label;
+    btn.onclick = item.onClick;
+    anchor.after(btn);
+    anchor = btn;
+  }
+}
+
+async function loadActiveTournamentView(reset = false) {
+  if (normalizeTournamentView(curTournamentView) === 'presets') {
+    await loadTournamentPresets(reset);
+    return;
+  }
+  if (normalizeTournamentView(curTournamentView) === 'instances') {
+    await loadTournamentInstances(reset);
+    return;
+  }
+  await loadTournamentDashboard(reset);
+}
+
+async function loadTournamentDashboard(reset = false) {
+  if (curModule !== 'tournaments') return;
+  if (!sidebarUiState.tournamentsExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+
+  setContentMode('tournaments');
+  clearModuleContentActions();
+  renderTournamentHeaderActions();
+  hasMore = false;
+  hide('more-btn');
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+  const title = $('gal-title');
+  if (title) title.textContent = 'Turniere - Dashboard';
+
+  const grid = $('grid');
+  if (!grid) return;
+  if (reset) {
+    grid.className = 'grid tournaments-grid';
+    grid.innerHTML =
+      '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  }
+  hide('empty');
+
+  if (!curGroupId) {
+    grid.innerHTML = `
+      <section class="tournament-page-shell">
+        <div class="tournament-empty-state">
+          <h2>Dashboard</h2>
+          <p>Hier erscheint vorerst nichts.</p>
+        </div>
+      </section>`;
+    return;
+  }
+  grid.innerHTML = `
+    <section class="tournament-page-shell">
+      <div class="tournament-empty-state">
+        <h2>Dashboard</h2>
+        <p>Hier erscheint vorerst nichts.</p>
+      </div>
+    </section>`;
+}
+
+async function loadTournamentInstances(reset = false) {
+  if (curModule !== 'tournaments') return;
+  if (!sidebarUiState.tournamentsExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+
+  setContentMode('tournaments');
+  clearModuleContentActions();
+  renderTournamentHeaderActions();
+  hasMore = false;
+  hide('more-btn');
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+  const title = $('gal-title');
+  if (title) title.textContent = 'Turniere';
+
+  const grid = $('grid');
+  if (!grid) return;
+  if (reset) {
+    grid.className = 'grid tournaments-grid';
+    grid.innerHTML =
+      '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  }
+  hide('empty');
+
+  if (!curGroupId) {
+    tournamentInstances = [];
+    renderTournamentInstancesPage();
+    return;
+  }
+
+  try {
+    const instanceData = await apiCall(`/tournaments/instances?groupId=${encodeURIComponent(curGroupId)}`, 'GET');
+    tournamentInstances = Array.isArray(instanceData?.instances) ? instanceData.instances : [];
+
+    if (activeTournamentInstance?.id) {
+      const stillExists = tournamentInstances.some((entry) => entry.id === activeTournamentInstance.id);
+      if (!stillExists) activeTournamentInstance = null;
+    }
+
+    renderTournamentInstancesPage();
+  } catch (e) {
+    const icon = $('empty-icon');
+    const text = $('empty-text');
+    const actions = $('empty-actions');
+    if (icon) icon.textContent = '⚠️';
+    if (text) text.textContent = e.serverMessage || 'Turniere konnten nicht geladen werden.';
+    if (actions) {
+      actions.innerHTML =
+        '<button class="btn" style="background:var(--accent-l);color:var(--accent);border:1px solid #dcc0a0;padding:10px 16px;border-radius:10px" onclick="loadTournamentInstances(true)">Erneut versuchen</button>';
+    }
+    show('empty');
+    grid.innerHTML = '';
+  }
+}
+
+function tournamentStatusLabel(status) {
+  const map = {
+    draft: 'Entwurf',
+    registration: 'Registrierung',
+    scheduled: 'Geplant',
+    in_progress: 'Laufend',
+    completed: 'Abgeschlossen',
+    cancelled: 'Abgebrochen',
+  };
+  return map[status] || status || '-';
+}
+
+function tournamentInstancePhase(status) {
+  if (status === 'draft') return 'draft';
+  if (status === 'registration' || status === 'scheduled') return 'registration';
+  if (status === 'in_progress') return 'live';
+  if (status === 'completed' || status === 'cancelled') return 'completed';
+  return 'draft';
+}
+
+function tournamentInstancePhaseLabel(phase) {
+  const map = {
+    draft: 'Entwurf',
+    registration: 'Registrierung',
+    live: 'Live',
+    completed: 'Abgeschlossen',
+  };
+  return map[phase] || 'Entwurf';
+}
+
+function renderTournamentInstancesPage() {
+  const grid = $('grid');
+  if (!grid) return;
+
+  grid.className = 'grid tournaments-grid';
+  const canManageInstances = canManageTournamentPresetsInCurrentGroup();
+  const groupedInstances = {
+    draft: [],
+    registration: [],
+    live: [],
+    completed: [],
+  };
+
+  for (const instance of tournamentInstances) {
+    groupedInstances[tournamentInstancePhase(instance.status)].push(instance);
+  }
+
+  const instanceGroupsHtml = Object.entries(groupedInstances)
+    .map(([phase, instances]) => {
+      const instanceCards = instances
+        .map((instance) => {
+          const participantCount = instance?._count?.participants ?? 0;
+          const matchCount = instance?._count?.matches ?? 0;
+          const activeClass = activeTournamentInstance?.id === instance.id ? ' tournament-card-active' : '';
+          return `<article class="tournament-card tournament-instance-card${activeClass}" data-instance-phase="${esc(phase)}">
+            <div class="tournament-card-head">
+              <h3>${esc(instance.name || 'Turnier')}</h3>
+              <span class="tournament-status-badge">${esc(tournamentInstancePhaseLabel(phase))}</span>
+            </div>
+            <p>Preset: ${esc(instance?.preset?.name || '-')}</p>
+            <p>Modus: ${esc(tournamentPresetTypeLabel(instance?.preset?.baseType))}</p>
+            <p>Teilnehmer: ${participantCount} · Matches: ${matchCount}</p>
+            <div class="tournament-card-actions tournament-instance-actions">
+              <button class="btn btn-ghost" onclick="openTournamentInstance('${instance.id}')">Öffnen</button>
+              ${canManageInstances ? `<button class="preset-icon-btn danger" type="button" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')" title="Löschen" aria-label="Löschen">${ICON_TRASH}</button>` : ''}
+            </div>
+          </article>`;
+        })
+        .join('');
+
+      return `<section class="tournament-instance-group">
+        <div class="tournament-instance-group-head">
+          <h2>${esc(tournamentInstancePhaseLabel(phase))}</h2>
+          <span class="tournament-meta-pill">${instances.length}</span>
+        </div>
+        <div class="tournament-instance-grid">
+          ${instanceCards || '<p class="tournament-empty tournament-instance-empty">Keine Turniere in dieser Phase.</p>'}
+        </div>
+      </section>`;
+    })
+    .join('');
+
+  const detailHtml = activeTournamentInstance
+    ? `<section class="tournament-detail-wrap">${renderTournamentInstanceDetail(activeTournamentInstance)}</section>`
+    : '';
+
+  grid.innerHTML = `
+    <section class="tournament-page-shell">
+      ${detailHtml}
+      ${instanceGroupsHtml || '<div class="tournament-empty-state"><p>Noch keine Turniere vorhanden.</p></div>'}
+    </section>`;
+}
+
+async function loadTournamentPresets(reset = false) {
+  if (curModule !== 'tournaments') return;
+  if (!sidebarUiState.tournamentsExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+
+  setContentMode('tournaments');
+  clearModuleContentActions();
+  renderTournamentHeaderActions();
+  hasMore = false;
+  hide('more-btn');
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+  const title = $('gal-title');
+  if (title) title.textContent = 'Presets';
+
+  const grid = $('grid');
+  if (!grid) return;
+  if (reset) {
+    grid.className = 'grid tournaments-grid';
+    grid.innerHTML =
+      '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  }
+  hide('empty');
+
+  if (!curGroupId) {
+    tournamentPresets = [];
+    renderTournamentPresetsPage();
+    return;
+  }
+
+  try {
+    const presetData = await apiCall(`/tournaments/presets?groupId=${encodeURIComponent(curGroupId)}`, 'GET');
+    tournamentPresets = Array.isArray(presetData?.presets) ? presetData.presets : [];
+    renderTournamentPresetsPage();
+  } catch (e) {
+    const icon = $('empty-icon');
+    const text = $('empty-text');
+    const actions = $('empty-actions');
+    if (icon) icon.textContent = '⚠️';
+    if (text) text.textContent = e.serverMessage || 'Presets konnten nicht geladen werden.';
+    if (actions) {
+      actions.innerHTML =
+        '<button class="btn" style="background:var(--accent-l);color:var(--accent);border:1px solid #dcc0a0;padding:10px 16px;border-radius:10px" onclick="loadTournamentPresets(true)">Erneut versuchen</button>';
+    }
+    show('empty');
+    grid.innerHTML = '';
+  }
+}
+
+function renderTournamentPresetsPage() {
+  const grid = $('grid');
+  if (!grid) return;
+
+  grid.className = 'tournament-preset-grid';
+  const canManagePresets = canManageTournamentPresetsInCurrentGroup();
+  const presetCards = tournamentPresets
+    .map((preset) => {
+      const presetConfig = preset?.config && typeof preset.config === 'object' ? preset.config : {};
+      const presetStages = Array.isArray(preset?.stages) ? preset.stages : [];
+      const creatorName = preset?.creator
+        ? getVisibleName(preset.creator, preset.creator.displayNameField) || preset.creator.username || preset.creator.email || 'Unbekannt'
+        : 'Unbekannt';
+      const createdAtLabel = preset?.createdAt ? new Date(preset.createdAt).toLocaleDateString('de-DE') : '-';
+      const byesLabel = presetConfig.allowByes === false ? 'Byes aus' : 'Byes an';
+      const thirdPlaceLabel = presetConfig.thirdPlaceMatch ? 'Platz 3 an' : 'Platz 3 aus';
+      const seedingLabel =
+        presetConfig.seedingMode === 'random' ? 'Seeding random' : 'Seeding manuell';
+      const stagePreview = presetStages.slice(0, 3).map((stage) => {
+        const stageName = isNonEmptyString(stage?.name) ? stage.name.trim() : `Stage ${stage?.stageOrder || ''}`;
+        return `<span class="tournament-chip">${esc(stageName)} · ${esc(tournamentStageTypeLabel(stage?.stageType))}</span>`;
+      });
+      const stageCountLabel = `${presetStages.length || 0} Stage${presetStages.length === 1 ? '' : 's'}`;
+      return `<article class="tournament-card preset-card" data-base-type="${esc(preset.baseType || 'custom')}">
+        <div class="tournament-card-head preset-card-head">
+          <div class="preset-card-title-block">
+            <h3>${esc(preset.name || 'Preset')}</h3>
+            <p class="preset-card-subtitle">${esc(tournamentPresetTypeLabel(preset.baseType))} · ${esc(tournamentParticipantModeLabel(preset.participantMode || 'team'))}</p>
+          </div>
+          <span class="tournament-meta-pill">${esc(stageCountLabel)}</span>
+        </div>
+        <div class="preset-card-grid">
+          <div class="preset-card-stat">
+            <span class="preset-card-stat-label">Teilnehmer</span>
+            <strong>${preset.minParticipants}-${preset.maxParticipants}</strong>
+          </div>
+          <div class="preset-card-stat">
+            <span class="preset-card-stat-label">Best-of</span>
+            <strong>${Number(preset.defaultMatchBestOf || 1)}</strong>
+          </div>
+          <div class="preset-card-stat">
+            <span class="preset-card-stat-label">Erstellt</span>
+            <strong>${esc(createdAtLabel)}</strong>
+          </div>
+          <div class="preset-card-stat">
+            <span class="preset-card-stat-label">Von</span>
+            <strong>${esc(creatorName)}</strong>
+          </div>
+        </div>
+        <div class="tournament-preset-meta-list">
+          <span class="tournament-chip">${esc(byesLabel)}</span>
+          <span class="tournament-chip">${esc(thirdPlaceLabel)}</span>
+          <span class="tournament-chip">${esc(seedingLabel)}</span>
+          ${stagePreview.join('')}
+        </div>
+        <div class="preset-card-note">${esc(preset.description || 'Keine Beschreibung hinterlegt.')}</div>
+        <div class="tournament-card-actions preset-card-actions${canManagePresets ? '' : ' hidden'}">
+          <button class="preset-icon-btn" type="button" onclick="createTournamentInstanceFromPreset('${preset.id}','${esc(preset.name || 'Turnier')}')" title="Neues Turnier" aria-label="Neues Turnier">${ICON_PLUS}</button>
+          <button class="preset-icon-btn" type="button" onclick="openEditTournamentPreset('${preset.id}')" title="Bearbeiten" aria-label="Bearbeiten">${ICON_EDIT}</button>
+          <button class="preset-icon-btn danger" type="button" onclick="archiveTournamentPreset('${preset.id}','${esc(preset.name || 'Preset')}')" title="Löschen" aria-label="Löschen">${ICON_TRASH}</button>
+        </div>
+      </article>`;
+    })
+    .join('');
+
+  grid.innerHTML = presetCards || '<p class="tournament-empty tournament-preset-empty">Noch keine Presets vorhanden.</p>';
+}
+
+function closeTournamentPresetModal() {
+  document.getElementById('tournament-preset-modal')?.remove();
+  activeTournamentPresetModal = null;
+  delete window.__tpModalApplyDefaults;
+  delete window.__tpModalAddStage;
+  delete window.__tpModalRemoveStage;
+  delete window.__tpModalSubmit;
+}
+
+function getTournamentPresetStageRows(stageRows) {
+  if (!Array.isArray(stageRows) || stageRows.length === 0) {
+    return '<p class="tournament-empty-inline">Keine Stages vorhanden.</p>';
+  }
+
+  return stageRows
+    .map(
+      (stage, index) => `
+      <div class="tournament-preset-stage-row" data-stage-index="${index}">
+        <button type="button" class="tournament-preset-stage-drag" data-stage-index="${index}" draggable="true" aria-label="Stage verschieben">⋮⋮</button>
+        <span class="tournament-preset-stage-order">${index + 1}</span>
+        <input
+          type="text"
+          class="tournament-preset-stage-name"
+          data-stage-index="${index}"
+          maxlength="80"
+          value="${esc(stage?.name || '')}"
+          placeholder="Stage-Name"
+        >
+        <div class="tournament-preset-stage-type-wrap">
+          <select class="tournament-preset-stage-type" data-stage-index="${index}">
+            <option value="single_elimination" ${stage?.stageType === 'single_elimination' ? 'selected' : ''}>Single Elimination</option>
+            <option value="double_elimination" ${stage?.stageType === 'double_elimination' ? 'selected' : ''}>Double Elimination</option>
+            <option value="round_robin" ${stage?.stageType === 'round_robin' ? 'selected' : ''}>Round Robin</option>
+          </select>
+          <span class="tournament-preset-stage-help">${esc(getTournamentPresetStageTypeHelp(stage?.stageType))}</span>
+        </div>
+        <button type="button" class="btn btn-ghost tournament-preset-stage-remove" data-stage-index="${index}">Entfernen</button>
+      </div>`
+    )
+    .join('');
+}
+
+function getTournamentPresetStageTypeHelp(stageType) {
+  const descriptions = {
+    single_elimination: 'Eine Niederlage bedeutet das Aus. Schnell und direkt.',
+    double_elimination: 'Erst nach zwei Niederlagen raus. Fairer, aber länger.',
+    round_robin: 'Jeder spielt gegen jeden. Gute Grundlage für Tabellen.',
+    group_plus_knockout: 'Erst Gruppen, dann K.-o.-Phase. Typischer Hybrid-Ablauf.',
+  };
+  return descriptions[stageType] || descriptions.single_elimination;
+}
+
+function bindTournamentPresetStageDragAndDrop(stageListEl, stageRows, renderStageList) {
+  if (!stageListEl) return;
+
+  let draggedStageIndex = null;
+
+  stageListEl.querySelectorAll('.tournament-preset-stage-row').forEach((row) => {
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', (event) => {
+      draggedStageIndex = Number(row.getAttribute('data-stage-index'));
+      row.classList.add('dragging');
+      const dataTransfer = event.dataTransfer;
+      if (dataTransfer) {
+        dataTransfer.setData('text/plain', String(draggedStageIndex));
+        dataTransfer.effectAllowed = 'move';
+      }
+    });
+    row.addEventListener('dragend', () => {
+      draggedStageIndex = null;
+      row.classList.remove('dragging');
+      stageListEl.querySelectorAll('.tournament-preset-stage-row').forEach((entry) => {
+        entry.classList.remove('drag-over');
+      });
+    });
+    row.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over');
+    });
+    row.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const targetIndex = Number(row.getAttribute('data-stage-index'));
+      const sourceIndex = Number.isInteger(draggedStageIndex)
+        ? draggedStageIndex
+        : Number(event.dataTransfer?.getData('text/plain'));
+      if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex) || sourceIndex === targetIndex) return;
+      const [moved] = stageRows.splice(sourceIndex, 1);
+      stageRows.splice(targetIndex, 0, moved);
+      renderStageList();
+    });
+  });
+}
+
+function openCreateTournamentPreset(existingPreset = null) {
+  if (!curGroupId) {
+    toast('Keine aktive Gruppe ausgewählt', 'error');
+    return;
+  }
+
+  const preset = existingPreset && existingPreset.id ? existingPreset : null;
+  const isEditing = !!preset;
+  const initialBaseType = TOURNAMENT_PRESET_BASE_TYPES.has(preset?.baseType) ? preset.baseType : 'single_elimination';
+  const initialParticipantMode = ['individual', 'team', 'pair'].includes(preset?.participantMode)
+    ? preset.participantMode
+    : 'team';
+  const initialMinParticipants = Number.isInteger(preset?.minParticipants) ? preset.minParticipants : 2;
+  const initialMaxParticipants = Number.isInteger(preset?.maxParticipants) ? preset.maxParticipants : 16;
+  const initialBestOf = Number.isInteger(preset?.defaultMatchBestOf) ? preset.defaultMatchBestOf : 1;
+  const initialDescription = isNonEmptyString(preset?.description) ? preset.description : '';
+  const initialConfig = preset?.config && typeof preset.config === 'object' ? preset.config : {};
+  const initialAllowByes = initialConfig.allowByes !== false;
+  const initialThirdPlaceMatch = !!initialConfig.thirdPlaceMatch;
+  const initialSeedingMode = initialConfig.seedingMode === 'random' ? 'random' : 'manual';
+  const initialStages = Array.isArray(preset?.stages) && preset.stages.length > 0
+    ? preset.stages
+    : defaultStagesForPreset(initialBaseType);
+
+  closeTournamentPresetModal();
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-preset-modal';
+  dlg.className = 'dlg-bg tournament-preset-modal-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-preset-dlg" role="dialog" aria-modal="true" aria-labelledby="tournament-preset-title">
+      <div class="tournament-preset-dlg-head">
+        <h3 id="tournament-preset-title">${isEditing ? 'Preset bearbeiten' : 'Preset erstellen'}</h3>
+      </div>
+      <form id="tournament-preset-form" class="tournament-preset-form">
+        <div class="tournament-preset-grid-fields">
+          <label class="tournament-preset-field" data-field="name">
+            <span class="tournament-preset-label">Name <span class="tournament-required-star">*</span></span>
+            <input id="tp-name" type="text" maxlength="120" placeholder="z. B. Sommer-Cup KO" value="${esc(preset?.name || '')}">
+            <span class="tournament-preset-field-help">Interner Titel des Presets. Dieser Name wird später beim Erstellen neuer Turniere angezeigt.</span>
+            <span class="tournament-preset-field-error"></span>
+          </label>
+          <label class="tournament-preset-field" data-field="baseType">
+            <span class="tournament-preset-label">Typ <span class="tournament-required-star">*</span></span>
+            <select id="tp-baseType">
+              <option value="single_elimination">Single Elimination</option>
+              <option value="double_elimination">Double Elimination</option>
+              <option value="round_robin">Round Robin</option>
+              <option value="group_plus_knockout">Group + KO</option>
+              <option value="custom" disabled>Custom</option>
+            </select>
+            <span id="tp-baseType-help" class="tournament-preset-field-help">Legt fest, wie das Turnier aufgebaut ist. Beispiel: K.-o.-System oder Jeder-gegen-Jeden.</span>
+            <span class="tournament-preset-field-error"></span>
+          </label>
+          <label class="tournament-preset-field" data-field="participantMode">
+            <span class="tournament-preset-label">Teilnehmer-Modus <span class="tournament-required-star">*</span></span>
+            <select id="tp-participantMode">
+              <option value="team">Team</option>
+              <option value="individual">Individual</option>
+              <option value="pair">Pair</option>
+            </select>
+            <span class="tournament-preset-field-help">Bestimmt, ob Einzelspieler, Teams oder feste Zweier-Teams antreten.</span>
+            <span class="tournament-preset-field-error"></span>
+          </label>
+          <label class="tournament-preset-field" data-field="minParticipants">
+            <span class="tournament-preset-label">Min. Teilnehmer <span class="tournament-required-star">*</span></span>
+            <input id="tp-minParticipants" type="number" min="2" step="1" value="2">
+            <span class="tournament-preset-field-error"></span>
+          </label>
+          <label class="tournament-preset-field" data-field="maxParticipants">
+            <span class="tournament-preset-label">Max. Teilnehmer <span class="tournament-required-star">*</span></span>
+            <input id="tp-maxParticipants" type="number" min="2" step="1" value="16">
+            <span class="tournament-preset-field-error"></span>
+          </label>
+          <label class="tournament-preset-field" data-field="bestOf">
+            <span class="tournament-preset-label">Best-of (Default) <span class="tournament-required-star">*</span></span>
+            <input id="tp-bestOf" type="number" min="1" step="1" value="1">
+            <span class="tournament-preset-field-help">Wie viele Sätze/Runden pro Match gespielt werden. Beispiel: Best-of 3 bedeutet: wer zuerst 2 gewinnt.</span>
+            <span class="tournament-preset-field-error"></span>
+          </label>
+        </div>
+
+        <label class="tournament-preset-full tournament-preset-field" data-field="description">
+          <span class="tournament-preset-label">Beschreibung</span>
+          <textarea id="tp-description" rows="2" maxlength="500" placeholder="Optional"></textarea>
+          <span class="tournament-preset-field-error"></span>
+        </label>
+
+        <section class="tournament-preset-advanced">
+          <h4>Turnier-Grundlagen</h4>
+          <div class="tournament-preset-grid-fields">
+            <label>
+              Seeding
+              <select id="tp-seedingMode">
+                <option value="manual">Manual</option>
+                <option value="random">Random</option>
+              </select>
+              <span class="tournament-preset-field-help">Startreihenfolge der Teilnehmer. Manual = du setzt selbst, Random = automatische Zufallsverteilung.</span>
+            </label>
+            <label class="tournament-preset-checkbox">
+              <input id="tp-allowByes" type="checkbox" checked>
+              <span class="tournament-preset-checkbox-label">Byes erlauben</span>
+              <span class="tournament-preset-field-help">Erlaubt Freilose, wenn die Zahl der Teilnehmer nicht perfekt in die Bracket-Struktur passt.</span>
+            </label>
+            <label class="tournament-preset-checkbox">
+              <input id="tp-thirdPlaceMatch" type="checkbox">
+              <span class="tournament-preset-checkbox-label">Spiel um Platz 3</span>
+              <span class="tournament-preset-field-help">Zusätzliches Match der Halbfinal-Verlierer, um Platz 3 und 4 auszuspielen.</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="tournament-preset-stages">
+          <div class="tournament-preset-stage-head">
+            <h4>Stages</h4>
+            <div class="tournament-card-actions">
+              <button type="button" class="btn btn-ghost" id="tp-default-stages">Standard laden</button>
+              <button type="button" class="btn btn-ghost" id="tp-add-stage">Stage hinzufügen</button>
+            </div>
+          </div>
+          <p id="tp-stages-help" class="tournament-preset-field-help">Stages sind die Phasen deines Turniers. Sie werden in der Reihenfolge bearbeitet und können per Drag & Drop umsortiert werden.</p>
+          <div id="tp-stage-list" class="tournament-preset-stage-list"></div>
+          <p id="tp-stage-error" class="tournament-preset-field-error tournament-preset-stage-error"></p>
+        </section>
+
+        <div class="tournament-preset-actions">
+          <button type="button" class="btn btn-ghost" id="tp-cancel">Abbrechen</button>
+          <button type="submit" class="btn" id="tp-submit">${isEditing ? 'Änderungen speichern' : 'Preset erstellen'}</button>
+        </div>
+      </form>
+    </div>`;
+
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-preset-form');
+  const cancelBtn = dlg.querySelector('#tp-cancel');
+  const baseTypeEl = dlg.querySelector('#tp-baseType');
+  const stageListEl = dlg.querySelector('#tp-stage-list');
+  const addStageBtn = dlg.querySelector('#tp-add-stage');
+  const defaultStagesBtn = dlg.querySelector('#tp-default-stages');
+  const submitBtn = dlg.querySelector('#tp-submit');
+  const stageErrorEl = dlg.querySelector('#tp-stage-error');
+  const baseTypeHelpEl = dlg.querySelector('#tp-baseType-help');
+  const stagesHelpEl = dlg.querySelector('#tp-stages-help');
+  const modalTitleEl = dlg.querySelector('#tournament-preset-title');
+
+  if (modalTitleEl) modalTitleEl.textContent = isEditing ? 'Preset bearbeiten' : 'Preset erstellen';
+  if (submitBtn) submitBtn.textContent = isEditing ? 'Änderungen speichern' : 'Preset erstellen';
+  if (baseTypeEl) baseTypeEl.value = initialBaseType;
+  if (dlg.querySelector('#tp-participantMode')) dlg.querySelector('#tp-participantMode').value = initialParticipantMode;
+  if (dlg.querySelector('#tp-minParticipants')) dlg.querySelector('#tp-minParticipants').value = String(initialMinParticipants);
+  if (dlg.querySelector('#tp-maxParticipants')) dlg.querySelector('#tp-maxParticipants').value = String(initialMaxParticipants);
+  if (dlg.querySelector('#tp-bestOf')) dlg.querySelector('#tp-bestOf').value = String(initialBestOf);
+  if (dlg.querySelector('#tp-description')) dlg.querySelector('#tp-description').value = initialDescription;
+  if (dlg.querySelector('#tp-seedingMode')) dlg.querySelector('#tp-seedingMode').value = initialSeedingMode;
+  if (dlg.querySelector('#tp-allowByes')) dlg.querySelector('#tp-allowByes').checked = initialAllowByes;
+  if (dlg.querySelector('#tp-thirdPlaceMatch')) dlg.querySelector('#tp-thirdPlaceMatch').checked = initialThirdPlaceMatch;
+
+  let stageRows = initialStages.map((stage, idx) => ({
+    stageOrder: idx + 1,
+    name: stage.name,
+    stageType: stage.stageType,
+  }));
+
+  const setStagesByBaseType = (baseType) => {
+    stageRows = defaultStagesForPreset(baseType).map((stage, idx) => ({
+      stageOrder: idx + 1,
+      name: stage.name,
+      stageType: stage.stageType,
+    }));
+  };
+
+  const syncStageOrder = () => {
+    stageRows = stageRows.map((stage, index) => ({
+      stageOrder: index + 1,
+      name: isNonEmptyString(stage?.name) ? stage.name.trim() : `Stage ${index + 1}`,
+      stageType: TOURNAMENT_STAGE_TYPES.has(stage?.stageType)
+        ? stage.stageType
+        : 'single_elimination',
+    }));
+  };
+
+  const updateTypeHelpText = () => {
+    if (!baseTypeHelpEl) return;
+    const baseType = String(baseTypeEl?.value || 'single_elimination');
+    const descriptions = {
+      single_elimination:
+        'Klassisches K.-o.-Turnier: Eine Niederlage bedeutet das Aus. Schnell und ideal für kurze Turniere.',
+      double_elimination:
+        'Doppel-K.-o.: Erst nach zwei Niederlagen ausgeschieden. Fairer, aber mit mehr Matches.',
+      round_robin:
+        'Jeder spielt gegen jeden. Sehr fair für Rankings, benötigt aber deutlich mehr Spiele.',
+      group_plus_knockout:
+        'Erst Gruppenphase, danach K.-o.-Runde. Guter Mix aus Fairness und spannender Finalphase.',
+      custom:
+        'Eigene Kombination aus Stages, die nicht zu einem Standardmuster passt. Wird automatisch gesetzt, sobald die Stage-Reihenfolge abweicht.',
+    };
+    baseTypeHelpEl.textContent = descriptions[baseType] || descriptions.single_elimination;
+  };
+
+  const updateStagesHelpText = () => {
+    if (!stagesHelpEl) return;
+    if (!Array.isArray(stageRows) || stageRows.length === 0) {
+      stagesHelpEl.textContent =
+        'Keine Stage angelegt. Füge mindestens eine Stage hinzu, damit der Ablauf definiert ist.';
+      return;
+    }
+
+    const flow = stageRows
+      .map((stage, index) => {
+        const stageName = isNonEmptyString(stage?.name) ? stage.name.trim() : `Stage ${index + 1}`;
+        const stageType = tournamentStageTypeLabel(stage?.stageType);
+        return `${index + 1}. ${stageName} (${stageType})`;
+      })
+      .join(' -> ');
+
+    stagesHelpEl.textContent = `Aktueller Ablauf: ${flow}`;
+  };
+
+  const renderStageList = () => {
+    if (!stageListEl) return;
+    syncStageOrder();
+    stageListEl.innerHTML = getTournamentPresetStageRows(stageRows);
+    updateStagesHelpText();
+    const inferredBaseType = inferTournamentPresetBaseType(stageRows);
+    if (baseTypeEl && baseTypeEl.value !== inferredBaseType) {
+      baseTypeEl.value = inferredBaseType;
+    }
+    updateTypeHelpText();
+    bindTournamentPresetStageDragAndDrop(stageListEl, stageRows, renderStageList);
+  };
+
+  renderStageList();
+  updateTypeHelpText();
+
+  const readValue = (selector) => {
+    const el = dlg.querySelector(selector);
+    if (!el || !('value' in el)) return '';
+    return String(el.value || '').trim();
+  };
+
+  const readInt = (selector) => Number.parseInt(readValue(selector), 10);
+  cancelBtn?.addEventListener('click', () => closeTournamentPresetModal());
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) closeTournamentPresetModal();
+  });
+  dlg.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeTournamentPresetModal();
+  });
+
+  function inferTournamentPresetBaseType(stageRowsToInspect) {
+    if (!Array.isArray(stageRowsToInspect) || stageRowsToInspect.length === 0) return 'custom';
+
+    const stageTypes = stageRowsToInspect.map((stage) => String(stage?.stageType || 'single_elimination'));
+    if (stageTypes.some((stageType) => !TOURNAMENT_STAGE_TYPES.has(stageType))) return 'custom';
+
+    for (const [baseType, signature] of Object.entries(TOURNAMENT_PRESET_STAGE_SIGNATURES)) {
+      if (stageTypes.length !== signature.length) continue;
+      if (signature.every((stageType, index) => stageTypes[index] === stageType)) return baseType;
+    }
+
+    return 'custom';
+  }
+
+  function syncPresetBaseTypeFromStages() {
+    if (!baseTypeEl) return;
+    const inferredBaseType = inferTournamentPresetBaseType(stageRows);
+    if (baseTypeEl.value !== inferredBaseType) {
+      baseTypeEl.value = inferredBaseType;
+    }
+    updateTypeHelpText();
+  }
+
+  baseTypeEl?.addEventListener('change', () => {
+    const baseType = String(baseTypeEl.value || 'single_elimination');
+    if (baseType === 'custom') {
+      updateTypeHelpText();
+      return;
+    }
+    setStagesByBaseType(baseType);
+    renderStageList();
+  });
+
+  const applyDefaultStages = () => {
+    const baseType = String(baseTypeEl?.value || 'single_elimination');
+    const resolvedBaseType = TOURNAMENT_PRESET_STAGE_SIGNATURES[baseType] ? baseType : 'single_elimination';
+    setStagesByBaseType(resolvedBaseType);
+    renderStageList();
+    if (stageErrorEl) stageErrorEl.textContent = '';
+  };
+
+  const addStage = () => {
+    stageRows.push({
+      stageOrder: stageRows.length + 1,
+      name: `Stage ${stageRows.length + 1}`,
+      stageType: 'single_elimination',
+    });
+    renderStageList();
+    if (stageErrorEl) stageErrorEl.textContent = '';
+  };
+
+  const removeStage = (index) => {
+    if (!Number.isInteger(index) || index < 0 || !stageRows[index]) return;
+    stageRows.splice(index, 1);
+    renderStageList();
+    if (stageErrorEl) stageErrorEl.textContent = '';
+  };
+
+  const handleStageActionClick = (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const addTrigger = target.closest('#tp-add-stage');
+    if (addTrigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      addStage();
+      return;
+    }
+
+    const defaultTrigger = target.closest('#tp-default-stages');
+    if (defaultTrigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      applyDefaultStages();
+      return;
+    }
+
+    const removeTrigger = target.closest('.tournament-preset-stage-remove');
+    if (!removeTrigger) return;
+    event.preventDefault();
+    event.stopPropagation();
+    removeStage(Number(removeTrigger.getAttribute('data-stage-index')));
+  };
+
+  stageListEl?.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const index = Number(target.getAttribute('data-stage-index'));
+    if (!Number.isInteger(index) || !stageRows[index]) return;
+
+    if (target.classList.contains('tournament-preset-stage-name')) {
+      stageRows[index].name = String(target.value || '');
+    }
+    if (target.classList.contains('tournament-preset-stage-type')) {
+      stageRows[index].stageType = String(target.value || 'single_elimination');
+      const row = target.closest('.tournament-preset-stage-row');
+      const help = row?.querySelector('.tournament-preset-stage-help');
+      if (help) help.textContent = getTournamentPresetStageTypeHelp(stageRows[index].stageType);
+    }
+    updateStagesHelpText();
+    syncPresetBaseTypeFromStages();
+  });
+
+  if (!addStageBtn || !defaultStagesBtn) {
+    console.warn('Tournament preset stage controls are missing in modal DOM.');
+  }
+
+  const setFieldError = (fieldName, message = '') => {
+    const fieldWrap = dlg.querySelector(`.tournament-preset-field[data-field="${fieldName}"]`);
+    if (!fieldWrap) return;
+    fieldWrap.classList.toggle('is-invalid', !!message);
+    const hint = fieldWrap.querySelector('.tournament-preset-field-error');
+    if (hint) hint.textContent = message;
+  };
+
+  const clearAllFieldErrors = () => {
+    const fields = dlg.querySelectorAll('.tournament-preset-field');
+    for (const field of fields) {
+      field.classList.remove('is-invalid');
+      const hint = field.querySelector('.tournament-preset-field-error');
+      if (hint) hint.textContent = '';
+    }
+    if (stageErrorEl) stageErrorEl.textContent = '';
+  };
+
+  const validatePresetForm = () => {
+    clearAllFieldErrors();
+
+    const name = readValue('#tp-name');
+    const baseType = readValue('#tp-baseType');
+    const participantMode = readValue('#tp-participantMode');
+    const minParticipants = readInt('#tp-minParticipants');
+    const maxParticipants = readInt('#tp-maxParticipants');
+    const defaultMatchBestOf = readInt('#tp-bestOf');
+
+    let hasError = false;
+    if (!name) {
+      setFieldError('name', 'Bitte Name eingeben.');
+      hasError = true;
+    }
+    if (!TOURNAMENT_PRESET_BASE_TYPES.has(baseType)) {
+      setFieldError('baseType', 'Bitte einen gültigen Typ wählen.');
+      hasError = true;
+    }
+    if (!['individual', 'team', 'pair'].includes(participantMode)) {
+      setFieldError('participantMode', 'Bitte einen gültigen Teilnehmer-Modus wählen.');
+      hasError = true;
+    }
+    if (!Number.isInteger(minParticipants) || minParticipants < 2) {
+      setFieldError('minParticipants', 'Mindestens 2 Teilnehmer erforderlich.');
+      hasError = true;
+    }
+    if (!Number.isInteger(maxParticipants) || maxParticipants < minParticipants) {
+      setFieldError('maxParticipants', 'Max. Teilnehmer muss >= Min. Teilnehmer sein.');
+      hasError = true;
+    }
+    if (!Number.isInteger(defaultMatchBestOf) || defaultMatchBestOf < 1) {
+      setFieldError('bestOf', 'Best-of muss mindestens 1 sein.');
+      hasError = true;
+    }
+
+    syncStageOrder();
+    if (stageRows.length === 0) {
+      if (stageErrorEl) stageErrorEl.textContent = 'Mindestens eine Stage ist erforderlich.';
+      hasError = true;
+    }
+
+    return {
+      hasError,
+      payload: {
+        name,
+        baseType,
+        participantMode,
+        minParticipants,
+        maxParticipants,
+        defaultMatchBestOf,
+      },
+    };
+  };
+
+  form?.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const field = target.closest('.tournament-preset-field');
+    if (!field) return;
+    field.classList.remove('is-invalid');
+    const hint = field.querySelector('.tournament-preset-field-error');
+    if (hint) hint.textContent = '';
+  });
+
+  const submitPresetForm = async () => {
+    if (!submitBtn) return;
+
+    const validation = validatePresetForm();
+    if (validation.hasError) {
+      const firstInvalid = dlg.querySelector('.tournament-preset-field.is-invalid input, .tournament-preset-field.is-invalid select');
+      firstInvalid?.focus();
+      return;
+    }
+
+    const description = readValue('#tp-description');
+    const { name, baseType, participantMode, minParticipants, maxParticipants, defaultMatchBestOf } =
+      validation.payload;
+    const allowByes = dlg.querySelector('#tp-allowByes')?.checked === true;
+    const thirdPlaceMatch = dlg.querySelector('#tp-thirdPlaceMatch')?.checked === true;
+    const seedingMode = readValue('#tp-seedingMode') || 'manual';
+    const endpoint = isEditing && preset?.id
+      ? `/tournaments/presets/${encodeURIComponent(preset.id)}`
+      : '/tournaments/presets';
+    const method = isEditing ? 'PATCH' : 'POST';
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = isEditing ? 'Wird gespeichert...' : 'Wird erstellt...';
+
+    try {
+      await apiCall(endpoint, method, {
+        groupId: curGroupId,
+        name,
+        description: description || null,
+        baseType,
+        participantMode,
+        minParticipants,
+        maxParticipants,
+        defaultMatchBestOf,
+        config: {
+          allowByes,
+          thirdPlaceMatch,
+          seedingMode,
+        },
+        stages: stageRows,
+      });
+      toast(isEditing ? 'Preset aktualisiert' : 'Preset erstellt', 'success');
+      closeTournamentPresetModal();
+      await loadActiveTournamentView(true);
+    } catch (e) {
+      toast(e.serverMessage || (isEditing ? 'Preset konnte nicht aktualisiert werden' : 'Preset konnte nicht erstellt werden'), 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = isEditing ? 'Änderungen speichern' : 'Preset erstellen';
+    }
+  };
+
+  activeTournamentPresetModal = {
+    addStage,
+    applyDefaultStages,
+    removeStage,
+    submitPresetForm,
+  };
+
+  window.__tpModalApplyDefaults = () => {
+    activeTournamentPresetModal?.applyDefaultStages?.();
+  };
+  window.__tpModalAddStage = () => {
+    activeTournamentPresetModal?.addStage?.();
+  };
+  window.__tpModalRemoveStage = (index) => {
+    activeTournamentPresetModal?.removeStage?.(Number(index));
+  };
+  window.__tpModalSubmit = () => {
+    activeTournamentPresetModal?.submitPresetForm?.();
+  };
+
+  // Primary interaction path for stage controls.
+  dlg.addEventListener('click', handleStageActionClick);
+
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitPresetForm();
+  });
+
+  dlg.querySelector('#tp-name')?.focus();
+}
+
+async function createTournamentInstanceFromPreset(presetId, presetName = 'Turnier') {
+  const input = await showTextConfirmDlg(
+    'Instanz aus Preset erstellen',
+    `Name für die Instanz von ${presetName}.`,
+    'Erstellen',
+    'Abbrechen',
+    false,
+    `${presetName} ${new Date().getFullYear()}`
+  );
+  if (!input?.confirmed || !input.text) return;
+
+  try {
+    const data = await apiCall('/tournaments/instances', 'POST', {
+      presetId,
+      name: input.text,
+    });
+    toast('Instanz erstellt', 'success');
+    if (data?.instance?.id) {
+      await openTournamentInstance(data.instance.id);
+      return;
+    }
+    await loadTournamentInstances(true);
+  } catch (e) {
+    toast(e.serverMessage || 'Instanz konnte nicht erstellt werden', 'error');
+  }
+}
+
+async function openCreateTournamentInstance() {
+  if (!curGroupId) {
+    toast('Keine aktive Gruppe ausgewählt', 'error');
+    return;
+  }
+
+  if (!Array.isArray(tournamentPresets) || tournamentPresets.length === 0) {
+    await loadTournamentPresets(true);
+  }
+
+  if (!Array.isArray(tournamentPresets) || tournamentPresets.length === 0) {
+    toast('Bitte zuerst ein Preset erstellen', 'info');
+    return;
+  }
+
+  const preview = tournamentPresets
+    .slice(0, 12)
+    .map((preset, index) => `${index + 1}: ${preset.name}`)
+    .join('\n');
+  const selectionRaw = window.prompt(`Preset auswählen (Nummer):\n${preview}`, '1');
+  if (selectionRaw === null) return;
+
+  const selectedIndex = Number(selectionRaw) - 1;
+  const selectedPreset = tournamentPresets[selectedIndex];
+  if (!selectedPreset) {
+    toast('Ungültige Preset-Auswahl', 'error');
+    return;
+  }
+
+  await createTournamentInstanceFromPreset(selectedPreset.id, selectedPreset.name || 'Turnier');
+}
+
+async function archiveTournamentPreset(presetId, presetName) {
+  const ok = await showConfirmDlg(
+    'Preset archivieren',
+    `Preset ${presetName} wirklich archivieren?`,
+    'Archivieren',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+
+  try {
+    await apiCall(`/tournaments/presets/${encodeURIComponent(presetId)}`, 'DELETE');
+    toast('Preset archiviert', 'success');
+    await loadActiveTournamentView(true);
+  } catch (e) {
+    toast(e.serverMessage || 'Preset konnte nicht archiviert werden', 'error');
+  }
+}
+
+function openEditTournamentPreset(presetId) {
+  const preset = tournamentPresets.find((entry) => entry.id === presetId);
+  if (!preset) {
+    toast('Preset nicht gefunden', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung für diese Gruppe', 'error');
+    return;
+  }
+  openCreateTournamentPreset(preset);
+}
+
+async function openTournamentInstance(instanceId) {
+  try {
+    const { instance } = await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}`, 'GET');
+    activeTournamentInstance = instance;
+    curTournamentView = 'instances';
+    saveLastModuleState();
+    renderSidebar();
+    renderTournamentInstancesPage();
+  } catch (e) {
+    toast(e.serverMessage || 'Turnier-Details konnten nicht geladen werden', 'error');
+  }
+}
+
+async function openTournamentStandings(instanceId) {
+  await openTournamentInstance(instanceId);
+  const standingsEl = document.getElementById('tournament-standings-section');
+  if (standingsEl) standingsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function deleteTournamentInstance(instanceId, instanceName) {
+  const ok = await showConfirmDlg(
+    'Turnier löschen',
+    `${instanceName || 'Dieses Turnier'} wirklich löschen?`,
+    'Löschen',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+
+  try {
+    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}`, 'DELETE');
+    if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
+    toast('Turnier gelöscht', 'success');
+    await loadTournamentInstances(true);
+  } catch (e) {
+    toast(e.serverMessage || 'Turnier konnte nicht gelöscht werden', 'error');
+  }
+}
+
+function renderTournamentInstanceDetail(instance) {
+  const participantRows = (instance.participants || [])
+    .map((entry) => {
+      const name =
+        getVisibleName(entry.user, entry?.user?.displayNameField) ||
+        entry?.user?.name ||
+        entry?.user?.username ||
+        entry?.userId ||
+        'Teilnehmer';
+      return `<tr>
+        <td>${esc(name)}</td>
+        <td>${esc(entry?.team?.name || '-')}</td>
+        <td>${entry.points}</td>
+        <td>${entry.wins}-${entry.losses}-${entry.draws}</td>
+        <td>${esc(entry.status || '-')}</td>
+        <td><button class="btn btn-ghost" onclick="removeTournamentParticipant('${instance.id}','${entry.id}','${esc(name)}')">Entfernen</button></td>
+      </tr>`;
+    })
+    .join('');
+
+  const memberActions = groupMembers
+    .slice(0, 12)
+    .map((member) => {
+      const displayName = getVisibleName(member, member?.displayNameField) || member.name || member.username || 'Mitglied';
+      return `<button class="btn btn-ghost" onclick="addTournamentParticipantFromGroup('${instance.id}','${member.id}','${esc(displayName)}')">＋ ${esc(displayName)}</button>`;
+    })
+    .join('');
+
+  const matches = (instance.matches || [])
+    .map((match) => {
+      const homeName =
+        getVisibleName(match?.homeParticipant?.user, match?.homeParticipant?.user?.displayNameField) ||
+        match?.homeParticipant?.user?.name ||
+        match?.homeParticipant?.user?.username ||
+        match?.homeParticipantId ||
+        'TBD';
+      const awayName =
+        getVisibleName(match?.awayParticipant?.user, match?.awayParticipant?.user?.displayNameField) ||
+        match?.awayParticipant?.user?.name ||
+        match?.awayParticipant?.user?.username ||
+        match?.awayParticipantId ||
+        'TBD';
+      const scoreHome = match.results?.find((r) => r.participantId === match.homeParticipantId)?.score;
+      const scoreAway = match.results?.find((r) => r.participantId === match.awayParticipantId)?.score;
+      const scoreText =
+        typeof scoreHome === 'number' && typeof scoreAway === 'number'
+          ? `${scoreHome}:${scoreAway}`
+          : '-:-';
+      return `<article class="tournament-match-row">
+        <div>
+          <strong>#${match.matchNumber}</strong> ${esc(homeName)} vs ${esc(awayName)}
+          <div class="tournament-match-meta">Status: ${esc(tournamentStatusLabel(match.status))} · Ergebnis: ${esc(scoreText)}</div>
+        </div>
+        <button class="btn btn-ghost" onclick="recordTournamentMatchResult('${instance.id}','${match.id}')">Ergebnis</button>
+      </article>`;
+    })
+    .join('');
+
+  return `
+    <div class="tournament-detail">
+      <div class="tournament-detail-head">
+        <h2>${esc(instance.name || 'Turnier')}</h2>
+        <div class="tournament-card-actions">
+          <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','registration')">Registrierung</button>
+          <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','in_progress')">Starten</button>
+          <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','completed')">Beenden</button>
+          <button class="btn btn-ghost" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')">Löschen</button>
+        </div>
+      </div>
+      <p>Preset: ${esc(instance?.preset?.name || '-')} · Modus: ${esc(tournamentPresetTypeLabel(instance?.preset?.baseType))} · Status: ${esc(tournamentStatusLabel(instance.status))}</p>
+
+      <section class="tournament-panel">
+        <div class="tournament-panel-head">
+          <h3>Teams</h3>
+          <button class="btn btn-ghost" onclick="createTournamentTeam('${instance.id}')">Team hinzufügen</button>
+        </div>
+        <div class="tournament-inline-list">
+          ${(instance.teams || [])
+            .map((team) => `<span class="tournament-chip">${esc(team.name)}${team.seed ? ` · Seed ${team.seed}` : ''}</span>`)
+            .join('') || '<span class="tournament-empty-inline">Keine Teams angelegt.</span>'}
+        </div>
+      </section>
+
+      <section class="tournament-panel">
+        <div class="tournament-panel-head">
+          <h3>Teilnehmer</h3>
+        </div>
+        <div class="tournament-inline-actions">${memberActions || '<span class="tournament-empty-inline">Keine Gruppenmitglieder verfügbar.</span>'}</div>
+        <div class="tournament-table-wrap">
+          <table class="tournament-table">
+            <thead><tr><th>Name</th><th>Team</th><th>Punkte</th><th>W-L-D</th><th>Status</th><th></th></tr></thead>
+            <tbody>${participantRows || '<tr><td colspan="6">Noch keine Teilnehmer.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tournament-panel">
+        <div class="tournament-panel-head">
+          <h3>Matches</h3>
+          <button class="btn btn-ghost" onclick="createTournamentMatch('${instance.id}')">Match hinzufügen</button>
+        </div>
+        <div class="tournament-match-list">${matches || '<p class="tournament-empty">Noch keine Matches vorhanden.</p>'}</div>
+      </section>
+
+      <section id="tournament-standings-section" class="tournament-panel">
+        <div class="tournament-panel-head">
+          <h3>Standings</h3>
+          <button class="btn btn-ghost" onclick="refreshTournamentInstance('${instance.id}')">Neu berechnen</button>
+        </div>
+        <ol class="tournament-standing-list">
+          ${(instance.participants || [])
+            .slice()
+            .sort((a, b) => b.points - a.points || b.wins - a.wins || a.losses - b.losses)
+            .map((entry) => {
+              const name =
+                getVisibleName(entry.user, entry?.user?.displayNameField) ||
+                entry?.user?.name ||
+                entry?.user?.username ||
+                entry?.userId ||
+                'Teilnehmer';
+              return `<li><span>${esc(name)}</span><strong>${entry.points} Pkt</strong></li>`;
+            })
+            .join('') || '<li>Keine Daten verfügbar.</li>'}
+        </ol>
+      </section>
+    </div>`;
+}
+
+async function refreshTournamentInstance(instanceId) {
+  await openTournamentInstance(instanceId);
+}
+
+async function setTournamentInstanceStatus(instanceId, status) {
+  try {
+    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}`, 'PATCH', { status });
+    toast('Turnierstatus aktualisiert', 'success');
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Turnierstatus konnte nicht aktualisiert werden', 'error');
+  }
+}
+
+async function createTournamentTeam(instanceId) {
+  const nameInput = await showTextConfirmDlg(
+    'Team anlegen',
+    'Teamname eingeben.',
+    'Anlegen',
+    'Abbrechen',
+    false,
+    'z. B. Team Nord'
+  );
+  if (!nameInput?.confirmed || !nameInput.text) return;
+  const seedRaw = window.prompt('Seed (optional)', '');
+  if (seedRaw === null) return;
+  const seed = seedRaw.trim() ? Number(seedRaw) : null;
+  if (seedRaw.trim() && (!Number.isInteger(seed) || seed < 1)) {
+    toast('Seed muss eine positive ganze Zahl sein', 'error');
+    return;
+  }
+
+  try {
+    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}/teams`, 'POST', {
+      name: nameInput.text,
+      seed,
+    });
+    toast('Team angelegt', 'success');
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Team konnte nicht angelegt werden', 'error');
+  }
+}
+
+async function addTournamentParticipantFromGroup(instanceId, userId, label) {
+  const teamIdRaw = window.prompt(
+    `Optional teamId für ${label} (leer lassen für Einzelzuordnung)`,
+    ''
+  );
+  if (teamIdRaw === null) return;
+
+  try {
+    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}/participants`, 'POST', {
+      userId,
+      teamId: teamIdRaw.trim() || null,
+    });
+    toast('Teilnehmer hinzugefügt', 'success');
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Teilnehmer konnte nicht hinzugefügt werden', 'error');
+  }
+}
+
+async function removeTournamentParticipant(instanceId, participantId, label) {
+  const ok = await showConfirmDlg(
+    'Teilnehmer entfernen',
+    `${label} aus diesem Turnier entfernen?`,
+    'Entfernen',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+
+  try {
+    await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/participants/${encodeURIComponent(participantId)}`,
+      'DELETE'
+    );
+    toast('Teilnehmer entfernt', 'success');
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Teilnehmer konnte nicht entfernt werden', 'error');
+  }
+}
+
+async function createTournamentMatch(instanceId) {
+  const participants = activeTournamentInstance?.participants || [];
+  if (participants.length < 2) {
+    toast('Mindestens zwei Teilnehmer erforderlich', 'error');
+    return;
+  }
+
+  const matchNumberRaw = window.prompt('Match-Nummer', String((activeTournamentInstance?.matches?.length || 0) + 1));
+  if (matchNumberRaw === null) return;
+  const matchNumber = Number(matchNumberRaw);
+  if (!Number.isInteger(matchNumber) || matchNumber < 1) {
+    toast('Match-Nummer ungültig', 'error');
+    return;
+  }
+
+  const homeParticipantId = window.prompt('homeParticipantId', participants[0]?.id || '');
+  if (homeParticipantId === null) return;
+  const awayParticipantId = window.prompt('awayParticipantId', participants[1]?.id || '');
+  if (awayParticipantId === null) return;
+
+  try {
+    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}/matches`, 'POST', {
+      matchNumber,
+      homeParticipantId: homeParticipantId.trim(),
+      awayParticipantId: awayParticipantId.trim(),
+      status: 'planned',
+    });
+    toast('Match erstellt', 'success');
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Match konnte nicht erstellt werden', 'error');
+  }
+}
+
+async function recordTournamentMatchResult(instanceId, matchId) {
+  const match = (activeTournamentInstance?.matches || []).find((entry) => entry.id === matchId);
+  if (!match?.homeParticipantId || !match?.awayParticipantId) {
+    toast('Match hat keine vollständige Teilnehmerzuordnung', 'error');
+    return;
+  }
+
+  const scoreInput = window.prompt('Ergebnis eingeben (Format: Heim:Auswärts, z. B. 10:7)', '0:0');
+  if (scoreInput === null) return;
+  const parts = String(scoreInput)
+    .split(':')
+    .map((value) => Number(value.trim()));
+  if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) {
+    toast('Ergebnisformat ungültig', 'error');
+    return;
+  }
+
+  const [homeScore, awayScore] = parts;
+  const isDraw = homeScore === awayScore;
+  const winnerParticipantId = isDraw
+    ? null
+    : homeScore > awayScore
+      ? match.homeParticipantId
+      : match.awayParticipantId;
+
+  const results = [
+    {
+      participantId: match.homeParticipantId,
+      score: homeScore,
+      outcome: isDraw ? 'draw' : homeScore > awayScore ? 'win' : 'loss',
+    },
+    {
+      participantId: match.awayParticipantId,
+      score: awayScore,
+      outcome: isDraw ? 'draw' : awayScore > homeScore ? 'win' : 'loss',
+    },
+  ];
+
+  try {
+    await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/result`,
+      'PATCH',
+      {
+        isDraw,
+        winnerParticipantId,
+        results,
+      }
+    );
+    toast('Ergebnis gespeichert', 'success');
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');
   }
 }
 
@@ -8349,6 +10037,8 @@ async function switchGroup(groupId) {
   renderGroupSwitcher();
   if (curModule === 'feed' && sidebarUiState.feedExpanded) {
     await loadFeedPosts(true);
+  } else if (curModule === 'tournaments' && sidebarUiState.tournamentsExpanded) {
+    await loadActiveTournamentView(true);
   } else {
     await loadPhotos(true);
   }
@@ -11261,7 +12951,31 @@ Object.assign(window, {
   closeSidebar,
   toggleSidebarFotos,
   toggleSidebarFeed,
+  toggleSidebarTournaments,
   switchToFeed,
+  switchToTournaments,
+  switchToTournamentInstances,
+  switchToTournamentPresets,
+  loadActiveTournamentView,
+  loadTournamentDashboard,
+  loadTournamentInstances,
+  loadTournamentPresets,
+  openCreateTournamentPreset,
+  openEditTournamentPreset,
+  closeTournamentPresetModal,
+  openCreateTournamentInstance,
+  createTournamentInstanceFromPreset,
+  archiveTournamentPreset,
+  openTournamentInstance,
+  openTournamentStandings,
+  deleteTournamentInstance,
+  refreshTournamentInstance,
+  setTournamentInstanceStatus,
+  createTournamentTeam,
+  addTournamentParticipantFromGroup,
+  removeTournamentParticipant,
+  createTournamentMatch,
+  recordTournamentMatchResult,
   openPhotoInFotosModule,
   openUploaderPhotosFromFeed,
   openSharePhotoToFeedModal,
