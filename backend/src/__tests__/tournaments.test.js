@@ -132,9 +132,19 @@ describe('tournaments routes', () => {
       status: 'draft',
       rounds: [
         { roundNumber: 1, name: 'Achtelfinale', stageKey: 'single_elimination', status: 'planned' },
-        { roundNumber: 2, name: 'Viertelfinale', stageKey: 'single_elimination', status: 'planned' },
+        {
+          roundNumber: 2,
+          name: 'Viertelfinale',
+          stageKey: 'single_elimination',
+          status: 'planned',
+        },
       ],
-      preset: { id: 'preset-1', name: 'KO 16', baseType: 'single_elimination', participantMode: 'team' },
+      preset: {
+        id: 'preset-1',
+        name: 'KO 16',
+        baseType: 'single_elimination',
+        participantMode: 'team',
+      },
     });
 
     const { reply, result } = await callRoute('POST', '/instances', {
@@ -241,7 +251,9 @@ describe('tournaments routes', () => {
     const payload = reply.payload ?? result?.payload ?? result;
     expect(reply.statusCode).toBe(200);
     expect(payload.match.status).toBe('completed');
-    expect(prisma.tournamentMatchResult.deleteMany).toHaveBeenCalledWith({ where: { matchId: 'match-1' } });
+    expect(prisma.tournamentMatchResult.deleteMany).toHaveBeenCalledWith({
+      where: { matchId: 'match-1' },
+    });
     expect(prisma.tournamentParticipant.update).toHaveBeenCalled();
   });
 
@@ -549,7 +561,13 @@ describe('tournaments routes', () => {
         maxParticipants: 16,
         participantMode: 'individual',
         stages: [
-          { id: 'stage-1', stageOrder: 1, name: 'Hauptrunde', stageType: 'single_elimination', config: null },
+          {
+            id: 'stage-1',
+            stageOrder: 1,
+            name: 'Hauptrunde',
+            stageType: 'single_elimination',
+            config: null,
+          },
         ],
       },
       teams: [],
@@ -578,15 +596,11 @@ describe('tournaments routes', () => {
     });
     prisma.tournamentMatch.update.mockResolvedValue({});
 
-    const { reply, result } = await callRoute(
-      'POST',
-      '/instances/:id/bracket/generate',
-      {
-        user: { id: 'admin-1' },
-        params: { id: 'inst-1' },
-        body: {},
-      }
-    );
+    const { reply, result } = await callRoute('POST', '/instances/:id/bracket/generate', {
+      user: { id: 'admin-1' },
+      params: { id: 'inst-1' },
+      body: {},
+    });
 
     const payload = reply.payload ?? result?.payload ?? result;
     expect(reply.statusCode).toBe(201);
@@ -613,22 +627,24 @@ describe('tournaments routes', () => {
         maxParticipants: 16,
         participantMode: 'individual',
         stages: [
-          { id: 'stage-1', stageOrder: 1, name: 'Hauptrunde', stageType: 'single_elimination', config: null },
+          {
+            id: 'stage-1',
+            stageOrder: 1,
+            name: 'Hauptrunde',
+            stageType: 'single_elimination',
+            config: null,
+          },
         ],
       },
       teams: [],
       participants: [{ id: 'p1', seed: 1, displayName: 'A' }],
     });
 
-    const { reply, result } = await callRoute(
-      'POST',
-      '/instances/:id/bracket/generate',
-      {
-        user: { id: 'admin-1' },
-        params: { id: 'inst-1' },
-        body: {},
-      }
-    );
+    const { reply, result } = await callRoute('POST', '/instances/:id/bracket/generate', {
+      user: { id: 'admin-1' },
+      params: { id: 'inst-1' },
+      body: {},
+    });
 
     const payload = reply.payload ?? result?.payload ?? result;
     expect(reply.statusCode).toBe(400);
@@ -669,15 +685,11 @@ describe('tournaments routes', () => {
       participants: [],
     }));
 
-    const { reply, result } = await callRoute(
-      'POST',
-      '/instances/:id/bracket/generate',
-      {
-        user: { id: 'admin-1' },
-        params: { id: 'inst-1' },
-        body: {},
-      }
-    );
+    const { reply, result } = await callRoute('POST', '/instances/:id/bracket/generate', {
+      user: { id: 'admin-1' },
+      params: { id: 'inst-1' },
+      body: {},
+    });
 
     const payload = reply.payload ?? result?.payload ?? result;
     expect(reply.statusCode).toBe(400);
@@ -725,15 +737,11 @@ describe('tournaments routes', () => {
     );
     prisma.tournamentMatch.update.mockResolvedValue({});
 
-    const { reply, result } = await callRoute(
-      'POST',
-      '/instances/:id/bracket/generate',
-      {
-        user: { id: 'admin-1' },
-        params: { id: 'inst-1' },
-        body: {},
-      }
-    );
+    const { reply, result } = await callRoute('POST', '/instances/:id/bracket/generate', {
+      user: { id: 'admin-1' },
+      params: { id: 'inst-1' },
+      body: {},
+    });
 
     const payload = reply.payload ?? result?.payload ?? result;
     expect(reply.statusCode).toBe(201);

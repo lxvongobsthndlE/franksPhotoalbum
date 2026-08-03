@@ -1009,7 +1009,7 @@ function renderSidebar() {
       ? 'photos'
       : sidebarUiState.tournamentsExpanded
         ? 'tournaments'
-      : null;
+        : null;
   const fotosExpanded = sidebarUiState.fotosExpanded;
   const tournamentsExpanded = sidebarUiState.tournamentsExpanded;
 
@@ -2225,25 +2225,25 @@ function renderTournamentHeaderActions() {
       ]
     : isInstancesView
       ? [
-        {
-          id: 'tournament-refresh-btn',
-          label: 'Aktualisieren',
-          className: 'btn btn-ghost',
-          onClick: () => loadActiveTournamentView(true),
-        },
-        {
-          id: 'tournament-new-instance-btn',
-          label: 'Neues Turnier',
-          className: 'btn btn-ghost',
-          onClick: openCreateTournamentInstance,
-        },
-        {
-          id: 'tournament-new-preset-btn',
-          label: 'Neues Preset',
-          className: 'btn',
-          onClick: openCreateTournamentPreset,
-        },
-      ]
+          {
+            id: 'tournament-refresh-btn',
+            label: 'Aktualisieren',
+            className: 'btn btn-ghost',
+            onClick: () => loadActiveTournamentView(true),
+          },
+          {
+            id: 'tournament-new-instance-btn',
+            label: 'Neues Turnier',
+            className: 'btn btn-ghost',
+            onClick: openCreateTournamentInstance,
+          },
+          {
+            id: 'tournament-new-preset-btn',
+            label: 'Neues Preset',
+            className: 'btn',
+            onClick: openCreateTournamentPreset,
+          },
+        ]
       : [];
 
   let anchor = uploadBtn;
@@ -2353,11 +2353,16 @@ async function loadTournamentInstances(reset = false) {
   }
 
   try {
-    const instanceData = await apiCall(`/tournaments/instances?groupId=${encodeURIComponent(curGroupId)}`, 'GET');
+    const instanceData = await apiCall(
+      `/tournaments/instances?groupId=${encodeURIComponent(curGroupId)}`,
+      'GET'
+    );
     tournamentInstances = Array.isArray(instanceData?.instances) ? instanceData.instances : [];
 
     if (activeTournamentInstance?.id) {
-      const stillExists = tournamentInstances.some((entry) => entry.id === activeTournamentInstance.id);
+      const stillExists = tournamentInstances.some(
+        (entry) => entry.id === activeTournamentInstance.id
+      );
       if (!stillExists) activeTournamentInstance = null;
     }
 
@@ -2430,7 +2435,8 @@ function renderTournamentInstancesPage() {
         .map((instance) => {
           const participantCount = instance?._count?.participants ?? 0;
           const matchCount = instance?._count?.matches ?? 0;
-          const activeClass = activeTournamentInstance?.id === instance.id ? ' tournament-card-active' : '';
+          const activeClass =
+            activeTournamentInstance?.id === instance.id ? ' tournament-card-active' : '';
           return `<article class="tournament-card tournament-instance-card${activeClass}" data-instance-phase="${esc(phase)}">
             <div class="tournament-card-head">
               <h3>${esc(instance.name || 'Turnier')}</h3>
@@ -2505,7 +2511,10 @@ async function loadTournamentPresets(reset = false) {
   }
 
   try {
-    const presetData = await apiCall(`/tournaments/presets?groupId=${encodeURIComponent(curGroupId)}`, 'GET');
+    const presetData = await apiCall(
+      `/tournaments/presets?groupId=${encodeURIComponent(curGroupId)}`,
+      'GET'
+    );
     tournamentPresets = Array.isArray(presetData?.presets) ? presetData.presets : [];
     renderTournamentPresetsPage();
   } catch (e) {
@@ -2534,15 +2543,22 @@ function renderTournamentPresetsPage() {
       const presetConfig = preset?.config && typeof preset.config === 'object' ? preset.config : {};
       const presetStages = Array.isArray(preset?.stages) ? preset.stages : [];
       const creatorName = preset?.creator
-        ? getVisibleName(preset.creator, preset.creator.displayNameField) || preset.creator.username || preset.creator.email || 'Unbekannt'
+        ? getVisibleName(preset.creator, preset.creator.displayNameField) ||
+          preset.creator.username ||
+          preset.creator.email ||
+          'Unbekannt'
         : 'Unbekannt';
-      const createdAtLabel = preset?.createdAt ? new Date(preset.createdAt).toLocaleDateString('de-DE') : '-';
+      const createdAtLabel = preset?.createdAt
+        ? new Date(preset.createdAt).toLocaleDateString('de-DE')
+        : '-';
       const byesLabel = presetConfig.allowByes === false ? 'Byes aus' : 'Byes an';
       const thirdPlaceLabel = presetConfig.thirdPlaceMatch ? 'Platz 3 an' : 'Platz 3 aus';
       const seedingLabel =
         presetConfig.seedingMode === 'random' ? 'Seeding random' : 'Seeding manuell';
       const stagePreview = presetStages.slice(0, 3).map((stage) => {
-        const stageName = isNonEmptyString(stage?.name) ? stage.name.trim() : `Stage ${stage?.stageOrder || ''}`;
+        const stageName = isNonEmptyString(stage?.name)
+          ? stage.name.trim()
+          : `Stage ${stage?.stageOrder || ''}`;
         return `<span class="tournament-chip">${esc(stageName)} · ${esc(tournamentStageTypeLabel(stage?.stageType))}</span>`;
       });
       const stageCountLabel = `${presetStages.length || 0} Stage${presetStages.length === 1 ? '' : 's'}`;
@@ -2588,7 +2604,9 @@ function renderTournamentPresetsPage() {
     })
     .join('');
 
-  grid.innerHTML = presetCards || '<p class="tournament-empty tournament-preset-empty">Noch keine Presets vorhanden.</p>';
+  grid.innerHTML =
+    presetCards ||
+    '<p class="tournament-empty tournament-preset-empty">Noch keine Presets vorhanden.</p>';
 }
 
 function closeTournamentPresetModal() {
@@ -2679,7 +2697,12 @@ function bindTournamentPresetStageDragAndDrop(stageListEl, stageRows, renderStag
       const sourceIndex = Number.isInteger(draggedStageIndex)
         ? draggedStageIndex
         : Number(event.dataTransfer?.getData('text/plain'));
-      if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex) || sourceIndex === targetIndex) return;
+      if (
+        !Number.isInteger(sourceIndex) ||
+        !Number.isInteger(targetIndex) ||
+        sourceIndex === targetIndex
+      )
+        return;
       const [moved] = stageRows.splice(sourceIndex, 1);
       stageRows.splice(targetIndex, 0, moved);
       renderStageList();
@@ -2695,21 +2718,30 @@ function openCreateTournamentPreset(existingPreset = null) {
 
   const preset = existingPreset && existingPreset.id ? existingPreset : null;
   const isEditing = !!preset;
-  const initialBaseType = TOURNAMENT_PRESET_BASE_TYPES.has(preset?.baseType) ? preset.baseType : 'single_elimination';
+  const initialBaseType = TOURNAMENT_PRESET_BASE_TYPES.has(preset?.baseType)
+    ? preset.baseType
+    : 'single_elimination';
   const initialParticipantMode = ['individual', 'team', 'pair'].includes(preset?.participantMode)
     ? preset.participantMode
     : 'team';
-  const initialMinParticipants = Number.isInteger(preset?.minParticipants) ? preset.minParticipants : 2;
-  const initialMaxParticipants = Number.isInteger(preset?.maxParticipants) ? preset.maxParticipants : 16;
-  const initialBestOf = Number.isInteger(preset?.defaultMatchBestOf) ? preset.defaultMatchBestOf : 1;
+  const initialMinParticipants = Number.isInteger(preset?.minParticipants)
+    ? preset.minParticipants
+    : 2;
+  const initialMaxParticipants = Number.isInteger(preset?.maxParticipants)
+    ? preset.maxParticipants
+    : 16;
+  const initialBestOf = Number.isInteger(preset?.defaultMatchBestOf)
+    ? preset.defaultMatchBestOf
+    : 1;
   const initialDescription = isNonEmptyString(preset?.description) ? preset.description : '';
   const initialConfig = preset?.config && typeof preset.config === 'object' ? preset.config : {};
   const initialAllowByes = initialConfig.allowByes !== false;
   const initialThirdPlaceMatch = !!initialConfig.thirdPlaceMatch;
   const initialSeedingMode = initialConfig.seedingMode === 'random' ? 'random' : 'manual';
-  const initialStages = Array.isArray(preset?.stages) && preset.stages.length > 0
-    ? preset.stages
-    : defaultStagesForPreset(initialBaseType);
+  const initialStages =
+    Array.isArray(preset?.stages) && preset.stages.length > 0
+      ? preset.stages
+      : defaultStagesForPreset(initialBaseType);
 
   closeTournamentPresetModal();
 
@@ -2836,14 +2868,22 @@ function openCreateTournamentPreset(existingPreset = null) {
   if (modalTitleEl) modalTitleEl.textContent = isEditing ? 'Preset bearbeiten' : 'Preset erstellen';
   if (submitBtn) submitBtn.textContent = isEditing ? 'Änderungen speichern' : 'Preset erstellen';
   if (baseTypeEl) baseTypeEl.value = initialBaseType;
-  if (dlg.querySelector('#tp-participantMode')) dlg.querySelector('#tp-participantMode').value = initialParticipantMode;
-  if (dlg.querySelector('#tp-minParticipants')) dlg.querySelector('#tp-minParticipants').value = String(initialMinParticipants);
-  if (dlg.querySelector('#tp-maxParticipants')) dlg.querySelector('#tp-maxParticipants').value = String(initialMaxParticipants);
-  if (dlg.querySelector('#tp-bestOf')) dlg.querySelector('#tp-bestOf').value = String(initialBestOf);
-  if (dlg.querySelector('#tp-description')) dlg.querySelector('#tp-description').value = initialDescription;
-  if (dlg.querySelector('#tp-seedingMode')) dlg.querySelector('#tp-seedingMode').value = initialSeedingMode;
-  if (dlg.querySelector('#tp-allowByes')) dlg.querySelector('#tp-allowByes').checked = initialAllowByes;
-  if (dlg.querySelector('#tp-thirdPlaceMatch')) dlg.querySelector('#tp-thirdPlaceMatch').checked = initialThirdPlaceMatch;
+  if (dlg.querySelector('#tp-participantMode'))
+    dlg.querySelector('#tp-participantMode').value = initialParticipantMode;
+  if (dlg.querySelector('#tp-minParticipants'))
+    dlg.querySelector('#tp-minParticipants').value = String(initialMinParticipants);
+  if (dlg.querySelector('#tp-maxParticipants'))
+    dlg.querySelector('#tp-maxParticipants').value = String(initialMaxParticipants);
+  if (dlg.querySelector('#tp-bestOf'))
+    dlg.querySelector('#tp-bestOf').value = String(initialBestOf);
+  if (dlg.querySelector('#tp-description'))
+    dlg.querySelector('#tp-description').value = initialDescription;
+  if (dlg.querySelector('#tp-seedingMode'))
+    dlg.querySelector('#tp-seedingMode').value = initialSeedingMode;
+  if (dlg.querySelector('#tp-allowByes'))
+    dlg.querySelector('#tp-allowByes').checked = initialAllowByes;
+  if (dlg.querySelector('#tp-thirdPlaceMatch'))
+    dlg.querySelector('#tp-thirdPlaceMatch').checked = initialThirdPlaceMatch;
 
   let stageRows = initialStages.map((stage, idx) => ({
     stageOrder: idx + 1,
@@ -2940,7 +2980,9 @@ function openCreateTournamentPreset(existingPreset = null) {
   function inferTournamentPresetBaseType(stageRowsToInspect) {
     if (!Array.isArray(stageRowsToInspect) || stageRowsToInspect.length === 0) return 'custom';
 
-    const stageTypes = stageRowsToInspect.map((stage) => String(stage?.stageType || 'single_elimination'));
+    const stageTypes = stageRowsToInspect.map((stage) =>
+      String(stage?.stageType || 'single_elimination')
+    );
     if (stageTypes.some((stageType) => !TOURNAMENT_STAGE_TYPES.has(stageType))) return 'custom';
 
     for (const [baseType, signature] of Object.entries(TOURNAMENT_PRESET_STAGE_SIGNATURES)) {
@@ -2972,7 +3014,9 @@ function openCreateTournamentPreset(existingPreset = null) {
 
   const applyDefaultStages = () => {
     const baseType = String(baseTypeEl?.value || 'single_elimination');
-    const resolvedBaseType = TOURNAMENT_PRESET_STAGE_SIGNATURES[baseType] ? baseType : 'single_elimination';
+    const resolvedBaseType = TOURNAMENT_PRESET_STAGE_SIGNATURES[baseType]
+      ? baseType
+      : 'single_elimination';
     setStagesByBaseType(resolvedBaseType);
     renderStageList();
     if (stageErrorEl) stageErrorEl.textContent = '';
@@ -3133,20 +3177,29 @@ function openCreateTournamentPreset(existingPreset = null) {
 
     const validation = validatePresetForm();
     if (validation.hasError) {
-      const firstInvalid = dlg.querySelector('.tournament-preset-field.is-invalid input, .tournament-preset-field.is-invalid select');
+      const firstInvalid = dlg.querySelector(
+        '.tournament-preset-field.is-invalid input, .tournament-preset-field.is-invalid select'
+      );
       firstInvalid?.focus();
       return;
     }
 
     const description = readValue('#tp-description');
-    const { name, baseType, participantMode, minParticipants, maxParticipants, defaultMatchBestOf } =
-      validation.payload;
+    const {
+      name,
+      baseType,
+      participantMode,
+      minParticipants,
+      maxParticipants,
+      defaultMatchBestOf,
+    } = validation.payload;
     const allowByes = dlg.querySelector('#tp-allowByes')?.checked === true;
     const thirdPlaceMatch = dlg.querySelector('#tp-thirdPlaceMatch')?.checked === true;
     const seedingMode = readValue('#tp-seedingMode') || 'manual';
-    const endpoint = isEditing && preset?.id
-      ? `/tournaments/presets/${encodeURIComponent(preset.id)}`
-      : '/tournaments/presets';
+    const endpoint =
+      isEditing && preset?.id
+        ? `/tournaments/presets/${encodeURIComponent(preset.id)}`
+        : '/tournaments/presets';
     const method = isEditing ? 'PATCH' : 'POST';
 
     submitBtn.disabled = true;
@@ -3173,7 +3226,13 @@ function openCreateTournamentPreset(existingPreset = null) {
       closeTournamentPresetModal();
       await loadActiveTournamentView(true);
     } catch (e) {
-      toast(e.serverMessage || (isEditing ? 'Preset konnte nicht aktualisiert werden' : 'Preset konnte nicht erstellt werden'), 'error');
+      toast(
+        e.serverMessage ||
+          (isEditing
+            ? 'Preset konnte nicht aktualisiert werden'
+            : 'Preset konnte nicht erstellt werden'),
+        'error'
+      );
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = isEditing ? 'Änderungen speichern' : 'Preset erstellen';
@@ -3383,7 +3442,10 @@ function openEditTournamentPreset(presetId) {
 
 async function openTournamentInstance(instanceId) {
   try {
-    const { instance } = await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}`, 'GET');
+    const { instance } = await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}`,
+      'GET'
+    );
     activeTournamentInstance = instance;
     curTournamentView = 'instances';
     saveLastModuleState();
@@ -3598,13 +3660,14 @@ async function openAddTournamentParticipantModal(instanceId, options = {}) {
 
   // Team-Dropdown (für team/pair-Modus)
   const teamOptions = (instance.teams || [])
-    .map((t) => `<option value="${esc(t.id)}">${esc(t.name)}${t.seed ? ` · Seed ${t.seed}` : ''}</option>`)
+    .map(
+      (t) =>
+        `<option value="${esc(t.id)}">${esc(t.name)}${t.seed ? ` · Seed ${t.seed}` : ''}</option>`
+    )
     .join('');
 
   // User-Dropdown: Gruppenmitglieder, die noch NICHT Teilnehmer sind
-  const takenUserIds = new Set(
-    (instance.participants || []).map((p) => p.userId).filter(Boolean)
-  );
+  const takenUserIds = new Set((instance.participants || []).map((p) => p.userId).filter(Boolean));
   const memberOptions = (groupMembers || [])
     .map((m) => m?.user || m)
     .filter((u) => u?.id && !takenUserIds.has(u.id))
@@ -3634,14 +3697,18 @@ async function openAddTournamentParticipantModal(instanceId, options = {}) {
             <input id="tad-displayName" type="text" maxlength="80" required placeholder="z. B. Team A, Spieler 7, …">
             <span class="t-hint">Erscheint im Bracket und in den Standings, bis ein User zugeordnet wird.</span>
           </label>
-          ${mode !== 'individual' ? `
+          ${
+            mode !== 'individual'
+              ? `
           <label class="tournament-detail-field">
             <span class="tournament-detail-label">Team <span class="t-required">*</span></span>
             <select id="tad-teamId" required>
               <option value="">— Bitte wählen —</option>
               ${teamOptions}
             </select>
-          </label>` : ''}
+          </label>`
+              : ''
+          }
           <label class="tournament-detail-field">
             <span class="tournament-detail-label">Seed <span class="t-hint">(optional)</span></span>
             <input id="tad-seed" type="number" min="1" step="1" placeholder="z. B. 1, 2, 3, …">
@@ -3656,7 +3723,9 @@ async function openAddTournamentParticipantModal(instanceId, options = {}) {
             </select>
             <span class="t-hint">Nur Mitglieder, die noch nicht Teilnehmer dieses Turniers sind.</span>
           </label>
-          ${mode !== 'individual' ? `
+          ${
+            mode !== 'individual'
+              ? `
           <label class="tournament-detail-field">
             <span class="tournament-detail-label">Team ${mode !== 'individual' ? '<span class="t-required">*</span>' : '<span class="t-hint">(optional)</span>'}</span>
             <select id="tad-teamId-user" ${mode !== 'individual' ? 'required' : ''}>
@@ -3664,7 +3733,9 @@ async function openAddTournamentParticipantModal(instanceId, options = {}) {
               ${teamOptions}
             </select>
             ${mode !== 'individual' ? '<span class="t-hint">Im Team-Modus ist ein Team Pflicht.</span>' : ''}
-          </label>` : ''}
+          </label>`
+              : ''
+          }
         </div>
         <div id="tournament-add-participant-msg" class="msg hidden"></div>
         <div class="tournament-detail-dlg-actions">
@@ -3760,9 +3831,7 @@ async function openAssignUserToParticipantModal(instanceId, participantId) {
     return;
   }
 
-  const takenUserIds = new Set(
-    (instance.participants || []).map((p) => p.userId).filter(Boolean)
-  );
+  const takenUserIds = new Set((instance.participants || []).map((p) => p.userId).filter(Boolean));
   const memberOptions = (groupMembers || [])
     .map((m) => m?.user || m)
     .filter((u) => u?.id && !takenUserIds.has(u.id))
@@ -4142,7 +4211,9 @@ async function generateTournamentBracket(instanceId) {
   }
   const participantCount = (instance.participants || []).length;
   const matchCount = (instance.matches || []).length;
-  const hasUncompleted = (instance.matches || []).some((m) => m.status !== 'completed' && m.status !== 'void');
+  const hasUncompleted = (instance.matches || []).some(
+    (m) => m.status !== 'completed' && m.status !== 'void'
+  );
 
   let warning = '';
   if (hasUncompleted) {
@@ -4190,9 +4261,11 @@ function renderTournamentBracket(instance) {
     return `
       <div class="tournament-bracket-empty">
         <p>Noch kein Bracket gebaut.</p>
-        ${canManageTournamentPresetsInCurrentGroup()
-          ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Bracket jetzt generieren</button>`
-          : ''}
+        ${
+          canManageTournamentPresetsInCurrentGroup()
+            ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Bracket jetzt generieren</button>`
+            : ''
+        }
       </div>`;
   }
 
@@ -4208,32 +4281,35 @@ function renderTournamentBracket(instance) {
   const rounds = (instance.rounds || []).slice().sort((a, b) => a.roundNumber - b.roundNumber);
   const sortedRounds = rounds.filter((r) => matchesByRound.has(r.id));
   // Falls Rounds-Liste leer ist, gruppieren wir notfalls nach Reihenfolge des Auftretens
-  const finalRounds = sortedRounds.length > 0
-    ? sortedRounds
-    : Array.from(matchesByRound.keys()).map((roundId, idx) => ({
-        id: roundId,
-        name: `Runde ${idx + 1}`,
-        roundNumber: idx + 1,
-        bracket: 'main',
-      }));
+  const finalRounds =
+    sortedRounds.length > 0
+      ? sortedRounds
+      : Array.from(matchesByRound.keys()).map((roundId, idx) => ({
+          id: roundId,
+          name: `Runde ${idx + 1}`,
+          roundNumber: idx + 1,
+          bracket: 'main',
+        }));
 
   return `
     <div class="tournament-bracket-wrapper">
       <div class="tournament-bracket-header">
         <h4>📊 Bracket</h4>
         <div class="tournament-bracket-actions">
-          ${canManageTournamentPresetsInCurrentGroup()
-            ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>`
-            : ''}
+          ${
+            canManageTournamentPresetsInCurrentGroup()
+              ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>`
+              : ''
+          }
         </div>
       </div>
       <div class="tournament-bracket-scroll">
         <div class="tournament-bracket" style="grid-template-columns: repeat(${finalRounds.length}, minmax(220px, 1fr));">
           ${finalRounds
             .map((round) => {
-              const roundMatches = (matchesByRound.get(round.id) || []).slice().sort(
-                (a, b) => a.matchNumber - b.matchNumber
-              );
+              const roundMatches = (matchesByRound.get(round.id) || [])
+                .slice()
+                .sort((a, b) => a.matchNumber - b.matchNumber);
               return `
                 <div class="tournament-bracket-round">
                   <div class="tournament-bracket-round-head">
@@ -4273,9 +4349,12 @@ function renderTournamentBracketMatch(match, instance) {
     ? '<span class="t-badge t-badge-bye">BYE</span>'
     : tournamentStatusBadgeHtml(match.status);
 
-  const clickable = canManageTournamentPresetsInCurrentGroup() && !isVoid && !isBye
-    && match.homeParticipantId
-    && match.awayParticipantId;
+  const clickable =
+    canManageTournamentPresetsInCurrentGroup() &&
+    !isVoid &&
+    !isBye &&
+    match.homeParticipantId &&
+    match.awayParticipantId;
 
   const clickAttr = clickable
     ? `onclick="openRecordMatchResultModal('${esc(instance.id)}','${esc(match.id)}')" title="Ergebnis eintragen"`
@@ -4299,7 +4378,6 @@ function renderTournamentBracketMatch(match, instance) {
     </div>`;
 }
 
-
 function renderTournamentInstanceDetail(instance) {
   const canManage = canManageTournamentPresetsInCurrentGroup();
   const mode = instance?.preset?.participantMode || 'team';
@@ -4309,7 +4387,7 @@ function renderTournamentInstanceDetail(instance) {
   const matches = instance.matches || [];
 
   // Aktuelle Tab-Auswahl (lokal, kein globaler state)
-  const tab = curTournamentView === 'presets' ? 'overview' : (curTournamentTab || 'overview');
+  const tab = curTournamentView === 'presets' ? 'overview' : curTournamentTab || 'overview';
   // Eigentlicher Tab-Renderer
   let tabContent = '';
   if (tab === 'overview') {
@@ -4329,11 +4407,15 @@ function renderTournamentInstanceDetail(instance) {
       <div class="tournament-detail-head">
         <h2>${esc(instance.name || 'Turnier')}</h2>
         <div class="tournament-card-actions">
-          ${canManage ? `
+          ${
+            canManage
+              ? `
             <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','registration')">📝 Registrierung</button>
             <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','in_progress')">▶ Starten</button>
             <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','completed')">✓ Beenden</button>
-          ` : ''}
+          `
+              : ''
+          }
           ${canManage ? `<button class="btn btn-ghost" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')">🗑 Löschen</button>` : ''}
         </div>
       </div>
@@ -4371,7 +4453,11 @@ function renderTournamentOverviewTab(instance, canManage) {
     { label: 'Teams', value: (instance.teams || []).length, icon: '🏆' },
     { label: 'Teilnehmer', value: (instance.participants || []).length, icon: '👥' },
     { label: 'Matches', value: (instance.matches || []).length, icon: '⚔' },
-    { label: 'Abgeschlossen', value: (instance.matches || []).filter((m) => m.status === 'completed').length, icon: '✓' },
+    {
+      label: 'Abgeschlossen',
+      value: (instance.matches || []).filter((m) => m.status === 'completed').length,
+      icon: '✓',
+    },
   ];
   return `
     <div class="t-overview-stats">
@@ -4385,9 +4471,11 @@ function renderTournamentOverviewTab(instance, canManage) {
           <li>Bracket generieren</li>
           <li>Ergebnisse eintragen</li>
         </ol>
-        ${canManage && isTeamMode && (instance.teams || []).length === 0
-          ? `<button class="btn btn-primary" onclick="openAutoGenTeamsModal('${esc(instance.id)}')">⚡ Teams automatisch generieren</button>`
-          : ''}
+        ${
+          canManage && isTeamMode && (instance.teams || []).length === 0
+            ? `<button class="btn btn-primary" onclick="openAutoGenTeamsModal('${esc(instance.id)}')">⚡ Teams automatisch generieren</button>`
+            : ''
+        }
       </div>
       <div class="t-overview-card">
         <h4>Top 3 (Vorschau)</h4>
@@ -4441,10 +4529,12 @@ function renderTournamentTeamsTab(instance, canManage) {
     .join('');
   return `
     <div class="t-toolbar">
-      ${canManage
-        ? `<button class="btn btn-primary" onclick="openCreateTournamentTeamModal('${esc(instance.id)}')">＋ Team hinzufügen</button>
+      ${
+        canManage
+          ? `<button class="btn btn-primary" onclick="openCreateTournamentTeamModal('${esc(instance.id)}')">＋ Team hinzufügen</button>
            <button class="btn btn-ghost" onclick="openAutoGenTeamsModal('${esc(instance.id)}')">⚡ N Teams generieren</button>`
-        : ''}
+          : ''
+      }
     </div>
     <div class="t-team-grid">${teamCards || '<p class="t-hint">Noch keine Teams angelegt.</p>'}</div>
   `;
@@ -4473,21 +4563,27 @@ function renderTournamentParticipantsTab(instance, canManage) {
         </div>
         <div class="t-participant-team">${esc(entry?.team?.name || '—')}</div>
         <div class="t-participant-actions">
-          ${isGhost && canManage
-            ? `<button class="btn btn-ghost btn-sm" onclick="openAssignUserToParticipantModal('${esc(instance.id)}','${esc(entry.id)}')">👤 Zuordnen</button>`
-            : ''}
-          ${canManage
-            ? `<button class="btn btn-ghost btn-sm" onclick="removeTournamentParticipant('${esc(instance.id)}','${esc(entry.id)}','${esc(name)}')">Entfernen</button>`
-            : ''}
+          ${
+            isGhost && canManage
+              ? `<button class="btn btn-ghost btn-sm" onclick="openAssignUserToParticipantModal('${esc(instance.id)}','${esc(entry.id)}')">👤 Zuordnen</button>`
+              : ''
+          }
+          ${
+            canManage
+              ? `<button class="btn btn-ghost btn-sm" onclick="removeTournamentParticipant('${esc(instance.id)}','${esc(entry.id)}','${esc(name)}')">Entfernen</button>`
+              : ''
+          }
         </div>
       </div>`;
     })
     .join('');
   return `
     <div class="t-toolbar">
-      ${canManage
-        ? `<button class="btn btn-primary" onclick="openAddTournamentParticipantModal('${esc(instance.id)}')">＋ Teilnehmer hinzufügen</button>`
-        : ''}
+      ${
+        canManage
+          ? `<button class="btn btn-primary" onclick="openAddTournamentParticipantModal('${esc(instance.id)}')">＋ Teilnehmer hinzufügen</button>`
+          : ''
+      }
     </div>
     <p class="t-hint" style="margin: 4px 0 14px">Im Team-Modus sind Teilnehmer "an Papier" mit Teams verknüpft. Sie zählen nicht in den Standings.</p>
     <div class="t-participant-grid">${rows || '<p class="t-hint">Noch keine Teilnehmer.</p>'}</div>
@@ -4501,7 +4597,12 @@ function renderTournamentStandingsTab(instance, isTeamMode, canManage) {
   if (isTeamMode) {
     rows = (instance.teams || [])
       .slice()
-      .sort((a, b) => (b.points || 0) - (a.points || 0) || (b.wins || 0) - (a.wins || 0) || (a.losses || 0) - (b.losses || 0))
+      .sort(
+        (a, b) =>
+          (b.points || 0) - (a.points || 0) ||
+          (b.wins || 0) - (a.wins || 0) ||
+          (a.losses || 0) - (b.losses || 0)
+      )
       .map((entry, idx) => ({
         rank: idx + 1,
         name: entry.name,
@@ -4514,7 +4615,12 @@ function renderTournamentStandingsTab(instance, isTeamMode, canManage) {
   } else {
     rows = (instance.participants || [])
       .slice()
-      .sort((a, b) => (b.points || 0) - (a.points || 0) || (b.wins || 0) - (a.wins || 0) || (a.losses || 0) - (b.losses || 0))
+      .sort(
+        (a, b) =>
+          (b.points || 0) - (a.points || 0) ||
+          (b.wins || 0) - (a.wins || 0) ||
+          (a.losses || 0) - (b.losses || 0)
+      )
       .map((entry, idx) => ({
         rank: idx + 1,
         name: getTournamentParticipantDisplayName(entry, instance),
@@ -4531,22 +4637,27 @@ function renderTournamentStandingsTab(instance, isTeamMode, canManage) {
     <div class="t-toolbar">
       <button class="btn btn-ghost btn-sm" onclick="refreshTournamentInstance('${esc(instance.id)}')">↻ Neu berechnen</button>
     </div>
-    ${podium.length > 0
-      ? `<div class="t-podium">
+    ${
+      podium.length > 0
+        ? `<div class="t-podium">
           ${podium
-            .map((entry, idx) => `<div class="t-podium-place t-podium-${idx + 1}">
+            .map(
+              (entry, idx) => `<div class="t-podium-place t-podium-${idx + 1}">
               <div class="t-podium-medal-large">${['🥇', '🥈', '🥉'][idx]}</div>
               <div class="t-podium-name">${esc(entry.name)}</div>
               <div class="t-podium-stats">
                 <strong>${entry.points} Pkt</strong>
                 <span class="t-hint">${entry.wins}W ${entry.losses}L ${entry.draws}D</span>
               </div>
-            </div>`)
+            </div>`
+            )
             .join('')}
         </div>`
-      : '<p class="t-hint">Noch keine Daten verfügbar. Bracket generieren und Matches spielen.</p>'}
-    ${rest.length > 0
-      ? `<ol class="t-standing-list t-standing-list-rest">
+        : '<p class="t-hint">Noch keine Daten verfügbar. Bracket generieren und Matches spielen.</p>'
+    }
+    ${
+      rest.length > 0
+        ? `<ol class="t-standing-list t-standing-list-rest">
           ${rest
             .map(
               (entry) => `<li>
@@ -4562,7 +4673,8 @@ function renderTournamentStandingsTab(instance, isTeamMode, canManage) {
             )
             .join('')}
         </ol>`
-      : ''}
+        : ''
+    }
   `;
 }
 
@@ -4572,20 +4684,23 @@ function renderTournamentBracketModern(instance, canManage) {
   const isTeamMode = mode === 'team' || mode === 'pair';
   const matches = instance.matches || [];
   const teams = instance.teams || [];
-  const phaseFilter = (instance.phaseFilter || 'all'); // 'all' | 'group' | 'knockout'
+  const phaseFilter = instance.phaseFilter || 'all'; // 'all' | 'group' | 'knockout'
 
   if (matches.length === 0) {
     return `
       <div class="t-bracket-empty">
         <p class="t-hint">Noch kein Bracket gebaut.</p>
-        ${canManage && teams.length >= 2
-          ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Bracket jetzt generieren</button>`
-          : `<p class="t-hint">Mindestens 2 spielende Entities erforderlich.</p>`}
+        ${
+          canManage && teams.length >= 2
+            ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Bracket jetzt generieren</button>`
+            : `<p class="t-hint">Mindestens 2 spielende Entities erforderlich.</p>`
+        }
       </div>`;
   }
 
   // Gruppiere nach phase + round
-  const filtered = phaseFilter === 'all' ? matches : matches.filter((m) => (m.phase || 'main') === phaseFilter);
+  const filtered =
+    phaseFilter === 'all' ? matches : matches.filter((m) => (m.phase || 'main') === phaseFilter);
 
   // Group+KO: zeige Group-Phase + KO-Phase getrennt
   const hasGroupPhase = matches.some((m) => m.phase === 'group');
@@ -4635,10 +4750,12 @@ function renderSinglePhaseBracket(instance, matches, isTeamMode, canManage) {
 
   return `
     <div class="t-bracket-toolbar">
-      ${canManage
-        ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>
+      ${
+        canManage
+          ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>
            <button class="btn btn-ghost btn-sm" onclick="shuffleTournamentBracket('${esc(instance.id)}')">🎲 Runde 1 mischen</button>`
-        : ''}
+          : ''
+      }
     </div>
     <div class="t-bracket-scroll">
       <div class="t-bracket-grid" style="--t-bracket-cols: ${columns}">
@@ -4649,7 +4766,9 @@ function renderSinglePhaseBracket(instance, matches, isTeamMode, canManage) {
 
 function renderGroupPlusKnockoutBracket(instance, canManage, isTeamMode, phaseFilter) {
   const groupMatches = (instance.matches || []).filter((m) => m.phase === 'group');
-  const koMatches = (instance.matches || []).filter((m) => m.phase === 'knockout' || (!m.phase || m.phase === 'main'));
+  const koMatches = (instance.matches || []).filter(
+    (m) => m.phase === 'knockout' || !m.phase || m.phase === 'main'
+  );
 
   // Group-Phase: nach Gruppe gruppieren
   const byGroup = new Map();
@@ -4662,7 +4781,12 @@ function renderGroupPlusKnockoutBracket(instance, canManage, isTeamMode, phaseFi
   const groupsHtml = Array.from(byGroup.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([groupLabel, ms]) => {
-      const sorted = ms.slice().sort((a, b) => (a.roundId || '').localeCompare(b.roundId || '') || a.matchNumber - b.matchNumber);
+      const sorted = ms
+        .slice()
+        .sort(
+          (a, b) =>
+            (a.roundId || '').localeCompare(b.roundId || '') || a.matchNumber - b.matchNumber
+        );
       return `<div class="t-bracket-group">
         <h4>Gruppe ${esc(groupLabel)}</h4>
         <div class="t-bracket-group-matches">
@@ -4682,15 +4806,18 @@ function renderGroupPlusKnockoutBracket(instance, canManage, isTeamMode, phaseFi
   const koRounds = (instance.rounds || [])
     .filter((r) => koRoundsByPhase.has(r.id) && r.stageKey === 'knockout')
     .sort((a, b) => a.roundNumber - b.roundNumber);
-  const koPhaseHtml = koRounds.length > 0
-    ? renderSinglePhaseBracket(instance, koMatches, isTeamMode, canManage)
-    : `<div class="t-bracket-empty">
+  const koPhaseHtml =
+    koRounds.length > 0
+      ? renderSinglePhaseBracket(instance, koMatches, isTeamMode, canManage)
+      : `<div class="t-bracket-empty">
         <p class="t-hint">KO-Phase noch nicht generiert.</p>
-        ${canManage
-          ? (groupMatches.every((m) => m.status === 'completed')
-            ? `<button class="btn btn-primary" onclick="generateKnockoutPhase('${esc(instance.id)}')">⚡ KO-Phase generieren</button>`
-            : `<p class="t-hint">⏳ KO-Phase kann erst nach Abschluss aller Gruppen-Matches generiert werden.</p>`)
-          : ''}
+        ${
+          canManage
+            ? groupMatches.every((m) => m.status === 'completed')
+              ? `<button class="btn btn-primary" onclick="generateKnockoutPhase('${esc(instance.id)}')">⚡ KO-Phase generieren</button>`
+              : `<p class="t-hint">⏳ KO-Phase kann erst nach Abschluss aller Gruppen-Matches generiert werden.</p>`
+            : ''
+        }
       </div>`;
 
   return `
@@ -4699,9 +4826,11 @@ function renderGroupPlusKnockoutBracket(instance, canManage, isTeamMode, phaseFi
         <button class="t-bracket-tab ${phaseFilter === 'all' || phaseFilter === 'group' ? 'active' : ''}" onclick="setTournamentBracketPhase('${esc(instance.id)}','group')">📋 Gruppenphase <span class="t-tab-count">${groupMatches.length}</span></button>
         <button class="t-bracket-tab ${phaseFilter === 'knockout' ? 'active' : ''}" onclick="setTournamentBracketPhase('${esc(instance.id)}','knockout')">🏆 KO-Phase <span class="t-tab-count">${koMatches.length}</span></button>
       </div>
-      ${canManage
-        ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>`
-        : ''}
+      ${
+        canManage
+          ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>`
+          : ''
+      }
     </div>
     ${phaseFilter === 'knockout' ? koPhaseHtml : `<div class="t-bracket-groups">${groupsHtml}</div>`}
   `;
@@ -4736,13 +4865,19 @@ function renderTournamentBracketMatchModern(match, instance, isTeamMode, canMana
     if (away) awayName = getTournamentParticipantDisplayName(away, instance);
   }
 
-  const homeResult = (match.results || []).find((r) => (isTeamMode ? r.teamId === match.homeTeamId : r.participantId === match.homeParticipantId));
-  const awayResult = (match.results || []).find((r) => (isTeamMode ? r.teamId === match.awayTeamId : r.participantId === match.awayParticipantId));
+  const homeResult = (match.results || []).find((r) =>
+    isTeamMode ? r.teamId === match.homeTeamId : r.participantId === match.homeParticipantId
+  );
+  const awayResult = (match.results || []).find((r) =>
+    isTeamMode ? r.teamId === match.awayTeamId : r.participantId === match.awayParticipantId
+  );
   const homeScore = homeResult?.score;
   const awayScore = awayResult?.score;
   const winnerId = match.winnerTeamId || match.winnerParticipantId;
-  const homeIsWinner = winnerId && winnerId === (isTeamMode ? match.homeTeamId : match.homeParticipantId);
-  const awayIsWinner = winnerId && winnerId === (isTeamMode ? match.awayTeamId : match.awayParticipantId);
+  const homeIsWinner =
+    winnerId && winnerId === (isTeamMode ? match.homeTeamId : match.homeParticipantId);
+  const awayIsWinner =
+    winnerId && winnerId === (isTeamMode ? match.awayTeamId : match.awayParticipantId);
   const isCompleted = match.status === 'completed';
   const isVoid = match.status === 'void';
   const isBye = match.metadata?.bye === true;
@@ -4792,7 +4927,10 @@ function renderTournamentBracketMatchModern(match, instance, isTeamMode, canMana
 // ─── Drag & Drop für Bracket-Slots ─────────────────────────────────────
 function onTournamentDragStart(event, instanceId, entityId, entityType) {
   event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('application/x-tournament-entity', JSON.stringify({ instanceId, entityId, entityType }));
+  event.dataTransfer.setData(
+    'application/x-tournament-entity',
+    JSON.stringify({ instanceId, entityId, entityType })
+  );
   event.currentTarget.classList.add('is-dragging');
 }
 
@@ -4816,8 +4954,12 @@ async function onTournamentDrop(event, instanceId, matchId, slot, isTeamMode) {
       return;
     }
     const field = isTeamMode
-      ? (slot === 'home' ? 'homeTeamId' : 'awayTeamId')
-      : (slot === 'home' ? 'homeParticipantId' : 'awayParticipantId');
+      ? slot === 'home'
+        ? 'homeTeamId'
+        : 'awayTeamId'
+      : slot === 'home'
+        ? 'homeParticipantId'
+        : 'awayParticipantId';
     await apiCall(
       `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}`,
       'PATCH',
@@ -4991,21 +5133,27 @@ async function shuffleTournamentBracket(instanceId) {
   for (const m of round1) {
     const homeField = isTeamMode ? 'homeTeamId' : 'homeParticipantId';
     const awayField = isTeamMode ? 'awayTeamId' : 'awayParticipantId';
-    const newHome = m.homeTeamId || m.homeParticipantId ? uniqueEntities[entityIdx++] || null : null;
-    const newAway = m.awayTeamId || m.awayParticipantId ? uniqueEntities[entityIdx++] || null : null;
+    const newHome =
+      m.homeTeamId || m.homeParticipantId ? uniqueEntities[entityIdx++] || null : null;
+    const newAway =
+      m.awayTeamId || m.awayParticipantId ? uniqueEntities[entityIdx++] || null : null;
     if (newHome !== null) {
-      updates.push(apiCall(
-        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}`,
-        'PATCH',
-        { [homeField]: newHome }
-      ));
+      updates.push(
+        apiCall(
+          `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}`,
+          'PATCH',
+          { [homeField]: newHome }
+        )
+      );
     }
     if (newAway !== null) {
-      updates.push(apiCall(
-        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}`,
-        'PATCH',
-        { [awayField]: newAway }
-      ));
+      updates.push(
+        apiCall(
+          `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}`,
+          'PATCH',
+          { [awayField]: newAway }
+        )
+      );
     }
   }
   try {

@@ -21,13 +21,7 @@ function e(id, seed = null) {
 describe('tournament-bracket utility', () => {
   describe('sortBySeed', () => {
     it('sorts by seed ascending and keeps unsorted tail stable', () => {
-      const result = sortBySeed([
-        e('a', null),
-        e('b', 3),
-        e('c', 1),
-        e('d', null),
-        e('e', 2),
-      ]);
+      const result = sortBySeed([e('a', null), e('b', 3), e('c', 1), e('d', null), e('e', 2)]);
       expect(result.map((entry) => entry.id)).toEqual(['c', 'e', 'b', 'a', 'd']);
     });
   });
@@ -108,9 +102,7 @@ describe('tournament-bracket utility', () => {
     });
 
     it('8 Teams → 3 Rounds, 7 Matches', () => {
-      const result = generateSingleElim(
-        [1, 2, 3, 4, 5, 6, 7, 8].map((n) => e(`t${n}`, n))
-      );
+      const result = generateSingleElim([1, 2, 3, 4, 5, 6, 7, 8].map((n) => e(`t${n}`, n)));
       expect(result.rounds).toHaveLength(3);
       expect(result.rounds[0].matches).toHaveLength(4);
       expect(result.rounds[1].matches).toHaveLength(2);
@@ -283,9 +275,7 @@ describe('tournament-bracket utility', () => {
           roundNumber: 1,
           name: 'HF',
           phase: 'main',
-          matches: [
-            { matchNumber: 1, homeEntityId: 'p1', awayEntityId: 'p2', isBye: false },
-          ],
+          matches: [{ matchNumber: 1, homeEntityId: 'p1', awayEntityId: 'p2', isBye: false }],
         },
       ];
       const ctx = {
@@ -306,9 +296,7 @@ describe('tournament-bracket utility', () => {
           name: 'Spieltag 1',
           phase: 'group',
           groupLabel: 'A',
-          matches: [
-            { matchNumber: 1, homeEntityId: 't1', awayEntityId: 't2', isBye: false },
-          ],
+          matches: [{ matchNumber: 1, homeEntityId: 't1', awayEntityId: 't2', isBye: false }],
         },
       ];
       const ctx = {

@@ -378,8 +378,7 @@ export default async function tournamentsRoutes(fastify) {
           config,
           createdBy: request.user.id,
           stages: {
-            create: normalizedStages
-              .sort((a, b) => a.stageOrder - b.stageOrder),
+            create: normalizedStages.sort((a, b) => a.stageOrder - b.stageOrder),
           },
         },
         include: {
@@ -474,7 +473,11 @@ export default async function tournamentsRoutes(fastify) {
           return reply.code(400).send({ error: 'stages muss ein Array sein' });
         }
         const stageList = body.stages;
-        if (stageList.some((item) => item?.stageType !== undefined && !VALID_STAGE_TYPES.has(item.stageType))) {
+        if (
+          stageList.some(
+            (item) => item?.stageType !== undefined && !VALID_STAGE_TYPES.has(item.stageType)
+          )
+        ) {
           return reply.code(400).send({ error: 'Ungueltiger stageType' });
         }
         const normalizedStages = stageList.map((item, index) => ({
@@ -502,7 +505,9 @@ export default async function tournamentsRoutes(fastify) {
         data.maxParticipants !== undefined &&
         data.minParticipants > data.maxParticipants
       ) {
-        return reply.code(400).send({ error: 'minParticipants darf maxParticipants nicht uebersteigen' });
+        return reply
+          .code(400)
+          .send({ error: 'minParticipants darf maxParticipants nicht uebersteigen' });
       }
 
       const preset = await fastify.prisma.$transaction(async (tx) => {
@@ -809,7 +814,8 @@ export default async function tournamentsRoutes(fastify) {
           groupCount: groupConfig.groupCount || 2,
           teamsPerGroup: groupConfig.teamsPerGroup || Math.ceil(entities.length / 2),
         };
-        const required = generatorOptions.groupConfig.groupCount * generatorOptions.groupConfig.teamsPerGroup;
+        const required =
+          generatorOptions.groupConfig.groupCount * generatorOptions.groupConfig.teamsPerGroup;
         if (entities.length !== required) {
           return reply.code(400).send({
             error: `Group+Knockout braucht ${required} Teams (${generatorOptions.groupConfig.groupCount} × ${generatorOptions.groupConfig.teamsPerGroup}), aber ${entities.length} vorhanden.`,
@@ -876,9 +882,7 @@ export default async function tournamentsRoutes(fastify) {
           });
           newRounds.push(created);
         }
-        const roundIdByRoundNumber = new Map(
-          newRounds.map((r) => [r.roundNumber, r.id])
-        );
+        const roundIdByRoundNumber = new Map(newRounds.map((r) => [r.roundNumber, r.id]));
 
         // 4) neue Matches anlegen via flattenMatchesForDb (entityType-aware)
         const isTeamModeLocal = isTeamMode;
@@ -1139,9 +1143,7 @@ export default async function tournamentsRoutes(fastify) {
         select: { name: true, seed: true },
       });
       const existingNames = new Set(existing.map((t) => t.name));
-      const existingSeeds = new Set(
-        existing.map((t) => t.seed).filter((s) => s != null)
-      );
+      const existingSeeds = new Set(existing.map((t) => t.seed).filter((s) => s != null));
 
       const created = [];
       let nextSeed = startSeed;
@@ -1267,7 +1269,9 @@ export default async function tournamentsRoutes(fastify) {
       const instanceId = String(request.params?.id || '').trim();
       const body = request.body || {};
       const userId = body.userId ? String(body.userId).trim() : '';
-      const providedDisplayName = isNonEmptyString(body.displayName) ? body.displayName.trim() : null;
+      const providedDisplayName = isNonEmptyString(body.displayName)
+        ? body.displayName.trim()
+        : null;
       const seed = body.seed === undefined || body.seed === null ? null : Number(body.seed);
       const teamId = body.teamId ? String(body.teamId).trim() : null;
       const status = body.status ? String(body.status).trim() : 'registered';
@@ -1301,19 +1305,13 @@ export default async function tournamentsRoutes(fastify) {
 
       // Modus-spezifische Validierung
       if (mode === 'individual' && !userId) {
-        return reply
-          .code(400)
-          .send({ error: 'userId erforderlich im individual-Modus' });
+        return reply.code(400).send({ error: 'userId erforderlich im individual-Modus' });
       }
       if ((mode === 'team' || mode === 'pair') && !teamId) {
-        return reply
-          .code(400)
-          .send({ error: 'teamId erforderlich im team/pair-Modus' });
+        return reply.code(400).send({ error: 'teamId erforderlich im team/pair-Modus' });
       }
       if (!userId && !providedDisplayName) {
-        return reply
-          .code(400)
-          .send({ error: 'userId oder displayName erforderlich' });
+        return reply.code(400).send({ error: 'userId oder displayName erforderlich' });
       }
 
       const count = await fastify.prisma.tournamentParticipant.count({ where: { instanceId } });
@@ -1539,8 +1537,12 @@ export default async function tournamentsRoutes(fastify) {
       const body = request.body || {};
       const roundId = body.roundId ? String(body.roundId).trim() : null;
       const matchNumber = Number(body.matchNumber);
-      const homeParticipantId = body.homeParticipantId ? String(body.homeParticipantId).trim() : null;
-      const awayParticipantId = body.awayParticipantId ? String(body.awayParticipantId).trim() : null;
+      const homeParticipantId = body.homeParticipantId
+        ? String(body.homeParticipantId).trim()
+        : null;
+      const awayParticipantId = body.awayParticipantId
+        ? String(body.awayParticipantId).trim()
+        : null;
       const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
       const status = body.status ? String(body.status).trim() : 'planned';
 
@@ -1603,7 +1605,9 @@ export default async function tournamentsRoutes(fastify) {
       if (!managed.ok) return reply.code(managed.code).send({ error: managed.error });
 
       const body = request.body || {};
-      const winnerParticipantId = body.winnerParticipantId ? String(body.winnerParticipantId).trim() : null;
+      const winnerParticipantId = body.winnerParticipantId
+        ? String(body.winnerParticipantId).trim()
+        : null;
       const isDraw = body.isDraw === true;
       const results = Array.isArray(body.results) ? body.results : [];
       if (results.length < 2) {
@@ -1629,7 +1633,9 @@ export default async function tournamentsRoutes(fastify) {
       }
 
       const expected = new Set([match.homeParticipantId, match.awayParticipantId].filter(Boolean));
-      const payloadParticipants = new Set(results.map((entry) => String(entry.participantId || '').trim()));
+      const payloadParticipants = new Set(
+        results.map((entry) => String(entry.participantId || '').trim())
+      );
 
       if (expected.size > 0) {
         for (const id of expected) {
@@ -1640,7 +1646,9 @@ export default async function tournamentsRoutes(fastify) {
       }
 
       if (winnerParticipantId && !payloadParticipants.has(winnerParticipantId)) {
-        return reply.code(400).send({ error: 'winnerParticipantId ist nicht Teil der Result-Liste' });
+        return reply
+          .code(400)
+          .send({ error: 'winnerParticipantId ist nicht Teil der Result-Liste' });
       }
 
       for (const entry of results) {
@@ -1680,8 +1688,8 @@ export default async function tournamentsRoutes(fastify) {
           data: {
             status: 'completed',
             completedAt: new Date(),
-            winnerParticipantId: isTeamModeForMatch ? null : (winnerParticipantId || null),
-            winnerTeamId: isTeamModeForMatch ? (winnerParticipantId || null) : null,
+            winnerParticipantId: isTeamModeForMatch ? null : winnerParticipantId || null,
+            winnerTeamId: isTeamModeForMatch ? winnerParticipantId || null : null,
             isDraw,
             recordedBy: request.user.id,
           },

@@ -488,7 +488,12 @@ function roundNameFor(participantCount) {
  * Hilfsfunktion für Auto-Advance-Logik in der Route.
  */
 export function computeNextAdvancesForResult(completedMatch) {
-  if (!completedMatch?.winnerEntityId && !completedMatch?.winnerParticipantId && !completedMatch?.winnerTeamId) return [];
+  if (
+    !completedMatch?.winnerEntityId &&
+    !completedMatch?.winnerParticipantId &&
+    !completedMatch?.winnerTeamId
+  )
+    return [];
   if (completedMatch.isDraw) return [];
   if (!completedMatch.nextWinnerMatchId || !completedMatch.nextWinnerSlot) return [];
   return [
@@ -529,12 +534,8 @@ export function flattenMatchesForDb(rounds, ctx) {
         nextLoserSlot: m.nextLoserSlot,
         metadata: m.isBye ? { bye: true } : null,
         completedAt: m.isBye ? new Date() : null,
-        winnerTeamId: m.isBye && isTeam
-          ? m.homeEntityId || m.awayEntityId || null
-          : null,
-        winnerParticipantId: m.isBye && !isTeam
-          ? m.homeEntityId || m.awayEntityId || null
-          : null,
+        winnerTeamId: m.isBye && isTeam ? m.homeEntityId || m.awayEntityId || null : null,
+        winnerParticipantId: m.isBye && !isTeam ? m.homeEntityId || m.awayEntityId || null : null,
       });
     }
   }

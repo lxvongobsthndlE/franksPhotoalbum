@@ -231,7 +231,10 @@ textarea {
   background:
     radial-gradient(circle at top right, rgba(176, 116, 72, 0.13), transparent 28%),
     linear-gradient(180deg, var(--surface), var(--bg));
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
 }
 
 .preset-card::before {
@@ -6320,8 +6323,8 @@ textarea {
   font-weight: 400;
   line-height: 1.4;
 }
-.tournament-detail-field input[type="text"],
-.tournament-detail-field input[type="number"],
+.tournament-detail-field input[type='text'],
+.tournament-detail-field input[type='number'],
 .tournament-detail-field select {
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -6346,7 +6349,7 @@ textarea {
   color: var(--text);
   padding: 6px 0;
 }
-.tournament-detail-checkbox-row input[type="checkbox"] {
+.tournament-detail-checkbox-row input[type='checkbox'] {
   accent-color: var(--accent);
   width: 16px;
   height: 16px;
@@ -6384,7 +6387,9 @@ textarea {
   color: var(--muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: color 120ms ease, border-color 120ms ease;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
   font-weight: 600;
 }
 .t-tab:hover {
@@ -6592,7 +6597,10 @@ textarea {
   flex-direction: column;
   gap: 0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    border-color 120ms ease;
   overflow: hidden;
   position: relative;
 }
@@ -6716,13 +6724,15 @@ textarea {
   border: 1.5px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
 }
 .t-preset-pick:hover {
   border-color: rgba(176, 116, 72, 0.4);
   background: var(--card);
 }
-.t-preset-pick input[type="radio"] {
+.t-preset-pick input[type='radio'] {
   accent-color: var(--accent);
   flex-shrink: 0;
 }
@@ -6761,7 +6771,9 @@ textarea {
   border-bottom: 2.5px solid transparent;
   margin-bottom: -1.5px;
   white-space: nowrap;
-  transition: color 120ms ease, border-color 120ms ease;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -6921,7 +6933,9 @@ textarea {
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
-  transition: color 120ms ease, background 120ms ease;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
 }
 .t-team-delete:hover {
   color: var(--red, #c0392b);
@@ -7110,7 +7124,9 @@ textarea {
   color: var(--muted);
   cursor: pointer;
   border-radius: 6px;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -7193,7 +7209,10 @@ textarea {
   flex-direction: column;
   gap: 0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    border-color 120ms ease;
   overflow: hidden;
   position: relative;
 }
@@ -7333,4 +7352,3 @@ textarea {
     gap: 6px;
   }
 }
-
