@@ -96,6 +96,7 @@ let tournamentPresets = [];
 let tournamentInstances = [];
 let activeTournamentInstance = null;
 let curTournamentView = 'instances';
+let curTournamentTab = 'overview';
 let activeTournamentPresetModal = null;
 let allAlbums = [];
 let urlCache = {};
@@ -3252,21 +3253,100 @@ async function openCreateTournamentInstance() {
     return;
   }
 
-  const preview = tournamentPresets
-    .slice(0, 12)
-    .map((preset, index) => `${index + 1}: ${preset.name}`)
-    .join('\n');
-  const selectionRaw = window.prompt(`Preset auswählen (Nummer):\n${preview}`, '1');
-  if (selectionRaw === null) return;
+  // Phase 2: Modal statt window.prompt
+  closeTournamentDetailModalById('tournament-instance-create-modal');
 
-  const selectedIndex = Number(selectionRaw) - 1;
-  const selectedPreset = tournamentPresets[selectedIndex];
-  if (!selectedPreset) {
-    toast('Ungültige Preset-Auswahl', 'error');
-    return;
+  const presetOptions = tournamentPresets
+    .map(
+      (preset) => `
+      <label class="t-preset-pick" data-preset-id="${esc(preset.id)}">
+        <input type="radio" name="tic-preset" value="${esc(preset.id)}">
+        <div class="t-preset-pick-body">
+          <strong>${esc(preset.name)}</strong>
+          <span class="t-hint">${esc(tournamentPresetTypeLabel(preset.baseType))} · ${esc(tournamentParticipantModeLabel(preset.participantMode))}</span>
+        </div>
+      </label>`
+    )
+    .join('');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-instance-create-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Turnier aus Preset erstellen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-instance-create-form" class="tournament-detail-form">
+        <p class="t-hint">Wähle ein Preset als Vorlage. Du kannst danach Teams, Teilnehmer und Matches anlegen.</p>
+        <div class="t-preset-pick-list">${presetOptions}</div>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Name <span class="t-required">*</span></span>
+          <input id="tic-name" type="text" maxlength="120" required placeholder="z. B. Sommer-Cup 2026">
+        </label>
+        <div id="tournament-instance-create-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Erstellen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-instance-create-form');
+  const msg = dlg.querySelector('#tournament-instance-create-msg');
+  function close() {
+    dlg.remove();
   }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+  // Erstes Preset vorauswählen
+  const firstRadio = dlg.querySelector('input[name="tic-preset"]');
+  if (firstRadio) firstRadio.checked = true;
+  // Klick auf Karte = Radio auswählen
+  dlg.querySelectorAll('.t-preset-pick').forEach((label) => {
+    label.addEventListener('click', () => {
+      const radio = label.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+    });
+  });
 
-  await createTournamentInstanceFromPreset(selectedPreset.id, selectedPreset.name || 'Turnier');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const selectedRadio = dlg.querySelector('input[name="tic-preset"]:checked');
+    if (!selectedRadio) {
+      msg.textContent = 'Bitte ein Preset auswählen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const name = dlg.querySelector('#tic-name').value.trim();
+    if (!name) {
+      msg.textContent = 'Name ist erforderlich';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const presetId = selectedRadio.value;
+    const preset = tournamentPresets.find((p) => p.id === presetId);
+    try {
+      const data = await apiCall('/tournaments/instances', 'POST', { presetId, name });
+      toast('Instanz erstellt', 'success');
+      close();
+      if (data?.instance?.id) {
+        await openTournamentInstance(data.instance.id);
+        return;
+      }
+      await loadTournamentInstances(true);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Instanz konnte nicht erstellt werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
 }
 
 async function archiveTournamentPreset(presetId, presetName) {
@@ -3340,132 +3420,1628 @@ async function deleteTournamentInstance(instanceId, instanceName) {
   }
 }
 
-function renderTournamentInstanceDetail(instance) {
-  const participantRows = (instance.participants || [])
-    .map((entry) => {
-      const name =
-        getVisibleName(entry.user, entry?.user?.displayNameField) ||
-        entry?.user?.name ||
-        entry?.user?.username ||
-        entry?.userId ||
-        'Teilnehmer';
-      return `<tr>
-        <td>${esc(name)}</td>
-        <td>${esc(entry?.team?.name || '-')}</td>
-        <td>${entry.points}</td>
-        <td>${entry.wins}-${entry.losses}-${entry.draws}</td>
-        <td>${esc(entry.status || '-')}</td>
-        <td><button class="btn btn-ghost" onclick="removeTournamentParticipant('${instance.id}','${entry.id}','${esc(name)}')">Entfernen</button></td>
-      </tr>`;
-    })
-    .join('');
+// ──────────────────────────────────────────────────────────────────────
+// Phase 2: Tournament UI Modals + Bracket-Visualisierung
+// ──────────────────────────────────────────────────────────────────────
 
-  const memberActions = groupMembers
-    .slice(0, 12)
-    .map((member) => {
-      const displayName = getVisibleName(member, member?.displayNameField) || member.name || member.username || 'Mitglied';
-      return `<button class="btn btn-ghost" onclick="addTournamentParticipantFromGroup('${instance.id}','${member.id}','${esc(displayName)}')">＋ ${esc(displayName)}</button>`;
-    })
-    .join('');
+// Hilfsfunktion: Anzeigename für einen Teilnehmer-Slot (Match.homeParticipant etc.).
+// Behandelt User-Teilnehmer, Ghost-Teilnehmer und leere Slots (TBD).
+function getTournamentParticipantDisplayName(participant, instance) {
+  if (!participant) return 'TBD';
+  // user join (vom Backend mitgeliefert wenn vorhanden)
+  if (participant.user) {
+    const visible = getVisibleName(participant.user, participant.user.displayNameField);
+    if (visible) return visible;
+  }
+  // Ghost: displayName-Snapshot
+  if (participant.displayName) return participant.displayName;
+  // Fallback: Team-Name (bei team/pair-Modus)
+  if (participant.team?.name) return participant.team.name;
+  // Letzter Fallback: ID
+  return participant.id ? `Teilnehmer ${participant.id.slice(0, 6)}` : 'TBD';
+}
 
-  const matches = (instance.matches || [])
-    .map((match) => {
-      const homeName =
-        getVisibleName(match?.homeParticipant?.user, match?.homeParticipant?.user?.displayNameField) ||
-        match?.homeParticipant?.user?.name ||
-        match?.homeParticipant?.user?.username ||
-        match?.homeParticipantId ||
-        'TBD';
-      const awayName =
-        getVisibleName(match?.awayParticipant?.user, match?.awayParticipant?.user?.displayNameField) ||
-        match?.awayParticipant?.user?.name ||
-        match?.awayParticipant?.user?.username ||
-        match?.awayParticipantId ||
-        'TBD';
-      const scoreHome = match.results?.find((r) => r.participantId === match.homeParticipantId)?.score;
-      const scoreAway = match.results?.find((r) => r.participantId === match.awayParticipantId)?.score;
-      const scoreText =
-        typeof scoreHome === 'number' && typeof scoreAway === 'number'
-          ? `${scoreHome}:${scoreAway}`
-          : '-:-';
-      return `<article class="tournament-match-row">
-        <div>
-          <strong>#${match.matchNumber}</strong> ${esc(homeName)} vs ${esc(awayName)}
-          <div class="tournament-match-meta">Status: ${esc(tournamentStatusLabel(match.status))} · Ergebnis: ${esc(scoreText)}</div>
+function getTournamentInstanceParticipantById(instance, participantId) {
+  if (!instance || !participantId) return null;
+  return (instance.participants || []).find((entry) => entry.id === participantId) || null;
+}
+
+function getTournamentMatchDisplayNames(match, instance) {
+  const home = getTournamentInstanceParticipantById(instance, match.homeParticipantId);
+  const away = getTournamentInstanceParticipantById(instance, match.awayParticipantId);
+  return {
+    homeName: getTournamentParticipantDisplayName(home, instance),
+    awayName: getTournamentParticipantDisplayName(away, instance),
+  };
+}
+
+function tournamentStatusBadgeHtml(status) {
+  const map = {
+    planned: { label: 'Geplant', cls: 't-badge t-badge-planned' },
+    in_progress: { label: 'Laufend', cls: 't-badge t-badge-live' },
+    completed: { label: 'Abgeschlossen', cls: 't-badge t-badge-done' },
+    void: { label: 'Ungültig', cls: 't-badge t-badge-void' },
+  };
+  const info = map[status] || { label: status || '-', cls: 't-badge t-badge-planned' };
+  return `<span class="${info.cls}">${esc(info.label)}</span>`;
+}
+
+// ── Modal: Team anlegen ───────────────────────────────────────────────
+async function openCreateTournamentTeamModal(instanceId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+
+  closeTournamentDetailModalById('tournament-team-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-team-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Team hinzufügen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-team-form" class="tournament-detail-form">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Teamname <span class="t-required">*</span></span>
+          <input id="tt-name" type="text" maxlength="80" required placeholder="z. B. Team Nord, FC Bayern, …" autofocus>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Seed <span class="t-hint">(optional, 1 = Top-Seed)</span></span>
+          <input id="tt-seed" type="number" min="1" step="1" placeholder="z. B. 1, 2, 3, …">
+          <span class="t-hint">Wird vom Bracket-Generator für die Setzliste verwendet. Leer = unsortiert.</span>
+        </label>
+        <div class="tournament-detail-checkbox-row">
+          <input id="tt-ghost" type="checkbox" checked>
+          <label for="tt-ghost">Teilnehmer sofort als Ghost anlegen (kein User nötig)</label>
         </div>
-        <button class="btn btn-ghost" onclick="recordTournamentMatchResult('${instance.id}','${match.id}')">Ergebnis</button>
-      </article>`;
+        <p class="t-hint">Im Team-Modus bekommt jedes Team einen Teilnehmer-Slot. Mit Ghost kannst du Teams anlegen, ohne dass schon ein User zugeordnet ist.</p>
+        <div id="tournament-team-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" id="tournament-team-submit">Anlegen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-team-form');
+  const msg = dlg.querySelector('#tournament-team-msg');
+  const submitBtn = dlg.querySelector('#tournament-team-submit');
+  const nameInput = dlg.querySelector('#tt-name');
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = nameInput.value.trim();
+    const seedRaw = dlg.querySelector('#tt-seed').value.trim();
+    const seed = seedRaw ? Number(seedRaw) : null;
+    if (!name) {
+      msg.textContent = 'Teamname ist erforderlich';
+      msg.classList.remove('hidden');
+      msg.className = 'msg msg-error';
+      return;
+    }
+    if (seedRaw && (!Number.isInteger(seed) || seed < 1)) {
+      msg.textContent = 'Seed muss eine positive ganze Zahl sein';
+      msg.classList.remove('hidden');
+      msg.className = 'msg msg-error';
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Wird angelegt…';
+    try {
+      const { team } = await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/teams`,
+        'POST',
+        { name, seed }
+      );
+      // Optional: Ghost-Teilnehmer direkt mit anlegen
+      if (dlg.querySelector('#tt-ghost')?.checked) {
+        try {
+          await apiCall(
+            `/tournaments/instances/${encodeURIComponent(instanceId)}/participants`,
+            'POST',
+            { teamId: team.id, displayName: team.name, seed }
+          );
+        } catch (ghostErr) {
+          // Ghost-Fehler ist nicht kritisch (Team ist da)
+          console.warn('Ghost-Teilnehmer konnte nicht angelegt werden', ghostErr);
+        }
+      }
+      toast('Team angelegt', 'success');
+      close();
+      await openTournamentInstance(instanceId);
+      await loadActiveTournamentView(false);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Team konnte nicht angelegt werden';
+      msg.classList.remove('hidden');
+      msg.className = 'msg msg-error';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Anlegen';
+    }
+  });
+
+  nameInput?.focus();
+}
+
+// ── Modal: Teilnehmer hinzufügen (Ghost oder User) ─────────────────────
+async function openAddTournamentParticipantModal(instanceId, options = {}) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const mode = instance?.preset?.participantMode || 'team';
+  const initialMode = options.prefillUserId ? 'user' : 'ghost';
+
+  closeTournamentDetailModalById('tournament-add-participant-modal');
+
+  // Team-Dropdown (für team/pair-Modus)
+  const teamOptions = (instance.teams || [])
+    .map((t) => `<option value="${esc(t.id)}">${esc(t.name)}${t.seed ? ` · Seed ${t.seed}` : ''}</option>`)
+    .join('');
+
+  // User-Dropdown: Gruppenmitglieder, die noch NICHT Teilnehmer sind
+  const takenUserIds = new Set(
+    (instance.participants || []).map((p) => p.userId).filter(Boolean)
+  );
+  const memberOptions = (groupMembers || [])
+    .map((m) => m?.user || m)
+    .filter((u) => u?.id && !takenUserIds.has(u.id))
+    .map((u) => {
+      const name = getVisibleName(u, u.displayNameField) || u.name || u.username || u.email;
+      return `<option value="${esc(u.id)}">${esc(name)} (${esc(u.username || u.email || '')})</option>`;
     })
     .join('');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-add-participant-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Teilnehmer hinzufügen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-add-participant-form" class="tournament-detail-form">
+        <div class="tournament-detail-tab-row" role="tablist">
+          <button type="button" class="t-tab ${initialMode === 'ghost' ? 'active' : ''}" data-mode="ghost" role="tab">👻 Ghost (kein User)</button>
+          ${mode !== 'team' || memberOptions ? `<button type="button" class="t-tab ${initialMode === 'user' ? 'active' : ''}" data-mode="user" role="tab">👤 User zuordnen</button>` : ''}
+        </div>
+        <div class="tournament-detail-tab-panel ${initialMode !== 'ghost' ? 'hidden' : ''}" data-panel="ghost">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Anzeigename <span class="t-required">*</span></span>
+            <input id="tad-displayName" type="text" maxlength="80" required placeholder="z. B. Team A, Spieler 7, …">
+            <span class="t-hint">Erscheint im Bracket und in den Standings, bis ein User zugeordnet wird.</span>
+          </label>
+          ${mode !== 'individual' ? `
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Team <span class="t-required">*</span></span>
+            <select id="tad-teamId" required>
+              <option value="">— Bitte wählen —</option>
+              ${teamOptions}
+            </select>
+          </label>` : ''}
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Seed <span class="t-hint">(optional)</span></span>
+            <input id="tad-seed" type="number" min="1" step="1" placeholder="z. B. 1, 2, 3, …">
+          </label>
+        </div>
+        <div class="tournament-detail-tab-panel ${initialMode === 'ghost' ? 'hidden' : ''}" data-panel="user">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Gruppenmitglied <span class="t-required">*</span></span>
+            <select id="tad-userId" required>
+              <option value="">— Bitte wählen —</option>
+              ${memberOptions}
+            </select>
+            <span class="t-hint">Nur Mitglieder, die noch nicht Teilnehmer dieses Turniers sind.</span>
+          </label>
+          ${mode !== 'individual' ? `
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Team ${mode !== 'individual' ? '<span class="t-required">*</span>' : '<span class="t-hint">(optional)</span>'}</span>
+            <select id="tad-teamId-user" ${mode !== 'individual' ? 'required' : ''}>
+              <option value="">${mode !== 'individual' ? '— Bitte wählen —' : '— Kein Team —'}</option>
+              ${teamOptions}
+            </select>
+            ${mode !== 'individual' ? '<span class="t-hint">Im Team-Modus ist ein Team Pflicht.</span>' : ''}
+          </label>` : ''}
+        </div>
+        <div id="tournament-add-participant-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" id="tournament-add-participant-submit">Hinzufügen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-add-participant-form');
+  const msg = dlg.querySelector('#tournament-add-participant-msg');
+  const submitBtn = dlg.querySelector('#tournament-add-participant-submit');
+
+  // Tab-Logik
+  dlg.querySelectorAll('.t-tab').forEach((tabBtn) => {
+    tabBtn.addEventListener('click', () => {
+      const targetMode = tabBtn.dataset.mode;
+      dlg.querySelectorAll('.t-tab').forEach((b) => b.classList.toggle('active', b === tabBtn));
+      dlg.querySelectorAll('.tournament-detail-tab-panel').forEach((p) => {
+        p.classList.toggle('hidden', p.dataset.panel !== targetMode);
+      });
+    });
+  });
+
+  // Prefill: vorausgewählten User setzen (für "Teilnehmer aus Gruppe hinzufügen")
+  if (options.prefillUserId) {
+    const sel = dlg.querySelector('#tad-userId');
+    if (sel) sel.value = options.prefillUserId;
+  }
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const activeMode = dlg.querySelector('.t-tab.active')?.dataset.mode || 'ghost';
+    const body = {};
+    if (activeMode === 'ghost') {
+      body.displayName = dlg.querySelector('#tad-displayName').value.trim();
+      const teamId = dlg.querySelector('#tad-teamId')?.value;
+      if (teamId) body.teamId = teamId;
+      const seedRaw = dlg.querySelector('#tad-seed').value.trim();
+      if (seedRaw) body.seed = Number(seedRaw);
+    } else {
+      body.userId = dlg.querySelector('#tad-userId').value;
+      const teamId = dlg.querySelector('#tad-teamId-user')?.value;
+      if (teamId) body.teamId = teamId;
+    }
+    if (!body.displayName && !body.userId) {
+      msg.textContent = 'Entweder Anzeigename oder User erforderlich';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Wird hinzugefügt…';
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/participants`,
+        'POST',
+        body
+      );
+      toast('Teilnehmer hinzugefügt', 'success');
+      close();
+      await openTournamentInstance(instanceId);
+      await loadActiveTournamentView(false);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Teilnehmer konnte nicht hinzugefügt werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Hinzufügen';
+    }
+  });
+}
+
+// ── Modal: Ghost-Teilnehmer nachträglich User zuordnen ───────────────
+async function openAssignUserToParticipantModal(instanceId, participantId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  const participant = getTournamentInstanceParticipantById(instance, participantId);
+  if (!participant) {
+    toast('Teilnehmer nicht gefunden', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+
+  const takenUserIds = new Set(
+    (instance.participants || []).map((p) => p.userId).filter(Boolean)
+  );
+  const memberOptions = (groupMembers || [])
+    .map((m) => m?.user || m)
+    .filter((u) => u?.id && !takenUserIds.has(u.id))
+    .map((u) => {
+      const name = getVisibleName(u, u.displayNameField) || u.name || u.username || u.email;
+      return `<option value="${esc(u.id)}">${esc(name)} (${esc(u.username || u.email || '')})</option>`;
+    })
+    .join('');
+
+  closeTournamentDetailModalById('tournament-assign-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-assign-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>User zuordnen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-assign-form" class="tournament-detail-form">
+        <p class="t-hint">Aktueller Slot: <strong>${esc(participant.displayName || '(leer)')}</strong>
+          ${participant.team?.name ? ` · Team ${esc(participant.team.name)}` : ''}</p>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Gruppenmitglied <span class="t-required">*</span></span>
+          <select id="tas-userId" required>
+            <option value="">— Bitte wählen —</option>
+            ${memberOptions}
+          </select>
+        </label>
+        <div id="tournament-assign-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Zuordnen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-assign-form');
+  const msg = dlg.querySelector('#tournament-assign-msg');
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const userId = dlg.querySelector('#tas-userId').value;
+    if (!userId) {
+      msg.textContent = 'Bitte ein Mitglied auswählen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/participants/${encodeURIComponent(participantId)}`,
+        'PATCH',
+        { op: 'assign_user', userId }
+      );
+      toast('User zugeordnet', 'success');
+      close();
+      await openTournamentInstance(instanceId);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Zuordnung fehlgeschlagen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
+}
+
+// ── Modal: Match anlegen (mit Dropdowns) ─────────────────────────────
+async function openCreateTournamentMatchModal(instanceId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const participants = instance.participants || [];
+  if (participants.length < 2) {
+    toast('Mindestens zwei Teilnehmer erforderlich', 'error');
+    return;
+  }
+  const rounds = (instance.rounds || []).slice().sort((a, b) => a.roundNumber - b.roundNumber);
+  const roundOptions = rounds
+    .map((r) => `<option value="${esc(r.id)}">Runde ${r.roundNumber} · ${esc(r.name)}</option>`)
+    .join('');
+
+  const nextMatchNumber = (instance.matches?.length || 0) + 1;
+  const participantOptions = participants
+    .map((p) => {
+      const name = getTournamentParticipantDisplayName(p, instance);
+      const seedTag = p.seed ? ` · Seed ${p.seed}` : '';
+      const ghostTag = !p.userId ? ' · 👻' : '';
+      return `<option value="${esc(p.id)}">${esc(name)}${seedTag}${ghostTag}</option>`;
+    })
+    .join('');
+
+  closeTournamentDetailModalById('tournament-match-create-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-match-create-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Match hinzufügen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-match-create-form" class="tournament-detail-form">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Runde <span class="t-hint">(optional)</span></span>
+          <select id="tmc-roundId">
+            <option value="">— Keine spezifische Runde —</option>
+            ${roundOptions}
+          </select>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Match-Nummer <span class="t-required">*</span></span>
+          <input id="tmc-matchNumber" type="number" min="1" step="1" required value="${nextMatchNumber}">
+        </label>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Heim <span class="t-hint">(optional, leer = TBD)</span></span>
+            <select id="tmc-home">
+              <option value="">— TBD —</option>
+              ${participantOptions}
+            </select>
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Gast <span class="t-hint">(optional, leer = TBD)</span></span>
+            <select id="tmc-away">
+              <option value="">— TBD —</option>
+              ${participantOptions}
+            </select>
+          </label>
+        </div>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Venue / Tisch <span class="t-hint">(optional)</span></span>
+          <input id="tmc-venue" type="text" maxlength="80" placeholder="z. B. Tisch 1, Feld A, …">
+        </label>
+        <div id="tournament-match-create-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Anlegen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-match-create-form');
+  const msg = dlg.querySelector('#tournament-match-create-msg');
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const matchNumber = Number(dlg.querySelector('#tmc-matchNumber').value);
+    if (!Number.isInteger(matchNumber) || matchNumber < 1) {
+      msg.textContent = 'Match-Nummer muss eine positive ganze Zahl sein';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const body = {
+      matchNumber,
+      status: 'planned',
+    };
+    const roundId = dlg.querySelector('#tmc-roundId').value;
+    if (roundId) body.roundId = roundId;
+    const home = dlg.querySelector('#tmc-home').value;
+    const away = dlg.querySelector('#tmc-away').value;
+    if (home) body.homeParticipantId = home;
+    if (away) body.awayParticipantId = away;
+    const venue = dlg.querySelector('#tmc-venue').value.trim();
+    if (venue) body.venueLabel = venue;
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches`,
+        'POST',
+        body
+      );
+      toast('Match angelegt', 'success');
+      close();
+      await openTournamentInstance(instanceId);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Match konnte nicht angelegt werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
+}
+
+// ── Modal: Match-Ergebnis eintragen ─────────────────────────────────
+async function openRecordMatchResultModal(instanceId, matchId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  const match = (instance?.matches || []).find((m) => m.id === matchId);
+  if (!instance || !match) {
+    toast('Match nicht gefunden', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  if (!match.homeParticipantId || !match.awayParticipantId) {
+    toast('Match hat keine vollständige Teilnehmerzuordnung', 'error');
+    return;
+  }
+
+  const home = getTournamentInstanceParticipantById(instance, match.homeParticipantId);
+  const away = getTournamentInstanceParticipantById(instance, match.awayParticipantId);
+  const homeName = getTournamentParticipantDisplayName(home, instance);
+  const awayName = getTournamentParticipantDisplayName(away, instance);
+
+  closeTournamentDetailModalById('tournament-match-result-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-match-result-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Ergebnis eintragen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-match-result-form" class="tournament-detail-form">
+        <div class="t-result-header">
+          <div class="t-result-side">
+            <span class="t-hint">Heim</span>
+            <strong>${esc(homeName)}</strong>
+          </div>
+          <div class="t-result-vs">vs</div>
+          <div class="t-result-side t-result-side-right">
+            <span class="t-hint">Gast</span>
+            <strong>${esc(awayName)}</strong>
+          </div>
+        </div>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Score Heim <span class="t-required">*</span></span>
+            <input id="tmr-home" type="number" step="1" required value="0">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Score Gast <span class="t-required">*</span></span>
+            <input id="tmr-away" type="number" step="1" required value="0">
+          </label>
+        </div>
+        <div class="tournament-detail-checkbox-row">
+          <input id="tmr-draw" type="checkbox">
+          <label for="tmr-draw">Unentschieden (kein Sieger)</label>
+        </div>
+        <div class="t-hint" id="tmr-winner-preview">
+          <span>Sieger: <strong>${esc(homeName)}</strong> (anhand der Scores)</span>
+        </div>
+        <div id="tournament-match-result-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-match-result-form');
+  const msg = dlg.querySelector('#tournament-match-result-msg');
+  const homeInput = dlg.querySelector('#tmr-home');
+  const awayInput = dlg.querySelector('#tmr-away');
+  const drawCheckbox = dlg.querySelector('#tmr-draw');
+  const previewEl = dlg.querySelector('#tmr-winner-preview');
+
+  function updatePreview() {
+    const hs = Number(homeInput.value);
+    const as = Number(awayInput.value);
+    if (drawCheckbox.checked) {
+      previewEl.innerHTML = `<span>Unentschieden – kein Auto-Advance ins nächste Match.</span>`;
+      return;
+    }
+    if (!Number.isFinite(hs) || !Number.isFinite(as)) {
+      previewEl.innerHTML = `<span class="t-hint">Bitte gültige Zahlen eingeben.</span>`;
+      return;
+    }
+    if (hs === as) {
+      previewEl.innerHTML = `<span>Scores sind gleich – bitte "Unentschieden" anhaken oder einen Sieger festlegen.</span>`;
+      return;
+    }
+    const winner = hs > as ? homeName : awayName;
+    previewEl.innerHTML = `<span>Sieger: <strong>${esc(winner)}</strong> → wird ins nächste Match eingetragen (Auto-Advance)</span>`;
+  }
+  homeInput.addEventListener('input', updatePreview);
+  awayInput.addEventListener('input', updatePreview);
+  drawCheckbox.addEventListener('change', updatePreview);
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const homeScore = Number(homeInput.value);
+    const awayScore = Number(awayInput.value);
+    const isDraw = drawCheckbox.checked;
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) {
+      msg.textContent = 'Scores müssen Zahlen sein';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    if (!isDraw && homeScore === awayScore) {
+      msg.textContent = 'Bei Gleichstand bitte "Unentschieden" anhaken';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const winnerParticipantId = isDraw
+      ? null
+      : homeScore > awayScore
+        ? match.homeParticipantId
+        : match.awayParticipantId;
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/result`,
+        'PATCH',
+        {
+          isDraw,
+          winnerParticipantId,
+          results: [
+            {
+              participantId: match.homeParticipantId,
+              score: homeScore,
+              outcome: isDraw ? 'draw' : homeScore > awayScore ? 'win' : 'loss',
+            },
+            {
+              participantId: match.awayParticipantId,
+              score: awayScore,
+              outcome: isDraw ? 'draw' : awayScore > homeScore ? 'win' : 'loss',
+            },
+          ],
+        }
+      );
+      toast('Ergebnis gespeichert', 'success');
+      close();
+      await openTournamentInstance(instanceId);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Ergebnis konnte nicht gespeichert werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
+}
+
+// ── Confirm + Bracket generieren ─────────────────────────────────────
+async function generateTournamentBracket(instanceId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const participantCount = (instance.participants || []).length;
+  const matchCount = (instance.matches || []).length;
+  const hasUncompleted = (instance.matches || []).some((m) => m.status !== 'completed' && m.status !== 'void');
+
+  let warning = '';
+  if (hasUncompleted) {
+    warning = `\n\n⚠️ Es gibt bereits nicht abgeschlossene Matches (${matchCount} insgesamt). Diese werden ersetzt.`;
+  }
+
+  const ok = await showConfirmDlg(
+    'Bracket generieren',
+    `Bracket für "${instance.name}" mit ${participantCount} Teilnehmern bauen?${warning}`,
+    'Generieren',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+
+  try {
+    const result = await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/bracket/generate`,
+      'POST',
+      {}
+    );
+    if (result?.generated) {
+      const { matches, byesApplied, stageType } = result.generated;
+      const byeNote = byesApplied > 0 ? ` · ${byesApplied} BYE${byesApplied === 1 ? '' : 's'}` : '';
+      toast(`Bracket gebaut: ${matches} Matches (${stageType})${byeNote}`, 'success');
+    } else {
+      toast('Bracket generiert', 'success');
+    }
+    await openTournamentInstance(instanceId);
+    await loadActiveTournamentView(false);
+  } catch (e) {
+    toast(e.serverMessage || 'Bracket konnte nicht generiert werden', 'error');
+  }
+}
+
+// Helper: Modal anhand ID schließen (idempotent)
+function closeTournamentDetailModalById(id) {
+  document.getElementById(id)?.remove();
+}
+
+// ── Bracket-Visualisierung (CSS-Grid, Challonge-Style) ──────────────
+function renderTournamentBracket(instance) {
+  const matches = instance.matches || [];
+  if (matches.length === 0) {
+    return `
+      <div class="tournament-bracket-empty">
+        <p>Noch kein Bracket gebaut.</p>
+        ${canManageTournamentPresetsInCurrentGroup()
+          ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Bracket jetzt generieren</button>`
+          : ''}
+      </div>`;
+  }
+
+  // Matches nach Runde gruppieren
+  const matchesByRound = new Map();
+  for (const m of matches) {
+    const list = matchesByRound.get(m.roundId) || [];
+    list.push(m);
+    matchesByRound.set(m.roundId, list);
+  }
+
+  // Rounds sortiert (nach roundNumber aus den Rounds-Daten oder per Index)
+  const rounds = (instance.rounds || []).slice().sort((a, b) => a.roundNumber - b.roundNumber);
+  const sortedRounds = rounds.filter((r) => matchesByRound.has(r.id));
+  // Falls Rounds-Liste leer ist, gruppieren wir notfalls nach Reihenfolge des Auftretens
+  const finalRounds = sortedRounds.length > 0
+    ? sortedRounds
+    : Array.from(matchesByRound.keys()).map((roundId, idx) => ({
+        id: roundId,
+        name: `Runde ${idx + 1}`,
+        roundNumber: idx + 1,
+        bracket: 'main',
+      }));
+
+  return `
+    <div class="tournament-bracket-wrapper">
+      <div class="tournament-bracket-header">
+        <h4>📊 Bracket</h4>
+        <div class="tournament-bracket-actions">
+          ${canManageTournamentPresetsInCurrentGroup()
+            ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>`
+            : ''}
+        </div>
+      </div>
+      <div class="tournament-bracket-scroll">
+        <div class="tournament-bracket" style="grid-template-columns: repeat(${finalRounds.length}, minmax(220px, 1fr));">
+          ${finalRounds
+            .map((round) => {
+              const roundMatches = (matchesByRound.get(round.id) || []).slice().sort(
+                (a, b) => a.matchNumber - b.matchNumber
+              );
+              return `
+                <div class="tournament-bracket-round">
+                  <div class="tournament-bracket-round-head">
+                    <span>${esc(round.name)}</span>
+                    <span class="t-hint">${roundMatches.length} Match${roundMatches.length === 1 ? '' : 'es'}</span>
+                  </div>
+                  <div class="tournament-bracket-matches">
+                    ${roundMatches.map((m) => renderTournamentBracketMatch(m, instance)).join('')}
+                  </div>
+                </div>`;
+            })
+            .join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTournamentBracketMatch(match, instance) {
+  const names = getTournamentMatchDisplayNames(match, instance);
+  const homeResult = (match.results || []).find((r) => r.participantId === match.homeParticipantId);
+  const awayResult = (match.results || []).find((r) => r.participantId === match.awayParticipantId);
+  const homeScore = typeof homeResult?.score === 'number' ? homeResult.score : null;
+  const awayScore = typeof awayResult?.score === 'number' ? awayResult.score : null;
+  const winnerId = match.winnerParticipantId;
+  const isCompleted = match.status === 'completed';
+  const isVoid = match.status === 'void';
+  const isBye = match.metadata?.bye === true;
+
+  // TBD-Slots bekommen eine "?"-Behandlung
+  const tbdLabel = 'TBD';
+  const homeDisplay = match.homeParticipantId ? names.homeName : tbdLabel;
+  const awayDisplay = match.awayParticipantId ? names.awayName : tbdLabel;
+  const homeIsWinner = winnerId && winnerId === match.homeParticipantId;
+  const awayIsWinner = winnerId && winnerId === match.awayParticipantId;
+
+  const statusBadge = isBye
+    ? '<span class="t-badge t-badge-bye">BYE</span>'
+    : tournamentStatusBadgeHtml(match.status);
+
+  const clickable = canManageTournamentPresetsInCurrentGroup() && !isVoid && !isBye
+    && match.homeParticipantId
+    && match.awayParticipantId;
+
+  const clickAttr = clickable
+    ? `onclick="openRecordMatchResultModal('${esc(instance.id)}','${esc(match.id)}')" title="Ergebnis eintragen"`
+    : '';
+
+  return `
+    <div class="tournament-bracket-match ${isCompleted ? 'is-completed' : ''} ${isVoid ? 'is-void' : ''} ${clickable ? 'is-clickable' : ''}" ${clickAttr}>
+      <div class="tournament-bracket-match-head">
+        <span class="t-hint">#${match.matchNumber}</span>
+        ${statusBadge}
+      </div>
+      <div class="tournament-bracket-team ${homeIsWinner ? 'is-winner' : ''} ${!match.homeParticipantId ? 'is-tbd' : ''}">
+        <span class="tournament-bracket-team-name">${esc(homeDisplay)}</span>
+        <span class="tournament-bracket-team-score">${homeScore != null ? homeScore : '—'}</span>
+      </div>
+      <div class="tournament-bracket-team ${awayIsWinner ? 'is-winner' : ''} ${!match.awayParticipantId ? 'is-tbd' : ''}">
+        <span class="tournament-bracket-team-name">${esc(awayDisplay)}</span>
+        <span class="tournament-bracket-team-score">${awayScore != null ? awayScore : '—'}</span>
+      </div>
+      ${match.venueLabel ? `<div class="tournament-bracket-venue">📍 ${esc(match.venueLabel)}</div>` : ''}
+    </div>`;
+}
+
+
+function renderTournamentInstanceDetail(instance) {
+  const canManage = canManageTournamentPresetsInCurrentGroup();
+  const mode = instance?.preset?.participantMode || 'team';
+  const isTeamMode = mode === 'team' || mode === 'pair';
+  const teams = instance.teams || [];
+  const participants = instance.participants || [];
+  const matches = instance.matches || [];
+
+  // Aktuelle Tab-Auswahl (lokal, kein globaler state)
+  const tab = curTournamentView === 'presets' ? 'overview' : (curTournamentTab || 'overview');
+  // Eigentlicher Tab-Renderer
+  let tabContent = '';
+  if (tab === 'overview') {
+    tabContent = renderTournamentOverviewTab(instance, canManage);
+  } else if (tab === 'teams') {
+    tabContent = renderTournamentTeamsTab(instance, canManage);
+  } else if (tab === 'bracket') {
+    tabContent = renderTournamentBracketTab(instance, canManage);
+  } else if (tab === 'participants') {
+    tabContent = renderTournamentParticipantsTab(instance, canManage);
+  } else if (tab === 'standings') {
+    tabContent = renderTournamentStandingsTab(instance, isTeamMode, canManage);
+  }
 
   return `
     <div class="tournament-detail">
       <div class="tournament-detail-head">
         <h2>${esc(instance.name || 'Turnier')}</h2>
         <div class="tournament-card-actions">
-          <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','registration')">Registrierung</button>
-          <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','in_progress')">Starten</button>
-          <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','completed')">Beenden</button>
-          <button class="btn btn-ghost" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')">Löschen</button>
+          ${canManage ? `
+            <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','registration')">📝 Registrierung</button>
+            <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','in_progress')">▶ Starten</button>
+            <button class="btn btn-ghost" onclick="setTournamentInstanceStatus('${instance.id}','completed')">✓ Beenden</button>
+          ` : ''}
+          ${canManage ? `<button class="btn btn-ghost" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')">🗑 Löschen</button>` : ''}
         </div>
       </div>
-      <p>Preset: ${esc(instance?.preset?.name || '-')} · Modus: ${esc(tournamentPresetTypeLabel(instance?.preset?.baseType))} · Status: ${esc(tournamentStatusLabel(instance.status))}</p>
+      <p class="t-detail-meta">
+        <span>Preset: <strong>${esc(instance?.preset?.name || '-')}</strong></span>
+        <span>·</span>
+        <span>Modus: <strong>${esc(tournamentPresetTypeLabel(instance?.preset?.baseType))}</strong></span>
+        <span>·</span>
+        <span>Status: ${tournamentStatusBadgeHtml(instance.status)}</span>
+      </p>
 
-      <section class="tournament-panel">
-        <div class="tournament-panel-head">
-          <h3>Teams</h3>
-          <button class="btn btn-ghost" onclick="createTournamentTeam('${instance.id}')">Team hinzufügen</button>
-        </div>
-        <div class="tournament-inline-list">
-          ${(instance.teams || [])
-            .map((team) => `<span class="tournament-chip">${esc(team.name)}${team.seed ? ` · Seed ${team.seed}` : ''}</span>`)
-            .join('') || '<span class="tournament-empty-inline">Keine Teams angelegt.</span>'}
-        </div>
-      </section>
+      <nav class="t-detail-tabs" role="tablist">
+        <button class="t-detail-tab ${tab === 'overview' ? 'active' : ''}" onclick="switchTournamentDetailTab('overview')" role="tab">📊 Übersicht</button>
+        ${isTeamMode ? `<button class="t-detail-tab ${tab === 'teams' ? 'active' : ''}" onclick="switchTournamentDetailTab('teams')" role="tab">🏆 Teams <span class="t-tab-count">${teams.length}</span></button>` : ''}
+        <button class="t-detail-tab ${tab === 'bracket' ? 'active' : ''}" onclick="switchTournamentDetailTab('bracket')" role="tab">📈 Bracket <span class="t-tab-count">${matches.length}</span></button>
+        <button class="t-detail-tab ${tab === 'participants' ? 'active' : ''}" onclick="switchTournamentDetailTab('participants')" role="tab">👥 Teilnehmer <span class="t-tab-count">${participants.length}</span></button>
+        <button class="t-detail-tab ${tab === 'standings' ? 'active' : ''}" onclick="switchTournamentDetailTab('standings')" role="tab">🏅 Standings</button>
+      </nav>
 
-      <section class="tournament-panel">
-        <div class="tournament-panel-head">
-          <h3>Teilnehmer</h3>
-        </div>
-        <div class="tournament-inline-actions">${memberActions || '<span class="tournament-empty-inline">Keine Gruppenmitglieder verfügbar.</span>'}</div>
-        <div class="tournament-table-wrap">
-          <table class="tournament-table">
-            <thead><tr><th>Name</th><th>Team</th><th>Punkte</th><th>W-L-D</th><th>Status</th><th></th></tr></thead>
-            <tbody>${participantRows || '<tr><td colspan="6">Noch keine Teilnehmer.</td></tr>'}</tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="tournament-panel">
-        <div class="tournament-panel-head">
-          <h3>Matches</h3>
-          <button class="btn btn-ghost" onclick="createTournamentMatch('${instance.id}')">Match hinzufügen</button>
-        </div>
-        <div class="tournament-match-list">${matches || '<p class="tournament-empty">Noch keine Matches vorhanden.</p>'}</div>
-      </section>
-
-      <section id="tournament-standings-section" class="tournament-panel">
-        <div class="tournament-panel-head">
-          <h3>Standings</h3>
-          <button class="btn btn-ghost" onclick="refreshTournamentInstance('${instance.id}')">Neu berechnen</button>
-        </div>
-        <ol class="tournament-standing-list">
-          ${(instance.participants || [])
-            .slice()
-            .sort((a, b) => b.points - a.points || b.wins - a.wins || a.losses - b.losses)
-            .map((entry) => {
-              const name =
-                getVisibleName(entry.user, entry?.user?.displayNameField) ||
-                entry?.user?.name ||
-                entry?.user?.username ||
-                entry?.userId ||
-                'Teilnehmer';
-              return `<li><span>${esc(name)}</span><strong>${entry.points} Pkt</strong></li>`;
-            })
-            .join('') || '<li>Keine Daten verfügbar.</li>'}
-        </ol>
-      </section>
+      <div class="t-detail-tab-panel">${tabContent}</div>
     </div>`;
+}
+
+function switchTournamentDetailTab(tabName) {
+  curTournamentTab = tabName;
+  if (activeTournamentInstance) {
+    renderTournamentInstancesPage();
+  }
+}
+
+function renderTournamentOverviewTab(instance, canManage) {
+  const mode = instance?.preset?.participantMode || 'team';
+  const isTeamMode = mode === 'team' || mode === 'pair';
+  const stats = [
+    { label: 'Teams', value: (instance.teams || []).length, icon: '🏆' },
+    { label: 'Teilnehmer', value: (instance.participants || []).length, icon: '👥' },
+    { label: 'Matches', value: (instance.matches || []).length, icon: '⚔' },
+    { label: 'Abgeschlossen', value: (instance.matches || []).filter((m) => m.status === 'completed').length, icon: '✓' },
+  ];
+  return `
+    <div class="t-overview-stats">
+      ${stats.map((s) => `<div class="t-stat-tile"><span class="t-stat-icon">${s.icon}</span><strong>${s.value}</strong><span>${s.label}</span></div>`).join('')}
+    </div>
+    <div class="t-overview-grid">
+      <div class="t-overview-card">
+        <h4>Schnellstart</h4>
+        <ol class="t-overview-steps">
+          <li>${isTeamMode ? 'Teams anlegen (oder Auto-Gen)' : 'Teilnehmer hinzufügen'}</li>
+          <li>Bracket generieren</li>
+          <li>Ergebnisse eintragen</li>
+        </ol>
+        ${canManage && isTeamMode && (instance.teams || []).length === 0
+          ? `<button class="btn btn-primary" onclick="openAutoGenTeamsModal('${esc(instance.id)}')">⚡ Teams automatisch generieren</button>`
+          : ''}
+      </div>
+      <div class="t-overview-card">
+        <h4>Top 3 (Vorschau)</h4>
+        ${renderTopStandingsPreview(instance, isTeamMode)}
+      </div>
+    </div>`;
+}
+
+function renderTopStandingsPreview(instance, isTeamMode) {
+  // Schnelle Vorschau basierend auf Stats. Im Team-Mode zeigen wir Teams, sonst Participants.
+  let list = [];
+  if (isTeamMode) {
+    list = (instance.teams || [])
+      .slice()
+      .sort((a, b) => (b.points || 0) - (a.points || 0) || (b.wins || 0) - (a.wins || 0))
+      .slice(0, 3);
+  } else {
+    list = (instance.participants || [])
+      .slice()
+      .sort((a, b) => (b.points || 0) - (a.points || 0) || (b.wins || 0) - (a.wins || 0))
+      .slice(0, 3);
+  }
+  if (list.length === 0) {
+    return '<p class="t-hint">Noch keine Daten. Generiere das Bracket, um zu starten.</p>';
+  }
+  return list
+    .map((entry, idx) => {
+      const name = isTeamMode ? entry.name : getTournamentParticipantDisplayName(entry, instance);
+      const medal = ['🥇', '🥈', '🥉'][idx] || `#${idx + 1}`;
+      return `<div class="t-overview-podium-row">
+        <span class="t-podium-medal">${medal}</span>
+        <span class="t-podium-name">${esc(name)}</span>
+        <strong>${entry.points || 0} Pkt</strong>
+      </div>`;
+    })
+    .join('');
+}
+
+function renderTournamentTeamsTab(instance, canManage) {
+  const teams = instance.teams || [];
+  const teamCards = teams
+    .map((team) => {
+      const editableName = canManage
+        ? `<span class="t-team-name t-editable" onclick="startEditTeamName('${esc(instance.id)}','${esc(team.id)}', this)" title="Klicken zum Umbenennen">${esc(team.name)} ✏️</span>`
+        : `<span class="t-team-name">${esc(team.name)}</span>`;
+      return `<div class="t-team-card" data-team-id="${esc(team.id)}">
+        <div class="t-team-card-head">${editableName}${team.seed ? ` <span class="t-hint">· Seed ${team.seed}</span>` : ''}</div>
+        ${canManage ? `<button class="t-team-delete" onclick="deleteTournamentTeam('${esc(instance.id)}','${esc(team.id)}','${esc(team.name)}')" title="Team löschen">🗑</button>` : ''}
+      </div>`;
+    })
+    .join('');
+  return `
+    <div class="t-toolbar">
+      ${canManage
+        ? `<button class="btn btn-primary" onclick="openCreateTournamentTeamModal('${esc(instance.id)}')">＋ Team hinzufügen</button>
+           <button class="btn btn-ghost" onclick="openAutoGenTeamsModal('${esc(instance.id)}')">⚡ N Teams generieren</button>`
+        : ''}
+    </div>
+    <div class="t-team-grid">${teamCards || '<p class="t-hint">Noch keine Teams angelegt.</p>'}</div>
+  `;
+}
+
+function renderTournamentBracketTab(instance, canManage) {
+  return renderTournamentBracketModern(instance, canManage);
+}
+
+function renderTournamentParticipantsTab(instance, canManage) {
+  const participants = instance.participants || [];
+  const rows = participants
+    .map((entry) => {
+      const name = getTournamentParticipantDisplayName(entry, instance);
+      const isGhost = !entry.userId;
+      const ghostBadge = isGhost
+        ? ' <span class="t-badge t-badge-ghost" title="Noch kein User zugeordnet">👻 Ghost</span>'
+        : '';
+      const userInfo = entry.user
+        ? `<div class="t-hint">${esc(entry.user.username || entry.user.email || '')}</div>`
+        : '';
+      return `<div class="t-participant-card">
+        <div class="t-participant-main">
+          <strong>${esc(name)}</strong>${ghostBadge}
+          ${userInfo}
+        </div>
+        <div class="t-participant-team">${esc(entry?.team?.name || '—')}</div>
+        <div class="t-participant-actions">
+          ${isGhost && canManage
+            ? `<button class="btn btn-ghost btn-sm" onclick="openAssignUserToParticipantModal('${esc(instance.id)}','${esc(entry.id)}')">👤 Zuordnen</button>`
+            : ''}
+          ${canManage
+            ? `<button class="btn btn-ghost btn-sm" onclick="removeTournamentParticipant('${esc(instance.id)}','${esc(entry.id)}','${esc(name)}')">Entfernen</button>`
+            : ''}
+        </div>
+      </div>`;
+    })
+    .join('');
+  return `
+    <div class="t-toolbar">
+      ${canManage
+        ? `<button class="btn btn-primary" onclick="openAddTournamentParticipantModal('${esc(instance.id)}')">＋ Teilnehmer hinzufügen</button>`
+        : ''}
+    </div>
+    <p class="t-hint" style="margin: 4px 0 14px">Im Team-Modus sind Teilnehmer "an Papier" mit Teams verknüpft. Sie zählen nicht in den Standings.</p>
+    <div class="t-participant-grid">${rows || '<p class="t-hint">Noch keine Teilnehmer.</p>'}</div>
+  `;
+}
+
+function renderTournamentStandingsTab(instance, isTeamMode, canManage) {
+  // Mode-aware: Teams in team/pair-Mode, Participants in individual-Mode.
+  // KEIN Mix.
+  let rows = [];
+  if (isTeamMode) {
+    rows = (instance.teams || [])
+      .slice()
+      .sort((a, b) => (b.points || 0) - (a.points || 0) || (b.wins || 0) - (a.wins || 0) || (a.losses || 0) - (b.losses || 0))
+      .map((entry, idx) => ({
+        rank: idx + 1,
+        name: entry.name,
+        points: entry.points || 0,
+        wins: entry.wins || 0,
+        losses: entry.losses || 0,
+        draws: entry.draws || 0,
+        seed: entry.seed,
+      }));
+  } else {
+    rows = (instance.participants || [])
+      .slice()
+      .sort((a, b) => (b.points || 0) - (a.points || 0) || (b.wins || 0) - (a.wins || 0) || (a.losses || 0) - (b.losses || 0))
+      .map((entry, idx) => ({
+        rank: idx + 1,
+        name: getTournamentParticipantDisplayName(entry, instance),
+        points: entry.points || 0,
+        wins: entry.wins || 0,
+        losses: entry.losses || 0,
+        draws: entry.draws || 0,
+        seed: entry.seed,
+      }));
+  }
+  const podium = rows.slice(0, 3);
+  const rest = rows.slice(3);
+  return `
+    <div class="t-toolbar">
+      <button class="btn btn-ghost btn-sm" onclick="refreshTournamentInstance('${esc(instance.id)}')">↻ Neu berechnen</button>
+    </div>
+    ${podium.length > 0
+      ? `<div class="t-podium">
+          ${podium
+            .map((entry, idx) => `<div class="t-podium-place t-podium-${idx + 1}">
+              <div class="t-podium-medal-large">${['🥇', '🥈', '🥉'][idx]}</div>
+              <div class="t-podium-name">${esc(entry.name)}</div>
+              <div class="t-podium-stats">
+                <strong>${entry.points} Pkt</strong>
+                <span class="t-hint">${entry.wins}W ${entry.losses}L ${entry.draws}D</span>
+              </div>
+            </div>`)
+            .join('')}
+        </div>`
+      : '<p class="t-hint">Noch keine Daten verfügbar. Bracket generieren und Matches spielen.</p>'}
+    ${rest.length > 0
+      ? `<ol class="t-standing-list t-standing-list-rest">
+          ${rest
+            .map(
+              (entry) => `<li>
+              <span class="t-standing-rank">#${entry.rank}</span>
+              <span class="t-standing-name">${esc(entry.name)}</span>
+              <span class="t-stat-pills">
+                <span class="t-stat-pill t-stat-pill-w">${entry.wins}W</span>
+                <span class="t-stat-pill t-stat-pill-l">${entry.losses}L</span>
+                <span class="t-stat-pill t-stat-pill-d">${entry.draws}D</span>
+              </span>
+              <strong>${entry.points} Pkt</strong>
+            </li>`
+            )
+            .join('')}
+        </ol>`
+      : ''}
+  `;
+}
+
+// ─── Modernisierte Bracket-Vis (CSS-Grid, Mobile/Desktop-Varianten) ───
+function renderTournamentBracketModern(instance, canManage) {
+  const mode = instance?.preset?.participantMode || 'team';
+  const isTeamMode = mode === 'team' || mode === 'pair';
+  const matches = instance.matches || [];
+  const teams = instance.teams || [];
+  const phaseFilter = (instance.phaseFilter || 'all'); // 'all' | 'group' | 'knockout'
+
+  if (matches.length === 0) {
+    return `
+      <div class="t-bracket-empty">
+        <p class="t-hint">Noch kein Bracket gebaut.</p>
+        ${canManage && teams.length >= 2
+          ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Bracket jetzt generieren</button>`
+          : `<p class="t-hint">Mindestens 2 spielende Entities erforderlich.</p>`}
+      </div>`;
+  }
+
+  // Gruppiere nach phase + round
+  const filtered = phaseFilter === 'all' ? matches : matches.filter((m) => (m.phase || 'main') === phaseFilter);
+
+  // Group+KO: zeige Group-Phase + KO-Phase getrennt
+  const hasGroupPhase = matches.some((m) => m.phase === 'group');
+  const hasKoPhase = matches.some((m) => m.phase === 'knockout');
+
+  if (hasGroupPhase || hasKoPhase) {
+    return renderGroupPlusKnockoutBracket(instance, canManage, isTeamMode, phaseFilter);
+  }
+
+  // Standard: Main-Phase
+  return renderSinglePhaseBracket(instance, filtered, isTeamMode, canManage);
+}
+
+function renderSinglePhaseBracket(instance, matches, isTeamMode, canManage) {
+  // Runden gruppieren
+  const byRound = new Map();
+  for (const m of matches) {
+    const list = byRound.get(m.roundId) || [];
+    list.push(m);
+    byRound.set(m.roundId, list);
+  }
+  const rounds = (instance.rounds || [])
+    .filter((r) => byRound.has(r.id))
+    .sort((a, b) => a.roundNumber - b.roundNumber);
+  if (rounds.length === 0) {
+    // Fallback
+    return `<p class="t-hint">Bracket-Struktur unbekannt.</p>`;
+  }
+
+  const columns = rounds.length;
+  const roundColumns = rounds
+    .map((round) => {
+      const roundMatches = (byRound.get(round.id) || [])
+        .slice()
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+      return `<div class="t-bracket-round">
+        <div class="t-bracket-round-head">
+          <strong>${esc(round.name)}</strong>
+          <span class="t-hint">${roundMatches.length} Match${roundMatches.length === 1 ? '' : 'es'}</span>
+        </div>
+        <div class="t-bracket-matches">
+          ${roundMatches.map((m) => renderTournamentBracketMatchModern(m, instance, isTeamMode, canManage)).join('')}
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  return `
+    <div class="t-bracket-toolbar">
+      ${canManage
+        ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>
+           <button class="btn btn-ghost btn-sm" onclick="shuffleTournamentBracket('${esc(instance.id)}')">🎲 Runde 1 mischen</button>`
+        : ''}
+    </div>
+    <div class="t-bracket-scroll">
+      <div class="t-bracket-grid" style="--t-bracket-cols: ${columns}">
+        ${roundColumns}
+      </div>
+    </div>`;
+}
+
+function renderGroupPlusKnockoutBracket(instance, canManage, isTeamMode, phaseFilter) {
+  const groupMatches = (instance.matches || []).filter((m) => m.phase === 'group');
+  const koMatches = (instance.matches || []).filter((m) => m.phase === 'knockout' || (!m.phase || m.phase === 'main'));
+
+  // Group-Phase: nach Gruppe gruppieren
+  const byGroup = new Map();
+  for (const m of groupMatches) {
+    const g = m.groupLabel || '?';
+    const list = byGroup.get(g) || [];
+    list.push(m);
+    byGroup.set(g, list);
+  }
+  const groupsHtml = Array.from(byGroup.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([groupLabel, ms]) => {
+      const sorted = ms.slice().sort((a, b) => (a.roundId || '').localeCompare(b.roundId || '') || a.matchNumber - b.matchNumber);
+      return `<div class="t-bracket-group">
+        <h4>Gruppe ${esc(groupLabel)}</h4>
+        <div class="t-bracket-group-matches">
+          ${sorted.map((m) => renderTournamentBracketMatchModern(m, instance, isTeamMode, canManage)).join('')}
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  // KO-Phase: Standard-Bracket
+  const koRoundsByPhase = new Map();
+  for (const m of koMatches) {
+    const list = koRoundsByPhase.get(m.roundId) || [];
+    list.push(m);
+    koRoundsByPhase.set(m.roundId, list);
+  }
+  const koRounds = (instance.rounds || [])
+    .filter((r) => koRoundsByPhase.has(r.id) && r.stageKey === 'knockout')
+    .sort((a, b) => a.roundNumber - b.roundNumber);
+  const koPhaseHtml = koRounds.length > 0
+    ? renderSinglePhaseBracket(instance, koMatches, isTeamMode, canManage)
+    : `<div class="t-bracket-empty">
+        <p class="t-hint">KO-Phase noch nicht generiert.</p>
+        ${canManage
+          ? (groupMatches.every((m) => m.status === 'completed')
+            ? `<button class="btn btn-primary" onclick="generateKnockoutPhase('${esc(instance.id)}')">⚡ KO-Phase generieren</button>`
+            : `<p class="t-hint">⏳ KO-Phase kann erst nach Abschluss aller Gruppen-Matches generiert werden.</p>`)
+          : ''}
+      </div>`;
+
+  return `
+    <div class="t-bracket-toolbar">
+      <div class="t-bracket-tabs">
+        <button class="t-bracket-tab ${phaseFilter === 'all' || phaseFilter === 'group' ? 'active' : ''}" onclick="setTournamentBracketPhase('${esc(instance.id)}','group')">📋 Gruppenphase <span class="t-tab-count">${groupMatches.length}</span></button>
+        <button class="t-bracket-tab ${phaseFilter === 'knockout' ? 'active' : ''}" onclick="setTournamentBracketPhase('${esc(instance.id)}','knockout')">🏆 KO-Phase <span class="t-tab-count">${koMatches.length}</span></button>
+      </div>
+      ${canManage
+        ? `<button class="btn btn-ghost btn-sm" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Neu generieren</button>`
+        : ''}
+    </div>
+    ${phaseFilter === 'knockout' ? koPhaseHtml : `<div class="t-bracket-groups">${groupsHtml}</div>`}
+  `;
+}
+
+function setTournamentBracketPhase(instanceId, phase) {
+  if (activeTournamentInstance && activeTournamentInstance.id === instanceId) {
+    activeTournamentInstance.phaseFilter = phase;
+  }
+  if (activeTournamentInstance) {
+    renderTournamentInstancesPage();
+  }
+}
+
+function renderTournamentBracketMatchModern(match, instance, isTeamMode, canManage) {
+  // Entity-Lookup: homeTeam oder homeParticipant
+  let homeName = 'TBD';
+  let awayName = 'TBD';
+  let homeDraggable = false;
+  let awayDraggable = false;
+  if (isTeamMode) {
+    const home = (instance.teams || []).find((t) => t.id === match.homeTeamId);
+    const away = (instance.teams || []).find((t) => t.id === match.awayTeamId);
+    if (home) homeName = home.name;
+    if (away) awayName = away.name;
+    homeDraggable = !!home && canManage;
+    awayDraggable = !!away && canManage;
+  } else {
+    const home = (instance.participants || []).find((p) => p.id === match.homeParticipantId);
+    const away = (instance.participants || []).find((p) => p.id === match.awayParticipantId);
+    if (home) homeName = getTournamentParticipantDisplayName(home, instance);
+    if (away) awayName = getTournamentParticipantDisplayName(away, instance);
+  }
+
+  const homeResult = (match.results || []).find((r) => (isTeamMode ? r.teamId === match.homeTeamId : r.participantId === match.homeParticipantId));
+  const awayResult = (match.results || []).find((r) => (isTeamMode ? r.teamId === match.awayTeamId : r.participantId === match.awayParticipantId));
+  const homeScore = homeResult?.score;
+  const awayScore = awayResult?.score;
+  const winnerId = match.winnerTeamId || match.winnerParticipantId;
+  const homeIsWinner = winnerId && winnerId === (isTeamMode ? match.homeTeamId : match.homeParticipantId);
+  const awayIsWinner = winnerId && winnerId === (isTeamMode ? match.awayTeamId : match.awayParticipantId);
+  const isCompleted = match.status === 'completed';
+  const isVoid = match.status === 'void';
+  const isBye = match.metadata?.bye === true;
+  const homeSlot = isTeamMode ? match.homeTeamId : match.homeParticipantId;
+  const awaySlot = isTeamMode ? match.awayTeamId : match.awayParticipantId;
+
+  const statusBadge = isBye
+    ? '<span class="t-badge t-badge-bye">BYE</span>'
+    : tournamentStatusBadgeHtml(match.status);
+
+  const clickable = canManage && !isVoid && !isBye && homeSlot && awaySlot;
+  const dropTargetHome = canManage && !isVoid && !isBye && !homeSlot;
+  const dropTargetAway = canManage && !isVoid && !isBye && !awaySlot;
+
+  const clickAttr = clickable
+    ? `onclick="openRecordMatchResultModal('${esc(instance.id)}','${esc(match.id)}')" title="Ergebnis eintragen"`
+    : '';
+  const dropHomeAttr = dropTargetHome
+    ? `ondragover="onTournamentDragOver(event)" ondrop="onTournamentDrop(event, '${esc(instance.id)}', '${esc(match.id)}', 'home', ${isTeamMode})"`
+    : '';
+  const dropAwayAttr = dropTargetAway
+    ? `ondragover="onTournamentDragOver(event)" ondrop="onTournamentDrop(event, '${esc(instance.id)}', '${esc(match.id)}', 'away', ${isTeamMode})"`
+    : '';
+
+  return `
+    <div class="t-bracket-match ${isCompleted ? 'is-completed' : ''} ${isVoid ? 'is-void' : ''} ${clickable ? 'is-clickable' : ''} ${dropTargetHome || dropTargetAway ? 'is-drop-target' : ''}" ${clickAttr}>
+      <div class="t-bracket-match-head">
+        <span class="t-hint">#${match.matchNumber}${match.phase && match.phase !== 'main' ? ` · ${esc(match.phase)}` : ''}${match.groupLabel ? ` · Gr ${esc(match.groupLabel)}` : ''}</span>
+        ${statusBadge}
+      </div>
+      <div class="t-bracket-team ${homeIsWinner ? 'is-winner' : ''} ${!homeSlot ? 'is-tbd is-drop-slot' : ''} ${homeDraggable ? 'is-draggable' : ''}"
+           ${dropHomeAttr}
+           ${homeDraggable ? `draggable="true" ondragstart="onTournamentDragStart(event, '${esc(instance.id)}', '${homeSlot}', 'team')"` : ''}>
+        <span class="t-bracket-team-name">${esc(homeName)}</span>
+        <span class="t-bracket-team-score">${homeScore != null ? homeScore : '—'}</span>
+      </div>
+      <div class="t-bracket-team ${awayIsWinner ? 'is-winner' : ''} ${!awaySlot ? 'is-tbd is-drop-slot' : ''} ${awayDraggable ? 'is-draggable' : ''}"
+           ${dropAwayAttr}
+           ${awayDraggable ? `draggable="true" ondragstart="onTournamentDragStart(event, '${esc(instance.id)}', '${awaySlot}', 'team')"` : ''}>
+        <span class="t-bracket-team-name">${esc(awayName)}</span>
+        <span class="t-bracket-team-score">${awayScore != null ? awayScore : '—'}</span>
+      </div>
+      ${match.venueLabel ? `<div class="t-bracket-venue">📍 ${esc(match.venueLabel)}</div>` : ''}
+    </div>`;
+}
+
+// ─── Drag & Drop für Bracket-Slots ─────────────────────────────────────
+function onTournamentDragStart(event, instanceId, entityId, entityType) {
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/x-tournament-entity', JSON.stringify({ instanceId, entityId, entityType }));
+  event.currentTarget.classList.add('is-dragging');
+}
+
+function onTournamentDragOver(event) {
+  if (event.dataTransfer.types.includes('application/x-tournament-entity')) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    event.currentTarget.classList.add('is-drag-over');
+  }
+}
+
+async function onTournamentDrop(event, instanceId, matchId, slot, isTeamMode) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('is-drag-over');
+  try {
+    const raw = event.dataTransfer.getData('application/x-tournament-entity');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.instanceId !== instanceId) {
+      toast('Entity gehört zu einem anderen Turnier', 'error');
+      return;
+    }
+    const field = isTeamMode
+      ? (slot === 'home' ? 'homeTeamId' : 'awayTeamId')
+      : (slot === 'home' ? 'homeParticipantId' : 'awayParticipantId');
+    await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}`,
+      'PATCH',
+      { [field]: data.entityId }
+    );
+    toast('Slot aktualisiert', 'success');
+    await openTournamentInstance(instanceId);
+  } catch (e) {
+    toast(e.serverMessage || 'Drop fehlgeschlagen', 'error');
+  }
+}
+
+// ─── Team-Auto-Gen Modal ─────────────────────────────────────────────
+async function openAutoGenTeamsModal(instanceId) {
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  closeTournamentDetailModalById('tournament-auto-gen-teams-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-auto-gen-teams-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>⚡ Teams automatisch generieren</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-auto-gen-teams-form" class="tournament-detail-form">
+        <p class="t-hint">Erstellt N Teams mit fortlaufenden Seeds. Du kannst die Namen danach umbenennen.</p>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Anzahl Teams <span class="t-required">*</span></span>
+          <input id="tagt-count" type="number" min="2" max="64" required value="8" autofocus>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Namens-Pattern <span class="t-hint">(Verwende {n} für die Nummer)</span></span>
+          <input id="tagt-pattern" type="text" maxlength="40" value="Team {n}" placeholder="z. B. Team {n}, Spieler {n}, FC {n}, …">
+          <span class="t-hint">Beispiel: "Team {n}" → "Team 1", "Team 2", …</span>
+        </label>
+        <div id="tournament-auto-gen-teams-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">⚡ Generieren</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-auto-gen-teams-form');
+  const msg = dlg.querySelector('#tournament-auto-gen-teams-msg');
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const count = Number(dlg.querySelector('#tagt-count').value);
+    const namePattern = dlg.querySelector('#tagt-pattern').value.trim() || 'Team {n}';
+    if (!Number.isInteger(count) || count < 2 || count > 64) {
+      msg.textContent = 'Anzahl muss zwischen 2 und 64 sein';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    try {
+      const data = await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/teams/bulk`,
+        'POST',
+        { count, namePattern }
+      );
+      toast(`${data.count || count} Teams erstellt`, 'success');
+      close();
+      await openTournamentInstance(instanceId);
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Teams konnten nicht erstellt werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
+}
+
+// ─── Team-Rename (inline edit) ────────────────────────────────────────
+async function startEditTeamName(instanceId, teamId, element) {
+  const team = activeTournamentInstance?.teams?.find((t) => t.id === teamId);
+  if (!team) return;
+  const newName = window.prompt('Neuer Team-Name:', team.name);
+  if (!newName || !newName.trim() || newName === team.name) return;
+  try {
+    await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/teams/${encodeURIComponent(teamId)}`,
+      'PATCH',
+      { name: newName.trim() }
+    );
+    toast('Team umbenannt', 'success');
+    await openTournamentInstance(instanceId);
+  } catch (e) {
+    toast(e.serverMessage || 'Umbenennen fehlgeschlagen', 'error');
+  }
+}
+
+// ─── Team-Delete ──────────────────────────────────────────────────────
+async function deleteTournamentTeam(instanceId, teamId, name) {
+  const ok = await showConfirmDlg(
+    'Team löschen',
+    `Team "${name}" wirklich löschen? Damit verbundene Teilnehmer und Matches könnten betroffen sein.`,
+    'Löschen',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+  try {
+    await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/teams/${encodeURIComponent(teamId)}`,
+      'DELETE'
+    );
+    toast('Team gelöscht', 'success');
+    await openTournamentInstance(instanceId);
+  } catch (e) {
+    toast(e.serverMessage || 'Team konnte nicht gelöscht werden', 'error');
+  }
+}
+
+// ─── Shuffle Runde 1 (mischt Teams neu) ──────────────────────────────
+async function shuffleTournamentBracket(instanceId) {
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const instance = activeTournamentInstance;
+  if (!instance) return;
+  const mode = instance?.preset?.participantMode || 'team';
+  const isTeamMode = mode === 'team' || mode === 'pair';
+
+  const round1 = (instance.matches || [])
+    .filter((m) => (m.phase || 'main') === 'main')
+    .sort((a, b) => a.roundNumber - b.roundNumber || a.matchNumber - b.matchNumber)
+    .filter((m, idx, arr) => {
+      const minRound = arr[0]?.roundNumber ?? 0;
+      return m.roundNumber === minRound;
+    });
+  if (round1.length === 0) {
+    toast('Keine Runde 1 gefunden', 'error');
+    return;
+  }
+
+  // Sammle alle Entities (Teams oder Participants) aus Round 1
+  const entities = [];
+  for (const m of round1) {
+    if (isTeamMode) {
+      if (m.homeTeamId) entities.push(m.homeTeamId);
+      if (m.awayTeamId) entities.push(m.awayTeamId);
+    } else {
+      if (m.homeParticipantId) entities.push(m.homeParticipantId);
+      if (m.awayParticipantId) entities.push(m.awayParticipantId);
+    }
+  }
+  const uniqueEntities = Array.from(new Set(entities));
+  // Fisher-Yates Shuffle
+  for (let i = uniqueEntities.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [uniqueEntities[i], uniqueEntities[j]] = [uniqueEntities[j], uniqueEntities[i]];
+  }
+
+  // Verteile zurück auf die Match-Slots
+  const updates = [];
+  let entityIdx = 0;
+  for (const m of round1) {
+    const homeField = isTeamMode ? 'homeTeamId' : 'homeParticipantId';
+    const awayField = isTeamMode ? 'awayTeamId' : 'awayParticipantId';
+    const newHome = m.homeTeamId || m.homeParticipantId ? uniqueEntities[entityIdx++] || null : null;
+    const newAway = m.awayTeamId || m.awayParticipantId ? uniqueEntities[entityIdx++] || null : null;
+    if (newHome !== null) {
+      updates.push(apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}`,
+        'PATCH',
+        { [homeField]: newHome }
+      ));
+    }
+    if (newAway !== null) {
+      updates.push(apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}`,
+        'PATCH',
+        { [awayField]: newAway }
+      ));
+    }
+  }
+  try {
+    await Promise.all(updates);
+    toast('Runde 1 neu gemischt', 'success');
+    await openTournamentInstance(instanceId);
+  } catch (e) {
+    toast(e.serverMessage || 'Mischen fehlgeschlagen', 'error');
+  }
+}
+
+// ─── KO-Phase nachträglich generieren ────────────────────────────────
+async function generateKnockoutPhase(instanceId) {
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const ok = await showConfirmDlg(
+    'KO-Phase generieren',
+    'KO-Phase aus den Top-X-Standings der Gruppen bauen? Dies überschreibt die aktuelle KO-Struktur.',
+    'Generieren',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+  try {
+    const data = await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/bracket/ko`,
+      'POST',
+      {}
+    );
+    toast(`KO-Phase gebaut: ${data.generated?.koMatches || 0} Matches`, 'success');
+    await openTournamentInstance(instanceId);
+  } catch (e) {
+    toast(e.serverMessage || 'KO-Phase konnte nicht generiert werden', 'error');
+  }
 }
 
 async function refreshTournamentInstance(instanceId) {
@@ -3484,54 +5060,14 @@ async function setTournamentInstanceStatus(instanceId, status) {
 }
 
 async function createTournamentTeam(instanceId) {
-  const nameInput = await showTextConfirmDlg(
-    'Team anlegen',
-    'Teamname eingeben.',
-    'Anlegen',
-    'Abbrechen',
-    false,
-    'z. B. Team Nord'
-  );
-  if (!nameInput?.confirmed || !nameInput.text) return;
-  const seedRaw = window.prompt('Seed (optional)', '');
-  if (seedRaw === null) return;
-  const seed = seedRaw.trim() ? Number(seedRaw) : null;
-  if (seedRaw.trim() && (!Number.isInteger(seed) || seed < 1)) {
-    toast('Seed muss eine positive ganze Zahl sein', 'error');
-    return;
-  }
-
-  try {
-    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}/teams`, 'POST', {
-      name: nameInput.text,
-      seed,
-    });
-    toast('Team angelegt', 'success');
-    await openTournamentInstance(instanceId);
-    await loadActiveTournamentView(false);
-  } catch (e) {
-    toast(e.serverMessage || 'Team konnte nicht angelegt werden', 'error');
-  }
+  // Phase 2: leitet auf das neue Modal weiter
+  return openCreateTournamentTeamModal(instanceId);
 }
 
 async function addTournamentParticipantFromGroup(instanceId, userId, label) {
-  const teamIdRaw = window.prompt(
-    `Optional teamId für ${label} (leer lassen für Einzelzuordnung)`,
-    ''
-  );
-  if (teamIdRaw === null) return;
-
-  try {
-    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}/participants`, 'POST', {
-      userId,
-      teamId: teamIdRaw.trim() || null,
-    });
-    toast('Teilnehmer hinzugefügt', 'success');
-    await openTournamentInstance(instanceId);
-    await loadActiveTournamentView(false);
-  } catch (e) {
-    toast(e.serverMessage || 'Teilnehmer konnte nicht hinzugefügt werden', 'error');
-  }
+  // Phase 2: das Modal kann optional mit prefillUserId aufgerufen werden,
+  // aber aktuell öffnen wir den User-Tab mit Vorauswahl.
+  return openAddTournamentParticipantModal(instanceId, { prefillUserId: userId });
 }
 
 async function removeTournamentParticipant(instanceId, participantId, label) {
@@ -3558,94 +5094,13 @@ async function removeTournamentParticipant(instanceId, participantId, label) {
 }
 
 async function createTournamentMatch(instanceId) {
-  const participants = activeTournamentInstance?.participants || [];
-  if (participants.length < 2) {
-    toast('Mindestens zwei Teilnehmer erforderlich', 'error');
-    return;
-  }
-
-  const matchNumberRaw = window.prompt('Match-Nummer', String((activeTournamentInstance?.matches?.length || 0) + 1));
-  if (matchNumberRaw === null) return;
-  const matchNumber = Number(matchNumberRaw);
-  if (!Number.isInteger(matchNumber) || matchNumber < 1) {
-    toast('Match-Nummer ungültig', 'error');
-    return;
-  }
-
-  const homeParticipantId = window.prompt('homeParticipantId', participants[0]?.id || '');
-  if (homeParticipantId === null) return;
-  const awayParticipantId = window.prompt('awayParticipantId', participants[1]?.id || '');
-  if (awayParticipantId === null) return;
-
-  try {
-    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}/matches`, 'POST', {
-      matchNumber,
-      homeParticipantId: homeParticipantId.trim(),
-      awayParticipantId: awayParticipantId.trim(),
-      status: 'planned',
-    });
-    toast('Match erstellt', 'success');
-    await openTournamentInstance(instanceId);
-    await loadActiveTournamentView(false);
-  } catch (e) {
-    toast(e.serverMessage || 'Match konnte nicht erstellt werden', 'error');
-  }
+  // Phase 2: leitet auf das neue Modal weiter
+  return openCreateTournamentMatchModal(instanceId);
 }
 
 async function recordTournamentMatchResult(instanceId, matchId) {
-  const match = (activeTournamentInstance?.matches || []).find((entry) => entry.id === matchId);
-  if (!match?.homeParticipantId || !match?.awayParticipantId) {
-    toast('Match hat keine vollständige Teilnehmerzuordnung', 'error');
-    return;
-  }
-
-  const scoreInput = window.prompt('Ergebnis eingeben (Format: Heim:Auswärts, z. B. 10:7)', '0:0');
-  if (scoreInput === null) return;
-  const parts = String(scoreInput)
-    .split(':')
-    .map((value) => Number(value.trim()));
-  if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) {
-    toast('Ergebnisformat ungültig', 'error');
-    return;
-  }
-
-  const [homeScore, awayScore] = parts;
-  const isDraw = homeScore === awayScore;
-  const winnerParticipantId = isDraw
-    ? null
-    : homeScore > awayScore
-      ? match.homeParticipantId
-      : match.awayParticipantId;
-
-  const results = [
-    {
-      participantId: match.homeParticipantId,
-      score: homeScore,
-      outcome: isDraw ? 'draw' : homeScore > awayScore ? 'win' : 'loss',
-    },
-    {
-      participantId: match.awayParticipantId,
-      score: awayScore,
-      outcome: isDraw ? 'draw' : awayScore > homeScore ? 'win' : 'loss',
-    },
-  ];
-
-  try {
-    await apiCall(
-      `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/result`,
-      'PATCH',
-      {
-        isDraw,
-        winnerParticipantId,
-        results,
-      }
-    );
-    toast('Ergebnis gespeichert', 'success');
-    await openTournamentInstance(instanceId);
-    await loadActiveTournamentView(false);
-  } catch (e) {
-    toast(e.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');
-  }
+  // Phase 2: leitet auf das neue Modal weiter
+  return openRecordMatchResultModal(instanceId, matchId);
 }
 
 function feedEntityHref(post) {
@@ -13228,6 +14683,25 @@ Object.assign(window, {
   copyCurrentImageId,
   toggleLbMenu,
   closeLbMenu,
+  // Phase 2: neue Turnier-Modals + Bracket-Generator
+  openCreateTournamentTeamModal,
+  openAddTournamentParticipantModal,
+  openAssignUserToParticipantModal,
+  openCreateTournamentMatchModal,
+  openRecordMatchResultModal,
+  openCreateTournamentInstance,
+  generateTournamentBracket,
+  // Phase 3: Tab-Refactor + Team-Management + Drag&Drop
+  switchTournamentDetailTab,
+  setTournamentBracketPhase,
+  openAutoGenTeamsModal,
+  startEditTeamName,
+  deleteTournamentTeam,
+  shuffleTournamentBracket,
+  generateKnockoutPhase,
+  onTournamentDragStart,
+  onTournamentDragOver,
+  onTournamentDrop,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)
   $,
   onThumbLoad,

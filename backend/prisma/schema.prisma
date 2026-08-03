@@ -31,34 +31,34 @@ model User {
   likes                         Like[]
   albumContributions            AlbumContributor[]
   groupDeputies                 GroupDeputy[]
-  blockedInGroups               GroupBlock[]            @relation("BlockedUser")
-  blockedByInGroups             GroupBlock[]            @relation("BlockedByUser")
+  blockedInGroups               GroupBlock[]              @relation("BlockedUser")
+  blockedByInGroups             GroupBlock[]              @relation("BlockedByUser")
   notifications                 Notification[]
   notifPreference               NotificationPreference?
   feedbackReports               FeedbackReport[]
-  reportedInFeedback            FeedbackReport[]        @relation("ReportedUser")
+  reportedInFeedback            FeedbackReport[]          @relation("ReportedUser")
   feedbackMessages              FeedbackMessage[]
-  createdInvites                GroupInvite[]           @relation("GroupInviteCreator")
+  createdInvites                GroupInvite[]             @relation("GroupInviteCreator")
   exports                       UserExport[]
   accountDeletionRequest        AccountDeletionRequest?
   adminActionLogs               AdminActionLog[]
-  blockedLoginIdentitiesCreated BlockedLoginIdentity[]  @relation("BlockedLoginIdentityBlockedBy")
+  blockedLoginIdentitiesCreated BlockedLoginIdentity[]    @relation("BlockedLoginIdentityBlockedBy")
   feedPosts                     GroupFeedPost[]
   savedFeedPosts                GroupFeedPostSave[]
-  feedPostHistoryEntries        GroupFeedPostHistory[]  @relation("GroupFeedPostHistoryEditor")
+  feedPostHistoryEntries        GroupFeedPostHistory[]    @relation("GroupFeedPostHistoryEditor")
   likedFeedPosts                GroupFeedPostLike[]
   feedComments                  GroupFeedComment[]
   feedCommentHistoryEntries     GroupFeedCommentHistory[] @relation("GroupFeedCommentHistoryEditor")
   likedFeedComments             GroupFeedCommentLike[]
-  feedCommentsDeleted           GroupFeedComment[] @relation("GroupFeedCommentDeletedBy")
-  tournamentPresetsCreated      TournamentPreset[] @relation("TournamentPresetCreator")
-  tournamentInstancesCreated    TournamentInstance[] @relation("TournamentInstanceCreator")
-  tournamentInstancesStarted    TournamentInstance[] @relation("TournamentInstanceStartedBy")
-  tournamentInstancesEnded      TournamentInstance[] @relation("TournamentInstanceEndedBy")
-  tournamentInstancesCancelled  TournamentInstance[] @relation("TournamentInstanceCancelledBy")
-  tournamentParticipants        TournamentParticipant[] @relation("TournamentParticipantUser")
-  tournamentTeamsCreated        TournamentTeam[] @relation("TournamentTeamCreator")
-  tournamentMatchesRecorded     TournamentMatch[] @relation("TournamentMatchRecordedBy")
+  feedCommentsDeleted           GroupFeedComment[]        @relation("GroupFeedCommentDeletedBy")
+  tournamentPresetsCreated      TournamentPreset[]        @relation("TournamentPresetCreator")
+  tournamentInstancesCreated    TournamentInstance[]      @relation("TournamentInstanceCreator")
+  tournamentInstancesStarted    TournamentInstance[]      @relation("TournamentInstanceStartedBy")
+  tournamentInstancesEnded      TournamentInstance[]      @relation("TournamentInstanceEndedBy")
+  tournamentInstancesCancelled  TournamentInstance[]      @relation("TournamentInstanceCancelledBy")
+  tournamentParticipants        TournamentParticipant[]   @relation("TournamentParticipantUser")
+  tournamentTeamsCreated        TournamentTeam[]          @relation("TournamentTeamCreator")
+  tournamentMatchesRecorded     TournamentMatch[]         @relation("TournamentMatchRecordedBy")
 }
 
 model Group {
@@ -74,38 +74,38 @@ model Group {
   memberLimitLocked                 Boolean  @default(false)
   createdAt                         DateTime @default(now())
 
-  members   GroupMember[]
-  albums    Album[]
-  photos    Photo[]
-  deputies  GroupDeputy[]
-  blocks    GroupBlock[]
-  invites   GroupInviteGroup[]
-  feedPosts GroupFeedPost[]
-  feedComments GroupFeedComment[]
-  tournamentPresets  TournamentPreset[]
+  members             GroupMember[]
+  albums              Album[]
+  photos              Photo[]
+  deputies            GroupDeputy[]
+  blocks              GroupBlock[]
+  invites             GroupInviteGroup[]
+  feedPosts           GroupFeedPost[]
+  feedComments        GroupFeedComment[]
+  tournamentPresets   TournamentPreset[]
   tournamentInstances TournamentInstance[]
 }
 
 model TournamentPreset {
-  id                  String   @id @default(cuid())
-  groupId             String
-  name                String
-  description         String?
-  baseType            String   @default("single_elimination") // single_elimination | double_elimination | round_robin | group_plus_knockout | custom
-  participantMode     String   @default("team") // individual | team | pair
-  minParticipants     Int      @default(2)
-  maxParticipants     Int      @default(128)
-  defaultMatchBestOf  Int      @default(1)
-  config              Json?
-  isArchived          Boolean  @default(false)
-  createdBy           String
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  groupId            String
+  name               String
+  description        String?
+  baseType           String   @default("single_elimination") // single_elimination | double_elimination | round_robin | group_plus_knockout | custom
+  participantMode    String   @default("team") // individual | team | pair
+  minParticipants    Int      @default(2)
+  maxParticipants    Int      @default(128)
+  defaultMatchBestOf Int      @default(1)
+  config             Json?
+  isArchived         Boolean  @default(false)
+  createdBy          String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  group          Group                     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  creator        User                      @relation("TournamentPresetCreator", fields: [createdBy], references: [id], onDelete: Cascade)
-  stages         TournamentPresetStage[]
-  instances      TournamentInstance[]
+  group     Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator   User                    @relation("TournamentPresetCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  stages    TournamentPresetStage[]
+  instances TournamentInstance[]
 
   @@unique([groupId, name])
   @@index([groupId, createdAt(sort: Desc)])
@@ -114,13 +114,13 @@ model TournamentPreset {
 }
 
 model TournamentPresetStage {
-  id          String   @id @default(cuid())
-  presetId    String
-  stageOrder  Int
-  name        String
-  stageType   String   @default("single_elimination") // single_elimination | double_elimination | round_robin
-  config      Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  presetId   String
+  stageOrder Int
+  name       String
+  stageType  String   @default("single_elimination") // single_elimination | double_elimination | round_robin
+  config     Json?
+  createdAt  DateTime @default(now())
 
   preset TournamentPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
 
@@ -131,32 +131,32 @@ model TournamentPresetStage {
 
 model TournamentInstance {
   id              String    @id @default(cuid())
-  presetId         String
-  groupId          String
-  name             String
-  status           String    @default("draft") // draft | registration | scheduled | in_progress | completed | cancelled
-  config           Json?
-  startAt          DateTime?
-  endAt            DateTime?
-  createdBy        String
-  startedBy        String?
-  endedBy          String?
-  cancelledBy      String?
-  cancelledReason  String?
-  cancelledAt      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  presetId        String
+  groupId         String
+  name            String
+  status          String    @default("draft") // draft | registration | scheduled | in_progress | completed | cancelled
+  config          Json?
+  startAt         DateTime?
+  endAt           DateTime?
+  createdBy       String
+  startedBy       String?
+  endedBy         String?
+  cancelledBy     String?
+  cancelledReason String?
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  preset          TournamentPreset         @relation(fields: [presetId], references: [id], onDelete: Restrict)
-  group           Group                    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  creator         User                     @relation("TournamentInstanceCreator", fields: [createdBy], references: [id], onDelete: Cascade)
-  starter         User?                    @relation("TournamentInstanceStartedBy", fields: [startedBy], references: [id], onDelete: SetNull)
-  ender           User?                    @relation("TournamentInstanceEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
-  canceller       User?                    @relation("TournamentInstanceCancelledBy", fields: [cancelledBy], references: [id], onDelete: SetNull)
-  teams           TournamentTeam[]
-  participants    TournamentParticipant[]
-  rounds          TournamentRound[]
-  matches         TournamentMatch[]
+  preset       TournamentPreset        @relation(fields: [presetId], references: [id], onDelete: Restrict)
+  group        Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator      User                    @relation("TournamentInstanceCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  starter      User?                   @relation("TournamentInstanceStartedBy", fields: [startedBy], references: [id], onDelete: SetNull)
+  ender        User?                   @relation("TournamentInstanceEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
+  canceller    User?                   @relation("TournamentInstanceCancelledBy", fields: [cancelledBy], references: [id], onDelete: SetNull)
+  teams        TournamentTeam[]
+  participants TournamentParticipant[]
+  rounds       TournamentRound[]
+  matches      TournamentMatch[]
 
   @@unique([groupId, name])
   @@index([groupId, status, createdAt(sort: Desc)])
@@ -166,17 +166,27 @@ model TournamentInstance {
 }
 
 model TournamentTeam {
-  id          String   @id @default(cuid())
-  instanceId  String
-  name        String
-  seed        Int?
-  metadata    Json?
-  createdBy   String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  instanceId String
+  name       String
+  seed       Int?
+  metadata   Json?
+  createdBy  String?
+  createdAt  DateTime @default(now())
 
-  instance      TournamentInstance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  creator       User?                   @relation("TournamentTeamCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  participants  TournamentParticipant[]
+  // Stats (im team/pair-Modus gehören diese aufs Team, nicht auf einen Stellvertreter-Participant)
+  points Int @default(0)
+  wins   Int @default(0)
+  losses Int @default(0)
+  draws  Int @default(0)
+
+  instance     TournamentInstance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  creator      User?                   @relation("TournamentTeamCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  participants TournamentParticipant[]
+  homeMatches  TournamentMatch[]       @relation("TournamentMatchHomeTeam")
+  awayMatches  TournamentMatch[]       @relation("TournamentMatchAwayTeam")
+  wonMatches   TournamentMatch[]       @relation("TournamentMatchWinnerTeam")
+  matchResults TournamentMatchResult[]
 
   @@unique([instanceId, name])
   @@index([instanceId, seed])
@@ -185,27 +195,34 @@ model TournamentTeam {
 }
 
 model TournamentParticipant {
-  id          String    @id @default(cuid())
-  instanceId  String
-  userId      String
-  teamId      String?
-  seed        Int?
-  status      String    @default("registered") // registered | checked_in | active | eliminated | withdrawn
-  points      Int       @default(0)
-  wins        Int       @default(0)
-  losses      Int       @default(0)
-  draws       Int       @default(0)
+  id           String    @id @default(cuid())
+  instanceId   String
+  // Optional: ein Teilnehmer kann ein "Ghost" sein (z. B. ein Team ohne zugeordneten User).
+  // In `team`/`pair`-Modus bleibt userId optional, in `individual`-Modus erzwingt der Endpoint einen Wert.
+  userId       String?
+  // Snapshot des Anzeigenamens. Wird beim Anlegen gesetzt (User-Name oder Team-Name) und
+  // beim späteren Zuordnen eines Users aktualisiert. Wird in Matches/Standings angezeigt.
+  displayName  String?
+  teamId       String?
+  seed         Int?
+  status       String    @default("registered") // registered | checked_in | active | eliminated | withdrawn
+  points       Int       @default(0)
+  wins         Int       @default(0)
+  losses       Int       @default(0)
+  draws        Int       @default(0)
   eliminatedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  // Zeitpunkt der letzten User-Zuordnung. null = noch Ghost (kein User zugeordnet).
+  assignedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  instance      TournamentInstance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  user          User                    @relation("TournamentParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
-  team          TournamentTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  homeMatches   TournamentMatch[]       @relation("TournamentMatchHomeParticipant")
-  awayMatches   TournamentMatch[]       @relation("TournamentMatchAwayParticipant")
-  wonMatches    TournamentMatch[]       @relation("TournamentMatchWinner")
-  matchResults  TournamentMatchResult[]
+  instance     TournamentInstance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  user         User?                   @relation("TournamentParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+  team         TournamentTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  homeMatches  TournamentMatch[]       @relation("TournamentMatchHomeParticipant")
+  awayMatches  TournamentMatch[]       @relation("TournamentMatchAwayParticipant")
+  wonMatches   TournamentMatch[]       @relation("TournamentMatchWinner")
+  matchResults TournamentMatchResult[]
 
   @@unique([instanceId, userId])
   @@index([instanceId, status])
@@ -233,51 +250,78 @@ model TournamentRound {
 }
 
 model TournamentMatch {
-  id                   String    @id @default(cuid())
-  instanceId           String
-  roundId              String?
-  matchNumber          Int
-  status               String    @default("planned") // planned | in_progress | completed | void
-  scheduledAt          DateTime?
-  completedAt          DateTime?
-  venueLabel           String?
-  homeParticipantId    String?
-  awayParticipantId    String?
-  winnerParticipantId  String?
-  isDraw               Boolean   @default(false)
-  metadata             Json?
-  recordedBy           String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  instanceId          String
+  roundId             String?
+  matchNumber         Int
+  status              String    @default("planned") // planned | in_progress | completed | void
+  // Phase: in welchem Turnierabschnitt spielt das Match?
+  // 'main' = Standard (Single/Double Elim oder Round Robin),
+  // 'group' = Gruppenphase (group_plus_knockout),
+  // 'knockout' = KO-Phase nach Gruppenphase.
+  phase               String    @default("main")
+  // Optionale Gruppenzuordnung (für group_plus_knockout)
+  groupLabel          String?
+  scheduledAt         DateTime?
+  completedAt         DateTime?
+  venueLabel          String?
+  // Entity-Referenzen: je nach Modus entweder participant ODER team gesetzt
+  homeParticipantId   String?
+  awayParticipantId   String?
+  homeTeamId          String?
+  awayTeamId          String?
+  // Gewinner: ebenfalls je nach Modus
+  winnerParticipantId String?
+  winnerTeamId        String?
+  isDraw              Boolean   @default(false)
+  metadata            Json?
+  recordedBy          String?
+  // Bracket-Verknüpfungen für Auto-Advance (Bracket-Generator setzt diese Felder).
+  nextWinnerMatchId   String?
+  nextWinnerSlot      String? // "home" | "away"
+  nextLoserMatchId    String?
+  nextLoserSlot       String? // "home" | "away"
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   instance          TournamentInstance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
   round             TournamentRound?        @relation(fields: [roundId], references: [id], onDelete: SetNull)
   homeParticipant   TournamentParticipant?  @relation("TournamentMatchHomeParticipant", fields: [homeParticipantId], references: [id], onDelete: SetNull)
   awayParticipant   TournamentParticipant?  @relation("TournamentMatchAwayParticipant", fields: [awayParticipantId], references: [id], onDelete: SetNull)
+  homeTeam          TournamentTeam?         @relation("TournamentMatchHomeTeam", fields: [homeTeamId], references: [id], onDelete: SetNull)
+  awayTeam          TournamentTeam?         @relation("TournamentMatchAwayTeam", fields: [awayTeamId], references: [id], onDelete: SetNull)
   winnerParticipant TournamentParticipant?  @relation("TournamentMatchWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+  winnerTeam        TournamentTeam?         @relation("TournamentMatchWinnerTeam", fields: [winnerTeamId], references: [id], onDelete: SetNull)
   recorder          User?                   @relation("TournamentMatchRecordedBy", fields: [recordedBy], references: [id], onDelete: SetNull)
   results           TournamentMatchResult[]
 
   @@index([instanceId, status, matchNumber])
+  @@index([instanceId, phase])
   @@index([roundId, matchNumber])
   @@index([scheduledAt])
   @@map("tournament_matches")
 }
 
 model TournamentMatchResult {
-  id             String    @id @default(cuid())
-  matchId        String
-  participantId  String
-  score          Float     @default(0)
-  outcome        String?   // win | loss | draw | forfeit
-  details        Json?
-  createdAt      DateTime  @default(now())
+  id            String   @id @default(cuid())
+  matchId       String
+  // Ergebnis bezieht sich auf EINE Entity: entweder participant (individual-Mode)
+  // oder team (team/pair-Mode). Eins von beiden ist gesetzt, das andere null.
+  participantId String?
+  teamId        String?
+  score         Float    @default(0)
+  outcome       String? // win | loss | draw | forfeit
+  details       Json?
+  createdAt     DateTime @default(now())
 
   match       TournamentMatch        @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  participant TournamentParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participant TournamentParticipant? @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  team        TournamentTeam?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, participantId])
+  @@unique([matchId, teamId])
   @@index([participantId, createdAt(sort: Desc)])
+  @@index([teamId, createdAt(sort: Desc)])
   @@map("tournament_match_results")
 }
 
@@ -349,7 +393,7 @@ model GroupFeedPostHistory {
 }
 
 model GroupFeedComment {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   postId          String
   groupId         String
   userId          String
@@ -358,16 +402,16 @@ model GroupFeedComment {
   mentions        Json?
   deletedAt       DateTime?
   deletedById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  post          GroupFeedPost           @relation(fields: [postId], references: [id], onDelete: Cascade)
-  group         Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parentComment GroupFeedComment?       @relation("GroupFeedCommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
-  replies       GroupFeedComment[]      @relation("GroupFeedCommentReplies")
-  deletedBy     User?                   @relation("GroupFeedCommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  likes         GroupFeedCommentLike[]
+  post           GroupFeedPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  group          Group                     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user           User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentComment  GroupFeedComment?         @relation("GroupFeedCommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies        GroupFeedComment[]        @relation("GroupFeedCommentReplies")
+  deletedBy      User?                     @relation("GroupFeedCommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  likes          GroupFeedCommentLike[]
   historyEntries GroupFeedCommentHistory[]
 
   @@index([postId, parentCommentId, createdAt(sort: Desc)])
@@ -665,42 +709,42 @@ model NotificationPreference {
   userId String @id
 
   // In-App Einstellungen
-  inApp_deputyAdded        Boolean @default(true)
-  inApp_deputyRemoved      Boolean @default(true)
-  inApp_contributorAdded   Boolean @default(true)
-  inApp_contributorRemoved Boolean @default(true)
-  inApp_groupMemberJoined  Boolean @default(true)
-  inApp_groupMemberLeft    Boolean @default(true)
-  inApp_groupDeleted       Boolean @default(true)
-  inApp_photoLiked         Boolean @default(true)
-  inApp_photoCommented     Boolean @default(true)
-  inApp_feedPostLiked      Boolean @default(true)
-  inApp_feedPostCommented  Boolean @default(true)
+  inApp_deputyAdded          Boolean @default(true)
+  inApp_deputyRemoved        Boolean @default(true)
+  inApp_contributorAdded     Boolean @default(true)
+  inApp_contributorRemoved   Boolean @default(true)
+  inApp_groupMemberJoined    Boolean @default(true)
+  inApp_groupMemberLeft      Boolean @default(true)
+  inApp_groupDeleted         Boolean @default(true)
+  inApp_photoLiked           Boolean @default(true)
+  inApp_photoCommented       Boolean @default(true)
+  inApp_feedPostLiked        Boolean @default(true)
+  inApp_feedPostCommented    Boolean @default(true)
   inApp_feedCommentMentioned Boolean @default(true)
-  inApp_feedCommentReplied Boolean @default(true)
-  inApp_feedCommentLiked   Boolean @default(true)
-  inApp_newPhoto           Boolean @default(true)
-  inApp_newAlbum           Boolean @default(true)
-  inApp_system             Boolean @default(true)
+  inApp_feedCommentReplied   Boolean @default(true)
+  inApp_feedCommentLiked     Boolean @default(true)
+  inApp_newPhoto             Boolean @default(true)
+  inApp_newAlbum             Boolean @default(true)
+  inApp_system               Boolean @default(true)
 
   // E-Mail Einstellungen
-  email_deputyAdded        Boolean @default(true)
-  email_deputyRemoved      Boolean @default(false)
-  email_contributorAdded   Boolean @default(true)
-  email_contributorRemoved Boolean @default(false)
-  email_groupMemberJoined  Boolean @default(false)
-  email_groupMemberLeft    Boolean @default(false)
-  email_groupDeleted       Boolean @default(true)
-  email_photoLiked         Boolean @default(false)
-  email_photoCommented     Boolean @default(false)
-  email_feedPostLiked      Boolean @default(false)
-  email_feedPostCommented  Boolean @default(false)
+  email_deputyAdded          Boolean @default(true)
+  email_deputyRemoved        Boolean @default(false)
+  email_contributorAdded     Boolean @default(true)
+  email_contributorRemoved   Boolean @default(false)
+  email_groupMemberJoined    Boolean @default(false)
+  email_groupMemberLeft      Boolean @default(false)
+  email_groupDeleted         Boolean @default(true)
+  email_photoLiked           Boolean @default(false)
+  email_photoCommented       Boolean @default(false)
+  email_feedPostLiked        Boolean @default(false)
+  email_feedPostCommented    Boolean @default(false)
   email_feedCommentMentioned Boolean @default(false)
-  email_feedCommentReplied Boolean @default(false)
-  email_feedCommentLiked   Boolean @default(false)
-  email_newPhoto           Boolean @default(false)
-  email_newAlbum           Boolean @default(false)
-  email_system             Boolean @default(false)
+  email_feedCommentReplied   Boolean @default(false)
+  email_feedCommentLiked     Boolean @default(false)
+  email_newPhoto             Boolean @default(false)
+  email_newAlbum             Boolean @default(false)
+  email_system               Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
