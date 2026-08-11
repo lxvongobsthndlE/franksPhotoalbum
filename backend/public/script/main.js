@@ -10,6 +10,7 @@ import {
   renderWizardView,
   persistConfig,
   buildGeneratePayload,
+  ensureDraftPromise,
 } from './tournament.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -5090,55 +5091,74 @@ async function openTournamentWizard() {
   };
 
   const onGenerate = async (state, opts) => {
-    // Sollte nie passieren — wenn state.tournamentId fehlt, hat
-    // tournament.js den "Weiter"-Klick in Step 1 schon abgefangen
-    // und eine deutsche Fehlermeldung im Hint gezeigt. Hier also nur
-    // ein harter Guard, damit der Wizard nicht mit undefinierter URL
-    // weitermacht. Die eigentliche Fehler-Übersetzung läuft in
-    // tournament.js → errorMessageFromResult().
+    // Wenn noch keine tournamentId da ist (z. B. weil der POST in
+    // Step 1 fehlgeschlagen war und der User trotzdem durchgeklickt
+    // hat), versuchen wir genau EINMAL, den Entwurf nachzureichen.
+    // ensureDraftPromise ist single-flight + idempotent: legt nur an,
+    // wenn noch keine ID existiert.
+    if (!state.tournamentId && curGroupId) {
+      const retry = await ensureDraftPromise(state, { groupId: curGroupId });
+      if (!state.tournamentId) {
+        // Auch der Retry hat nicht gereicht — jetzt erst blockieren.
+        console.error(
+          '[wizard] onGenerate: state.tournamentId fehlt nach Retry.\n' +
+          '  state.groupId =', state.groupId, '\n' +
+          '  opts.groupId (im Wizard) wurde übergeben =', !!curGroupId, '\n' +
+          '  state.__draftError =', state.__draftError || '(leer)', '\n' +
+          '  → Wahrscheinlichste Ursache: keine Berechtigung oder Server nicht erreichbar.'
+        );
+        return {
+          ok: false,
+          body: {
+            error: 'draft_missing',
+            message:
+              'Der Turnier-Entwurf konnte nicht in der Datenbank angelegt werden. ' +
+              (state.__draftError
+                ? `Ursache: ${state.__draftError} `
+                : '') +
+              'Bitte lade die Seite neu (Strg+F5) und versuche es erneut. ' +
+              'Falls der Fehler bleibt, prüfe die Browser-Konsole auf rote Fehlerzeilen.',
+          },
+        };
+      }
+    }
+
+    // Hier ist die letzte Verteidigungslinie: ohne tournamentId geht
+    // der Generate-Aufruf wirklich nicht. Mock-Modus / leerer Pfad.
     if (!state.tournamentId) {
       return {
         ok: false,
         body: {
           error: 'draft_missing',
-          message: 'Der Turnier-Entwurf fehlt. Bitte zurück zu Schritt 1 und erneut versuchen.',
+          message:
+            'Der Turnier-Entwurf fehlt — das passiert nur, wenn keine Gruppe aktiv ist. ' +
+            'Bitte wechsle in eine Gruppe und versuche es erneut.',
         },
       };
     }
+
     const payload = buildGeneratePayload(state, opts);
-    try {
-      const res = await fetch(
-        `/api/tournaments/${encodeURIComponent(state.tournamentId)}/generate`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }
-      );
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) {
-        // Diagnose: ID merken, damit der User per
-        //   inspectTournament() oder
-        //   GET /api/tournaments/<id>/standings
-        // direkt prüfen kann, was in der DB gelandet ist.
-        window.__lastGeneratedTournamentId = state.tournamentId;
-        console.info(
-          '%c✅ Turnier generiert',
-          'color:#2c8a4f;font-weight:bold',
-          '\nID:', state.tournamentId,
-          '\nName:', state.name,
-          '\nPrüfen mit: inspectTournament("' + state.tournamentId + '")'
-        );
-        return { ok: true, body };
-      }
-      return { ok: false, status: res.status, body };
-    } catch (err) {
-      return {
-        ok: false,
-        body: { error: 'network_error', message: 'Keine Verbindung zum Server. Bitte prüfe deine Internetverbindung.' },
-      };
-    }
+    // apiCall() aus auth-oidc.js setzt Authorization: Bearer <token>
+    // automatisch und macht 401-Auto-Refresh. raw fetch hier wäre
+    // derselbe Bug wie in tournament.js vor diesem Fix.
+    const data = await apiCall(
+      `/tournaments/${encodeURIComponent(state.tournamentId)}/generate`,
+      'POST',
+      payload
+    );
+    // Diagnose: ID merken, damit der User per
+    //   inspectTournament() oder
+    //   GET /api/tournaments/<id>/standings
+    // direkt prüfen kann, was in der DB gelandet ist.
+    window.__lastGeneratedTournamentId = state.tournamentId;
+    console.info(
+      '%c✅ Turnier generiert',
+      'color:#2c8a4f;font-weight:bold',
+      '\nID:', state.tournamentId,
+      '\nName:', state.name,
+      '\nPrüfen mit: inspectTournament("' + state.tournamentId + '")'
+    );
+    return { ok: true, body: data };
   };
 
   const onCancel = async () => {
@@ -5165,11 +5185,24 @@ async function openTournamentWizard() {
   };
 
   const wizardEl = renderWizardView({
+    // groupId MUSS als Top-Level-Option übergeben werden, nicht nur
+    // in initialState. tournament.js liest opts.groupId (siehe
+    // ensureDraftPromise() und Step-1-„Weiter"-Handler), um den
+    // Live-Modus vom Mock-Modus zu unterscheiden. Wenn opts.groupId
+    // fehlt, geht der Wizard stillschweigend in den Mock-Modus und
+    // legt keinen Entwurf in der DB an.
+    groupId: curGroupId,
     initialState,
     onStateChange,
     onGenerate,
     onCancel,
   });
+
+  // Diagnose: prüft die Kette direkt am Einstieg. Wenn groupId hier
+  // undefined ist, ist der Fehler im Wrapper. Wenn der Wizard dann
+  // trotzdem keinen POST absetzt, liegt es in tournament.js.
+  console.log('[wizard] mount: groupId=%s, tournamentId=%s',
+    curGroupId || '(none)', initialState.tournamentId || '(none)');
 
   const grid = document.getElementById('grid');
   if (!grid) return;

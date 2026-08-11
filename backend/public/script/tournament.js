@@ -1,6 +1,14 @@
 // Turnier-Bestätigungs-Vergleich (§13.10) — geteilt mit Server/Mock.
 import { normalizeConfirmName } from './normalize-confirm-name.js';
 
+// Auth-Helper: einheitlicher fetch mit Bearer-Header + 401-Auto-Refresh.
+// Vorher hatte jedes fetch() in dieser Datei nur credentials:'include',
+// aber KEINEN Authorization-Header. Der Server lehnt deshalb mit
+// "No Authorization was found in request.headers" ab, sobald die
+// Anmeldung nicht (nur) per Cookie läuft. fetchWithAuth() löst das an
+// EINER Stelle — alle Aufrufer bekommen den Header automatisch.
+import { fetchWithAuth } from './auth-oidc.js';
+
 // Pure Helpers für die Team-Verwaltung (auch in Vitest getestet).
 import {
   isPlaceholderName,
@@ -25,9 +33,8 @@ import {
 //     DB und ist für Admins in der Liste sichtbar + löschbar.
 // ----------------------------------------------------------------
 async function createDraft({ groupId, name, mode }) {
-  const res = await fetch('/api/tournaments', {
+  const res = await fetchWithAuth('/api/tournaments', {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ groupId, name: name.trim(), mode }),
   });
@@ -53,13 +60,28 @@ async function createDraft({ groupId, name, mode }) {
  *
  * Genau ein POST pro Wizard-leben, danach idempotent (no-op).
  *
- * @returns {Promise<{ tournamentId: string, created: boolean }>}
- *   - created=true: POST ist gerade gelaufen.
- *   - created=false: tournamentId war schon gesetzt.
+ * Wichtig: Wirft NIE. Wenn der POST scheitert (z. B. 401/403/409 oder
+ * Netzwerk), speichern wir den Fehler in state.__draftError und geben
+ * { tournamentId: null, created: false, error } zurück. Der Step-1-
+ * "Weiter"-Handler zeigt dann einen freundlichen Hinweis, lässt den
+ * User aber weiterklicken. Ein endgültiger Block ist nur am Ende
+ * erlaubt — beim "Turnier generieren" (onGenerate in main.js), wo der
+ * Server ohne tournamentId wirklich nicht weiterkommt.
+ *
+ * @returns {Promise<{ tournamentId: string|null, created: boolean, error?: string }>}
+ *   - created=true:  POST ist gerade gelaufen, tournamentId gesetzt.
+ *   - created=false: tournamentId war schon gesetzt ODER POST ist fehlgeschlagen.
+ *   - error:         deutsche Beschreibung, falls POST fehlgeschlagen ist.
  */
 function ensureDraftPromise(state, opts) {
   if (!opts.groupId) {
     // Mock-Modus — kein Draft, sofort "fertig".
+    // ACHTUNG: das ist der genaue Punkt, an dem der main.js-Wrapper
+    // in den Bug gelaufen ist: er hat groupId nur in initialState
+    // gepackt, aber opts.groupId leer gelassen → kein POST → keine
+    // tournamentId → "draft_missing" in Step 5. renderWizardView()
+    // gibt deshalb eine console.warn aus, falls opts.groupId fehlt
+    // aber state.groupId gesetzt ist.
     return Promise.resolve({ tournamentId: state.tournamentId, created: false });
   }
   if (state.tournamentId) {
@@ -77,7 +99,16 @@ function ensureDraftPromise(state, opts) {
         mode: state.mode,
       });
       state.tournamentId = t.id;
+      state.__draftError = null;
       return { tournamentId: t.id, created: true };
+    } catch (err) {
+      // POST fehlgeschlagen — NICHT werfen. Der User darf weiterklicken;
+      // main.js onGenerate versucht es am Ende nochmal (idempotent). Wir
+      // speichern die deutsche Übersetzung für UI + Konsole.
+      const message = translateDraftError(err);
+      state.__draftError = message;
+      console.warn('[wizard] Entwurf konnte nicht angelegt werden:', message, err);
+      return { tournamentId: null, created: false, error: message };
     } finally {
       // Promise-Cache wieder freigeben, damit ein Retry (z. B. nach
       // Fehler) erneut versuchen kann.
@@ -86,13 +117,15 @@ function ensureDraftPromise(state, opts) {
   })();
   return state.__draftInFlight;
 }
+// Export für Tests — die Funktion wird intern weiterhin über die
+// Closure referenziert, daher ändert sich die Sichtbarkeit nicht.
+export { ensureDraftPromise };
 
 async function deleteDraft(tournamentId) {
   if (!tournamentId) return;
   try {
-    await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}`, {
+    await fetchWithAuth(`/api/tournaments/${encodeURIComponent(tournamentId)}`, {
       method: 'DELETE',
-      credentials: 'include',
     });
   } catch (err) {
     // Bewusst geschluckt — der Entwurf bleibt als Admin-Liste-Eintrag
@@ -252,11 +285,10 @@ export async function persistConfig(state, opts = {}) {
   const body = buildPatchPayload(state, opts);
   let res;
   try {
-    res = await fetch(
+    res = await fetchWithAuth(
       `/api/tournaments/${encodeURIComponent(state.tournamentId)}`,
       {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }
@@ -340,9 +372,8 @@ async function uploadTournamentLogo(tournamentId, file) {
   fd.append('file', file, file.name);
   let res;
   try {
-    res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/logo`, {
+    res = await fetchWithAuth(`/api/tournaments/${encodeURIComponent(tournamentId)}/logo`, {
       method: 'POST',
-      credentials: 'include',
       body: fd,
     });
   } catch (err) {
@@ -366,9 +397,8 @@ async function uploadTournamentLogo(tournamentId, file) {
 async function deleteTournamentLogo(tournamentId) {
   let res;
   try {
-    res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/logo`, {
+    res = await fetchWithAuth(`/api/tournaments/${encodeURIComponent(tournamentId)}/logo`, {
       method: 'DELETE',
-      credentials: 'include',
     });
   } catch (err) {
     return { ok: false, error: `Netzwerkfehler: ${err.message}` };
@@ -930,11 +960,10 @@ export function renderTeamsView(opts = {}) {
 function defaultFetchPatch(tournamentId) {
   return async ({ teamId, patch }) => {
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `/api/tournaments/${encodeURIComponent(tournamentId)}/teams/${encodeURIComponent(teamId)}`,
         {
           method: 'PATCH',
-          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(patch),
         }
@@ -1594,6 +1623,31 @@ export function renderWizardView(opts = {}) {
     ...(opts.initialState || {}),
     step: safeStep,
   };
+
+  // groupId muss ALS TOP-LEVEL-OPTION übergeben werden
+  // (`opts.groupId`), nicht nur im initialState. Hintergrund:
+  // ensureDraftPromise() und der Step-1-„Weiter"-Handler lesen
+  // opts.groupId, um den Live-Modus vom Mock-Modus zu trennen.
+  //
+  // Konkreter Bug, der genau hier passiert ist: ein Wrapper hat
+  // groupId in initialState.groupId gepackt, aber opts.groupId leer
+  // gelassen. Folge: ensureDraftPromise() ging in den Mock-Modus
+  // und legte stillschweigend keinen POST ab → state.tournamentId
+  // blieb null → "draft_missing" in Schritt 5.
+  //
+  // Wir prüfen das hier explizit und geben einen lauten
+  // console.warn aus, falls ein Aufrufer in die gleiche Falle tappt.
+  // Im Mock-Modus (kein initialState.groupId UND kein opts.groupId)
+  // schweigen wir — das ist die beabsichtigte Verwendung für die
+  // Preview-Datei.
+  if (!opts.groupId && state.groupId) {
+    console.warn(
+      '[wizard] opts.groupId fehlt, aber initialState.groupId ist gesetzt. ' +
+      'Der Wizard geht in den Mock-Modus und legt keinen Entwurf an. ' +
+      '→ renderWizardView({ groupId, initialState, ... }) — groupId MUSS ' +
+      'als Top-Level-Option übergeben werden, nicht nur in initialState.'
+    );
+  }
 
   const root = document.createElement('div');
   root.className = 't-mod t-wizard';
@@ -3800,6 +3854,12 @@ function renderWizardFooter(state, opts) {
       // Genau ein POST pro Wizard-Leben. Wenn state.tournamentId
       // schon gesetzt ist (z. B. weil blur ihn angelegt hat), ist
       // ensureDraftPromise idempotent — kein zweiter POST.
+      //
+      // Wichtig: Wir blockieren hier NICHT, falls der POST scheitert.
+      // ensureDraftPromise wirft nicht (siehe Funktion), sondern legt
+      // den Fehler in state.__draftError ab. Der User darf weiterklicken;
+      // main.js onGenerate versucht es am Ende nochmal. Ein Block ist nur
+      // am Ende erlaubt — dort geht es ohne Entwurf wirklich nicht.
       if (state.step === 1 && !state.tournamentId && opts.groupId) {
         next.disabled = true;
         const hintEl = footer.querySelector('[data-t-wizard-next-hint="true"]');
@@ -3809,21 +3869,18 @@ function renderWizardFooter(state, opts) {
             message: 'Entwurf wird angelegt …',
           });
         }
-        try {
-          await ensureDraftPromise(state, opts);
-        } catch (err) {
-          // POST fehlgeschlagen — Wizard bleibt in Step 1, User darf
-          // Name korrigieren und erneut klicken. Der Fehler-Text MUSS
-          // verständlich deutsch sein, keine internen Codes oder
-          // HTTP-Status-Rohstrings.
-          next.disabled = false;
-          if (hintEl) {
-            applyHint(hintEl, {
-              ok: false,
-              message: translateDraftError(err),
-            });
-          }
-          return;
+        await ensureDraftPromise(state, opts);
+        next.disabled = false;
+        // Falls der POST gescheitert ist, zeigen wir den Hinweis, lassen
+        // den User aber weiterklicken. Ein endgültiger Block ist nur am
+        // Ende erlaubt (onGenerate in main.js).
+        if (!state.tournamentId && state.__draftError && hintEl) {
+          applyHint(hintEl, {
+            ok: false,
+            message:
+              state.__draftError +
+              ' Du kannst weiterklicken — der Entwurf wird beim „Turnier generieren" erneut angelegt.',
+          });
         }
       }
 
