@@ -4,6 +4,7 @@ let minioClient = null;
 let BUCKET_PHOTOS = 'photos';
 let BUCKET_AVATARS = 'avatars';
 let BUCKET_BACKUPS = 'backups';
+let BUCKET_TOURNAMENT = 'tournament-assets';
 
 function getClient() {
   if (!minioClient) {
@@ -17,6 +18,7 @@ function getClient() {
     BUCKET_PHOTOS = process.env.MINIO_BUCKET_PHOTOS || 'photos';
     BUCKET_AVATARS = process.env.MINIO_BUCKET_AVATARS || 'avatars';
     BUCKET_BACKUPS = process.env.MINIO_BUCKET_BACKUPS || 'backups';
+    BUCKET_TOURNAMENT = process.env.MINIO_BUCKET_TOURNAMENT || 'tournament-assets';
   }
   return minioClient;
 }
@@ -36,6 +38,23 @@ export async function initStorage() {
   await ensureBucket(BUCKET_PHOTOS);
   await ensureBucket(BUCKET_AVATARS);
   await ensureBucket(BUCKET_BACKUPS);
+  await ensureBucket(BUCKET_TOURNAMENT);
+}
+
+/**
+ * Presigned PUT URL für direkten Browser-Upload eines Tournament-Asset.
+ * Spec §8.3: Match-Foto-Upload via Signed URL.
+ *
+ * Hinweis: aktuell ungenutzt — Logo-Upload geht über die
+ * /api/tournaments/:id/logo-Route (Multiparser, Server-Resize).
+ * Wir behalten die Funktion für künftige Match-Foto-Uploads.
+ */
+export async function getTournamentAssetPutUrl(objectKey, contentType) {
+  return getClient().presignedPutObject(BUCKET_TOURNAMENT, objectKey, 60 * 10, { 'Content-Type': contentType });
+}
+
+export async function getTournamentAssetUrl(objectKey, expirySeconds = 3600) {
+  return getClient().presignedGetObject(BUCKET_TOURNAMENT, objectKey, expirySeconds);
 }
 
 /**
@@ -126,6 +145,57 @@ export async function deleteAvatar(userId) {
     await getClient().removeObject(BUCKET_AVATARS, key);
   } catch (e) {
     // Object may not exist, that's fine
+  }
+}
+
+// ----------------------------------------------------------------
+// Tournament-Assets (Logos) — gleiches Muster wie Avatare: PUT/GET/
+// STAT/DELETE unter tournament-assets, ein Key pro Entität. Das
+// Frontend bekommt eine Proxy-URL und lädt das Bild darüber, damit
+// wir keine presigned URLs ausliefern müssen.
+// ----------------------------------------------------------------
+
+/**
+ * Lädt ein Turnier-Logo (oder Cover) in MinIO.
+ * @param {Buffer} buffer  bereits serverseitig verkleinerter PNG/JPEG/WebP-Buffer
+ * @param {string} mimetype  image/png | image/jpeg | image/webp
+ * @param {string} tournamentId
+ * @param {'logo'|'cover'} kind  — wird Teil des Object-Keys, damit Logo + Cover
+ *                                parallel existieren können.
+ * @returns {Promise<string>} Object-Key
+ */
+export async function uploadTournamentLogo(buffer, mimetype, tournamentId, kind = 'logo') {
+  const key = `${kind}_${tournamentId}`;
+  await getClient().putObject(BUCKET_TOURNAMENT, key, buffer, buffer.length, {
+    'Content-Type': mimetype,
+  });
+  return key;
+}
+
+/**
+ * Streamt ein Turnier-Asset (Logo/Cover) aus MinIO.
+ */
+export async function getTournamentAssetStream(tournamentId, kind = 'logo') {
+  return getClient().getObject(BUCKET_TOURNAMENT, `${kind}_${tournamentId}`);
+}
+
+/**
+ * Metadaten (Content-Type, Größe) zu einem Turnier-Asset.
+ */
+export async function getTournamentAssetStat(tournamentId, kind = 'logo') {
+  return getClient().statObject(BUCKET_TOURNAMENT, `${kind}_${tournamentId}`);
+}
+
+/**
+ * Löscht ein Turnier-Asset (Logo/Cover). Idempotent: nicht vorhanden
+ * ist OK.
+ */
+export async function deleteTournamentAsset(tournamentId, kind = 'logo') {
+  const key = `${kind}_${tournamentId}`;
+  try {
+    await getClient().removeObject(BUCKET_TOURNAMENT, key);
+  } catch {
+    // Objekt nicht da — OK.
   }
 }
 

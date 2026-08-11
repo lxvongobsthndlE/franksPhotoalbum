@@ -1,0 +1,1858 @@
+/* ================================================================
+   [kru:]nest — Turniermodul Design-Grundlage
+   ----------------------------------------------------------------
+   Step 5 (§12 Punkt 5): Design-Tokens, Grundraster,
+   die EINE Match-Komponente in drei Größen.
+
+   Verbindliche Vorlage: turniermodul-prototyp.html.
+   - :root-Tokens ÜBERNOMMEN (chromatische Werte unverändert).
+   - Schriftfamilie: vom Body geerbt (Plus Jakarta Sans / Sora)
+     — keine eigene einbinden (§8.7).
+   - Alle Klassen sind scoped auf .t-mod, damit sie die globale
+     [kru:]nest-Oberfläche (main.css) nicht berühren.
+
+   Was das hier NICHT macht: keine Screens, keine Endpoints, keine
+   Logik. Nur Bausteine, aus denen Screen A (Turnierliste) und
+   die späteren Screens zusammengesetzt werden.
+
+   Klassen-Konvention (alle mit `t-`-Präfix, innerhalb .t-mod):
+     Layout:
+       .t-app, .t-mod, .t-mod-header, .t-mod-body
+     Grid:
+       .t-shell                     drei Spalten (212px · 1fr · 300px)
+     Navigation:
+       .t-mod-nav, .t-mod-aside
+     Karten / Inhalte:
+       .t-card, .t-card-head, .t-card-body
+     Buttons / Badges:
+       .t-btn, .t-btn--primary, .t-btn--ghost, .t-btn--sm, .t-btn--onDark
+       .t-badge, .t-badge--phase
+     Match-Komponente (3 Größen):
+       .t-match                     Standard-Größe (Spielplan, Gruppen)
+       .t-match.t-match--compact    Kompakt (Kontextspalte, Liste)
+       .t-match.t-match--large      Groß (Detail-Panel, Beamer)
+     Standardisierte Animation/Skelett:
+       .t-dot, .t-section-label
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   SCOPED DESIGN-TOKENS
+   Übernommen aus turniermodul-prototyp.html :root (unverändert).
+   ---------------------------------------------------------------- */
+.t-mod {
+  /* Farben */
+  --paper:        #FAF7F1;
+  --surface:      #FFFFFF;
+  --surface-alt:  #F5F1E9;
+  --ink:          #1F1B16;
+  --ink-soft:     #8A8077;
+  --line:         #E7DFD2;
+  --accent:       #8B6B4A;
+  --accent-soft:  #F0E7DA;
+  --open:         #C08A2E;
+  --qualified:    #4F7A4A;
+  --out:          #A79E94;
+  --danger:       #C0453A;
+
+  /* Radien */
+  --r-card: 12px;
+  --r-btn:  10px;
+
+  /* Spacing-Skala */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s6: 24px;
+  --s8: 32px;
+
+  /* KEIN --font: Schriftfamilie wird vom Body geerbt. */
+
+  /* Container-Klasse selbst: Full-Height-Inside-App-Shell.
+     CONTAINER-QUERY: Das Modul reagiert auf seine EIGENE Breite,
+     nicht auf die Fensterbreite. So funktioniert es korrekt, wenn
+     [kru:]nest eine Seitenleiste hat (236px Desktop, ausgeblendet
+     ≤900px) und das Modul dadurch mal 1584px, mal 820px breit ist. */
+  container-type: inline-size;
+  /* WICHTIG: container-type setzt implizit contain: layout inline-size.
+     Dadurch wird die Größenermittlung vom Inhalt entkoppelt. Ohne
+     explizite width fällt das Modul in einem Column-Flex-Container
+     (z. B. <main>) auf 0px zurück. Deshalb: width: 100% als Modul-
+     Vertrag, nicht als Preview-Spezifikum. */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ----------------------------------------------------------------
+   UNIVERSELLE RESETS (nur innerhalb .t-mod)
+   ---------------------------------------------------------------- */
+.t-mod *,
+.t-mod *::before,
+.t-mod *::after { box-sizing: border-box; }
+.t-mod { margin: 0; padding: 0; min-width: 0; }
+.t-mod table { border-collapse: collapse; width: 100%; }
+.t-mod button {
+  font-family: inherit; font-size: inherit; cursor: pointer;
+  border: none; background: none; color: inherit;
+}
+.t-mod input { font-family: inherit; }
+
+/* ----------------------------------------------------------------
+   APP-GITTER (Modul-Container in der bestehenden App-Seitenleiste)
+   Layout: Seitenleiste (bleibt in main.css) | Modul-Arbeitsbereich
+   ---------------------------------------------------------------- */
+.t-mod-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  padding: var(--s4) var(--s6);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+/* ----------------------------------------------------------------
+   GRUNDRASTER (3 Spalten, NIE in einem Scrollcontainer auf Desktop)
+   Default = Mobile (1 Spalte + Tab-Leiste). Schwellen via
+   Container Queries auf .t-mod weiter unten (§8.1).
+   ---------------------------------------------------------------- */
+.t-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+/* Modul-Navigation (linke Spalte) */
+.t-mod-nav {
+  border-right: 1px solid var(--line);
+  padding: var(--s4) var(--s3);
+  background: var(--surface);
+  overflow: auto;
+}
+.t-mod-nav button {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: 9px var(--s3);
+  border-radius: var(--r-btn);
+  color: var(--ink-soft);
+  text-align: left;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.t-mod-nav button:hover { background: var(--surface-alt); }
+.t-mod-nav button.is-active {
+  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+}
+.t-mod-nav .count {
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.t-mod-nav-sep {
+  height: 1px;
+  background: var(--line);
+  margin: var(--s3) var(--s2);
+}
+
+/* ----------------------------------------------------------------
+   MOBILE TAB-LEISTE — verbindlich (§13 Bug aus altem Stand)
+   Die Leiste selbst hat eine FESTE Höhe (height, nicht min-height),
+   damit sie nicht mitwächst, wenn ein Tab einen längeren Namen hat.
+   Pro Tab: flex:0 0 auto, gleiche feste Höhe, line-height:1,
+   white-space:nowrap. Damit ist die Höhe tab-unabhängig konstant.
+
+   Verwendung in Screen A (Beispiel):
+     <div class="t-mod-tabs" role="tablist">
+       <button class="t-mod-tab is-active">Übersicht</button>
+       <button class="t-mod-tab">Spielplan</button>
+       <button class="t-mod-tab">Gruppen</button>
+       <button class="t-mod-tab">Baum</button>
+     </div>
+   ---------------------------------------------------------------- */
+.t-mod-tabs {
+  /* SICHTBAR nur < 768px. Auf Desktop versteckt (siehe Media Query). */
+  display: none;
+  height: 44px;            /* FIXE Höhe, kein min-height */
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+.t-mod-tabs::-webkit-scrollbar { display: none; }
+
+.t-mod-tab {
+  flex: 0 0 auto;          /* Tab schrumpft NICHT, behält seinen Inhalt */
+  height: 44px;            /* FIXE Höhe, gleich wie die Leiste */
+  line-height: 1;          /* keine zusätzliche Vertikalleitung */
+  white-space: nowrap;     /* kein Umbruch, auch bei langen Namen */
+  padding: 0 var(--s4);
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.t-mod-tab:hover { color: var(--ink); }
+.t-mod-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Auf Mobile zeigt die Tab-Leiste, die vertikale Nav klappt ein. */
+@container (max-width: 767px) {
+  .t-mod-tabs { display: flex; }
+  .t-mod-nav  { display: none; }
+}
+
+/* Hauptbereich (mittlere Spalte) */
+.t-mod-main {
+  padding: var(--s6);
+  overflow: auto;
+  /* Falls Karten in sehr engen Modul-Breiten (≤320px) doch mal
+     breiter werden als die Spalte: Clip statt Scroll — die Seite
+     darf sich NIE seitlich schieben lassen (§13 Punkt 1). */
+  overflow-x: clip;
+  min-width: 0;
+}
+.t-view { display: none; }
+.t-view.is-active { display: block; }
+.t-view-head {
+  display: flex; align-items: center; gap: var(--s3);
+  margin-bottom: var(--s4); flex-wrap: wrap;
+}
+.t-view-title { font-size: 20px; font-weight: 600; }
+.t-view-head .spacer { margin-left: auto; }
+
+/* Kontextspalte (rechte Spalte) */
+.t-mod-aside {
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  padding: var(--s4);
+  overflow: auto;
+}
+.t-aside-block { margin-bottom: var(--s6); }
+
+/* ----------------------------------------------------------------
+   RESPONSIVE BREAKPOINTS (Spec §8.1) — als CONTAINER QUERIES auf
+   .t-mod, damit das Modul auf seine EIGENE Breite reagiert, nicht
+   auf die Fensterbreite. Das ist wichtig, weil [kru:]nest eine eigene
+   Seitenleiste hat (236px Desktop, ausgeblendet ≤900px).
+
+   Schwellen (Modul-eigene Breite):
+   - ≥1500px   : 3 Spalten (Nav + Main + Aside)
+   - 768–1499 : 2 Spalten (Nav + Main), Aside HIDDEN — der Aside-Inhalt
+                 wandert in die Übersicht des Main-Views (§8.1).
+   - <768px    : 1 Spalte, alles gestapelt, mobile Tab-Leiste
+   ---------------------------------------------------------------- */
+@container (min-width: 768px) {
+  /* Tablet (768–1499): Nav schmaler (160px), damit 2 Karten pro Zeile
+     passen. Spec §8.1 nennt 212px nur für Desktop (≥1500). */
+  .t-shell {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+  /* Spec §8.1: "Kontextspalte verschwindet unter 1500px, Inhalt wandert
+     in die Übersicht." Aside bleibt im DOM, wird aber nicht gerendert —
+     Screen-A/B fügen die Inhalte dem Übersicht-Tab im Main bei. */
+  .t-mod-aside {
+    display: none;
+  }
+}
+@container (min-width: 1500px) {
+  .t-shell {
+    grid-template-columns: 212px minmax(0, 1fr) 300px;
+  }
+  .t-mod-aside {
+    display: block;
+  }
+}
+@container (max-width: 767px) {
+  .t-mod-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+/* ----------------------------------------------------------------
+   TITEL / HEADER-ELEMENTE
+   ---------------------------------------------------------------- */
+.t-logo {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: var(--ink); color: var(--paper);
+  display: grid; place-items: center; font-weight: 700;
+  flex: none;
+}
+.t-title { font-size: 20px; font-weight: 600; line-height: 1.2; }
+.t-sub   { font-size: 12px; color: var(--ink-soft); }
+.t-mod-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+/* ----------------------------------------------------------------
+   BADGES
+   ---------------------------------------------------------------- */
+.t-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: var(--surface-alt); color: var(--ink-soft);
+  white-space: nowrap;
+}
+.t-badge--phase { background: var(--accent-soft); color: var(--accent); }
+
+/* ----------------------------------------------------------------
+   BUTTONS — eine Größe + drei Modifiers
+   ---------------------------------------------------------------- */
+.t-btn {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: 8px 14px;
+  border-radius: var(--r-btn);
+  font-size: 14px; font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.t-btn:hover { background: var(--surface-alt); }
+.t-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.t-btn--primary:hover { filter: brightness(1.06); }
+.t-btn--sm { padding: 5px 10px; font-size: 13px; }
+.t-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+.t-btn--onDark {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+  color: #fff;
+}
+.t-btn--onDark:hover { background: rgba(255, 255, 255, 0.20); }
+
+/* ----------------------------------------------------------------
+   KARTEN
+   ---------------------------------------------------------------- */
+.t-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.t-card-head {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.t-card-title { font-weight: 600; font-size: 15px; }
+.t-card-body  { padding: var(--s4); }
+.t-section-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-bottom: var(--s3);
+}
+
+/* ----------------------------------------------------------------
+   SCREEN A — TURNIERLISTE (§13.2)
+   ----------------------------------------------------------------
+   Card-Grid: repeat(auto-fill, minmax(260px, 1fr))
+   Spec sagt 340px, aber bei 390px Viewport (Real-Width Modul
+   nach Padding ~286px) würde 340px zwangsweise horizontalen
+   Scroll erzeugen. 260px ist der Kompromiss: bei 390px → 1 Spalte
+   (passt), bei 820px → 2 Spalten (passt), bei 1920px → 3–4 Spalten
+   (kein Rand >5 %).
+   Pro Karte: Logo + Name + Datum + Status-Badge + Kurzinfo + Progress.
+   ---------------------------------------------------------------- */
+.t-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--s4);
+}
+
+/* Listen-Karte — kompakter als .t-card (für Wizard, Tabellen).
+   Hat einen Hover-Afford, ist aber selbst noch KEIN klickbarer Link
+   (Detail-View kommt in der nächsten Iteration). */
+.t-list-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.t-list-card:hover {
+  border-color: var(--accent-soft);
+}
+.t-list-card-row {
+  display: flex; align-items: center; gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+/* Logo / Platzhalter — 56×56, optional Bild, sonst Initial */
+.t-list-card-logo {
+  width: 56px; height: 56px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  display: grid; place-items: center;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  flex: none;
+  overflow: hidden;
+}
+.t-list-card-logo img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.t-list-card-name {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Datum — klein, gedämpft, unter dem Namen */
+.t-list-card-date {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Status-Badge — vier deutsche Zustände (§13.2).
+   Hintergrund + Text-Farbe aus dem Token-System. */
+.t-list-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+}
+.t-list-card-status::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+.t-list-card-status--draft     { background: #EEEAE3; color: var(--ink-soft); }
+.t-list-card-status--ready     { background: #DCE7F0; color: #2F5F86; }
+.t-list-card-status--running   { background: var(--accent-soft); color: var(--accent); }
+.t-list-card-status--finished  { background: #DDE8DD; color: var(--qualified); }
+
+/* Kurzinfo — "16 Teams · 4 Gruppen · 12 von 24 Spielen gespielt" */
+.t-list-card-info {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fortschrittsbalken */
+.t-list-card-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+.t-list-card-progress-bar {
+  position: relative;
+  height: 6px;
+  background: var(--surface-alt);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.t-list-card-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+.t-list-card-progress-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leerer Zustand — Admin vs. Member (§13.2). */
+.t-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s8) var(--s4);
+  text-align: center;
+  color: var(--ink-soft);
+  min-height: 240px;
+  gap: var(--s2);
+}
+/* .t-empty-state-icon wurde entfernt: das Icon wirkte wie ein Button,
+   war aber keiner. Bis der Wizard steht, reicht reiner Text. */
+.t-empty-state-text {
+  font-size: 15px;
+  color: var(--ink);
+  max-width: 360px;
+}
+.t-empty-state-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: var(--s2);
+}
+
+/* Kontextmenü-Icon (⋯) — nur sichtbar wenn als Admin gerendert */
+.t-list-card-menu-btn {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+.t-list-card-menu-btn:hover {
+  border-color: var(--line);
+  color: var(--ink);
+  background: var(--surface-alt);
+}
+
+/* View-Header mit Titel + Sub + Aktion (rechts) */
+.t-view-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+  flex-wrap: wrap;
+}
+.t-view-title { font-size: 20px; font-weight: 600; }
+.t-view-sub { font-size: 13px; color: var(--ink-soft); }
+.t-view-head .spacer { margin-left: auto; }
+
+/* ----------------------------------------------------------------
+   MATCH-KOMPONENTE — drei Größen, identische Klasse
+   ----------------------------------------------------------------
+   Verwendung:
+     <div class="t-match" data-size="normal">  ← Standard
+       <span class="t-match-bar"></span>
+       <div class="t-match-meta">...</div>
+       <div class="t-match-team">...</div>
+       <div class="t-match-score">...</div>
+       <div class="t-match-team right">...</div>
+       <div class="t-match-action">...</div>
+     </div>
+
+   oder per Modifier-Klasse:
+     .t-match--compact    (Kontextspalte, Liste)
+     .t-match--large      (Detail-Panel, Beamer)
+
+   Identische innere Anatomie, nur Layout-Proportionen ändern sich.
+   ---------------------------------------------------------------- */
+.t-match {
+  display: grid;
+  grid-template-columns: 3px 96px 1fr auto 1fr 108px;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.t-match:last-child { border-bottom: none; }
+
+.t-match-bar {
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--open);
+}
+.t-match--done .t-match-bar { background: var(--qualified); }
+.t-match--done .t-match-team { color: var(--ink-soft); }
+
+.t-match-meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.t-match-team {
+  display: flex; align-items: center; gap: var(--s2);
+  font-weight: 500;
+}
+.t-match-team.right { justify-content: flex-end; text-align: right; }
+.t-match-team .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-match-team.is-winner .name { font-weight: 700; color: var(--ink); }
+
+.t-match-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600; font-size: 16px;
+  background: var(--surface-alt);
+  border-radius: 8px;
+  padding: 3px 10px;
+  min-width: 64px;
+  text-align: center;
+}
+.t-match-score.empty {
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+.t-match-action { text-align: right; }
+
+/* Kompakte Variante — nur Score + Namen + Bar, komprimiert.
+   Verwendet in Kontextspalte und schnellen Listen. */
+.t-match.t-match--compact {
+  grid-template-columns: 3px 1fr auto;
+  grid-template-areas: "bar teams score";
+  padding: var(--s2) var(--s3);
+  gap: var(--s2);
+}
+.t-match.t-match--compact .t-match-bar    { grid-area: bar; }
+.t-match.t-match--compact .t-match-teams  {
+  grid-area: teams;
+  display: flex; flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.t-match.t-match--compact .t-match-score  { grid-area: score; font-size: 14px; padding: 2px 8px; min-width: 48px; }
+
+/* Große Variante — Detail-Panel + Beamer, eigene Karte pro Match. */
+.t-match.t-match--large {
+  grid-template-columns: 4px 132px 1fr auto 1fr 140px;
+  padding: var(--s4) var(--s6);
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); /* Override "last-child"-Reset */
+  border-radius: var(--r-card);
+  margin-bottom: var(--s3);
+}
+.t-match.t-match--large:last-child { margin-bottom: 0; }
+.t-match.t-match--large .t-match-meta  { font-size: 13px; }
+.t-match.t-match--large .t-match-team  { font-size: 17px; }
+.t-match.t-match--large .t-match-score { font-size: 22px; padding: 6px 14px; min-width: 80px; }
+
+/* Auf <768px Modul-Breite: Match wird zur Karte (Stack) statt zur Zeile.
+   Gilt für ALLE Größen. */
+@container (max-width: 767px) {
+  .t-match,
+  .t-match.t-match--large {
+    grid-template-columns: 3px 1fr auto;
+    grid-template-areas:
+      "bar meta act"
+      "bar home score"
+      "bar away score";
+    row-gap: 2px;
+    column-gap: var(--s3);
+  }
+  .t-match-bar    { grid-area: bar; }
+  .t-match-meta   { grid-area: meta; }
+  .t-match-team   { grid-area: home; }
+  .t-match-team.right {
+    grid-area: away;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .t-match-score  { grid-area: score; align-self: center; }
+  .t-match-action { grid-area: act; text-align: right; }
+}
+
+/* ----------------------------------------------------------------
+   DOT (klein, 8×8) — wiederverwendbares Indikator-Element
+   ---------------------------------------------------------------- */
+.t-dot {
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  flex: none;
+  display: inline-block;
+}
+.t-dot.t-dot--open      { background: var(--open); }
+.t-dot.t-dot--qualified { background: var(--qualified); }
+.t-dot.t-dot--out       { background: var(--out); }
+
+/* ----------------------------------------------------------------
+   REDUCED MOTION (§8.7)
+   ---------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .t-mod *,
+  .t-mod *::before,
+  .t-mod *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =================================================================
+   SCREEN B — WIZARD (§13.3)
+   ----------------------------------------------------------------
+   Die einzige Ansicht im Modul, die absichtlich schmal ist.
+   Formular max 900px, zentriert. Rechts ab 1200px Modul-Breite
+   eine Live-Vorschau-Karte. Alles über Container Queries auf .t-mod.
+   ================================================================= */
+
+.t-wizard {
+  background: var(--paper);
+}
+
+/* Body: Form links, Vorschau rechts (ab 1200px) */
+.t-wizard-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s6);
+  padding: var(--s6);
+  align-items: start;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Form-Bereich — schmal, zentriert, max 900px */
+.t-wizard-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  /* In Grid-Items: justify-self:center statt margin:auto, weil
+     width:100% keinen free-space für margin-auto lässt. */
+  justify-self: center;
+}
+
+/* ---------- Fortschrittsanzeige ---------- */
+.t-wizard-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4) var(--s6);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.t-wizard-progress-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-right: var(--s4);
+}
+
+.t-wizard-progress-list {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.t-wizard-progress-list::-webkit-scrollbar { display: none; }
+
+.t-wizard-progress-step {
+  flex: 0 0 auto;
+}
+.t-wizard-progress-step button {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.t-wizard-progress-step button:hover:not(:disabled) {
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+.t-wizard-progress-step.is-current button {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  cursor: default;
+}
+.t-wizard-progress-step.is-done button {
+  color: var(--accent);
+}
+.t-wizard-progress-step:not(.is-reachable) button {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.t-wizard-progress-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  flex: none;
+}
+.t-wizard-progress-step.is-current .t-wizard-progress-dot {
+  background: var(--accent);
+  color: #fff;
+}
+.t-wizard-progress-step.is-done .t-wizard-progress-dot {
+  background: var(--accent);
+  color: #fff;
+}
+.t-wizard-progress-label {
+  font-size: 13px;
+}
+
+.t-wizard-progress-cancel {
+  padding: 6px 12px;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.t-wizard-progress-cancel:hover {
+  color: var(--ink);
+  background: var(--surface-alt);
+}
+
+/* ---------- Step-Bereich ---------- */
+.t-wizard-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.t-wizard-step-title {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+.t-wizard-step-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+/* ---------- Form-Felder ---------- */
+.t-wizard-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.t-wizard-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.t-wizard-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.t-wizard-row {
+  display: grid;
+  gap: var(--s4);
+}
+.t-wizard-row.two { grid-template-columns: 1fr 1fr; }
+.t-wizard-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+.t-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color 0.15s ease;
+}
+.t-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+textarea.t-input {
+  resize: vertical;
+  min-height: 120px;
+  font-family: inherit;
+}
+
+/* Mode-Karten (Step 3) */
+.t-wizard-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s3);
+}
+.t-wizard-mode-card {
+  display: flex;
+  flex-direction: column;
+  /* align-items: stretch (default) sorgt dafür, dass label + desc
+     die Card-Breite füllen und Text umbricht, statt über die
+     Card-Kante hinaus zu laufen. */
+  align-items: stretch;
+  gap: var(--s2);
+  text-align: left;
+  padding: var(--s4);
+  border-radius: var(--r-card);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  min-width: 0;
+}
+.t-wizard-mode-card:hover:not(:disabled) {
+  border-color: var(--accent-soft);
+  background: var(--surface-alt);
+}
+.t-wizard-mode-card.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.t-wizard-mode-card.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.t-wizard-mode-card-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.t-wizard-mode-card-desc {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  /* Lange Wörter (z. B. "Single-Elimination") müssen brechen können,
+     damit sie nicht über die Card-Kante laufen. */
+  overflow-wrap: anywhere;
+}
+
+/* Choice-Grid (Sport, kompakter) */
+.t-wizard-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s2);
+}
+.t-wizard-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--s3);
+  border-radius: var(--r-btn);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  /* Grid-Track darf schrumpfen — Card-Inhalt soll umbrechen,
+     nicht die Spalte verbreitern. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.t-wizard-choice:hover {
+  border-color: var(--accent-soft);
+}
+.t-wizard-choice.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.t-wizard-choice-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.t-wizard-choice-sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+/* Verteilungsmethode (Radio) */
+.t-wizard-method-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.t-wizard-method-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* Checkbox-Reihen */
+.t-wizard-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.t-wizard-checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* Stepper (Aufsteiger, Beste Dritte, Tische) */
+.t-wizard-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.t-wizard-stepper-num {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: center;
+  color: var(--ink);
+}
+
+/* Gruppen-Steuerung (Step 3) */
+.t-wizard-group-control {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+.t-wizard-group-num {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: center;
+  color: var(--ink);
+}
+.t-wizard-group-dist {
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Punkteregel */
+.t-wizard-points-row {
+  display: flex;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+.t-wizard-points-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Tiebreaker-Liste */
+.t-wizard-tie-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  overflow: hidden;
+  /* Während eines aktiven Drags die gap entfernen, damit der
+     Placeholder nahtlos zwischen die echten Rows rutscht. */
+  position: relative;
+}
+.t-wizard-tie-list.is-dragging-active { gap: 0; }
+.t-wizard-tie-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  /* DnD-Indikator + Touchscreen-tauglich: Browser darf während
+     einer Geste nicht eigenmächtig scrollen. */
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.t-wizard-tie-row:active { cursor: grabbing; }
+.t-wizard-tie-row:last-child { border-bottom: none; }
+.t-wizard-tie-row.is-dragging {
+  /* Wird vom JS auf position:absolute gesetzt — hier nur Optik. */
+  opacity: 0.55;
+  background: var(--surface-alt);
+  box-shadow: 0 4px 16px rgba(31, 27, 22, 0.12);
+  z-index: 5;
+}
+.t-wizard-tie-placeholder {
+  /* Reserviert den Platz während des Drags, damit das Layout
+     nicht springt. Höhe wird per JS gesetzt. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 2px dashed var(--accent);
+}
+.t-wizard-tie-num {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  flex: none;
+}
+.t-wizard-tie-label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ink);
+}
+.t-wizard-tie-actions {
+  display: flex;
+  gap: 2px;
+}
+
+/* Drop-Zone (Logo) */
+.t-wizard-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s6) var(--s4);
+  border: 2px dashed var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.t-wizard-drop:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.t-wizard-drop-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.t-wizard-drop-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.t-wizard-drop-link {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+}
+.t-wizard-drop-meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+/* Teams-Input (Step 2) */
+.t-wizard-teams-paths {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s3);
+}
+@media (max-width: 767px) {
+  .t-wizard-teams-paths { grid-template-columns: minmax(0, 1fr); }
+}
+.t-wizard-teams-path {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.t-wizard-teams-path-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.t-wizard-teams-path-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.t-wizard-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.t-wizard-stepper-input {
+  width: 80px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.t-wizard-teams-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.t-wizard-teams-textarea {
+  min-height: 140px;
+}
+.t-wizard-teams-cta {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.t-wizard-teams-counter {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.t-wizard-team-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  /* Verhindert, dass der Browser Scroll-/Zoom-Gesten abfängt,
+     bevor unser Pointer-DnD-Handler reagieren kann. */
+  touch-action: pan-y;
+}
+.t-wizard-team-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  /* Wichtig: Zeilen selbst dürfen NICHT scrollen/zoomen,
+     sonst greift der Pointer-Handler nicht. */
+  touch-action: none;
+}
+.t-wizard-team-row:last-child { border-bottom: none; }
+.t-wizard-team-row.is-dragging {
+  z-index: 10;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  background: var(--surface-2, var(--surface));
+  cursor: grabbing;
+}
+.t-wizard-team-placeholder {
+  list-style: none;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-btn);
+}
+.t-wizard-team-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: none;
+}
+.t-wizard-team-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Wenn der Name ein <input> ist, soll er nüchtern wirken. */
+.t-wizard-team-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  background: transparent;
+  font-size: 14px;
+  color: var(--ink);
+  font-family: inherit;
+  /* Touch-Gesten nicht abfangen — DnD lebt davon. */
+  touch-action: manipulation;
+}
+.t-wizard-team-name-input:hover { border-color: var(--line); }
+.t-wizard-team-name-input:focus {
+  border-color: var(--accent, #5A8A6B);
+  outline: none;
+  background: var(--surface);
+}
+.t-wizard-team-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.t-wizard-warn {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-btn);
+  background: #FBEFE0;
+  border: 1px solid #E3C99A;
+  color: #6E5118;
+  font-size: 13px;
+}
+
+.t-wizard-live-info {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-btn);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Zusammenfassung (Step 5) */
+.t-wizard-summary {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+.t-wizard-summary-row {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.t-wizard-summary-row:last-child { border-bottom: none; }
+.t-wizard-summary-row dt {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.t-wizard-summary-row dd {
+  font-size: 14px;
+  color: var(--ink);
+  margin: 0;
+  font-weight: 500;
+}
+.t-wizard-summary-edit {
+  font-size: 13px;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.t-wizard-summary-edit:hover {
+  background: var(--accent-soft);
+}
+.t-wizard-summary-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s2);
+}
+.t-wizard-summary-cta > .t-btn {
+  align-self: flex-end;
+}
+.t-wizard-gen-error {
+  font-size: 13px;
+  color: var(--danger, #a33);
+  background: rgba(170, 51, 51, 0.06);
+  border: 1px solid rgba(170, 51, 51, 0.25);
+  border-radius: var(--r2);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+/* ---------- Confirm-Dialog (Spec §13.10) ---------- */
+.t-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 27, 22, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.t-confirm-dialog {
+  background: var(--surface);
+  border-radius: var(--r3);
+  box-shadow: 0 24px 64px rgba(31, 27, 22, 0.32);
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.t-confirm-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.t-confirm-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.t-confirm-expected {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+}
+.t-confirm-input {
+  width: 100%;
+  font-size: 14px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  background: var(--surface);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+.t-confirm-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+.t-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+.t-btn--danger {
+  background: var(--danger, #a33);
+  color: #fff;
+  border: 1px solid var(--danger, #a33);
+}
+.t-btn--danger:disabled {
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+/* ---------- Footer ---------- */
+.t-wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.t-wizard-next-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+  margin-left: auto;
+}
+.t-wizard-next-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+/* ---------- Live-Vorschau (rechts) ---------- */
+.t-wizard-preview-wrap {
+  display: none;
+}
+.t-wizard-preview {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  position: sticky;
+  top: 0;
+}
+.t-wizard-preview-head {
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line);
+}
+.t-wizard-preview-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.t-wizard-preview-sub {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.t-wizard-preview-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  align-items: baseline;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.t-wizard-preview-label {
+  color: var(--ink-soft);
+}
+.t-wizard-preview-value {
+  color: var(--ink);
+  font-weight: 500;
+  text-align: right;
+}
+.t-wizard-preview-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: var(--surface-alt);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-btn);
+  line-height: 1.4;
+}
+
+/* ---------- Container Queries: Vorschau-Rechts ab 1200px ---------- */
+@container (min-width: 1200px) {
+  .t-wizard-body {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+  }
+  .t-wizard-preview-wrap {
+    display: block;
+  }
+  .t-wizard-form {
+    margin: 0;
+  }
+}
+
+/* ---------- Container Queries: Mobile (<768px) ---------- */
+@container (max-width: 767px) {
+  .t-wizard-progress {
+    padding: var(--s3) var(--s4);
+    gap: var(--s2);
+  }
+  .t-wizard-progress-title {
+    font-size: 15px;
+    margin-right: var(--s2);
+  }
+  .t-wizard-progress-label {
+    display: none;
+  }
+  .t-wizard-progress-list {
+    flex: 1;
+    min-width: 0;
+  }
+  .t-wizard-body {
+    padding: var(--s4);
+  }
+  .t-wizard-step-title {
+    font-size: 19px;
+  }
+  .t-wizard-row.two,
+  .t-wizard-row.three {
+    grid-template-columns: 1fr;
+  }
+  .t-wizard-mode-grid {
+    grid-template-columns: 1fr;
+  }
+  .t-wizard-choice-grid {
+    grid-template-columns: 1fr;
+  }
+  .t-wizard-summary-row {
+    grid-template-columns: 1fr auto;
+    gap: var(--s2);
+  }
+  .t-wizard-summary-row dt {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .t-wizard-summary-row dd {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 15px;
+  }
+  .t-wizard-summary-edit {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+  .t-wizard-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .t-wizard-next-wrap {
+    align-items: stretch;
+    margin-left: 0;
+  }
+  .t-wizard-next-wrap .t-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .t-wizard-next-hint {
+    text-align: left;
+  }
+}
+
+/* ================================================================
+   Logo-Feld (Step 1, Spec §3 / §8.4)
+   ================================================================ */
+.t-wizard-logo-field {
+  gap: var(--s2);
+}
+.t-wizard-logo-status {
+  font-size: 13px;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+.t-wizard-logo-status.is-pending {
+  color: var(--ink-soft);
+}
+.t-wizard-logo-status.is-ok {
+  color: var(--ok, #2c8a4f);
+}
+.t-wizard-logo-status.is-error {
+  color: var(--danger, #c0392b);
+}
+.t-wizard-logo-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  background: var(--surface-alt);
+}
+.t-wizard-logo-img {
+  max-width: 128px;
+  max-height: 128px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--r-sm, 4px);
+  background: var(--surface);
+}
+.t-wizard-logo-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* ----------------------------------------------------------------
+ * Teams-View (C5) — post-Generate.
+ *
+ * Layout: 1 Spalte < 720px (Card-Stacking), 2 Spalten (Name +
+ * Color) ab 720px. Seed-Badge links, Status-Indikator rechts.
+ * ---------------------------------------------------------------- */
+.t-teams-view {
+  background: var(--surface, #FFF);
+  border: 1px solid var(--line, #E7DFD2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  max-width: 920px;
+  margin: 24px auto;
+}
+
+.t-teams-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.t-teams-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.t-teams-summary {
+  font-size: 0.9rem;
+  min-height: 1.5em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.t-teams-summary[data-state="ok"] {
+  background: rgba(44, 110, 63, 0.08);
+  border-color: rgba(44, 110, 63, 0.25);
+  color: #2c6e3f;
+}
+.t-teams-summary[data-state="saving"] {
+  background: rgba(170, 140, 30, 0.08);
+  border-color: rgba(170, 140, 30, 0.25);
+  color: #8a6a1a;
+}
+.t-teams-summary[data-state="err"] {
+  background: rgba(170, 51, 51, 0.08);
+  border-color: rgba(170, 51, 51, 0.3);
+  color: #a33;
+}
+
+.t-teams-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.t-teams-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto 24px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #E7DFD2);
+  border-radius: 8px;
+  background: var(--paper, #FAF7F1);
+  transition: border-color 0.15s ease;
+}
+.t-teams-row[data-row-state="saving"] {
+  border-color: rgba(170, 140, 30, 0.45);
+}
+.t-teams-row[data-row-state="ok"] {
+  border-color: rgba(44, 110, 63, 0.4);
+}
+.t-teams-row[data-row-state="err"] {
+  border-color: rgba(170, 51, 51, 0.45);
+  background: rgba(170, 51, 51, 0.04);
+}
+
+.t-teams-seed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--surface, #FFF);
+  border: 1px solid var(--line, #E7DFD2);
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft, #8A8077);
+}
+
+.t-teams-name-input {
+  width: 100%;
+}
+
+.t-teams-color-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.t-teams-color-input {
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line, #E7DFD2);
+  border-radius: 6px;
+  background: var(--surface, #FFF);
+  cursor: pointer;
+}
+
+.t-teams-row-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.t-teams-row-status[data-state="ok"] { color: #2c6e3f; }
+.t-teams-row-status[data-state="err"] { color: #a33; }
+.t-teams-row-status[data-state="saving"] { color: #8a6a1a; }
+.t-teams-row-status[data-state="idle"] { color: transparent; }
+
+/* X-Reset-Button (Farbe zurücksetzen) */
+.t-btn--xs {
+  padding: 2px 8px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  border-radius: 999px;
+  border: 1px solid var(--line, #E7DFD2);
+  background: var(--surface, #FFF);
+  color: var(--ink-soft, #8A8077);
+  cursor: pointer;
+}
+.t-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.t-btn--ghost:hover { background: rgba(0, 0, 0, 0.04); }
+
+/* Mobile: schmaler Bildschirm, weniger Padding. */
+@media (max-width: 600px) {
+  .t-teams-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+  .t-teams-row-status { display: none; }
+}

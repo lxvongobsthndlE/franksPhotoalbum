@@ -2233,9 +2233,9 @@ function renderTournamentHeaderActions() {
           },
           {
             id: 'tournament-new-instance-btn',
-            label: 'Neues Turnier',
-            className: 'btn btn-ghost',
-            onClick: openCreateTournamentInstance,
+            label: '⚡ Neues Turnier (Wizard)',
+            className: 'btn btn-primary',
+            onClick: openTournamentWizard,
           },
           {
             id: 'tournament-new-preset-btn',
@@ -2353,11 +2353,14 @@ async function loadTournamentInstances(reset = false) {
   }
 
   try {
+    // v3: /api/tournaments/group/:groupId — flaches Array
     const instanceData = await apiCall(
-      `/tournaments/instances?groupId=${encodeURIComponent(curGroupId)}`,
+      `/tournaments/group/${encodeURIComponent(curGroupId)}`,
       'GET'
     );
-    tournamentInstances = Array.isArray(instanceData?.instances) ? instanceData.instances : [];
+    tournamentInstances = Array.isArray(instanceData) ? instanceData : [];
+    // Module ist aktiv — Cache-Flag setzen
+    if (typeof window !== 'undefined') window.__tournamentModuleEnabled = true;
 
     if (activeTournamentInstance?.id) {
       const stillExists = tournamentInstances.some(
@@ -2371,6 +2374,20 @@ async function loadTournamentInstances(reset = false) {
     const icon = $('empty-icon');
     const text = $('empty-text');
     const actions = $('empty-actions');
+
+    // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
+    // Wenn der Backend-Call mit 403 fehlschlägt, war es vermutlich fehlende Mitgliedschaft.
+    if (e?.statusCode === 403) {
+      if (icon) icon.textContent = '🚫';
+      if (text) text.textContent = 'Du bist nicht (mehr) Mitglied dieser Gruppe oder hast keine Berechtigung.';
+      if (actions) {
+        actions.innerHTML = '<p class="t-hint">Bitte einen Owner oder Deputy der Gruppe um Zugriff bitten.</p>';
+      }
+      show('empty');
+      grid.innerHTML = '';
+      return;
+    }
+
     if (icon) icon.textContent = '⚠️';
     if (text) text.textContent = e.serverMessage || 'Turniere konnten nicht geladen werden.';
     if (actions) {
@@ -2381,6 +2398,12 @@ async function loadTournamentInstances(reset = false) {
     grid.innerHTML = '';
   }
 }
+
+/**
+ * Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
+ * Die Funktion activateTournamentModule wurde entfernt — Mitglieder aller Rollen
+ * sehen und nutzen das Turniermodul direkt.
+ */
 
 function tournamentStatusLabel(status) {
   const map = {
@@ -3303,14 +3326,9 @@ async function openCreateTournamentInstance() {
     return;
   }
 
-  if (!Array.isArray(tournamentPresets) || tournamentPresets.length === 0) {
-    await loadTournamentPresets(true);
-  }
-
-  if (!Array.isArray(tournamentPresets) || tournamentPresets.length === 0) {
-    toast('Bitte zuerst ein Preset erstellen', 'info');
-    return;
-  }
+  // v3: kein Preset mehr — direkt zum Wizard
+  openTournamentWizard();
+  return;
 
   // Phase 2: Modal statt window.prompt
   closeTournamentDetailModalById('tournament-instance-create-modal');
@@ -3442,18 +3460,727 @@ function openEditTournamentPreset(presetId) {
 
 async function openTournamentInstance(instanceId) {
   try {
-    const { instance } = await apiCall(
-      `/tournaments/instances/${encodeURIComponent(instanceId)}`,
+    // v3: /api/tournaments/:id — flat tournament object with teams, stages, groups, matches
+    const instance = await apiCall(
+      `/tournaments/${encodeURIComponent(instanceId)}`,
       'GET'
     );
     activeTournamentInstance = instance;
     curTournamentView = 'instances';
     saveLastModuleState();
     renderSidebar();
-    renderTournamentInstancesPage();
+    renderTournamentInstanceDetailV3(instance);
   } catch (e) {
     toast(e.serverMessage || 'Turnier-Details konnten nicht geladen werden', 'error');
   }
+}
+
+/**
+ * v3-Detail-View: einfacher Überblick + Tabs für Teams / Gruppen / Spielplan.
+ * Spec §8-konform wird in Slice 3 zu vollständigem Layout ausgebaut.
+ */
+function renderTournamentInstanceDetailV3(t) {
+  const grid = $('grid');
+  if (!grid) return;
+
+  const teamCount = Array.isArray(t.teams) ? t.teams.length : 0;
+  const matchCount = t._count?.matches ?? 0;
+  const groupsCount = Array.isArray(t.stages?.[0]?.groups) ? t.stages[0].groups.length : 0;
+  const statusLabel = tournamentStatusLabel(t.status);
+  const phase = tournamentInstancePhase(t.status);
+
+  const canManage = canManageTournamentPresetsInCurrentGroup();
+  const publicBadge = t.isPublic ? `<span class="t-badge t-badge-live" title="Öffentlich via Token">🔓 Public</span>` : '';
+  const logoHtml = t.logoUrl
+    ? `<img class="tournament-card-logo" src="${esc(t.logoUrl)}" alt="Logo" loading="lazy">`
+    : '';
+
+  const teamsHtml = (t.teams || []).map((team) =>
+    `<li class="t-team-row" data-team-id="${esc(team.id)}">
+      <span class="t-team-seed">${team.seed ?? '–'}</span>
+      ${canManage
+        ? `<input class="t-team-name-input" data-team-id="${esc(team.id)}" type="text" value="${esc(team.name)}" maxlength="80" placeholder="Teamname">`
+        : `<span class="t-team-name">${esc(team.name)}</span>`}
+    </li>`
+  ).join('') || '<li class="t-hint">Noch keine Teams angelegt.</li>';
+
+  // Gruppen-Tab: Zebra-Tabellen mit Qualifikations-Zonen grün/gelb
+  const groupsHtml = (t.stages?.[0]?.groups || []).length > 0
+    ? `<div class="t-group-grid">${(t.stages[0].groups).map((g) =>
+        `<div class="t-group-card">
+          <h4>Gruppe ${esc(g.key || g.name || '?')}</h4>
+          <table class="t-group-table">
+            <thead><tr><th>#</th><th>Team</th><th>S</th><th>U</th><th>N</th><th>TD</th><th>P</th></tr></thead>
+            <tbody>${(g.memberships || []).map((m, i) => {
+              const qual = i < (t.config?.advancePerGroup ?? 2);
+              return `<tr class="${qual ? 't-qual-green' : (i === (t.config?.advancePerGroup ?? 2) ? 't-qual-yellow' : '')}">
+                <td>${m.position ?? (i + 1)}</td>
+                <td>${esc(m.team?.name || m.teamId)}</td>
+                <td>–</td><td>–</td><td>–</td><td>–</td><td>–</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>`).join('')}</div>`
+    : '<p class="t-hint">Noch nicht generiert. Klick auf "Generate" in der Liste.</p>';
+
+  // Bracket-Tab: aus Stufe 2 (KO) wenn vorhanden
+  const koStage = (t.stages || []).find((s) => s.type === 'knockout');
+  const bracketHtml = koStage
+    ? `<div class="t-bracket">
+        <div class="t-bracket-round">
+          <h5>${esc(koStage.name || 'KO')}</h5>
+          <p class="t-hint">${(koStage.matches || []).length} Spiele in dieser Phase. Klick auf ein Match für Details.</p>
+        </div>
+      </div>`
+    : '<p class="t-hint">Noch keine KO-Phase. Bracket erscheint nach Generate + Qualifikations-Abschluss.</p>';
+
+  // Regelwerk-Tab
+  const rulesHtml = canManage
+    ? `<textarea id="t-rules-text" class="t-rules-textarea" rows="10" placeholder="Regeln, Sonderwertungen, Hinweise...">${esc(t.rulesText || '')}</textarea>
+       <div style="margin-top:8px"><button class="btn btn-primary" onclick="saveTournamentRules('${esc(t.id)}')">💾 Regelwerk speichern</button></div>`
+    : `<pre class="t-rules-textarea" readonly>${esc(t.rulesText || '— Kein Regelwerk hinterlegt —')}</pre>`;
+
+  grid.className = 'grid tournaments-grid';
+  grid.innerHTML = `
+    <article class="tournament-card tournament-instance-card tournament-instance-active" data-tournament-id="${esc(t.id)}">
+      <div class="tournament-card-head">
+        ${logoHtml}
+        <h3>${esc(t.name || 'Turnier')}</h3>
+        <div>
+          <span class="tournament-status-badge">${esc(tournamentInstancePhaseLabel(phase))}</span>
+          ${publicBadge}
+        </div>
+      </div>
+      <div class="tournament-detail-tabs">
+        <div class="t-tab is-active" data-tab="overview">Übersicht</div>
+        <div class="t-tab" data-tab="teams">Teams (${teamCount})</div>
+        <div class="t-tab" data-tab="groups">Gruppen (${groupsCount})</div>
+        <div class="t-tab" data-tab="bracket">Bracket</div>
+        <div class="t-tab" data-tab="matches">Spiele (${matchCount})</div>
+        <div class="t-tab" data-tab="rules">Regelwerk</div>
+      </div>
+      <div class="tournament-detail-tab-body" data-tab-body="overview">
+        <div class="wizard-summary-grid">
+          <div class="wizard-summary-row"><span>Status</span><strong>${esc(statusLabel)}</strong></div>
+          <div class="wizard-summary-row"><span>Modus</span><strong>${esc(t.mode || '-')}</strong></div>
+          <div class="wizard-summary-row"><span>Teams</span><strong>${teamCount}</strong></div>
+          <div class="wizard-summary-row"><span>Gruppen</span><strong>${groupsCount}</strong></div>
+          <div class="wizard-summary-row"><span>Spiele</span><strong>${matchCount}</strong></div>
+          ${t.startsAt ? `<div class="wizard-summary-row"><span>Beginn</span><strong>${esc(new Date(t.startsAt).toLocaleString('de-DE'))}</strong></div>` : ''}
+        </div>
+        <div class="tournament-card-actions" style="margin-top:16px">
+          ${canManage ? `<button class="btn btn-primary" onclick="openResultEntryModal('${esc(t.id)}')">⚽ Ergebnis eintragen</button>` : ''}
+          ${canManage ? `<button class="btn btn-ghost" onclick="loadStandingsTab('${esc(t.id)}')">📊 Live-Tabelle</button>` : ''}
+          ${canManage ? `<button class="btn btn-ghost" onclick="loadScheduleTab('${esc(t.id)}')">📅 Spielplan</button>` : ''}
+          ${canManage ? `<button class="btn btn-ghost" onclick="togglePublishV3('${esc(t.id)}', ${t.isPublic ? 'false' : 'true'})">${t.isPublic ? '🔒 Unpublish' : '🔓 Public'}</button>` : ''}
+          ${canManage ? `<button class="btn btn-ghost" onclick="window.print()">🖨️ Drucken / PDF</button>` : ''}
+          ${canManage ? `<a class="btn btn-ghost" href="/api/tournaments/${esc(t.id)}/export.pdf" target="_blank" rel="noopener">📄 PDF-Export</a>` : ''}
+          ${canManage ? `<button class="btn btn-ghost" onclick="openTournamentBeamer('${esc(t.id)}')">📺 Beamer</button>` : ''}
+          ${canManage ? `<button class="btn btn-ghost danger" onclick="deleteTournamentInstance('${esc(t.id)}','${esc(t.name)}')">${ICON_TRASH} Löschen</button>` : ''}
+        </div>
+      </div>
+      <div class="tournament-detail-tab-body" data-tab-body="teams" style="display:none">
+        <ul class="t-team-list">${teamsHtml}</ul>
+      </div>
+      <div class="tournament-detail-tab-body" data-tab-body="groups" style="display:none">
+        ${groupsHtml}
+      </div>
+      <div class="tournament-detail-tab-body" data-tab-body="bracket" style="display:none">
+        ${bracketHtml}
+      </div>
+      <div class="tournament-detail-tab-body" data-tab-body="matches" style="display:none">
+        <p class="t-hint">Klick auf "Spielplan" lädt alle Spiele. Klick auf "Ergebnis eintragen" für ein einzelnes Match.</p>
+      </div>
+      <div class="tournament-detail-tab-body" data-tab-body="rules" style="display:none">
+        ${rulesHtml}
+      </div>
+    </article>
+  `;
+
+  // Tab-Switching
+  grid.querySelectorAll('.tournament-detail-tabs .t-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      grid.querySelectorAll('.tournament-detail-tabs .t-tab').forEach((t) => t.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      const target = tab.dataset.tab;
+      grid.querySelectorAll('.tournament-detail-tab-body').forEach((body) => {
+        body.style.display = body.dataset.tabBody === target ? '' : 'none';
+      });
+      // Lazy-load tabs
+      if (target === 'bracket') loadBracketTab(t.id);
+      if (target === 'matches') loadScheduleTab(t.id);
+    });
+  });
+
+  // Inline-Team-Rename: PATCH /tournaments/:id/teams/:teamId bei blur oder Enter
+  if (canManage) {
+    grid.querySelectorAll('.t-team-name-input').forEach((input) => {
+      const teamId = input.dataset.teamId;
+      const save = async () => {
+        const newName = input.value.trim();
+        if (!newName || newName === input.defaultValue) return;
+        try {
+          await apiCall(`/tournaments/${encodeURIComponent(t.id)}/teams/${encodeURIComponent(teamId)}`, 'PATCH', { name: newName });
+          toast('Team umbenannt', 'success');
+          input.defaultValue = newName;
+        } catch (e) {
+          toast(e.serverMessage || 'Umbenennen fehlgeschlagen', 'error');
+          input.value = input.defaultValue;
+        }
+      };
+      input.addEventListener('blur', save);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = input.defaultValue; input.blur(); }
+      });
+    });
+  }
+}
+
+/**
+ * v3: Publish / Unpublish-Toggle.
+ */
+async function togglePublishV3(tournamentId, makePublic) {
+  if (!tournamentId) return;
+  try {
+    const endpoint = makePublic ? 'publish' : 'unpublish';
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/${endpoint}`, 'POST');
+    toast(makePublic ? 'Turnier veröffentlicht' : 'Öffentlich widerrufen', 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    toast(e.serverMessage || 'Aktion fehlgeschlagen', 'error');
+  }
+}
+
+/**
+ * v3: Tabelle (Standings) in das "matches"-Tab laden.
+ */
+async function loadStandingsTab(tournamentId) {
+  if (!tournamentId) return;
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/standings`, 'GET');
+    const body = document.querySelector('[data-tab-body="groups"]');
+    if (!body) return;
+    body.style.display = '';
+    const groupsHtml = (data.groups || []).map((g) => {
+      const rows = (g.standings || []).map((s, i) =>
+        `<tr><td>${i + 1}.</td><td>${esc(s.teamName || s.teamId)}</td>` +
+        `<td>${s.points ?? 0}</td><td>${s.wins ?? 0}</td><td>${s.draws ?? 0}</td><td>${s.losses ?? 0}</td>` +
+        `<td>${s.goalDifference ?? 0}</td></tr>`
+      ).join('');
+      return `<h4>${esc(g.name || g.groupKey)}</h4>
+        <table class="t-standings-table"><thead><tr><th>#</th><th>Team</th><th>P</th><th>S</th><th>U</th><th>N</th><th>TD</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }).join('') || '<p class="t-hint">Noch keine Gruppenspiele absolviert.</p>';
+    body.innerHTML = groupsHtml;
+    // Tab umschalten
+    document.querySelectorAll('.tournament-detail-tabs .t-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === 'groups'));
+    document.querySelectorAll('.tournament-detail-tab-body').forEach((b) => {
+      b.style.display = b.dataset.tabBody === 'groups' ? '' : 'none';
+    });
+  } catch (e) {
+    toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
+  }
+}
+
+/**
+ * v3: Spielplan in das "matches"-Tab laden.
+ */
+async function loadScheduleTab(tournamentId) {
+  if (!tournamentId) return;
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/schedule`, 'GET');
+    const body = document.querySelector('[data-tab-body="matches"]');
+    if (!body) return;
+    body.style.display = '';
+    const matches = data.matches || [];
+    const rowsHtml = matches.map((m) =>
+      `<tr>
+        <td>${m.matchNumber}</td>
+        <td>${esc(m.teamHome?.name || '-')}</td>
+        <td>${m.scoreHome ?? '-'}</td>
+        <td>:</td>
+        <td>${m.scoreAway ?? '-'}</td>
+        <td>${esc(m.teamAway?.name || '-')}</td>
+        <td>${esc(m.status || '-')}</td>
+        <td><button class="btn btn-ghost" onclick="openResultEntryModal('${esc(tournamentId)}','${esc(m.id)}')">📝</button></td>
+      </tr>`
+    ).join('');
+    body.innerHTML = `<table class="t-schedule-table"><thead><tr><th>#</th><th>Heim</th><th></th><th></th><th></th><th>Gast</th><th>Status</th><th></th></tr></thead><tbody>${rowsHtml || '<tr><td colspan="8" class="t-hint">Noch keine Spiele.</td></tr>'}</tbody></table>`;
+    document.querySelectorAll('.tournament-detail-tabs .t-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === 'matches'));
+    document.querySelectorAll('.tournament-detail-tab-body').forEach((b) => {
+      b.style.display = b.dataset.tabBody === 'matches' ? '' : 'none';
+    });
+  } catch (e) {
+    toast(e.serverMessage || 'Spielplan konnte nicht geladen werden', 'error');
+  }
+}
+
+/**
+ * v3: Bracket-Tab in das "bracket"-Tab laden.
+ * Spec §8.0: 8er/16er sollen OHNE Horizontalen Scroll auf Desktop sichtbar sein.
+ * Spec §6.2: Connector Lines via CSS ::after, Platzhaltertexte für TBD.
+ */
+async function loadBracketTab(tournamentId) {
+  if (!tournamentId) return;
+  const body = document.querySelector('[data-tab-body="bracket"]');
+  if (!body) return;
+  body.style.display = '';
+  body.innerHTML = '<p class="t-hint">Lade Bracket…</p>';
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/schedule`, 'GET');
+    const allMatches = data.matches || [];
+    const koMatches = allMatches.filter((m) => m.bracketType === 'ko' || (m.groupId == null && m.round && m.round !== 'group'));
+    if (koMatches.length === 0) {
+      body.innerHTML = '<p class="t-hint">Noch keine KO-Phase. Bracket erscheint nach Generate + Qualifikations-Abschluss.</p>';
+      return;
+    }
+    // Gruppieren nach Runde
+    const byRound = new Map();
+    koMatches.forEach((m) => {
+      const r = m.round || 'R1';
+      if (!byRound.has(r)) byRound.set(r, []);
+      byRound.get(r).push(m);
+    });
+    const rounds = [...byRound.keys()].sort();
+    const roundsHtml = rounds.map((r) => {
+      const matches = byRound.get(r).sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+      const matchCards = matches.map((m) => {
+        const home = m.teamHome?.name || formatPlaceholder(m.placeholderHome) || 'TBD';
+        const away = m.teamAway?.name || formatPlaceholder(m.placeholderAway) || 'TBD';
+        const score = (m.status === 'completed' && m.scoreHome != null)
+          ? `<strong>${m.scoreHome} : ${m.scoreAway}</strong>`
+          : '<span class="t-hint">vs</span>';
+        return `<div class="t-bracket-match${m.status === 'completed' ? ' is-completed' : ''}" data-match-id="${esc(m.id)}" onclick="openResultEntryModal('${esc(tournamentId)}','${esc(m.id)}')">
+          <div class="t-bracket-match-team">${esc(home)}</div>
+          <div class="t-bracket-match-score">${score}</div>
+          <div class="t-bracket-match-team">${esc(away)}</div>
+        </div>`;
+      }).join('');
+      return `<div class="t-bracket-round">
+        <h5>${esc(r)}</h5>
+        ${matchCards}
+      </div>`;
+    }).join('');
+    body.innerHTML = `<div class="t-bracket">${roundsHtml}</div>`;
+  } catch (e) {
+    toast(e.serverMessage || 'Bracket konnte nicht geladen werden', 'error');
+    body.innerHTML = '<p class="t-hint">Bracket konnte nicht geladen werden.</p>';
+  }
+}
+
+/**
+ * v3: Spielplan inkl. Zeitplan-Grid (Tische × Slots) in das "schedule"-Tab laden.
+ * Spec §5.3: HTML5 Drag&Drop, Konflikte rot markieren, NICHT blockieren.
+ */
+async function loadScheduleGridTab(tournamentId) {
+  if (!tournamentId) return;
+  const body = document.querySelector('[data-tab-body="schedule"]');
+  if (!body) return;
+  body.style.display = '';
+  body.innerHTML = '<p class="t-hint">Lade Zeitplan…</p>';
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/schedule`, 'GET');
+    const matches = (data.matches || []).filter((m) => m.scheduledAt);
+    if (matches.length === 0) {
+      body.innerHTML = '<p class="t-hint">Noch keine Spiele zeitlich verplant. Klick auf "Ergebnis eintragen" oder "Auto-Planen" im Übersicht-Tab.</p>';
+      return;
+    }
+    // Bestimme Tischanzahl (max(field) + 1)
+    const maxField = matches.reduce((acc, m) => Math.max(acc, m.field || 0), 0);
+    const numFields = Math.max(2, maxField + 1);
+    // Gruppieren nach Slot
+    const slotsSet = new Set();
+    matches.forEach((m) => slotsSet.add(m.scheduledAt));
+    const slots = [...slotsSet].sort();
+    const grid = {};
+    matches.forEach((m) => {
+      const f = m.field || 0;
+      const s = m.scheduledAt;
+      const key = `${f}|${s}`;
+      grid[key] = m;
+    });
+    const slotHeaders = slots.map((s) => `<th>${esc(new Date(s).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))}</th>`).join('');
+    const rowsHtml = [];
+    for (let f = 0; f < numFields; f++) {
+      const cells = slots.map((s) => {
+        const m = grid[`${f}|${s}`];
+        if (!m) return '<td class="t-schedule-cell empty"></td>';
+        const home = m.teamHome?.name || formatPlaceholder(m.placeholderHome) || 'TBD';
+        const away = m.teamAway?.name || formatPlaceholder(m.placeholderAway) || 'TBD';
+        // Konfliktprüfung: gleicher Slot, andere Heim-Mannschaft?
+        const conflict = matches.some((other) =>
+          other.id !== m.id &&
+          other.scheduledAt === s &&
+          (other.field || 0) === f &&
+          other.teamHomeId && m.teamHomeId &&
+          other.teamHomeId === m.teamHomeId
+        );
+        return `<td class="t-schedule-cell${conflict ? ' is-conflict' : ''}">
+          <div class="t-schedule-match" draggable="true" data-match-id="${esc(m.id)}" data-field="${f}" data-slot="${esc(s)}">
+            <span class="t-schedule-match-teams">${esc(home)} – ${esc(away)}</span>
+            ${m.status === 'completed' ? `<span class="t-schedule-match-score">${m.scoreHome}:${m.scoreAway}</span>` : ''}
+          </div>
+        </td>`;
+      }).join('');
+      rowsHtml.push(`<tr><th>Tisch ${f + 1}</th>${cells}</tr>`);
+    }
+    body.innerHTML = `<table class="t-schedule-grid">
+      <thead><tr><th></th>${slotHeaders}</tr></thead>
+      <tbody>${rowsHtml.join('')}</tbody>
+    </table>
+    <p class="t-hint">Rote Markierung = Konflikt (gleiches Team auf gleichem Slot / Tisch). Spec §5.3: Veranstalter darf überstimmen — Konflikt wird nicht blockiert.</p>`;
+    attachScheduleDragDrop();
+  } catch (e) {
+    toast(e.serverMessage || 'Zeitplan konnte nicht geladen werden', 'error');
+    body.innerHTML = '<p class="t-hint">Zeitplan konnte nicht geladen werden.</p>';
+  }
+}
+
+/**
+ * v3 S4.1 — Drag&Drop-Setzliste in Wizard Step 2.
+ * Spec §5.1: Verteilungs-Methode "manual" respektiert User-Reihenfolge.
+ * Synct teamsText mit der visuellen Liste bei jedem Drop.
+ */
+function attachSeedListDragDrop(body) {
+  const list = body.querySelector('#wiz-seed-list');
+  if (!list) return;
+  const ta = body.querySelector('[data-bind="teamsText"]');
+  let dragIdx = null;
+
+  list.querySelectorAll('.t-wiz-seed-row').forEach((row) => {
+    row.addEventListener('dragstart', (e) => {
+      dragIdx = Number(row.dataset.index);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(dragIdx));
+      row.classList.add('is-dragging');
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('is-dragging');
+      list.querySelectorAll('.t-wiz-seed-row').forEach((r) => r.classList.remove('is-drop-target'));
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      list.querySelectorAll('.t-wiz-seed-row').forEach((r) => r.classList.remove('is-drop-target'));
+      row.classList.add('is-drop-target');
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const fromIdx = Number(e.dataTransfer.getData('text/plain'));
+      const toIdx = Number(row.dataset.index);
+      if (Number.isNaN(fromIdx) || Number.isNaN(toIdx) || fromIdx === toIdx) return;
+      // Reorder: teamsText neu zusammensetzen
+      const teamNames = parseTeamsTextarea(ta.value);
+      const [moved] = teamNames.splice(fromIdx, 1);
+      teamNames.splice(toIdx, 0, moved);
+      if (ta) {
+        ta.value = teamNames.join('\n');
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      // Re-render this step
+      const body = list.closest('.dlg-content, .dlg-body, .tournament-detail-form, .dlg');
+      if (body) {
+        const newHtml = renderWizardStep(1, state.data);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = newHtml;
+        const oldList = body.querySelector('#wiz-seed-list');
+        const newList = tmp.querySelector('#wiz-seed-list');
+        if (oldList && newList) oldList.replaceWith(newList);
+        attachSeedListDragDrop(body);
+      }
+    });
+  });
+}
+
+/**
+ * HTML5 Drag&Drop Handler für Zeitplan-Matches.
+ * Spec §5.3: Konflikte markieren, NICHT blockieren.
+ */
+function attachScheduleDragDrop() {
+  const matches = document.querySelectorAll('.t-schedule-match');
+  let dragId = null;
+  matches.forEach((el) => {
+    el.addEventListener('dragstart', (e) => {
+      dragId = el.dataset.matchId;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragId);
+    });
+  });
+  const cells = document.querySelectorAll('.t-schedule-cell');
+  cells.forEach((cell) => {
+    cell.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      cell.classList.add('is-drop-target');
+    });
+    cell.addEventListener('dragleave', () => cell.classList.remove('is-drop-target'));
+    cell.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      cell.classList.remove('is-drop-target');
+      const matchId = e.dataTransfer.getData('text/plain') || dragId;
+      if (!matchId) return;
+      const row = cell.parentElement;
+      const table = row?.parentElement?.parentElement;
+      const fieldIndex = [...table.querySelectorAll('tbody tr')].indexOf(row);
+      const slotIndex = [...row.children].indexOf(cell) - 1; // -1 für <th>
+      const slotHeader = table.querySelectorAll('thead th')[slotIndex + 1];
+      const slotLabel = slotHeader?.textContent || '';
+      // Hole Turnier-ID aus Container — wir nehmen tournamentId vom Body-Dataset
+      const tId = document.querySelector('[data-tournament-id]')?.dataset?.tournamentId
+        || document.querySelector('.tournament-instance-active')?.dataset?.tournamentId;
+      if (!tId) {
+        toast('Turnier-Kontext fehlt — kann nicht speichern', 'error');
+        return;
+      }
+      // Berechne scheduledAt aus Slot-Label (HH:MM)
+      const [hh, mm] = slotLabel.split(':').map((n) => Number(n));
+      const start = new Date();
+      start.setHours(hh || 0, mm || 0, 0, 0);
+      try {
+        const res = await apiCall(`/tournaments/${encodeURIComponent(tId)}/matches/${encodeURIComponent(matchId)}/schedule`, 'PATCH', {
+          scheduledAt: start.toISOString(),
+          field: fieldIndex,
+        });
+        const conflictCount = (res?.conflicts || []).length;
+        if (conflictCount > 0) {
+          toast(`Verschoben auf Tisch ${fieldIndex + 1}, ${slotLabel} – ⚠️ ${conflictCount} Konflikt${conflictCount === 1 ? '' : 'e'} erkannt`, 'warning');
+        } else {
+          toast(`Verschoben auf Tisch ${fieldIndex + 1}, ${slotLabel}`, 'success');
+        }
+        // Re-render
+        await loadScheduleGridTab(tId);
+      } catch (err) {
+        toast(err.serverMessage || 'Verschieben fehlgeschlagen', 'error');
+      }
+    });
+  });
+}
+
+/**
+ * v3: Regelwerk speichern.
+ */
+async function saveTournamentRules(tournamentId) {
+  if (!tournamentId) return;
+  const ta = document.getElementById('t-rules-text');
+  if (!ta) return;
+  try {
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', { rulesText: ta.value });
+    toast('Regelwerk gespeichert', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+  }
+}
+
+/**
+ * v3: Beamer-View öffnen.
+ * Spec §8.6: read-only, große Schrift, 5s auto-reload.
+ */
+function openTournamentBeamer(tournamentId) {
+  if (!tournamentId) return;
+  window.open(`/tournament/${encodeURIComponent(tournamentId)}/beamer`, `beamer-${tournamentId}`, 'noopener,noreferrer');
+}
+
+/**
+ * Helper: Platzhalter-Struktur lesbar formatieren (Spec §6.3.2 z.B. "Sieger VF1")
+ */
+function formatPlaceholder(p) {
+  if (!p) return '';
+  if (typeof p === 'string') return p;
+  if (p.label) return p.label;
+  if (p.fromMatch) return p.fromMatch;
+  return '';
+}
+
+/**
+ * v3: Modal zum Eintragen eines Ergebnisses.
+ */
+async function openResultEntryModal(tournamentId, matchId = null) {
+  if (!tournamentId) return;
+  closeTournamentDetailModalById('result-entry-modal');
+  const dlg = document.createElement('div');
+  dlg.id = 'result-entry-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>⚽ Ergebnis eintragen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="result-entry-form" class="tournament-detail-form">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Match-ID <span class="t-required">*</span></span>
+          <input id="re-match-id" type="text" required value="${esc(matchId || '')}" placeholder="match-cuid">
+          <span class="t-hint">Match-IDs findest du im Spielplan-Tab (klick auf 📅).</span>
+        </label>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Tore Heim</span>
+            <input id="re-home" type="number" min="0" value="0">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Tore Gast</span>
+            <input id="re-away" type="number" min="0" value="0">
+          </label>
+        </div>
+        <div class="tournament-card-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">💾 Ergebnis speichern</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.dataset.action === 'close') dlg.remove();
+  });
+  dlg.querySelector('#result-entry-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const mId = dlg.querySelector('#re-match-id').value.trim();
+    const sh = Number(dlg.querySelector('#re-home').value);
+    const sa = Number(dlg.querySelector('#re-away').value);
+    try {
+      const result = await apiCall(
+        `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(mId)}/result`,
+        'POST',
+        { scoreHome: sh, scoreAway: sa }
+      );
+      toast(`Ergebnis gespeichert${result.cascadeAffected?.length ? ` (${result.cascadeAffected.length} Folgespiele zurückgesetzt)` : ''}`, 'success');
+      dlg.remove();
+      await openTournamentInstance(tournamentId);
+    } catch (err) {
+      toast(err.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');
+    }
+  });
+}
+
+/**
+ * v3 S4.3 — Match-Detail-Panel (Spec §8.3).
+ * Zeigt Match-Daten, Notizfeld, Foto-Upload, Audit-Log.
+ */
+async function openMatchDetailModal(tournamentId, matchId) {
+  if (!tournamentId || !matchId) return;
+  closeTournamentDetailModalById('match-detail-modal');
+  const dlg = document.createElement('div');
+  dlg.id = 'match-detail-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>📋 Match-Details</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <div id="md-body" class="tournament-detail-form">
+        <p class="t-hint">Lade Match…</p>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.dataset.action === 'close') dlg.remove();
+  });
+  const body = dlg.querySelector('#md-body');
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`, 'GET');
+    const m = data.match || data;
+    const home = m.teamHome?.name || formatPlaceholder(m.placeholderHome) || 'TBD';
+    const away = m.teamAway?.name || formatPlaceholder(m.placeholderAway) || 'TBD';
+    const meta = (m.metadata && typeof m.metadata === 'object') ? m.metadata : {};
+    const audit = Array.isArray(meta.audit) ? meta.audit : [];
+    const photos = Array.isArray(meta.photos) ? meta.photos : [];
+    const auditHtml = audit.length === 0
+      ? '<p class="t-hint">Noch keine Audit-Einträge.</p>'
+      : `<ul class="t-match-audit">${audit.map((a) => `<li><strong>${esc(new Date(a.at).toLocaleString('de-DE'))}</strong> · ${esc(a.action)} ${a.detail ? '· ' + esc(a.detail) : ''}${a.user ? ' · ' + esc(a.user) : ''}</li>`).join('')}</ul>`;
+    const photosHtml = photos.length === 0
+      ? ''
+      : `<div class="t-match-photos">${photos.map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="Match-Foto" loading="lazy"></a>`).join('')}</div>`;
+    body.innerHTML = `
+      <div class="t-match-card ${m.status === 'completed' ? 'is-completed' : (m.status === 'in_progress' ? 'is-live' : '')}">
+        <span class="t-match-home">${esc(home)}</span>
+        <span class="t-match-score">${m.scoreHome ?? '–'} : ${m.scoreAway ?? '–'}</span>
+        <span class="t-match-away">${esc(away)}</span>
+      </div>
+      <div class="t-grid-2">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Status</span>
+          <input type="text" value="${esc(m.status || 'scheduled')}" disabled>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Schiedsrichter / Tisch</span>
+          <input type="text" id="md-venue" value="${esc(m.venueLabel || '')}" placeholder="Tisch 1 – Schiri Max">
+        </label>
+      </div>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Notiz</span>
+        <textarea id="md-notes" rows="4" placeholder="Was ist passiert? Verletzungen, besondere Vorkommnisse...">${esc(meta.notes || '')}</textarea>
+      </label>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Foto(s) hochladen</span>
+        <input type="file" id="md-photo" accept="image/*" multiple>
+        <span class="t-hint">Max. 5 MB pro Bild. Werden in der MinIO-Bucket "tournament-assets" gespeichert.</span>
+      </label>
+      ${photosHtml}
+      <details class="t-match-audit-details">
+        <summary>📜 Audit-Log (${audit.length})</summary>
+        ${auditHtml}
+      </details>
+      <div class="tournament-card-actions">
+        <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+        <button type="button" class="btn btn-primary" id="md-save">💾 Speichern</button>
+      </div>
+    `;
+    dlg.querySelector('#md-save').addEventListener('click', async () => {
+      const notes = dlg.querySelector('#md-notes').value;
+      const venue = dlg.querySelector('#md-venue').value;
+      const photoFiles = dlg.querySelector('#md-photo').files;
+      const newPhotos = [];
+      for (const f of (photoFiles || [])) {
+        if (f.size > 5 * 1024 * 1024) { toast(`Bild ${f.name} > 5MB`, 'error'); continue; }
+        try {
+          const up = await uploadTournamentMatchPhoto(f, tournamentId, matchId);
+          newPhotos.push({ url: up.url, uploadedAt: new Date().toISOString() });
+        } catch (e) {
+          toast(`Upload ${f.name} fehlgeschlagen`, 'error');
+        }
+      }
+      const mergedPhotos = [...photos, ...newPhotos];
+      const newAudit = [...audit, {
+        at: new Date().toISOString(),
+        action: 'edit',
+        detail: notes ? 'Notiz aktualisiert' : 'Felder aktualisiert',
+      }];
+      try {
+        await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`, 'PATCH', {
+          venueLabel: venue,
+          metadata: { ...meta, notes, photos: mergedPhotos, audit: newAudit },
+        });
+        toast('Match aktualisiert', 'success');
+        dlg.remove();
+        await openTournamentInstance(tournamentId);
+      } catch (e) {
+        toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+      }
+    });
+  } catch (err) {
+    body.innerHTML = `<p class="t-hint">Fehler: ${esc(err.serverMessage || err.message)}</p>`;
+  }
+}
+
+/**
+ * Upload eines Match-Fotos via MinIO Signed URL.
+ */
+async function uploadTournamentMatchPhoto(file, tournamentId, matchId) {
+  // Lade Signed URL
+  const sig = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}/photo-upload`, 'POST', {
+    filename: file.name,
+    contentType: file.type,
+    size: file.size,
+  });
+  if (!sig?.uploadUrl) throw new Error('Keine Upload-URL erhalten');
+  const put = await fetch(sig.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!put.ok) throw new Error(`Upload HTTP ${put.status}`);
+  return { url: sig.publicUrl };
 }
 
 async function openTournamentStandings(instanceId) {
@@ -3473,7 +4200,8 @@ async function deleteTournamentInstance(instanceId, instanceName) {
   if (!ok) return;
 
   try {
-    await apiCall(`/tournaments/instances/${encodeURIComponent(instanceId)}`, 'DELETE');
+    // v3: flache Route
+    await apiCall(`/tournaments/${encodeURIComponent(instanceId)}`, 'DELETE');
     if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
     toast('Turnier gelöscht', 'success');
     await loadTournamentInstances(true);
@@ -4167,7 +4895,7 @@ async function openRecordMatchResultModal(instanceId, matchId) {
         ? match.homeParticipantId
         : match.awayParticipantId;
     try {
-      await apiCall(
+      const result = await apiCall(
         `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/result`,
         'PATCH',
         {
@@ -4189,6 +4917,32 @@ async function openRecordMatchResultModal(instanceId, matchId) {
       );
       toast('Ergebnis gespeichert', 'success');
       close();
+
+      // Phase 4: Cascade-Warnung anzeigen, falls downstream-Matches betroffen sind
+      if (result?.cascadeWarning && result.cascadeWarning.count > 0) {
+        const affectedList = result.cascadeWarning.affected
+          .map((a) => `<li>Match #${a.matchNumber}</li>`)
+          .join('');
+        const ok = await showConfirmDlg(
+          'Cascade-Warnung',
+          `<div class="t-cascade-warn-body">${result.cascadeWarning.count} nachgelagerte${result.cascadeWarning.count === 1 ? 's' : ''} Match${result.cascadeWarning.count === 1 ? '' : 'es'} hat${result.cascadeWarning.count === 1 ? '' : 'ten'} bereits ein Ergebnis und basiert auf diesem Match.<br>Möchtest du diese zurücksetzen?<ul class="t-cascade-warn-list">${affectedList}</ul></div>`,
+          'Zurücksetzen',
+          'Beibehalten',
+          true
+        );
+        if (ok) {
+          try {
+            await apiCall(
+              `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/cascade-reset`,
+              'POST'
+            );
+            toast(`${result.cascadeWarning.count} downstream Matches zurückgesetzt`, 'success');
+          } catch (cascadeErr) {
+            toast('Cascade-Reset fehlgeschlagen', 'error');
+          }
+        }
+      }
+
       await openTournamentInstance(instanceId);
     } catch (e) {
       msg.textContent = e.serverMessage || 'Ergebnis konnte nicht gespeichert werden';
@@ -4252,6 +5006,797 @@ async function generateTournamentBracket(instanceId) {
 // Helper: Modal anhand ID schließen (idempotent)
 function closeTournamentDetailModalById(id) {
   document.getElementById(id)?.remove();
+}
+
+// ─── Konfigurations-Wizard (Phase 4) ──────────────────────────────────
+const WIZARD_STEPS = [
+  { key: 'basics', label: 'Grunddaten', title: 'Grunddaten', subtitle: 'Name, Datum, Tische' },
+  { key: 'teams', label: 'Teams', title: 'Teams', subtitle: 'Wer nimmt teil?' },
+  { key: 'mode', label: 'Modus', title: 'Modus & Konfig', subtitle: 'Turnierformat, Gruppen, Punkte' },
+  { key: 'qualification', label: 'Qualifikation', title: 'Qualifikation', subtitle: 'Wer kommt weiter?' },
+  { key: 'summary', label: 'Zusammenfassung', title: 'Zusammenfassung', subtitle: 'Alles auf einen Blick' },
+];
+
+const WIZARD_MODE_LABELS = {
+  groups_ko: 'Gruppen + KO (WM-Stil)',
+  groups_only: 'Nur Gruppen (Liga)',
+  ko_only: 'Nur KO-Baum',
+  double_elim: 'Doppel-KO',
+};
+
+const WIZARD_TIEBREAKER_LABELS = {
+  points: 'Punkte',
+  wins: 'Siege',
+  h2h: 'Direkter Vergleich',
+  goalDifference: 'Tordifferenz',
+  goalsFor: 'Erzielte Tore',
+};
+
+function renderWizardStep(stepIdx, data) {
+  if (stepIdx === 0) {
+    // Grunddaten
+    return `
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Turniername <span class="t-required">*</span></span>
+        <input type="text" data-bind="name" maxlength="120" required placeholder="z. B. Sommer-Cup 2026" value="${esc(data.name)}">
+      </label>
+      <div class="t-grid-2">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Datum</span>
+          <input type="date" data-bind="date" value="${esc(data.date)}">
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Sportart/Disziplin</span>
+          <input type="text" data-bind="sport" maxlength="40" placeholder="z. B. Tischtennis" value="${esc(data.sport)}">
+        </label>
+      </div>
+      <div class="t-grid-2">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Logo-URL <span class="t-hint">(optional)</span></span>
+          <input type="url" data-bind="logoUrl" maxlength="500" placeholder="https://…" value="${esc(data.logoUrl || '')}">
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Cover-URL <span class="t-hint">(optional)</span></span>
+          <input type="url" data-bind="coverUrl" maxlength="500" placeholder="https://…" value="${esc(data.coverUrl || '')}">
+        </label>
+      </div>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Anzahl Spielfelder/Tische <span class="t-required">*</span></span>
+        <input type="number" data-bind="tableCount" min="1" max="16" value="${data.tables.length}">
+        <span class="t-hint">Wir benennen die Tische automatisch (Tisch 1, 2, …). Eigene Namen kannst du später im Setup vergeben.</span>
+      </label>
+    `;
+  }
+  if (stepIdx === 1) {
+    // Teams (v3: Anzahl + optional pastbare Namen, Backend generiert sonst "Team 1".."Team N")
+    const teamNames = parseTeamsTextarea(data.teamsText || '');
+    const listHtml = teamNames.map((name, i) => `
+      <li class="t-wiz-seed-row" draggable="true" data-index="${i}">
+        <span class="t-wiz-seed-handle" aria-hidden="true">⋮⋮</span>
+        <span class="t-wiz-seed-num">${i + 1}</span>
+        <span class="t-wiz-seed-name">${esc(name)}</span>
+      </li>
+    `).join('') || `<li class="t-hint">Wähle eine Team-Anzahl — generische Namen "Team 1".."Team ${data.numberOfTeams}" werden automatisch angelegt. Du kannst sie später im Detail-View umbenennen.</li>`;
+    return `
+      <p class="t-hint">Wie viele Teams nehmen teil? Standardmäßig werden "Team 1", "Team 2", … generiert. Du kannst auch eigene Namen pasten (eine Zeile pro Team) — dann werden diese verwendet.</p>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Anzahl Teams <span class="t-required">*</span></span>
+        <input type="number" data-bind="numberOfTeams" min="2" max="128" value="${data.numberOfTeams || 8}">
+        <span class="t-hint">Mindestens 2, maximal 128.</span>
+      </label>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Eigene Teamnamen (optional, Copy-Paste)</span>
+        <textarea data-bind="teamsText" rows="6" placeholder='Leer lassen für "Team 1", "Team 2", …
+Oder ein Name pro Zeile:
+Alpha
+Bravo
+Charlie'>${esc(data.teamsText || '')}</textarea>
+        <span class="t-hint"><strong>${teamNames.length}</strong> Name${teamNames.length === 1 ? '' : 'n'} erkannt. Wenn das Textarea leer ist, werden ${data.numberOfTeams || 8} generische Namen erzeugt.</span>
+      </label>
+      <div class="tournament-detail-field">
+        <span class="tournament-detail-label">Setzliste (Drag&Drop zum Sortieren)</span>
+        <ol class="t-wiz-seed-list" id="wiz-seed-list">${listHtml}</ol>
+        <span class="t-hint">Die Setzreihenfolge bestimmt die Verteilung in die Gruppen (bei "Snake" / "Manuell").</span>
+      </div>
+    `;
+  }
+  if (stepIdx === 2) {
+    // Modus
+    return `
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Modus <span class="t-required">*</span></span>
+        <select data-bind="mode">
+          ${Object.entries(WIZARD_MODE_LABELS).map(([k, v]) => `<option value="${k}" ${data.mode === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+        </select>
+      </label>
+      ${(data.mode === 'groups_ko' || data.mode === 'groups_only') ? `
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Anzahl Gruppen</span>
+            <input type="number" data-bind="numGroups" min="1" max="16" value="${data.numGroups}">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Verteilungs-Methode</span>
+            <select data-bind="distributionMethod">
+              <option value="snake" ${data.distributionMethod === 'snake' ? 'selected' : ''}>Snake Seeding (WM-ausgewogen)</option>
+              <option value="random" ${data.distributionMethod === 'random' ? 'selected' : ''}>Zufällig</option>
+            </select>
+          </label>
+        </div>
+        <div class="tournament-detail-checkbox-row">
+          <input type="checkbox" id="wiz-double-rr" data-bind="doubleRoundRobin" ${data.doubleRoundRobin ? 'checked' : ''}>
+          <label for="wiz-double-rr">Hin- und Rückrunde</label>
+        </div>
+        <div class="tournament-detail-checkbox-row">
+          <input type="checkbox" id="wiz-draws" data-bind="drawsAllowed" ${data.drawsAllowed ? 'checked' : ''}>
+          <label for="wiz-draws">Unentschieden erlaubt</label>
+        </div>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Punkte pro Sieg</span>
+            <input type="number" data-bind="pointsWin" min="0" max="10" value="${data.pointsWin}">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Punkte pro Unentschieden</span>
+            <input type="number" data-bind="pointsDraw" min="0" max="10" value="${data.pointsDraw}">
+          </label>
+        </div>
+        <h4 style="font-size:12px;color:var(--muted);margin:8px 0 4px">Tiebreaker-Reihenfolge (Reihenfolge = Wichtigkeit):</h4>
+        <div class="t-tiebreaker-list">
+          ${data.tiebreakerOrder.map((k, idx) => `
+            <div class="t-tiebreaker-item">
+              <span class="t-tiebreaker-item-num">${idx + 1}</span>
+              <span class="t-tiebreaker-item-label">${esc(WIZARD_TIEBREAKER_LABELS[k] || k)}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      ${data.mode === 'double_elim' ? `
+        <div class="tournament-detail-checkbox-row">
+          <input type="checkbox" id="wiz-gf-reset" data-bind="hasGrandFinalReset" ${data.hasGrandFinalReset ? 'checked' : ''}>
+          <label for="wiz-gf-reset">Grand Final Reset-Match (Best-of-3)</label>
+        </div>
+      ` : ''}
+    `;
+  }
+  if (stepIdx === 3) {
+    // Qualifikation
+    const showGroup = data.mode === 'groups_ko';
+    if (!showGroup) {
+      return `
+        <p class="t-hint">Für ${WIZARD_MODE_LABELS[data.mode]} gibt es keine Qualifikations-Runde. Das Turnier ist direkt der finale Modus.</p>
+      `;
+    }
+    // §6.3: Wenn Anzahl Qualifikanten keine Zweierpotenz → Empfehlung "Beste Dritte"
+    const numGroups = data.numGroups;
+    const advance = data.advancePerGroup;
+    const totalQ = numGroups * advance;
+    const isPow2 = (totalQ & (totalQ - 1)) === 0 && totalQ > 0;
+    const recommendation = isPow2
+      ? `<p class="t-hint">✓ ${totalQ} Qualifikanten = Zweierpotenz → kein Lucky Loser nötig.</p>`
+      : `<p class="t-hint">⚠️ ${totalQ} Qualifikanten ist keine Zweierpotenz. Spec §6.3 empfiehlt ${8 - totalQ} "Beste Dritte" (Lucky Loser) → 8er-Baum.</p>`;
+    return `
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Aufsteiger pro Gruppe <span class="t-required">*</span></span>
+        <input type="number" data-bind="advancePerGroup" min="1" max="8" value="${data.advancePerGroup}">
+      </label>
+      <div class="wizard-preview">
+        <strong>${numGroups} Gruppen × ${advance} Aufsteiger = ${totalQ} Qualifikanten</strong>
+        ${recommendation}
+      </div>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Zusätzliche "Beste Dritte" (Lucky Loser)</span>
+        <input type="number" data-bind="bestThirdsCount" min="0" max="6" value="${data.bestThirdsCount}">
+        <span class="t-hint">Zusätzliche Teams gruppenübergreifend nach Stand sortiert (Spec §6.3.1 — IMMER pro Spiel normalisiert).</span>
+      </label>
+      <div class="tournament-detail-checkbox-row">
+        <input type="checkbox" id="wiz-third-place" data-bind="thirdPlaceMatch" ${data.thirdPlaceMatch ? 'checked' : ''}>
+        <label for="wiz-third-place">Spiel um Platz 3</label>
+      </div>
+    `;
+  }
+  if (stepIdx === 4) {
+    // Summary
+    const teamNames = parseTeamsTextarea(data.teamsText || '');
+    const totalTeams = teamNames.length;
+    const numGroups = (data.mode === 'groups_ko' || data.mode === 'groups_only') ? data.numGroups : 0;
+    const teamsPerGroup = numGroups ? Math.ceil(totalTeams / numGroups) : 0;
+    const groupMatches = (data.mode === 'groups_ko' || data.mode === 'groups_only')
+      ? numGroups * (teamsPerGroup * (teamsPerGroup - 1) / 2) * (data.doubleRoundRobin ? 2 : 1)
+      : 0;
+    const qualifiers = (data.mode === 'groups_ko') ? (numGroups * data.advancePerGroup + data.bestThirdsCount) : 0;
+    const koMatches = (data.mode === 'groups_ko' || data.mode === 'ko_only' || data.mode === 'double_elim') ? Math.max(0, qualifiers - 1) : 0;
+
+    return `
+      <div class="wizard-summary-grid">
+        <div class="wizard-summary-row"><span>Name</span><strong>${esc(data.name || '–')}</strong></div>
+        <div class="wizard-summary-row"><span>Datum</span><strong>${esc(data.date || '–')}</strong></div>
+        <div class="wizard-summary-row"><span>Sport</span><strong>${esc(data.sport || '–')}</strong></div>
+        <div class="wizard-summary-row"><span>Tische</span><strong>${data.tables.length}</strong></div>
+        <div class="wizard-summary-row"><span>Modus</span><strong>${esc(WIZARD_MODE_LABELS[data.mode])}</strong></div>
+        <div class="wizard-summary-row"><span>Teams</span><strong>${totalTeams}</strong></div>
+        ${(data.mode === 'groups_ko' || data.mode === 'groups_only') ? `
+          <div class="wizard-summary-row"><span>Gruppen</span><strong>${numGroups} (≈${teamsPerGroup} Teams/Gruppe)</strong></div>
+          <div class="wizard-summary-row"><span>Hin- & Rückrunde</span><strong>${data.doubleRoundRobin ? 'Ja' : 'Nein'}</strong></div>
+        ` : ''}
+        ${data.mode === 'groups_ko' ? `
+          <div class="wizard-summary-row"><span>Aufsteiger/Gruppe</span><strong>${data.advancePerGroup}</strong></div>
+          <div class="wizard-summary-row"><span>Beste Dritte</span><strong>${data.bestThirdsCount}</strong></div>
+        ` : ''}
+      </div>
+      <p class="t-hint" style="margin-top:12px">
+        Geplant: <strong>${groupMatches}</strong> Gruppenphase-Spiele${data.mode === 'groups_ko' ? ` + <strong>${koMatches}</strong> KO-Spiele` : ''}.
+      </p>
+    `;
+  }
+  return '<p class="t-hint">Unbekannter Schritt.</p>';
+}
+
+function openTournamentWizard() {
+  const state = {
+    step: 0,
+    data: {
+      name: '',
+      date: new Date().toISOString().slice(0, 10),
+      sport: '',
+      tables: [{ key: 'T1', name: 'Tisch 1' }],
+      tableCount: 1,
+      numberOfTeams: 8,
+      teamsText: '',
+      logoUrl: '',
+      coverUrl: '',
+      mode: 'groups_ko',
+      numGroups: 2,
+      distributionMethod: 'snake',
+      doubleRoundRobin: false,
+      drawsAllowed: true,
+      pointsWin: 3,
+      pointsDraw: 1,
+      tiebreakerOrder: ['points', 'wins', 'h2h', 'goalDifference', 'goalsFor'],
+      advancePerGroup: 2,
+      bestThirdsCount: 0,
+      thirdPlaceMatch: false,
+      hasGrandFinalReset: true,
+    },
+  };
+
+  closeTournamentDetailModalById('tournament-wizard-modal');
+
+  // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
+  // Mitglieder aller Rollen sehen und nutzen das Turniermodul direkt.
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-wizard-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>⚡ Neues Turnier (Wizard)</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <nav class="wizard-stepper" role="tablist">
+        ${WIZARD_STEPS.map((s, i) => `
+          <div class="wizard-stepper-step ${i === state.step ? 'is-active' : ''} ${i < state.step ? 'is-complete' : ''}" data-step="${i}">
+            <span class="wizard-stepper-step-num">${i + 1}</span>
+            <span class="wizard-stepper-step-label">${s.label}</span>
+          </div>
+        `).join('')}
+      </nav>
+      <div id="wizard-body" class="wizard-body"></div>
+      <div class="wizard-nav">
+        <button type="button" class="btn-wizard-back" data-action="back">← Zurück</button>
+        <span class="t-hint" id="wizard-status">Schritt ${state.step + 1} / ${WIZARD_STEPS.length}</span>
+        <button type="button" class="btn-wizard-next" data-action="next">Weiter →</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  function getPath(obj, path) {
+    return path.split('.').reduce((o, k) => (o ? o[k] : undefined), obj);
+  }
+  function setPath(obj, path, value) {
+    const parts = path.split('.');
+    const last = parts.pop();
+    const target = parts.reduce((o, k) => {
+      if (!o[k]) o[k] = {};
+      return o[k];
+    }, obj);
+    target[last] = value;
+  }
+
+  function render() {
+    const body = dlg.querySelector('#wizard-body');
+    body.innerHTML = `
+      <h4 class="wizard-step-title">${esc(WIZARD_STEPS[state.step].title)}</h4>
+      <p class="wizard-step-subtitle">${esc(WIZARD_STEPS[state.step].subtitle)}</p>
+      ${renderWizardStep(state.step, state.data)}
+    `;
+    bindStepInputs(body);
+    if (state.step === 1) attachSeedListDragDrop(body);
+    dlg.querySelectorAll('.wizard-stepper-step').forEach((el, idx) => {
+      el.classList.toggle('is-active', idx === state.step);
+      el.classList.toggle('is-complete', idx < state.step);
+    });
+    dlg.querySelector('.btn-wizard-back').disabled = state.step === 0;
+    const nextBtn = dlg.querySelector('.btn-wizard-next');
+    const isLast = state.step === WIZARD_STEPS.length - 1;
+    nextBtn.textContent = isLast ? '✓ Turnier erstellen' : 'Weiter →';
+    dlg.querySelector('#wizard-status').textContent =
+      `Schritt ${state.step + 1} / ${WIZARD_STEPS.length}`;
+  }
+
+  function bindStepInputs(body) {
+    body.querySelectorAll('[data-bind]').forEach((el) => {
+      const path = el.dataset.bind;
+      if (el.type === 'checkbox') {
+        el.addEventListener('change', () => setPath(state.data, path, el.checked));
+      } else if (el.tagName === 'SELECT') {
+        el.addEventListener('change', () => {
+          const v = el.value;
+          setPath(state.data, path, isNaN(Number(v)) ? v : Number(v));
+          render(); // re-render to show/hide mode-dependent fields
+        });
+      } else if (el.type === 'number') {
+        el.addEventListener('input', () => {
+          const v = el.value === '' ? '' : Number(el.value);
+          setPath(state.data, path, v);
+        });
+      } else {
+        el.addEventListener('input', () => setPath(state.data, path, el.value));
+      }
+    });
+  }
+
+  function validateStep() {
+    const d = state.data;
+    if (state.step === 0) {
+      if (!d.name || d.name.length < 2) return 'Turnier-Name ist erforderlich (mind. 2 Zeichen).';
+    }
+    if (state.step === 1) {
+      const teamNames = parseTeamsTextarea(d.teamsText || '');
+      const effectiveCount = teamNames.length >= 2 ? teamNames.length : (d.numberOfTeams || 0);
+      if (effectiveCount < 2) return 'Mindestens 2 Teams erforderlich.';
+      if (effectiveCount > 128) return 'Maximal 128 Teams.';
+      if (teamNames.length >= 2) {
+        const set = new Set(teamNames);
+        if (set.size !== teamNames.length) return 'Doppelte Teamnamen gefunden.';
+      }
+    }
+    if (state.step === 2) {
+      if (!['groups_ko', 'groups_only', 'ko_only', 'double_elim'].includes(d.mode))
+        return 'Ungültiger Modus.';
+      if ((d.mode === 'groups_ko' || d.mode === 'groups_only') && (d.numGroups < 1))
+        return 'Anzahl Gruppen muss mindestens 1 sein.';
+    }
+    if (state.step === 3) {
+      if (d.mode === 'groups_ko' && (d.advancePerGroup < 1 || d.advancePerGroup > 8))
+        return 'Aufsteiger pro Gruppe muss zwischen 1 und 8 sein.';
+    }
+    return null;
+  }
+
+  function next() {
+    const err = validateStep();
+    if (err) {
+      toast(err, 'error');
+      return;
+    }
+    if (state.step === WIZARD_STEPS.length - 1) {
+      submitWizard();
+      return;
+    }
+    state.step += 1;
+    render();
+  }
+  function back() {
+    if (state.step > 0) {
+      state.step -= 1;
+      render();
+    }
+  }
+
+  dlg.querySelector('[data-action="back"]').addEventListener('click', back);
+  dlg.querySelector('[data-action="next"]').addEventListener('click', next);
+  dlg.querySelector('[data-action="close"]').addEventListener('click', () => dlg.remove());
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg) dlg.remove();
+  });
+
+  render();
+
+  async function submitWizard() {
+    const d = state.data;
+    try {
+      // v3: kein Preset mehr nötig — Konfiguration lebt am Turnier selbst.
+      if (!curGroupId) {
+        toast('Keine Gruppe ausgewählt', 'error');
+        return;
+      }
+
+      // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
+      // POST /tournaments prüft Mitgliedschaft + Owner/Deputy, sonst nichts.
+
+      // 1) Turnier anlegen — Backend erzeugt automatisch "Team 1".."Team N" wenn keine Namen pasted sind
+      const config = {
+        mode: d.mode,
+        numGroups: d.numGroups,
+        advancePerGroup: d.advancePerGroup,
+        bestThirdsCount: d.bestThirdsCount,
+        distributionMethod: d.distributionMethod,
+        doubleRoundRobin: d.doubleRoundRobin,
+        pointsWin: d.pointsWin,
+        pointsDraw: d.pointsDraw,
+        drawsAllowed: d.drawsAllowed,
+        tiebreakerOrder: d.tiebreakerOrder,
+        thirdPlaceMatch: d.thirdPlaceMatch,
+        hasGrandFinalReset: d.hasGrandFinalReset,
+      };
+      const pastedNames = parseTeamsTextarea(d.teamsText || '');
+      const t = await apiCall('/tournaments', 'POST', {
+        groupId: curGroupId,
+        name: d.name,
+        mode: d.mode,
+        config,
+        logoUrl: d.logoUrl || undefined,
+        coverUrl: d.coverUrl || undefined,
+        numberOfTeams: d.numberOfTeams,
+        teamNames: pastedNames.length >= 2 ? pastedNames : undefined,
+      });
+
+      // 3) Generate: Engine → DB in einer Transaktion
+      await apiCall(`/tournaments/${t.id}/generate`, 'POST', {
+        config,
+        distribution: d.distributionMethod,
+      });
+
+      toast('Turnier erstellt', 'success');
+      dlg.remove();
+      await loadActiveTournamentView(true);
+      if (t?.id) {
+        await openTournamentInstance(t.id);
+      }
+    } catch (e) {
+      toast(e.serverMessage || 'Turnier konnte nicht erstellt werden', 'error');
+    }
+  }
+}
+
+/**
+ * v3: Teams aus Copy-Paste-Textarea parsen.
+ * Akzeptiert: ein Team pro Zeile, optional mit Seed ("1. Alpha", "* Alpha", "Alpha|rot").
+ */
+function parseTeamsTextarea(text) {
+  if (!text) return [];
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(\d+[\.\)]|\*)\s*/, '').trim())
+    .filter((line) => line.length > 0);
+}
+
+/**
+ * v3 S3.4 — Eine Match-Darstellung für alle Views (Spec §8.7 "Konsistenz").
+ * match: v3-Match (teamHome, teamAway, scoreHome, scoreAway, status)
+ * opts:
+ *   - showScore: bool (default true)
+ *   - clickable: bool (default false) — wenn true, onclick → openMatchCard
+ *   - compact: bool (default false) — kürzere Variante
+ */
+function renderMatchCard(match, opts = {}) {
+  const { showScore = true, clickable = false, compact = false } = opts;
+  if (!match) return '';
+  const home = match.teamHome?.name || 'TBD';
+  const away = match.teamAway?.name || 'TBD';
+  const score = showScore && match.scoreHome != null && match.scoreAway != null
+    ? `${match.scoreHome} : ${match.scoreAway}`
+    : '– : –';
+  const statusClass = match.status === 'completed' ? ' is-completed' : (match.status === 'in_progress' ? ' is-live' : '');
+  const onClick = clickable ? ` onclick="openMatchDetailModal('${esc(match.id)}','${esc(match.tournamentId || '')}')"` : '';
+  return `<div class="t-match-card${statusClass}"${onClick} role="${clickable ? 'button' : 'listitem'}">
+    <span class="t-match-home">${esc(home)}</span>
+    <span class="t-match-score">${score}</span>
+    <span class="t-match-away">${esc(away)}</span>
+    ${compact ? '' : `<span class="t-match-status">${esc(match.status || 'scheduled')}</span>`}
+  </div>`;
+}
+
+// ─── Scheduling-View (Phase 4) ──────────────────────────────────────
+function renderScheduleTab(instance, canManage) {
+  const matches = instance.matches || [];
+  const scheduled = matches.filter((m) => m.scheduledAt);
+
+  if (scheduled.length === 0) {
+    return `
+      <div class="t-toolbar">
+        ${canManage ? `<button class="btn btn-primary" onclick="openAutoScheduleModal('${esc(instance.id)}')">⚡ Auto-Planen</button>` : ''}
+      </div>
+      <div class="t-schedule-empty">
+        <p>Noch kein Zeitplan.</p>
+        ${canManage ? `<button class="btn btn-ghost" onclick="openAutoScheduleModal('${esc(instance.id)}')">⚡ Jetzt automatisch planen</button>` : ''}
+      </div>`;
+  }
+
+  // Gruppiere nach Slot × Tisch
+  const bySlotTable = new Map();
+  for (const m of scheduled) {
+    const t = m.scheduledAt;
+    const table = m.table || '?';
+    const key = `${t}|${table}`;
+    if (!bySlotTable.has(key)) bySlotTable.set(key, []);
+    bySlotTable.get(key).push(m);
+  }
+
+  // Eindeutige Tische + Slots
+  const tables = Array.from(new Set(scheduled.map((m) => m.table || '?')));
+  const slots = Array.from(new Set(scheduled.map((m) => m.scheduledAt.getTime ? m.scheduledAt.getTime() : new Date(m.scheduledAt).getTime())))
+    .sort((a, b) => a - b);
+
+  const slotLabels = slots.map((ts) => {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  });
+
+  const cellsHtml = slots.map((ts, sIdx) => {
+    const cells = tables.map((t) => {
+      const key = `${new Date(ts).toISOString()}|${t}`;
+      const matchesAtKey = scheduled.filter((m) => {
+        const mTs = m.scheduledAt.getTime ? m.scheduledAt.getTime() : new Date(m.scheduledAt).getTime();
+        return mTs === ts && (m.table || '?') === t;
+      });
+      const matchHtml = matchesAtKey.map((m) => {
+        const home = (instance.teams || []).find((t) => t.id === m.homeTeamId);
+        const away = (instance.teams || []).find((t) => t.id === m.awayTeamId);
+        const homeName = home?.name || 'TBD';
+        const awayName = away?.name || 'TBD';
+        return `<div class="t-schedule-match" onclick="${canManage ? `openEditScheduleModal('${esc(instance.id)}','${esc(m.id)}')` : ''}" title="${esc(homeName)} vs ${esc(awayName)}">
+          <span class="t-schedule-match-team">#${m.matchNumber}: ${esc(homeName)} vs ${esc(awayName)}</span>
+        </div>`;
+      }).join('');
+      return `<div class="t-schedule-slot ${matchesAtKey.length > 0 ? 'is-occupied' : ''}">${matchHtml || ''}</div>`;
+    }).join('');
+    return `<div class="t-schedule-grid-row" style="display:contents">${cells}</div>`;
+  }).join('');
+
+  // Grid-Layout mit Header
+  const headerCells = '<div></div>' + tables.map((t) => `<div class="t-schedule-table-cell">${esc(t)}</div>`).join('');
+  const timeCells = slots.map((ts, sIdx) => {
+    const row = `<div class="t-schedule-time-cell">${slotLabels[sIdx]}</div>` + tables.map(() => `<div class="t-schedule-slot"></div>`).join('');
+    return row;
+  });
+  const slotRows = slots.map((ts, sIdx) => {
+    const cells = tables.map((t) => {
+      const key = `${new Date(ts).toISOString()}|${t}`;
+      const matchesAtKey = scheduled.filter((m) => {
+        const mTs = m.scheduledAt.getTime ? m.scheduledAt.getTime() : new Date(m.scheduledAt).getTime();
+        return mTs === ts && (m.table || '?') === t;
+      });
+      const matchHtml = matchesAtKey.map((m) => {
+        const home = (instance.teams || []).find((tt) => tt.id === m.homeTeamId);
+        const away = (instance.teams || []).find((tt) => tt.id === m.awayTeamId);
+        const homeName = home?.name || 'TBD';
+        const awayName = away?.name || 'TBD';
+        return `<div class="t-schedule-match" onclick="${canManage ? `openEditScheduleModal('${esc(instance.id)}','${esc(m.id)}')` : ''}" title="${esc(homeName)} vs ${esc(awayName)}">
+          <span class="t-schedule-match-team">#${m.matchNumber}: ${esc(homeName)} vs ${esc(awayName)}</span>
+        </div>`;
+      }).join('');
+      return `<div class="t-schedule-slot ${matchesAtKey.length > 0 ? 'is-occupied' : ''}">${matchHtml || ''}</div>`;
+    }).join('');
+    return `<div class="t-schedule-time-cell">${slotLabels[sIdx]}</div>${cells}`;
+  }).join('');
+
+  // Build the grid: 1 col (time) + N cols (tables)
+  const cols = `auto ${tables.map(() => 'minmax(140px, 1fr)').join(' ')}`;
+  return `
+    <div class="t-toolbar">
+      ${canManage ? `
+        <button class="btn btn-primary" onclick="openAutoScheduleModal('${esc(instance.id)}')">� Auto-Planen (neu)</button>
+        <button class="btn btn-ghost" onclick="resetSchedule('${esc(instance.id)}')">↺ Plan zurücksetzen</button>
+      ` : ''}
+    </div>
+    <div class="t-schedule-grid">
+      <div class="t-schedule-grid-inner" style="grid-template-columns: ${cols};">
+        ${headerCells}
+        ${slotRows}
+      </div>
+    </div>
+  `;
+}
+
+async function openAutoScheduleModal(instanceId) {
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  closeTournamentDetailModalById('tournament-auto-schedule-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-auto-schedule-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>⚡ Automatischer Zeitplan</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-auto-schedule-form" class="tournament-detail-form">
+        <p class="t-hint">Plant alle Spiele automatisch auf die Tische. Strikte Constraints werden eingehalten (kein Team spielt zur selben Zeit, kein Tisch doppelt belegt).</p>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Anzahl Tische</span>
+            <input type="number" id="tas-tables" min="1" max="16" value="2">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Spieldauer (Min.)</span>
+            <input type="number" id="tas-duration" min="5" max="180" value="15">
+          </label>
+        </div>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Pause nach Match (Min.)</span>
+            <input type="number" id="tas-pause" min="0" max="60" value="5">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Mindestpause Team (Min.)</span>
+            <input type="number" id="tas-minrest" min="0" max="120" value="30">
+          </label>
+        </div>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Startzeit</span>
+          <input type="datetime-local" id="tas-start">
+        </label>
+        <div id="tournament-auto-schedule-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">⚡ Plan erstellen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-auto-schedule-form');
+  const msg = dlg.querySelector('#tournament-auto-schedule-msg');
+  // Default-Start: jetzt (auf volle 5 Min aufrunden)
+  const now = new Date();
+  now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5, 0, 0);
+  dlg.querySelector('#tas-start').value = now.toISOString().slice(0, 16);
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg) close();
+    if (e.target?.dataset?.action === 'close') close();
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const tableCount = Number(dlg.querySelector('#tas-tables').value) || 2;
+    const matchDurationMinutes = Number(dlg.querySelector('#tas-duration').value) || 15;
+    const pauseMinutes = Number(dlg.querySelector('#tas-pause').value) || 5;
+    const minRestMinutes = Number(dlg.querySelector('#tas-minrest').value) || 30;
+    const startTime = dlg.querySelector('#tas-start').value
+      ? new Date(dlg.querySelector('#tas-start').value)
+      : new Date();
+    const tables = Array.from({ length: tableCount }, (_, i) => ({
+      key: `T${i + 1}`,
+      name: `Tisch ${i + 1}`,
+    }));
+    try {
+      const result = await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/schedule/auto`,
+        'POST',
+        { tables, matchDurationMinutes, pauseMinutes, minRestMinutes, startTime: startTime.toISOString() }
+      );
+      toast(`${result.scheduled} Matches geplant`, 'success');
+      close();
+      await openTournamentInstance(instanceId);
+    } catch (err) {
+      msg.textContent = err.serverMessage || 'Auto-Scheduling fehlgeschlagen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
+}
+
+async function openEditScheduleModal(instanceId, matchId) {
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  const match = (instance?.matches || []).find((m) => m.id === matchId);
+  if (!match) return;
+
+  closeTournamentDetailModalById('tournament-edit-schedule-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-edit-schedule-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Zeit/Tisch bearbeiten (Match #${match.matchNumber})</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-edit-schedule-form" class="tournament-detail-form">
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Startzeit</span>
+            <input type="datetime-local" id="tes-time" value="${match.scheduledAt ? new Date(match.scheduledAt).toISOString().slice(0, 16) : ''}">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Tisch</span>
+            <input type="text" id="tes-table" value="${esc(match.table || '')}" placeholder="z. B. T1">
+          </label>
+        </div>
+        <div id="tournament-edit-schedule-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-edit-schedule-form');
+  const msg = dlg.querySelector('#tournament-edit-schedule-msg');
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg) close();
+    if (e.target?.dataset?.action === 'close') close();
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const time = dlg.querySelector('#tes-time').value;
+    const table = dlg.querySelector('#tes-table').value.trim();
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/schedule`,
+        'PATCH',
+        {
+          scheduledAt: time ? new Date(time).toISOString() : null,
+          table: table || null,
+        }
+      );
+      toast('Plan aktualisiert', 'success');
+      close();
+      await openTournamentInstance(instanceId);
+    } catch (err) {
+      msg.textContent = err.serverMessage || 'Plan-Update fehlgeschlagen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+  });
+}
+
+async function resetSchedule(instanceId) {
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const ok = await showConfirmDlg(
+    'Zeitplan zurücksetzen',
+    'Alle Zeit- und Tisch-Zuweisungen löschen?',
+    'Zurücksetzen',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+  try {
+    const matches = (activeTournamentInstance?.matches || []).filter((m) => m.scheduledAt);
+    for (const m of matches) {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(m.id)}/schedule`,
+        'PATCH',
+        { scheduledAt: null, table: null }
+      );
+    }
+    toast('Plan zurückgesetzt', 'success');
+    await openTournamentInstance(instanceId);
+  } catch (e) {
+    toast(e.serverMessage || 'Plan-Reset fehlgeschlagen', 'error');
+  }
 }
 
 // ── Bracket-Visualisierung (CSS-Grid, Challonge-Style) ──────────────
@@ -4392,6 +5937,10 @@ function renderTournamentInstanceDetail(instance) {
   let tabContent = '';
   if (tab === 'overview') {
     tabContent = renderTournamentOverviewTab(instance, canManage);
+  } else if (tab === 'plan') {
+    tabContent = renderTournamentPlanTab(instance, isTeamMode, canManage);
+  } else if (tab === 'schedule') {
+    tabContent = renderScheduleTab(instance, canManage);
   } else if (tab === 'teams') {
     tabContent = renderTournamentTeamsTab(instance, canManage);
   } else if (tab === 'bracket') {
@@ -4430,6 +5979,8 @@ function renderTournamentInstanceDetail(instance) {
       <nav class="t-detail-tabs" role="tablist">
         <button class="t-detail-tab ${tab === 'overview' ? 'active' : ''}" onclick="switchTournamentDetailTab('overview')" role="tab">📊 Übersicht</button>
         ${isTeamMode ? `<button class="t-detail-tab ${tab === 'teams' ? 'active' : ''}" onclick="switchTournamentDetailTab('teams')" role="tab">🏆 Teams <span class="t-tab-count">${teams.length}</span></button>` : ''}
+        <button class="t-detail-tab ${tab === 'plan' ? 'active' : ''}" onclick="switchTournamentDetailTab('plan')" role="tab">🗓 Spielplan</button>
+        <button class="t-detail-tab ${tab === 'schedule' ? 'active' : ''}" onclick="switchTournamentDetailTab('schedule')" role="tab">⏰ Zeitplan</button>
         <button class="t-detail-tab ${tab === 'bracket' ? 'active' : ''}" onclick="switchTournamentDetailTab('bracket')" role="tab">📈 Bracket <span class="t-tab-count">${matches.length}</span></button>
         <button class="t-detail-tab ${tab === 'participants' ? 'active' : ''}" onclick="switchTournamentDetailTab('participants')" role="tab">👥 Teilnehmer <span class="t-tab-count">${participants.length}</span></button>
         <button class="t-detail-tab ${tab === 'standings' ? 'active' : ''}" onclick="switchTournamentDetailTab('standings')" role="tab">🏅 Standings</button>
@@ -4514,6 +6065,11 @@ function renderTopStandingsPreview(instance, isTeamMode) {
     .join('');
 }
 
+function renderTournamentPlanTab(instance, isTeamMode, canManage) {
+  // Spielplan-Tab: zeigt ALLE Gruppen als Tabellen (Multi-Group-Vis)
+  return renderGroupTables(instance, isTeamMode, canManage);
+}
+
 function renderTournamentTeamsTab(instance, canManage) {
   const teams = instance.teams || [];
   const teamCards = teams
@@ -4587,6 +6143,154 @@ function renderTournamentParticipantsTab(instance, canManage) {
     </div>
     <p class="t-hint" style="margin: 4px 0 14px">Im Team-Modus sind Teilnehmer "an Papier" mit Teams verknüpft. Sie zählen nicht in den Standings.</p>
     <div class="t-participant-grid">${rows || '<p class="t-hint">Noch keine Teilnehmer.</p>'}</div>
+  `;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Multi-Group-Tabellen (Phase 3 Fix: DER entscheidende Bug-Fix)
+// ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Berechnet die Tabelle pro Gruppe aus den Matches.
+ * In team-Mode: zeigt Teams, in individual-Mode: zeigt Participants.
+ */
+function computeGroupTable(teams, matches, config) {
+  const pointsWin = config?.pointsWin ?? 3;
+  const pointsDraw = config?.pointsDraw ?? 1;
+  const pointsLoss = config?.pointsLoss ?? 0;
+  const drawsAllowed = config?.drawsAllowed ?? true;
+
+  const stats = new Map();
+  for (const t of teams) {
+    stats.set(t.id, {
+      team: t,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      points: 0,
+    });
+  }
+  for (const m of matches) {
+    if (m.status !== 'completed' && m.status !== 'finished') continue;
+    const home = stats.get(m.homeTeamId || m.homeParticipantId);
+    const away = stats.get(m.awayTeamId || m.awayParticipantId);
+    if (!home || !away) continue;
+    const sh = Number(m.scoreHome ?? m.score_home ?? 0);
+    const sa = Number(m.scoreAway ?? m.score_away ?? 0);
+    home.played += 1;
+    away.played += 1;
+    home.goalsFor += sh; home.goalsAgainst += sa;
+    away.goalsFor += sa; away.goalsAgainst += sh;
+    if (sh > sa) {
+      home.wins += 1; away.losses += 1;
+      home.points += pointsWin; away.points += pointsLoss;
+    } else if (sh < sa) {
+      away.wins += 1; home.losses += 1;
+      away.points += pointsWin; home.points += pointsLoss;
+    } else if (drawsAllowed) {
+      home.draws += 1; away.draws += 1;
+      home.points += pointsDraw; away.points += pointsDraw;
+    }
+  }
+  // Sortieren: Punkte > Wins > Tordiff > Tore
+  return Array.from(stats.values()).sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    const aDiff = a.goalsFor - a.goalsAgainst;
+    const bDiff = b.goalsFor - b.goalsAgainst;
+    if (bDiff !== aDiff) return bDiff - aDiff;
+    return b.goalsFor - a.goalsFor;
+  });
+}
+
+/**
+ * Rendert alle Gruppen als Tabellen-Karten in einem Grid.
+ * Phase 3: Multi-Group-Bug-Fix (vorher: nur 1 Gruppe mit allen Teams).
+ */
+function renderGroupTables(instance, isTeamMode, canManage) {
+  const teams = instance.teams || [];
+  const participants = instance.participants || [];
+  const matches = instance.matches || [];
+  const groups = instance.groups && instance.groups.length > 0 ? instance.groups : null;
+
+  // Wenn keine TournamentGroup-Records da sind: Fallback "1 Gruppe mit allem" (alte Logik)
+  const useFallback = !groups || groups.length === 0;
+
+  const config = (instance.preset && instance.preset.config) || {};
+  const advancePerGroup = config.advancePerGroup || 2;
+
+  // Falls Groups-Array fehlt → eine Pseudo-Gruppe anlegen
+  const groupList = useFallback
+    ? [{ id: 'default', key: 'A', name: 'Liga', teams, participants, matches }]
+    : groups.map((g) => ({
+        id: g.id,
+        key: g.key,
+        name: g.name || `Gruppe ${g.key}`,
+        teams: teams.filter((t) =>
+          matches.some((m) => m.groupLabel === g.key && (m.homeTeamId === t.id || m.awayTeamId === t.id))
+        ),
+        participants: participants.filter((p) => p.teamId && matches.some(
+          (m) => m.groupLabel === g.key && (m.homeParticipantId === p.id || m.awayParticipantId === p.id)
+        )),
+        matches: matches.filter((m) => m.groupLabel === g.key),
+      }));
+
+  if (groupList.length === 0 || (groupList.length === 1 && groupList[0].teams.length === 0)) {
+    return `
+      <div class="t-group-empty">
+        <p class="t-hint">Noch keine Gruppen vorhanden.</p>
+        ${canManage ? `<button class="btn btn-primary" onclick="generateTournamentBracket('${esc(instance.id)}')">⚡ Spielplan generieren</button>` : ''}
+      </div>`;
+  }
+
+  const groupCards = groupList
+    .map((g) => {
+      const tableRows = computeGroupTable(g.teams, g.matches, config);
+      const tableBody = tableRows
+        .map((row, idx) => {
+          const rank = idx + 1;
+          const qualifiziert = rank <= advancePerGroup;
+          const bestDritte = rank === advancePerGroup + 1;
+          const cls = qualifiziert ? 'is-qualified' : bestDritte ? 'is-best-third' : '';
+          const badge = qualifiziert
+            ? '<span class="t-badge t-badge-q">✓ Q</span>'
+            : bestDritte
+              ? '<span class="t-badge t-badge-b3">B3</span>'
+              : '';
+          return `<tr class="${cls}">
+            <td>${rank}</td>
+            <td>${esc(row.team.name)}${badge}</td>
+            <td>${row.played}</td>
+            <td>${row.wins}</td>
+            <td>${row.draws}</td>
+            <td>${row.losses}</td>
+            <td>${row.goalsFor}:${row.goalsAgainst}</td>
+            <td>${row.goalsFor - row.goalsAgainst}</td>
+            <td><strong>${row.points}</strong></td>
+          </tr>`;
+        })
+        .join('') || '<tr><td colspan="9">Noch keine Spiele.</td></tr>';
+      return `<div class="t-group-table-card">
+        <div class="t-group-table-head">
+          <h4>${esc(g.name)}</h4>
+          <span class="t-hint">${g.teams.length} Teams · ${g.matches.filter((m) => m.status === 'completed' || m.status === 'finished').length} / ${g.matches.length} Spiele</span>
+        </div>
+        <table class="t-group-table">
+          <thead><tr><th>#</th><th>Team</th><th>Sp</th><th>S</th><th>U</th><th>N</th><th>Tore</th><th>Diff</th><th>Pkt</th></tr></thead>
+          <tbody>${tableBody}</tbody>
+        </table>
+      </div>`;
+    })
+    .join('');
+
+  return `
+    <div class="t-toolbar">
+      <div class="t-hint">${groupList.length} Gruppe${groupList.length === 1 ? '' : 'n'} · Top ${advancePerGroup} qualifizieren sich${config.bestThirdsCount > 0 ? ` · + ${config.bestThirdsCount} beste Dritte` : ''}</div>
+    </div>
+    <div class="t-group-tables-grid">${groupCards}</div>
   `;
 }
 
@@ -14572,6 +16276,12 @@ Object.assign(window, {
   openTournamentInstance,
   openTournamentStandings,
   deleteTournamentInstance,
+  openResultEntryModal,
+  loadStandingsTab,
+  loadScheduleTab,
+  togglePublishV3,
+  parseTeamsTextarea,
+  renderTournamentInstanceDetailV3,
   refreshTournamentInstance,
   setTournamentInstanceStatus,
   createTournamentTeam,
@@ -14850,6 +16560,11 @@ Object.assign(window, {
   onTournamentDragStart,
   onTournamentDragOver,
   onTournamentDrop,
+  // Phase 4: Wizard + Scheduling
+  openTournamentWizard,
+  openAutoScheduleModal,
+  openEditScheduleModal,
+  resetSchedule,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)
   $,
   onThumbLoad,
