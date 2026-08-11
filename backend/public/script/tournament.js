@@ -101,6 +101,51 @@ async function deleteDraft(tournamentId) {
   }
 }
 
+/**
+ * Übersetzt einen Fehler aus createDraft()/ensureDraftPromise() in
+ * eine deutsche, für den End-User verständliche Meldung.
+ *
+ * createDraft() wirft mit:
+ *   - server message (z. B. "Nur Gruppen-Owner / Admins …") → deutsch, durchreichen
+ *   - server error code (z. B. "name erforderlich")          → generischer Fallback
+ *   - status-only message ("POST /api/tournaments → 500")    → übersetzen
+ *   - fetch-Fehler (TypeError: Failed to fetch)             → Netzwerk-Hinweis
+ *
+ * Spec §13.5: Keine kryptischen Codes im UI. Der User muss verstehen,
+ * was schiefgelaufen ist und was er tun kann.
+ */
+function translateDraftError(err) {
+  const raw = (err && err.message) ? String(err.message) : '';
+  const lower = raw.toLowerCase();
+
+  // Netzwerk / Offline
+  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+    return 'Keine Verbindung zum Server. Bitte prüfe deine Internetverbindung und versuche es erneut.';
+  }
+  // HTTP-Status-only Message ("POST /api/tournaments → 500")
+  const statusMatch = raw.match(/→\s*(\d{3})/);
+  if (statusMatch) {
+    const status = Number(statusMatch[1]);
+    if (status === 401) return 'Du bist nicht angemeldet. Bitte melde dich an und versuche es erneut.';
+    if (status === 403) return 'Du hast keine Berechtigung, in dieser Gruppe ein Turnier anzulegen.';
+    if (status === 404) return 'Die Gruppe wurde nicht gefunden. Bitte lade die Seite neu.';
+    if (status === 409) return 'In dieser Gruppe existiert bereits ein Turnier mit diesem Namen. Bitte wähle einen anderen Namen.';
+    if (status === 500 || status === 502 || status === 503) {
+      return 'Das Turnier konnte nicht gespeichert werden. Bitte versuche es in einem Moment erneut.';
+    }
+  }
+  // Server hat eine lesbare message geschickt → durchreichen.
+  // Das sind die "Nur Gruppen-Owner …"-Texte aus routes.js.
+  if (raw && !lower.includes('error') && raw.length < 200 && !raw.startsWith('Error:')) {
+    return raw;
+  }
+  // Letzter Fallback — generisch, aber verständlich.
+  return 'Der Turnier-Entwurf konnte nicht angelegt werden. Bitte prüfe Name und Gruppe und versuche es erneut.';
+}
+// Export für Tests — der Wizard greift über die Closure weiter auf den
+// unexportierten Namen zu, daher ist die Sichtbarkeit unverändert.
+export { translateDraftError };
+
 // ----------------------------------------------------------------
 // PATCH-Wrapper für Wizard-Konfiguration + Grunddaten.
 //
@@ -1491,6 +1536,24 @@ const DEFAULT_WIZARD_STATE = {
 };
 
 /**
+ * Validiert und normalisiert einen step-Wert für den Wizard.
+ * Akzeptiert werden genau die Integer 1..5; alles andere (0, 7,
+ * undefined, NaN, "1" als String, 3.5, -1) fällt auf
+ * DEFAULT_WIZARD_STATE.step (=1) zurück.
+ *
+ * Hintergrund: ensureDraftPromise() in Step 1 prüft `state.step === 1`
+ * und legt sonst keinen Entwurf an — ein falscher Startwert hätte
+ * "no_tournament_id" in Schritt 5 zur Folge.
+ *
+ * Pure-Function, damit sie ohne DOM in Vitest getestet werden kann.
+ */
+export function coerceWizardStep(value) {
+  const n = Number(value);
+  if (Number.isInteger(n) && n >= 1 && n <= 5) return n;
+  return DEFAULT_WIZARD_STATE.step;
+}
+
+/**
  * Eintrittspunkt für Screen B. Liefert ein .t-mod-Wurzelelement,
  * das der Aufrufer in den DOM einsetzt.
  *
@@ -1517,9 +1580,19 @@ const DEFAULT_WIZARD_STATE = {
  * in einem Closure. Der Aufrufer bekommt ihn nur über onStateChange.
  */
 export function renderWizardView(opts = {}) {
+  // Schritt defensiv korrigieren — der Wrapper darf step nicht
+  // falsch setzen. Akzeptiert werden genau 1..5; alles andere
+  // (0, 7, undefined, NaN, "1") fällt auf DEFAULT_WIZARD_STATE.step
+  // zurück. Hintergrund: ensureDraftPromise() in Step 1 prüft
+  // `state.step === 1` und legt sonst keinen Entwurf an — ein
+  // falscher Startwert hätte "no_tournament_id" in Schritt 5 zur
+  // Folge. Wir verlassen uns also nicht auf den Aufrufer.
+  const safeStep = coerceWizardStep(opts.initialState?.step);
+
   const state = {
     ...DEFAULT_WIZARD_STATE,
     ...(opts.initialState || {}),
+    step: safeStep,
   };
 
   const root = document.createElement('div');
@@ -3740,12 +3813,14 @@ function renderWizardFooter(state, opts) {
           await ensureDraftPromise(state, opts);
         } catch (err) {
           // POST fehlgeschlagen — Wizard bleibt in Step 1, User darf
-          // Name korrigieren und erneut klicken.
+          // Name korrigieren und erneut klicken. Der Fehler-Text MUSS
+          // verständlich deutsch sein, keine internen Codes oder
+          // HTTP-Status-Rohstrings.
           next.disabled = false;
           if (hintEl) {
             applyHint(hintEl, {
               ok: false,
-              message: `Entwurf konnte nicht angelegt werden: ${err.message}`,
+              message: translateDraftError(err),
             });
           }
           return;

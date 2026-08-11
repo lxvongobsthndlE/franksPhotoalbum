@@ -1596,8 +1596,15 @@ textarea.t-input {
   line-height: 1.4;
 }
 
-/* ---------- Container Queries: Vorschau-Rechts ab 1200px ---------- */
-@container (min-width: 1200px) {
+/* ---------- Container Queries: Vorschau-Rechts ab 980px ----------
+   980px reicht, weil das Wizard-Modul in [kru:]nest neben der
+   236px-Sidebar sitzt und effektiv (Fensterbreite - 236) breit ist.
+   Bei 1280px Viewport → 1044px Wizard → Preview sichtbar. Wer ein
+   kleineres Fenster hat, bekommt die Vorschau unter dem Formular
+   (einspaltig). Das ist explizit besser als eine zu breite Form-
+   Spalte, in der die Labels verschwinden.
+   ---------------------------------------------------------------- */
+@container (min-width: 980px) {
   .t-wizard-body {
     grid-template-columns: minmax(0, 1fr) 320px;
     align-items: start;

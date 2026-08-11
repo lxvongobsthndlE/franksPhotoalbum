@@ -4993,16 +4993,27 @@ const WIZARD_HIDDEN_HEADER_BUTTONS = [
 ];
 
 function hideTournamentHeaderButtons() {
+  // Buttons werden komplett entfernt statt nur display:none zu setzen.
+  // Hintergrund: in der Vorgänger-Version waren die Buttons trotz
+  // display:none noch als brauner Balken sichtbar — entweder durch
+  // CSS-Spezifität aus einer später geladenen Regel oder durch
+  // Pseudo-Elemente mit background. remove() räumt beide Risiken ab.
+  // Beim Schließen ruft loadActiveTournamentView() ohnehin
+  // renderTournamentHeaderActions() auf, das die Buttons neu baut.
   for (const id of WIZARD_HIDDEN_HEADER_BUTTONS) {
     const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
+    if (el) el.remove();
   }
 }
 
 function showTournamentHeaderButtons() {
+  // Buttons werden NICHT wiederhergestellt — sie werden durch
+  // loadActiveTournamentView() ohnehin über renderTournamentHeaderActions()
+  // neu gebaut. Diese Funktion bleibt nur als API-Stub, falls ein
+  // späterer Aufrufer sie vor loadActiveTournamentView() braucht.
   for (const id of WIZARD_HIDDEN_HEADER_BUTTONS) {
     const el = document.getElementById(id);
-    if (el) el.style.display = '';
+    if (el) el.remove();
   }
 }
 
@@ -5021,7 +5032,12 @@ async function openTournamentWizard() {
   closeTournamentDetailModalById('tournament-wizard-modal');
 
   const initialState = {
-    step: 0,
+    // step wird mit Absicht NICHT gesetzt. DEFAULT_WIZARD_STATE.step
+    // (in tournament.js) ist 1, und renderWizardView korrigiert in
+    // jeden Fall einen ungültigen Wert. Wenn wir hier 'step: 1'
+    // setzen würden, könnte ein späterer Bug im Wrapper den Wizard
+    // wieder bei Schritt 0 starten lassen — und kein Entwurf würde
+    // angelegt. Daher: nur die Daten, nicht die Schritt-Nummer.
     groupId: curGroupId,
     tournamentId: null,
     name: '',
@@ -5047,17 +5063,21 @@ async function openTournamentWizard() {
   };
 
   const prevStep = { value: -1 };
+  // Step-Keys spiegeln tournament.js: 1=Grunddaten, 2=Teams,
+  // 3=Modus, 4=Qualifikation, 5=Zusammenfassung. Pro Step-Wechsel
+  // senden wir die Felder, die dort erfasst werden, per PATCH ans
+  // Backend (Draft-Auto-Save, Spec §1.2).
   const knownFieldsByStep = {
-    0: ['name', 'date', 'location', 'sport', 'numTables', 'tableNames'],
-    1: ['teams'],
-    2: ['mode', 'numGroups', 'distributionMethod', 'pointsWin', 'pointsDraw', 'pointsLoss', 'tiebreakers'],
-    3: ['advancePerGroup', 'bestThirdsCount', 'thirdPlaceMatch'],
-    4: ['startTime', 'matchDuration', 'pauseMinutes'],
+    1: ['name', 'date', 'location', 'sport', 'numTables', 'tableNames'],
+    2: ['teams'],
+    3: ['mode', 'numGroups', 'distributionMethod', 'pointsWin', 'pointsDraw', 'pointsLoss', 'tiebreakers'],
+    4: ['advancePerGroup', 'bestThirdsCount', 'thirdPlaceMatch'],
+    5: ['startTime', 'matchDuration', 'pauseMinutes'],
   };
 
   const onStateChange = async (state) => {
     if (!state.tournamentId) return;
-    const stepIdx = Number(state.step) || 0;
+    const stepIdx = Number(state.step) || 1;
     if (prevStep.value === stepIdx) return;
     prevStep.value = stepIdx;
     const fields = knownFieldsByStep[stepIdx] || [];
@@ -5070,7 +5090,21 @@ async function openTournamentWizard() {
   };
 
   const onGenerate = async (state, opts) => {
-    if (!state.tournamentId) return { ok: false, body: { error: 'no_tournament_id' } };
+    // Sollte nie passieren — wenn state.tournamentId fehlt, hat
+    // tournament.js den "Weiter"-Klick in Step 1 schon abgefangen
+    // und eine deutsche Fehlermeldung im Hint gezeigt. Hier also nur
+    // ein harter Guard, damit der Wizard nicht mit undefinierter URL
+    // weitermacht. Die eigentliche Fehler-Übersetzung läuft in
+    // tournament.js → errorMessageFromResult().
+    if (!state.tournamentId) {
+      return {
+        ok: false,
+        body: {
+          error: 'draft_missing',
+          message: 'Der Turnier-Entwurf fehlt. Bitte zurück zu Schritt 1 und erneut versuchen.',
+        },
+      };
+    }
     const payload = buildGeneratePayload(state, opts);
     try {
       const res = await fetch(
@@ -5083,10 +5117,27 @@ async function openTournamentWizard() {
         }
       );
       const body = await res.json().catch(() => ({}));
-      if (res.ok) return { ok: true, body };
+      if (res.ok) {
+        // Diagnose: ID merken, damit der User per
+        //   inspectTournament() oder
+        //   GET /api/tournaments/<id>/standings
+        // direkt prüfen kann, was in der DB gelandet ist.
+        window.__lastGeneratedTournamentId = state.tournamentId;
+        console.info(
+          '%c✅ Turnier generiert',
+          'color:#2c8a4f;font-weight:bold',
+          '\nID:', state.tournamentId,
+          '\nName:', state.name,
+          '\nPrüfen mit: inspectTournament("' + state.tournamentId + '")'
+        );
+        return { ok: true, body };
+      }
       return { ok: false, status: res.status, body };
     } catch (err) {
-      return { ok: false, body: { error: 'network_error', message: err.message } };
+      return {
+        ok: false,
+        body: { error: 'network_error', message: 'Keine Verbindung zum Server. Bitte prüfe deine Internetverbindung.' },
+      };
     }
   };
 
@@ -5099,6 +5150,15 @@ async function openTournamentWizard() {
     if (grid) {
       grid.classList.remove(WIZARD_HOST_CLASS);
       grid.innerHTML = '';
+    }
+    // Galerie-Titel wiederherstellen — wir hatten ihn auf
+    // "Neues Turnier" gesetzt, damit oben nicht mehr "Turniere"
+    // (Listenansicht) zu sehen ist, während der Wizard offen ist.
+    const title = $('gal-title');
+    if (title && title.dataset.tWizardTitle === '1') {
+      title.textContent = title.dataset.tWizardPrevTitle || 'Gemeinsamer Ordner';
+      delete title.dataset.tWizardTitle;
+      delete title.dataset.tWizardPrevTitle;
     }
     showTournamentHeaderButtons();
     await loadActiveTournamentView(true);
@@ -5120,6 +5180,16 @@ async function openTournamentWizard() {
   grid.className = WIZARD_HOST_CLASS;
   grid.innerHTML = '';
   grid.appendChild(wizardEl);
+  // Galerie-Titel auf "Neues Turnier" setzen. Vorherigen Wert
+  // merken, damit onCancel ihn wiederherstellen kann. Daten-Attribute
+  // statt Closure-Variable, weil onCancel als async callback
+  // definiert ist und diese im Aufrufer-Scope liegt.
+  const title = $('gal-title');
+  if (title && !title.dataset.tWizardTitle) {
+    title.dataset.tWizardPrevTitle = title.textContent;
+    title.dataset.tWizardTitle = '1';
+    title.textContent = 'Neues Turnier';
+  }
   hideTournamentHeaderButtons();
   wizardMounted = wizardEl;
 }
@@ -5127,6 +5197,110 @@ async function openTournamentWizard() {
 // Mount-Handle, damit andere Stellen (loadActiveTournamentView etc.)
 // den Wizard bei Bedarf zerstören können.
 let wizardMounted = null;
+
+/**
+ * Diagnose-Helper: alles aus der DB zu einem Turnier in die Konsole
+ * schreiben. Solange die v3-Ansicht (Etappe B) fehlt, ist das der
+ * schnellste Weg für den User zu prüfen, was generate() tatsächlich
+ * geschrieben hat — Teams, Gruppen, Spielzahl, Config.
+ *
+ * Aufruf in der DevTools-Konsole:
+ *   inspectTournament('abc123')              → ein Turnier
+ *   inspectTournament()                      → letztes im Wizard
+ *                                              erzeugtes Turnier
+ *   await inspectTournament('abc123')        → Promise, falls gewartet
+ *
+ * Output: 4 console.group-Blöcke (Tournament / Teams / Gruppen /
+ * Matches), plus eine Kurzfassung mit Counts + wichtigen Config-Werten.
+ *
+ * Verwendet GET /api/tournaments/:id (liefert teams, stages, groups,
+ * matches, stats in einer Antwort — kein Hin-und-Her).
+ */
+async function inspectTournament(tournamentId) {
+  const id = tournamentId || (typeof window !== 'undefined' ? window.__lastGeneratedTournamentId : null);
+  if (!id) {
+    console.warn('[inspectTournament] Keine ID übergeben und kein __lastGeneratedTournamentId gesetzt.');
+    return null;
+  }
+  let res;
+  try {
+    res = await apiCall(`/tournaments/${encodeURIComponent(id)}`, 'GET');
+  } catch (err) {
+    console.error('[inspectTournament] Fetch fehlgeschlagen:', err);
+    return null;
+  }
+  const t = res?.tournament || res;
+  const teams = res?.teams ?? [];
+  const stages = res?.stages ?? [];
+  const groups = res?.groups ?? [];
+  const matches = res?.matches ?? [];
+  const stats = res?.stats ?? {};
+
+  console.group(`🏆 Turnier: ${t?.name || id} (${id})`);
+  console.log('Status:', t?.status, '| Modus:', t?.mode);
+  console.log('Sport:', t?.sport, '→ Spaltenbezeichnung:', t?.scoreLabel);
+  console.log('Ort:', t?.location ?? '(leer)');
+  console.log('Tische:', t?.tableLabels ?? '(automatisch)');
+  console.log('Config (Engine):', t?.config);
+  console.log('Stats:', stats);
+
+  console.group(`👥 Teams (${teams.length})`);
+  for (const team of teams) {
+    console.log(`  • [${team.seed ?? '-'}] ${team.name}${team.color ? ' (' + team.color + ')' : ''}`);
+  }
+  console.groupEnd();
+
+  console.group(`📦 Stages (${stages.length})`);
+  for (const stage of stages) {
+    console.log(`  • Stage ${stage.orderIndex + 1}: ${stage.name} (${stage.type})`);
+  }
+  console.groupEnd();
+
+  console.group(`🗂️  Gruppen (${groups.length})`);
+  for (const g of groups) {
+    const mems = g.memberships || [];
+    console.group(`  ${g.name || g.key} (${mems.length} Teams)`);
+    for (const m of mems) {
+      console.log(`    • ${m.team?.name ?? m.teamId}`);
+    }
+    console.groupEnd();
+  }
+  console.groupEnd();
+
+  console.group(`⚽ Spiele (${matches.length})`);
+  const byStatus = matches.reduce((acc, m) => {
+    acc[m.status] = (acc[m.status] || 0) + 1;
+    return acc;
+  }, {});
+  console.log('Nach Status:', byStatus);
+  const byStage = matches.reduce((acc, m) => {
+    const key = m.stageId || '?';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  console.log('Pro Stage-ID:', byStage);
+  // Erste 5 + letzte 2 Spiele
+  if (matches.length > 0) {
+    console.log('Erste Spiele:');
+    for (const m of matches.slice(0, 5)) {
+      console.log(`  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`);
+    }
+    if (matches.length > 7) {
+      console.log(`  ... (${matches.length - 7} weitere)`);
+      for (const m of matches.slice(-2)) {
+        console.log(`  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`);
+      }
+    }
+  }
+  console.groupEnd();
+
+  console.groupEnd();
+  console.log('➡️  Für Detail-Tabellen: GET /api/tournaments/' + id + '/standings und /schedule');
+  return res;
+}
+// Auf window exposen, damit der User es aus der DevTools-Konsole
+// aufrufen kann, ohne es erst aus dem Modul zu importieren.
+window.inspectTournament = inspectTournament;
 
 
 /**
