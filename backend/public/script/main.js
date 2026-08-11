@@ -4976,13 +4976,45 @@ function closeTournamentDetailModalById(id) {
 // buildGeneratePayload). Hier nur:
 //
 //   1. Initial-State mit curGroupId aufsetzen.
-//   2. renderWizardView ins #grid mounten.
-//   3. onStateChange → persistConfig mit changedFields (Draft-Auto-Save).
-//   4. onGenerate → POST /api/tournaments/:id/generate mit buildGeneratePayload.
-//   5. onCancel → Wizard-DOM entfernen, Listenansicht neu laden.
+//   2. #grid auf Wizard-Host umschalten (überschreibt das Foto-Grid,
+//      damit der Wizard nicht in eine 260px-Spalte gezwängt wird).
+//   3. Galerie-Header-Buttons (Aktualisieren / Neues Turnier / Neues
+//      Preset) ausblenden, damit man nicht versehentlich einen zweiten
+//      Wizard öffnen kann.
+//   4. renderWizardView ins #grid mounten.
+//   5. onStateChange → persistConfig mit changedFields (Draft-Auto-Save).
+//   6. onGenerate → POST /api/tournaments/:id/generate mit buildGeneratePayload.
+//   7. onCancel → #grid + Header-Buttons zurück, Listenansicht neu laden.
+const WIZARD_HOST_CLASS = 't-wizard-host';
+const WIZARD_HIDDEN_HEADER_BUTTONS = [
+  'tournament-refresh-btn',
+  'tournament-new-instance-btn',
+  'tournament-new-preset-btn',
+];
+
+function hideTournamentHeaderButtons() {
+  for (const id of WIZARD_HIDDEN_HEADER_BUTTONS) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+}
+
+function showTournamentHeaderButtons() {
+  for (const id of WIZARD_HIDDEN_HEADER_BUTTONS) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  }
+}
+
 async function openTournamentWizard() {
   if (!curGroupId) {
     toast('Keine aktive Gruppe ausgewählt', 'error');
+    return;
+  }
+
+  // Falls der Wizard schon offen ist: nicht doppelt mounten.
+  if (wizardMounted) {
+    toast('Wizard ist bereits offen', 'info');
     return;
   }
 
@@ -5060,6 +5092,15 @@ async function openTournamentWizard() {
 
   const onCancel = async () => {
     wizardMounted = null;
+    // Vor dem Reload der Listenansicht #grid + Header-Buttons
+    // zurück auf den Normalzustand, sonst bleibt das Foto-Grid
+    // blockiert und die Buttons versteckt.
+    const grid = document.getElementById('grid');
+    if (grid) {
+      grid.classList.remove(WIZARD_HOST_CLASS);
+      grid.innerHTML = '';
+    }
+    showTournamentHeaderButtons();
     await loadActiveTournamentView(true);
   };
 
@@ -5072,8 +5113,14 @@ async function openTournamentWizard() {
 
   const grid = document.getElementById('grid');
   if (!grid) return;
+  // Auf Wizard-Host umschalten (CSS t-wizard-host überschreibt das
+  // Foto-Grid aus main.css). Reihenfolge: erst Klasse setzen,
+  // dann leeren, dann Wizard anhängen — sonst flackert kurz das
+  // alte Foto-Grid.
+  grid.className = WIZARD_HOST_CLASS;
   grid.innerHTML = '';
   grid.appendChild(wizardEl);
+  hideTournamentHeaderButtons();
   wizardMounted = wizardEl;
 }
 

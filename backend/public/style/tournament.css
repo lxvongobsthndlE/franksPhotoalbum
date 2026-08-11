@@ -92,6 +92,29 @@
 .t-mod *::before,
 .t-mod *::after { box-sizing: border-box; }
 .t-mod { margin: 0; padding: 0; min-width: 0; }
+
+/* ----------------------------------------------------------------
+   WIZARD-HOST-MODUS
+   Wenn der Wizard offen ist, übernimmt er den vollen Inhaltsbereich
+   der App (#content neben #sidebar). Dazu bekommt #grid per JS die
+   Klasse t-wizard-host, die das Foto-Grid (`.grid`) aufhebt:
+   - display:block statt display:grid → keine 260px-Spalten mehr
+   - min-width:0 + width:100% → keine schmale Mittelspalte
+   - padding/margin 0 → Wizard füllt #content vollständig
+   ---------------------------------------------------------------- */
+.t-wizard-host {
+  display: block !important;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.t-wizard-host > .t-mod {
+  /* Volle Höhe, eigene Scroll-Achse statt #content-Scroll —
+     verhindert doppelten Scrollbalken. */
+  height: calc(100vh - 60px); /* Platz für App-Header */
+  overflow: hidden;
+}
 .t-mod table { border-collapse: collapse; width: 100%; }
 .t-mod button {
   font-family: inherit; font-size: inherit; cursor: pointer;
