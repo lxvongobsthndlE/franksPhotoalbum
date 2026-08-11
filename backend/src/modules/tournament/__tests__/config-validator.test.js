@@ -107,6 +107,21 @@ describe('validateConfigPatch — Tiebreaker', () => {
     expect(r.message).toMatch(/geheimesKriterium/);
   });
 
+  it('goalsAgainst ist erlaubt (Spec §5.4: „wenigste Gegentore")', () => {
+    const r = ok(validateConfigPatch({
+      tiebreakers: ['points', 'goalDiff', 'goalsAgainst'],
+    }));
+    expect(r.tiebreakers).toContain('goalsAgainst');
+  });
+
+  it('lottery ist KEIN Tiebreaker-Kriterium (Losentscheid gehört ins UI, §13.7)', () => {
+    const r = fail(validateConfigPatch({
+      tiebreakers: ['points', 'lottery'],
+    }));
+    expect(r.field).toBe('tiebreakers');
+    expect(r.message).toMatch(/lottery/);
+  });
+
   it('Leere Liste abgelehnt', () => {
     fail(validateConfigPatch({ tiebreakers: [] }));
   });

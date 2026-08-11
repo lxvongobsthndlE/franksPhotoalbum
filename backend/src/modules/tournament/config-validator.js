@@ -19,6 +19,7 @@ export const ALLOWED_TIEBREAKERS = Object.freeze([
   'points',
   'goalDiff',
   'goalsFor',
+  'goalsAgainst',
   'headToHead',
   'wins',
 ]);

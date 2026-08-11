@@ -369,3 +369,125 @@ describe('PATCH /api/tournaments/:id config-Lock bei Ergebnissen', () => {
     expect(updateArg.data.config.schedule.parallelFields).toBe(2);
   });
 });
+
+// ------------------------------------------------------------------
+// Grunddaten-Felder (location, sport, tableLabels) — Top-Level am Turnier,
+// nicht in config. Spec §1.2.
+// ------------------------------------------------------------------
+describe('PATCH /api/tournaments/:id mit Grunddaten-Feldern', () => {
+  let app, prisma;
+
+  beforeEach(async () => {
+    prisma = createMockPrisma();
+    baseStubs(prisma);
+    app = await buildApp(prisma);
+  });
+
+  it('location wird gespeichert', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { location: 'Sporthalle A, Reutlingen' },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const arg = prisma.tournament.update.mock.calls[0][0];
+    expect(arg.data.location).toBe('Sporthalle A, Reutlingen');
+  });
+
+  it('location als leerer String wird zu null (kein „ " im Druckkopf)', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { location: '   ' },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const arg = prisma.tournament.update.mock.calls[0][0];
+    expect(arg.data.location).toBe(null);
+  });
+
+  it('location: ungültiger Typ → 400', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { location: 42 },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('location');
+  });
+
+  it('sport "becher" / "tore" / "punkte" werden gespeichert', async () => {
+    for (const s of ['becher', 'tore', 'punkte']) {
+      vi.clearAllMocks();
+      baseStubs(prisma);
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/api/tournaments/${tId}`,
+        payload: { sport: s },
+        headers: { 'x-test-user': u.admin.id },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(prisma.tournament.update.mock.calls[0][0].data.sport).toBe(s);
+    }
+  });
+
+  it('sport unbekannt → 400', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { sport: 'fussball' },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('sport');
+  });
+
+  it('tableLabels Array wird gespeichert', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { tableLabels: ['Platte 1', 'Platte 2', 'Platte 3', 'Platte 4'] },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const arg = prisma.tournament.update.mock.calls[0][0];
+    expect(arg.data.tableLabels).toEqual([
+      'Platte 1', 'Platte 2', 'Platte 3', 'Platte 4',
+    ]);
+  });
+
+  it('tableLabels null löscht die Liste', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { tableLabels: null },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(prisma.tournament.update.mock.calls[0][0].data.tableLabels).toBe(null);
+  });
+
+  it('tableLabels kein Array → 400', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { tableLabels: 'Platte 1' },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('tableLabels');
+  });
+
+  it('tableLabels mit leerem String-Eintrag → 400', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { tableLabels: ['Platte 1', '  ', 'Platte 3'] },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('tableLabels');
+  });
+});

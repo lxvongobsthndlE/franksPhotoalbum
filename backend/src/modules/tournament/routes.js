@@ -165,6 +165,55 @@ export default async function tournamentRoutes(fastify) {
         if (k in body) data[k] = body[k];
       }
 
+      // --- Grunddaten (Spec §1.2: Ort, Sport, Tischlabels)
+      if ('location' in body) {
+        if (body.location !== null && typeof body.location !== 'string') {
+          return reply.code(400).send({
+            error: 'invalid_location',
+            message: 'location muss ein String oder null sein.',
+            field: 'location',
+          });
+        }
+        // Leere Strings werden als null behandelt (kein "  " im Druckkopf).
+        if (typeof body.location === 'string' && body.location.trim() === '') {
+          data.location = null;
+        } else {
+          data.location = body.location;
+        }
+      }
+      if ('sport' in body) {
+        if (!['becher', 'tore', 'punkte'].includes(body.sport)) {
+          return reply.code(400).send({
+            error: 'invalid_sport',
+            message: 'sport muss einer von becher, tore, punkte sein.',
+            field: 'sport',
+          });
+        }
+        data.sport = body.sport;
+      }
+      if ('tableLabels' in body) {
+        if (body.tableLabels !== null) {
+          if (!Array.isArray(body.tableLabels)) {
+            return reply.code(400).send({
+              error: 'invalid_tableLabels',
+              message: 'tableLabels muss ein Array von Strings oder null sein.',
+              field: 'tableLabels',
+            });
+          }
+          for (const [i, label] of body.tableLabels.entries()) {
+            if (typeof label !== 'string' || label.trim() === '') {
+              return reply.code(400).send({
+                error: 'invalid_tableLabels',
+                message:
+                  `tableLabels[${i}] muss ein nicht-leerer String sein.`,
+                field: 'tableLabels',
+              });
+            }
+          }
+        }
+        data.tableLabels = body.tableLabels;
+      }
+
       // --- Config (gesperrt, sobald Ergebnisse existieren —
       //     AUSNAHME: schedule.* ist auch bei Ergebnissen erlaubt,
       //     weil Zeit/Tisch das Ranking nicht beeinflussen, §5.3)
@@ -610,7 +659,16 @@ export default async function tournamentRoutes(fastify) {
         };
       });
 
-      return { groups: groupRows };
+      // Sport-Steuerung der Spaltenbezeichnung (Spec §5.4):
+      //   Bierpong  → „Becher"
+      //   Fußball   → „Tore"
+      //   Sonstiges → „Punkte"
+      return {
+        groups: groupRows,
+        sport: view.tournament.sport ?? 'becher',
+        scoreLabel: view.tournament.scoreLabel ?? 'Tore',
+        scoreShort: view.tournament.scoreShort ?? 'T',
+      };
     } catch (err) {
       return handleError(reply, err, 'Standings laden fehlgeschlagen');
     }
