@@ -6,6 +6,11 @@
   apiCall,
   fetchWithAuth,
 } from './auth-oidc.js';
+import {
+  renderWizardView,
+  persistConfig,
+  buildGeneratePayload,
+} from './tournament.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -3836,61 +3841,17 @@ async function loadScheduleGridTab(tournamentId) {
   }
 }
 
-/**
- * v3 S4.1 — Drag&Drop-Setzliste in Wizard Step 2.
- * Spec §5.1: Verteilungs-Methode "manual" respektiert User-Reihenfolge.
- * Synct teamsText mit der visuellen Liste bei jedem Drop.
- */
-function attachSeedListDragDrop(body) {
-  const list = body.querySelector('#wiz-seed-list');
-  if (!list) return;
-  const ta = body.querySelector('[data-bind="teamsText"]');
-  let dragIdx = null;
-
-  list.querySelectorAll('.t-wiz-seed-row').forEach((row) => {
-    row.addEventListener('dragstart', (e) => {
-      dragIdx = Number(row.dataset.index);
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', String(dragIdx));
-      row.classList.add('is-dragging');
-    });
-    row.addEventListener('dragend', () => {
-      row.classList.remove('is-dragging');
-      list.querySelectorAll('.t-wiz-seed-row').forEach((r) => r.classList.remove('is-drop-target'));
-    });
-    row.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      list.querySelectorAll('.t-wiz-seed-row').forEach((r) => r.classList.remove('is-drop-target'));
-      row.classList.add('is-drop-target');
-    });
-    row.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const fromIdx = Number(e.dataTransfer.getData('text/plain'));
-      const toIdx = Number(row.dataset.index);
-      if (Number.isNaN(fromIdx) || Number.isNaN(toIdx) || fromIdx === toIdx) return;
-      // Reorder: teamsText neu zusammensetzen
-      const teamNames = parseTeamsTextarea(ta.value);
-      const [moved] = teamNames.splice(fromIdx, 1);
-      teamNames.splice(toIdx, 0, moved);
-      if (ta) {
-        ta.value = teamNames.join('\n');
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      // Re-render this step
-      const body = list.closest('.dlg-content, .dlg-body, .tournament-detail-form, .dlg');
-      if (body) {
-        const newHtml = renderWizardStep(1, state.data);
-        const tmp = document.createElement('div');
-        tmp.innerHTML = newHtml;
-        const oldList = body.querySelector('#wiz-seed-list');
-        const newList = tmp.querySelector('#wiz-seed-list');
-        if (oldList && newList) oldList.replaceWith(newList);
-        attachSeedListDragDrop(body);
-      }
-    });
-  });
-}
+// ─── v3: Wizard — Delegation an tournament.js ─────────────────────────
+// Etappe A (2026-08-11): v2-Wizard-Code (openTournamentWizard Body +
+// renderWizardStep + parseTeamsTextarea + attachSeedListDragDrop +
+// WIZARD_*-Konstanten) wurde entfernt. Die v3-Wizard-Implementierung
+// lebt komplett in backend/public/script/tournament.js
+// (renderWizardView, buildPatchPayload, persistConfig, buildGeneratePayload).
+//
+// Dieser Wrapper bleibt in main.js, weil der "Neues Turnier"-Button
+// hier verdrahtet ist. Er mounted den v3-Wizard ins #grid und reicht
+// onGenerate an die v3-API durch. onStateChange ruft persistConfig mit
+// den geänderten Feldern auf (Draft-Auto-Save, Spec §1.2 / Schnitt 2.5).
 
 /**
  * HTML5 Drag&Drop Handler für Zeitplan-Matches.
@@ -5008,470 +4969,118 @@ function closeTournamentDetailModalById(id) {
   document.getElementById(id)?.remove();
 }
 
-// ─── Konfigurations-Wizard (Phase 4) ──────────────────────────────────
-const WIZARD_STEPS = [
-  { key: 'basics', label: 'Grunddaten', title: 'Grunddaten', subtitle: 'Name, Datum, Tische' },
-  { key: 'teams', label: 'Teams', title: 'Teams', subtitle: 'Wer nimmt teil?' },
-  { key: 'mode', label: 'Modus', title: 'Modus & Konfig', subtitle: 'Turnierformat, Gruppen, Punkte' },
-  { key: 'qualification', label: 'Qualifikation', title: 'Qualifikation', subtitle: 'Wer kommt weiter?' },
-  { key: 'summary', label: 'Zusammenfassung', title: 'Zusammenfassung', subtitle: 'Alles auf einen Blick' },
-];
-
-const WIZARD_MODE_LABELS = {
-  groups_ko: 'Gruppen + KO (WM-Stil)',
-  groups_only: 'Nur Gruppen (Liga)',
-  ko_only: 'Nur KO-Baum',
-  double_elim: 'Doppel-KO',
-};
-
-const WIZARD_TIEBREAKER_LABELS = {
-  points: 'Punkte',
-  wins: 'Siege',
-  h2h: 'Direkter Vergleich',
-  goalDifference: 'Tordifferenz',
-  goalsFor: 'Erzielte Tore',
-};
-
-function renderWizardStep(stepIdx, data) {
-  if (stepIdx === 0) {
-    // Grunddaten
-    return `
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Turniername <span class="t-required">*</span></span>
-        <input type="text" data-bind="name" maxlength="120" required placeholder="z. B. Sommer-Cup 2026" value="${esc(data.name)}">
-      </label>
-      <div class="t-grid-2">
-        <label class="tournament-detail-field">
-          <span class="tournament-detail-label">Datum</span>
-          <input type="date" data-bind="date" value="${esc(data.date)}">
-        </label>
-        <label class="tournament-detail-field">
-          <span class="tournament-detail-label">Sportart/Disziplin</span>
-          <input type="text" data-bind="sport" maxlength="40" placeholder="z. B. Tischtennis" value="${esc(data.sport)}">
-        </label>
-      </div>
-      <div class="t-grid-2">
-        <label class="tournament-detail-field">
-          <span class="tournament-detail-label">Logo-URL <span class="t-hint">(optional)</span></span>
-          <input type="url" data-bind="logoUrl" maxlength="500" placeholder="https://…" value="${esc(data.logoUrl || '')}">
-        </label>
-        <label class="tournament-detail-field">
-          <span class="tournament-detail-label">Cover-URL <span class="t-hint">(optional)</span></span>
-          <input type="url" data-bind="coverUrl" maxlength="500" placeholder="https://…" value="${esc(data.coverUrl || '')}">
-        </label>
-      </div>
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Anzahl Spielfelder/Tische <span class="t-required">*</span></span>
-        <input type="number" data-bind="tableCount" min="1" max="16" value="${data.tables.length}">
-        <span class="t-hint">Wir benennen die Tische automatisch (Tisch 1, 2, …). Eigene Namen kannst du später im Setup vergeben.</span>
-      </label>
-    `;
+// ─── v3-Wizard-Wrapper (delegiert an tournament.js) ─────────────────
+// Etappe A: openTournamentWizard ist jetzt nur noch ein Mount-Punkt für
+// renderWizardView. Step-Renderer, Validierung, PATCH-Persistenz und
+// Generate-Logik leben in tournament.js (buildPatchPayload, persistConfig,
+// buildGeneratePayload). Hier nur:
+//
+//   1. Initial-State mit curGroupId aufsetzen.
+//   2. renderWizardView ins #grid mounten.
+//   3. onStateChange → persistConfig mit changedFields (Draft-Auto-Save).
+//   4. onGenerate → POST /api/tournaments/:id/generate mit buildGeneratePayload.
+//   5. onCancel → Wizard-DOM entfernen, Listenansicht neu laden.
+async function openTournamentWizard() {
+  if (!curGroupId) {
+    toast('Keine aktive Gruppe ausgewählt', 'error');
+    return;
   }
-  if (stepIdx === 1) {
-    // Teams (v3: Anzahl + optional pastbare Namen, Backend generiert sonst "Team 1".."Team N")
-    const teamNames = parseTeamsTextarea(data.teamsText || '');
-    const listHtml = teamNames.map((name, i) => `
-      <li class="t-wiz-seed-row" draggable="true" data-index="${i}">
-        <span class="t-wiz-seed-handle" aria-hidden="true">⋮⋮</span>
-        <span class="t-wiz-seed-num">${i + 1}</span>
-        <span class="t-wiz-seed-name">${esc(name)}</span>
-      </li>
-    `).join('') || `<li class="t-hint">Wähle eine Team-Anzahl — generische Namen "Team 1".."Team ${data.numberOfTeams}" werden automatisch angelegt. Du kannst sie später im Detail-View umbenennen.</li>`;
-    return `
-      <p class="t-hint">Wie viele Teams nehmen teil? Standardmäßig werden "Team 1", "Team 2", … generiert. Du kannst auch eigene Namen pasten (eine Zeile pro Team) — dann werden diese verwendet.</p>
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Anzahl Teams <span class="t-required">*</span></span>
-        <input type="number" data-bind="numberOfTeams" min="2" max="128" value="${data.numberOfTeams || 8}">
-        <span class="t-hint">Mindestens 2, maximal 128.</span>
-      </label>
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Eigene Teamnamen (optional, Copy-Paste)</span>
-        <textarea data-bind="teamsText" rows="6" placeholder='Leer lassen für "Team 1", "Team 2", …
-Oder ein Name pro Zeile:
-Alpha
-Bravo
-Charlie'>${esc(data.teamsText || '')}</textarea>
-        <span class="t-hint"><strong>${teamNames.length}</strong> Name${teamNames.length === 1 ? '' : 'n'} erkannt. Wenn das Textarea leer ist, werden ${data.numberOfTeams || 8} generische Namen erzeugt.</span>
-      </label>
-      <div class="tournament-detail-field">
-        <span class="tournament-detail-label">Setzliste (Drag&Drop zum Sortieren)</span>
-        <ol class="t-wiz-seed-list" id="wiz-seed-list">${listHtml}</ol>
-        <span class="t-hint">Die Setzreihenfolge bestimmt die Verteilung in die Gruppen (bei "Snake" / "Manuell").</span>
-      </div>
-    `;
-  }
-  if (stepIdx === 2) {
-    // Modus
-    return `
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Modus <span class="t-required">*</span></span>
-        <select data-bind="mode">
-          ${Object.entries(WIZARD_MODE_LABELS).map(([k, v]) => `<option value="${k}" ${data.mode === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
-        </select>
-      </label>
-      ${(data.mode === 'groups_ko' || data.mode === 'groups_only') ? `
-        <div class="t-grid-2">
-          <label class="tournament-detail-field">
-            <span class="tournament-detail-label">Anzahl Gruppen</span>
-            <input type="number" data-bind="numGroups" min="1" max="16" value="${data.numGroups}">
-          </label>
-          <label class="tournament-detail-field">
-            <span class="tournament-detail-label">Verteilungs-Methode</span>
-            <select data-bind="distributionMethod">
-              <option value="snake" ${data.distributionMethod === 'snake' ? 'selected' : ''}>Snake Seeding (WM-ausgewogen)</option>
-              <option value="random" ${data.distributionMethod === 'random' ? 'selected' : ''}>Zufällig</option>
-            </select>
-          </label>
-        </div>
-        <div class="tournament-detail-checkbox-row">
-          <input type="checkbox" id="wiz-double-rr" data-bind="doubleRoundRobin" ${data.doubleRoundRobin ? 'checked' : ''}>
-          <label for="wiz-double-rr">Hin- und Rückrunde</label>
-        </div>
-        <div class="tournament-detail-checkbox-row">
-          <input type="checkbox" id="wiz-draws" data-bind="drawsAllowed" ${data.drawsAllowed ? 'checked' : ''}>
-          <label for="wiz-draws">Unentschieden erlaubt</label>
-        </div>
-        <div class="t-grid-2">
-          <label class="tournament-detail-field">
-            <span class="tournament-detail-label">Punkte pro Sieg</span>
-            <input type="number" data-bind="pointsWin" min="0" max="10" value="${data.pointsWin}">
-          </label>
-          <label class="tournament-detail-field">
-            <span class="tournament-detail-label">Punkte pro Unentschieden</span>
-            <input type="number" data-bind="pointsDraw" min="0" max="10" value="${data.pointsDraw}">
-          </label>
-        </div>
-        <h4 style="font-size:12px;color:var(--muted);margin:8px 0 4px">Tiebreaker-Reihenfolge (Reihenfolge = Wichtigkeit):</h4>
-        <div class="t-tiebreaker-list">
-          ${data.tiebreakerOrder.map((k, idx) => `
-            <div class="t-tiebreaker-item">
-              <span class="t-tiebreaker-item-num">${idx + 1}</span>
-              <span class="t-tiebreaker-item-label">${esc(WIZARD_TIEBREAKER_LABELS[k] || k)}</span>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-      ${data.mode === 'double_elim' ? `
-        <div class="tournament-detail-checkbox-row">
-          <input type="checkbox" id="wiz-gf-reset" data-bind="hasGrandFinalReset" ${data.hasGrandFinalReset ? 'checked' : ''}>
-          <label for="wiz-gf-reset">Grand Final Reset-Match (Best-of-3)</label>
-        </div>
-      ` : ''}
-    `;
-  }
-  if (stepIdx === 3) {
-    // Qualifikation
-    const showGroup = data.mode === 'groups_ko';
-    if (!showGroup) {
-      return `
-        <p class="t-hint">Für ${WIZARD_MODE_LABELS[data.mode]} gibt es keine Qualifikations-Runde. Das Turnier ist direkt der finale Modus.</p>
-      `;
-    }
-    // §6.3: Wenn Anzahl Qualifikanten keine Zweierpotenz → Empfehlung "Beste Dritte"
-    const numGroups = data.numGroups;
-    const advance = data.advancePerGroup;
-    const totalQ = numGroups * advance;
-    const isPow2 = (totalQ & (totalQ - 1)) === 0 && totalQ > 0;
-    const recommendation = isPow2
-      ? `<p class="t-hint">✓ ${totalQ} Qualifikanten = Zweierpotenz → kein Lucky Loser nötig.</p>`
-      : `<p class="t-hint">⚠️ ${totalQ} Qualifikanten ist keine Zweierpotenz. Spec §6.3 empfiehlt ${8 - totalQ} "Beste Dritte" (Lucky Loser) → 8er-Baum.</p>`;
-    return `
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Aufsteiger pro Gruppe <span class="t-required">*</span></span>
-        <input type="number" data-bind="advancePerGroup" min="1" max="8" value="${data.advancePerGroup}">
-      </label>
-      <div class="wizard-preview">
-        <strong>${numGroups} Gruppen × ${advance} Aufsteiger = ${totalQ} Qualifikanten</strong>
-        ${recommendation}
-      </div>
-      <label class="tournament-detail-field">
-        <span class="tournament-detail-label">Zusätzliche "Beste Dritte" (Lucky Loser)</span>
-        <input type="number" data-bind="bestThirdsCount" min="0" max="6" value="${data.bestThirdsCount}">
-        <span class="t-hint">Zusätzliche Teams gruppenübergreifend nach Stand sortiert (Spec §6.3.1 — IMMER pro Spiel normalisiert).</span>
-      </label>
-      <div class="tournament-detail-checkbox-row">
-        <input type="checkbox" id="wiz-third-place" data-bind="thirdPlaceMatch" ${data.thirdPlaceMatch ? 'checked' : ''}>
-        <label for="wiz-third-place">Spiel um Platz 3</label>
-      </div>
-    `;
-  }
-  if (stepIdx === 4) {
-    // Summary
-    const teamNames = parseTeamsTextarea(data.teamsText || '');
-    const totalTeams = teamNames.length;
-    const numGroups = (data.mode === 'groups_ko' || data.mode === 'groups_only') ? data.numGroups : 0;
-    const teamsPerGroup = numGroups ? Math.ceil(totalTeams / numGroups) : 0;
-    const groupMatches = (data.mode === 'groups_ko' || data.mode === 'groups_only')
-      ? numGroups * (teamsPerGroup * (teamsPerGroup - 1) / 2) * (data.doubleRoundRobin ? 2 : 1)
-      : 0;
-    const qualifiers = (data.mode === 'groups_ko') ? (numGroups * data.advancePerGroup + data.bestThirdsCount) : 0;
-    const koMatches = (data.mode === 'groups_ko' || data.mode === 'ko_only' || data.mode === 'double_elim') ? Math.max(0, qualifiers - 1) : 0;
-
-    return `
-      <div class="wizard-summary-grid">
-        <div class="wizard-summary-row"><span>Name</span><strong>${esc(data.name || '–')}</strong></div>
-        <div class="wizard-summary-row"><span>Datum</span><strong>${esc(data.date || '–')}</strong></div>
-        <div class="wizard-summary-row"><span>Sport</span><strong>${esc(data.sport || '–')}</strong></div>
-        <div class="wizard-summary-row"><span>Tische</span><strong>${data.tables.length}</strong></div>
-        <div class="wizard-summary-row"><span>Modus</span><strong>${esc(WIZARD_MODE_LABELS[data.mode])}</strong></div>
-        <div class="wizard-summary-row"><span>Teams</span><strong>${totalTeams}</strong></div>
-        ${(data.mode === 'groups_ko' || data.mode === 'groups_only') ? `
-          <div class="wizard-summary-row"><span>Gruppen</span><strong>${numGroups} (≈${teamsPerGroup} Teams/Gruppe)</strong></div>
-          <div class="wizard-summary-row"><span>Hin- & Rückrunde</span><strong>${data.doubleRoundRobin ? 'Ja' : 'Nein'}</strong></div>
-        ` : ''}
-        ${data.mode === 'groups_ko' ? `
-          <div class="wizard-summary-row"><span>Aufsteiger/Gruppe</span><strong>${data.advancePerGroup}</strong></div>
-          <div class="wizard-summary-row"><span>Beste Dritte</span><strong>${data.bestThirdsCount}</strong></div>
-        ` : ''}
-      </div>
-      <p class="t-hint" style="margin-top:12px">
-        Geplant: <strong>${groupMatches}</strong> Gruppenphase-Spiele${data.mode === 'groups_ko' ? ` + <strong>${koMatches}</strong> KO-Spiele` : ''}.
-      </p>
-    `;
-  }
-  return '<p class="t-hint">Unbekannter Schritt.</p>';
-}
-
-function openTournamentWizard() {
-  const state = {
-    step: 0,
-    data: {
-      name: '',
-      date: new Date().toISOString().slice(0, 10),
-      sport: '',
-      tables: [{ key: 'T1', name: 'Tisch 1' }],
-      tableCount: 1,
-      numberOfTeams: 8,
-      teamsText: '',
-      logoUrl: '',
-      coverUrl: '',
-      mode: 'groups_ko',
-      numGroups: 2,
-      distributionMethod: 'snake',
-      doubleRoundRobin: false,
-      drawsAllowed: true,
-      pointsWin: 3,
-      pointsDraw: 1,
-      tiebreakerOrder: ['points', 'wins', 'h2h', 'goalDifference', 'goalsFor'],
-      advancePerGroup: 2,
-      bestThirdsCount: 0,
-      thirdPlaceMatch: false,
-      hasGrandFinalReset: true,
-    },
-  };
 
   closeTournamentDetailModalById('tournament-wizard-modal');
 
-  // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
-  // Mitglieder aller Rollen sehen und nutzen das Turniermodul direkt.
+  const initialState = {
+    step: 0,
+    groupId: curGroupId,
+    tournamentId: null,
+    name: '',
+    date: new Date().toISOString().slice(0, 10),
+    location: '',
+    sport: 'becher',
+    teams: [],
+    mode: 'groups_ko',
+    numGroups: 2,
+    distributionMethod: 'snake',
+    pointsWin: 3,
+    pointsDraw: 1,
+    pointsLoss: 0,
+    tiebreakers: ['points', 'goalDiff', 'goalsFor', 'headToHead'],
+    advancePerGroup: 2,
+    bestThirdsCount: 0,
+    thirdPlaceMatch: false,
+    numTables: 1,
+    tableNames: [],
+    startTime: '10:00',
+    matchDuration: 30,
+    pauseMinutes: 0,
+  };
 
-  const dlg = document.createElement('div');
-  dlg.id = 'tournament-wizard-modal';
-  dlg.className = 'dlg-bg';
-  dlg.innerHTML = `
-    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
-      <div class="tournament-detail-dlg-head">
-        <h3>⚡ Neues Turnier (Wizard)</h3>
-        <button type="button" class="modal-x" data-action="close">✕</button>
-      </div>
-      <nav class="wizard-stepper" role="tablist">
-        ${WIZARD_STEPS.map((s, i) => `
-          <div class="wizard-stepper-step ${i === state.step ? 'is-active' : ''} ${i < state.step ? 'is-complete' : ''}" data-step="${i}">
-            <span class="wizard-stepper-step-num">${i + 1}</span>
-            <span class="wizard-stepper-step-label">${s.label}</span>
-          </div>
-        `).join('')}
-      </nav>
-      <div id="wizard-body" class="wizard-body"></div>
-      <div class="wizard-nav">
-        <button type="button" class="btn-wizard-back" data-action="back">← Zurück</button>
-        <span class="t-hint" id="wizard-status">Schritt ${state.step + 1} / ${WIZARD_STEPS.length}</span>
-        <button type="button" class="btn-wizard-next" data-action="next">Weiter →</button>
-      </div>
-    </div>`;
-  document.body.appendChild(dlg);
+  const prevStep = { value: -1 };
+  const knownFieldsByStep = {
+    0: ['name', 'date', 'location', 'sport', 'numTables', 'tableNames'],
+    1: ['teams'],
+    2: ['mode', 'numGroups', 'distributionMethod', 'pointsWin', 'pointsDraw', 'pointsLoss', 'tiebreakers'],
+    3: ['advancePerGroup', 'bestThirdsCount', 'thirdPlaceMatch'],
+    4: ['startTime', 'matchDuration', 'pauseMinutes'],
+  };
 
-  function getPath(obj, path) {
-    return path.split('.').reduce((o, k) => (o ? o[k] : undefined), obj);
-  }
-  function setPath(obj, path, value) {
-    const parts = path.split('.');
-    const last = parts.pop();
-    const target = parts.reduce((o, k) => {
-      if (!o[k]) o[k] = {};
-      return o[k];
-    }, obj);
-    target[last] = value;
-  }
+  const onStateChange = async (state) => {
+    if (!state.tournamentId) return;
+    const stepIdx = Number(state.step) || 0;
+    if (prevStep.value === stepIdx) return;
+    prevStep.value = stepIdx;
+    const fields = knownFieldsByStep[stepIdx] || [];
+    if (fields.length === 0) return;
+    try {
+      await persistConfig(state, { changedFields: fields });
+    } catch (err) {
+      console.warn('[wizard] persistConfig failed', err);
+    }
+  };
 
-  function render() {
-    const body = dlg.querySelector('#wizard-body');
-    body.innerHTML = `
-      <h4 class="wizard-step-title">${esc(WIZARD_STEPS[state.step].title)}</h4>
-      <p class="wizard-step-subtitle">${esc(WIZARD_STEPS[state.step].subtitle)}</p>
-      ${renderWizardStep(state.step, state.data)}
-    `;
-    bindStepInputs(body);
-    if (state.step === 1) attachSeedListDragDrop(body);
-    dlg.querySelectorAll('.wizard-stepper-step').forEach((el, idx) => {
-      el.classList.toggle('is-active', idx === state.step);
-      el.classList.toggle('is-complete', idx < state.step);
-    });
-    dlg.querySelector('.btn-wizard-back').disabled = state.step === 0;
-    const nextBtn = dlg.querySelector('.btn-wizard-next');
-    const isLast = state.step === WIZARD_STEPS.length - 1;
-    nextBtn.textContent = isLast ? '✓ Turnier erstellen' : 'Weiter →';
-    dlg.querySelector('#wizard-status').textContent =
-      `Schritt ${state.step + 1} / ${WIZARD_STEPS.length}`;
-  }
+  const onGenerate = async (state, opts) => {
+    if (!state.tournamentId) return { ok: false, body: { error: 'no_tournament_id' } };
+    const payload = buildGeneratePayload(state, opts);
+    try {
+      const res = await fetch(
+        `/api/tournaments/${encodeURIComponent(state.tournamentId)}/generate`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) return { ok: true, body };
+      return { ok: false, status: res.status, body };
+    } catch (err) {
+      return { ok: false, body: { error: 'network_error', message: err.message } };
+    }
+  };
 
-  function bindStepInputs(body) {
-    body.querySelectorAll('[data-bind]').forEach((el) => {
-      const path = el.dataset.bind;
-      if (el.type === 'checkbox') {
-        el.addEventListener('change', () => setPath(state.data, path, el.checked));
-      } else if (el.tagName === 'SELECT') {
-        el.addEventListener('change', () => {
-          const v = el.value;
-          setPath(state.data, path, isNaN(Number(v)) ? v : Number(v));
-          render(); // re-render to show/hide mode-dependent fields
-        });
-      } else if (el.type === 'number') {
-        el.addEventListener('input', () => {
-          const v = el.value === '' ? '' : Number(el.value);
-          setPath(state.data, path, v);
-        });
-      } else {
-        el.addEventListener('input', () => setPath(state.data, path, el.value));
-      }
-    });
-  }
+  const onCancel = async () => {
+    wizardMounted = null;
+    await loadActiveTournamentView(true);
+  };
 
-  function validateStep() {
-    const d = state.data;
-    if (state.step === 0) {
-      if (!d.name || d.name.length < 2) return 'Turnier-Name ist erforderlich (mind. 2 Zeichen).';
-    }
-    if (state.step === 1) {
-      const teamNames = parseTeamsTextarea(d.teamsText || '');
-      const effectiveCount = teamNames.length >= 2 ? teamNames.length : (d.numberOfTeams || 0);
-      if (effectiveCount < 2) return 'Mindestens 2 Teams erforderlich.';
-      if (effectiveCount > 128) return 'Maximal 128 Teams.';
-      if (teamNames.length >= 2) {
-        const set = new Set(teamNames);
-        if (set.size !== teamNames.length) return 'Doppelte Teamnamen gefunden.';
-      }
-    }
-    if (state.step === 2) {
-      if (!['groups_ko', 'groups_only', 'ko_only', 'double_elim'].includes(d.mode))
-        return 'Ungültiger Modus.';
-      if ((d.mode === 'groups_ko' || d.mode === 'groups_only') && (d.numGroups < 1))
-        return 'Anzahl Gruppen muss mindestens 1 sein.';
-    }
-    if (state.step === 3) {
-      if (d.mode === 'groups_ko' && (d.advancePerGroup < 1 || d.advancePerGroup > 8))
-        return 'Aufsteiger pro Gruppe muss zwischen 1 und 8 sein.';
-    }
-    return null;
-  }
-
-  function next() {
-    const err = validateStep();
-    if (err) {
-      toast(err, 'error');
-      return;
-    }
-    if (state.step === WIZARD_STEPS.length - 1) {
-      submitWizard();
-      return;
-    }
-    state.step += 1;
-    render();
-  }
-  function back() {
-    if (state.step > 0) {
-      state.step -= 1;
-      render();
-    }
-  }
-
-  dlg.querySelector('[data-action="back"]').addEventListener('click', back);
-  dlg.querySelector('[data-action="next"]').addEventListener('click', next);
-  dlg.querySelector('[data-action="close"]').addEventListener('click', () => dlg.remove());
-  dlg.addEventListener('click', (e) => {
-    if (e.target === dlg) dlg.remove();
+  const wizardEl = renderWizardView({
+    initialState,
+    onStateChange,
+    onGenerate,
+    onCancel,
   });
 
-  render();
-
-  async function submitWizard() {
-    const d = state.data;
-    try {
-      // v3: kein Preset mehr nötig — Konfiguration lebt am Turnier selbst.
-      if (!curGroupId) {
-        toast('Keine Gruppe ausgewählt', 'error');
-        return;
-      }
-
-      // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
-      // POST /tournaments prüft Mitgliedschaft + Owner/Deputy, sonst nichts.
-
-      // 1) Turnier anlegen — Backend erzeugt automatisch "Team 1".."Team N" wenn keine Namen pasted sind
-      const config = {
-        mode: d.mode,
-        numGroups: d.numGroups,
-        advancePerGroup: d.advancePerGroup,
-        bestThirdsCount: d.bestThirdsCount,
-        distributionMethod: d.distributionMethod,
-        doubleRoundRobin: d.doubleRoundRobin,
-        pointsWin: d.pointsWin,
-        pointsDraw: d.pointsDraw,
-        drawsAllowed: d.drawsAllowed,
-        tiebreakerOrder: d.tiebreakerOrder,
-        thirdPlaceMatch: d.thirdPlaceMatch,
-        hasGrandFinalReset: d.hasGrandFinalReset,
-      };
-      const pastedNames = parseTeamsTextarea(d.teamsText || '');
-      const t = await apiCall('/tournaments', 'POST', {
-        groupId: curGroupId,
-        name: d.name,
-        mode: d.mode,
-        config,
-        logoUrl: d.logoUrl || undefined,
-        coverUrl: d.coverUrl || undefined,
-        numberOfTeams: d.numberOfTeams,
-        teamNames: pastedNames.length >= 2 ? pastedNames : undefined,
-      });
-
-      // 3) Generate: Engine → DB in einer Transaktion
-      await apiCall(`/tournaments/${t.id}/generate`, 'POST', {
-        config,
-        distribution: d.distributionMethod,
-      });
-
-      toast('Turnier erstellt', 'success');
-      dlg.remove();
-      await loadActiveTournamentView(true);
-      if (t?.id) {
-        await openTournamentInstance(t.id);
-      }
-    } catch (e) {
-      toast(e.serverMessage || 'Turnier konnte nicht erstellt werden', 'error');
-    }
-  }
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  grid.appendChild(wizardEl);
+  wizardMounted = wizardEl;
 }
 
-/**
- * v3: Teams aus Copy-Paste-Textarea parsen.
- * Akzeptiert: ein Team pro Zeile, optional mit Seed ("1. Alpha", "* Alpha", "Alpha|rot").
- */
-function parseTeamsTextarea(text) {
-  if (!text) return [];
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*(\d+[\.\)]|\*)\s*/, '').trim())
-    .filter((line) => line.length > 0);
-}
+// Mount-Handle, damit andere Stellen (loadActiveTournamentView etc.)
+// den Wizard bei Bedarf zerstören können.
+let wizardMounted = null;
+
 
 /**
  * v3 S3.4 — Eine Match-Darstellung für alle Views (Spec §8.7 "Konsistenz").
@@ -16280,7 +15889,6 @@ Object.assign(window, {
   loadStandingsTab,
   loadScheduleTab,
   togglePublishV3,
-  parseTeamsTextarea,
   renderTournamentInstanceDetailV3,
   refreshTournamentInstance,
   setTournamentInstanceStatus,
