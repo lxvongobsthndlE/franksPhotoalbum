@@ -146,6 +146,12 @@ function cuid(prefix) {
 
 // ------------------------------------------------------------------
 // Engine-Output-Fixture: 4 Teams, 2 Gruppen à 2, jeweils 1 Round-Robin-Match.
+//
+// Hinweis Issue 1 (2026-08-12): Die Engine produziert hier die sprechenden
+// IDs `g_A_1` / `g_B_1`. Diese sind INNERHALB eines generate-Aufrufs
+// stabil, werden aber NICHT als DB-Primary-Key verwendet — siehe
+// persistGenerated. Wir prüfen in den Tests, dass die DB-IDs NICHT
+// diese Engine-Labels tragen.
 // ------------------------------------------------------------------
 function buildFixtureGen() {
   return {
@@ -194,6 +200,15 @@ function buildFixtureGen() {
     ],
     unresolvedConflicts: [],
   };
+}
+
+/**
+ * Hilfs-Test: Ist eine ID eine frische cuid-ähnliche ID (also NICHT das
+ * Engine-Label)? Wir prüfen das Format, das `makeCuid()` produziert:
+ * beginnt mit `c`, danach Base36 + Hex.
+ */
+function isCuidLike(id) {
+  return typeof id === 'string' && /^c[a-z0-9]{8}[a-f0-9]{16}$/.test(id);
 }
 
 describe('persistGenerated — Happy Path', () => {
@@ -253,13 +268,18 @@ describe('persistGenerated — Happy Path', () => {
     }
   });
 
-  it('legt alle Round-Robin-Matches mit korrekten IDs an', async () => {
+  it('legt alle Round-Robin-Matches an, mit cuid-IDs (NICHT den Engine-Labels)', async () => {
     await persistGenerated(prisma, 't-1', buildFixtureGen());
 
     const matchesList = [...state.matches.values()];
     expect(matchesList).toHaveLength(2);
     const matchIds = matchesList.map((m) => m.id).sort();
-    expect(matchIds).toEqual(['g_A_1', 'g_B_1']);
+    // Issue 1 Fix: Die DB-IDs sind frische Cuids, NICHT die Engine-Labels.
+    // (Sonst würden zwei Turniere mit derselben Konfig kollidieren.)
+    expect(matchIds).not.toEqual(['g_A_1', 'g_B_1']);
+    for (const id of matchIds) {
+      expect(isCuidLike(id)).toBe(true);
+    }
     for (const m of matchesList) {
       expect(m.tournamentId).toBe('t-1');
       expect(m.status).toBe('scheduled');
@@ -268,7 +288,10 @@ describe('persistGenerated — Happy Path', () => {
 
   it('übernimmt Platzhalter-Referenzen unverändert in DB-Rows', async () => {
     await persistGenerated(prisma, 't-1', buildFixtureGen());
-    const koStyle = [...state.matches.values()].find((m) => m.id === 'g_B_1');
+    // Issue 1 Fix: Die Match-IDs in der DB sind Cuids, nicht 'g_B_1'.
+    // Wir identifizieren das richtige Match über groupId + field (=2).
+    const koStyle = [...state.matches.values()].find((m) => m.field === 2);
+    expect(koStyle).toBeDefined();
     expect(koStyle.placeholderHome).toEqual({
       type: 'winner_of',
       sourceGroupKey: 'A',
@@ -385,24 +408,100 @@ describe('persistGenerated — Idempotenz / Re-Generate', () => {
     expect(state.memberships).toHaveLength(2);
   });
 
-  it('Re-Generate mit überlappenden Match-IDs überschreibt sauber (kein Unique-Constraint-Fehler)', async () => {
-    // Regression für Issue 1: Beim Re-Generate produziert die Engine
-    // unter Umständen IDs, die in der DB noch liegen. Ohne defensives
-    // match.deleteMany würde createMany() mit "Unique constraint failed"
-    // abbrechen. Mit dem expliziten Cleanup ist die Reihenfolge unabhängig
-    // vom CASCADE-Verhalten der DB.
+  it('Re-Generate vergibt jedes Mal frische Cuids und löscht die alten Rows', async () => {
+    // Re-Generate hinterlässt saubere 2 Matches, nicht 4.
     const { prisma, state } = createMemoryPrisma();
     await persistGenerated(prisma, 't-1', buildFixtureGen());
-    // Nach erstem Lauf liegen g_A_1 und g_B_1 in der DB.
-    expect([...state.matches.keys()].sort()).toEqual(['g_A_1', 'g_B_1']);
+    const firstIds = [...state.matches.keys()].sort();
+    expect(firstIds).toHaveLength(2);
+    for (const id of firstIds) expect(isCuidLike(id)).toBe(true);
 
-    // Zweiter Lauf mit IDENTISCHEM Engine-Output → gleiche IDs.
-    // Früher brach das mit Unique-Constraint ab.
+    // Zweiter Lauf: defensive deleteMany entfernt die alten Rows, neuer
+    // Insert vergibt neue Cuids.
     const result = await persistGenerated(prisma, 't-1', buildFixtureGen());
-
     expect(result.groupCount).toBe(2);
     expect(result.matchCount).toBe(2);
-    // Immer noch genau die zwei Matches, nicht vier.
-    expect([...state.matches.keys()].sort()).toEqual(['g_A_1', 'g_B_1']);
+    const secondIds = [...state.matches.keys()].sort();
+    expect(secondIds).toHaveLength(2);
+    // Neue Cuids, nicht die alten wiederverwendet.
+    expect(secondIds).not.toEqual(firstIds);
+    for (const id of secondIds) expect(isCuidLike(id)).toBe(true);
+  });
+});
+
+// ------------------------------------------------------------------
+// 4) Cross-Tournament-Kollision (Issue 1 Regression, 2026-08-12).
+//
+// Vor dem Fix: Zwei Turniere mit derselben Konfig produzierten
+// Engine-IDs `g_A_1` / `g_B_1` / … für BEIDE. Beim createMany() der
+// zweiten Generierung knallte es mit "Unique constraint failed on the
+// (not available)" (das ist die PRIMARY KEY auf matches.id — Prisma
+// nennt den Constraint-Namen nicht beim Raw-Constraint, deswegen
+// "not available"). Der defensive `match.deleteMany({where:{tournamentId}})`
+// traf nur das EINE Turnier im WHERE-Clause und konnte die anderen
+// Rows nicht sehen.
+//
+// Mit dem Fix: Beim Persist wird für JEDES Match ein frischer cuid
+// vergeben — die DB-IDs sind NICHT mehr die Engine-Labels.
+// ------------------------------------------------------------------
+describe('persistGenerated — Cross-Tournament-Kollision (Issue 1)', () => {
+  it('zwei Turniere mit identischer Engine-Konfig können gleichzeitig existieren', async () => {
+    const mem = createMemoryPrisma();
+    const { prisma, state } = mem;
+
+    // Turnier 1 anlegen + generieren
+    await persistGenerated(prisma, 't-1', buildFixtureGen());
+    expect([...state.matches.values()].map((m) => m.tournamentId)).toEqual(['t-1', 't-1']);
+
+    // Turnier 2 anlegen + generieren — SELBE Engine-Config.
+    // Vor dem Fix: createMany brach mit Unique-Constraint-Fehler ab,
+    // weil `g_A_1` und `g_B_1` schon in der DB lagen.
+    const result2 = await persistGenerated(prisma, 't-2', buildFixtureGen());
+    expect(result2.groupCount).toBe(2);
+    expect(result2.matchCount).toBe(2);
+
+    // Insgesamt 4 Matches, je 2 pro Turnier.
+    const allMatches = [...state.matches.values()];
+    expect(allMatches).toHaveLength(4);
+    const byT = allMatches.reduce((acc, m) => {
+      acc[m.tournamentId] = (acc[m.tournamentId] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(byT).toEqual({ 't-1': 2, 't-2': 2 });
+
+    // Alle DB-IDs sind global eindeutig (kein Duplikat zwischen den
+    // Turnieren).
+    const ids = allMatches.map((m) => m.id);
+    expect(new Set(ids).size).toBe(4);
+    for (const id of ids) expect(isCuidLike(id)).toBe(true);
+  });
+
+  it('Re-Generate auf Turnier 1 lässt Turnier 2 unangetastet', async () => {
+    // Stellt sicher, dass das defensive deleteMany weiterhin scoping-
+    // korrekt ist: nur DIESES Turnier wird aufgeräumt, fremde
+    // Turniere bleiben liegen.
+    const mem = createMemoryPrisma();
+    const { prisma, state } = mem;
+
+    await persistGenerated(prisma, 't-1', buildFixtureGen());
+    await persistGenerated(prisma, 't-2', buildFixtureGen());
+
+    const t1Before = [...state.matches.values()].filter((m) => m.tournamentId === 't-1');
+    expect(t1Before).toHaveLength(2);
+    const t2Before = [...state.matches.values()].filter((m) => m.tournamentId === 't-2');
+    const t2IdsBefore = t2Before.map((m) => m.id).sort();
+
+    // Re-Generate t-1.
+    await persistGenerated(prisma, 't-1', buildFixtureGen());
+
+    // t-2 muss unverändert sein — gleiche IDs, gleiche Anzahl.
+    const t2After = [...state.matches.values()].filter((m) => m.tournamentId === 't-2');
+    expect(t2After.map((m) => m.id).sort()).toEqual(t2IdsBefore);
+
+    // t-1 hat neue Cuids (nicht die von vorher wiederverwendet).
+    const t1After = [...state.matches.values()].filter((m) => m.tournamentId === 't-1');
+    expect(t1After).toHaveLength(2);
+    const t1IdsAfter = t1After.map((m) => m.id).sort();
+    expect(t1IdsAfter).not.toEqual(t1Before.map((m) => m.id).sort());
   });
 });

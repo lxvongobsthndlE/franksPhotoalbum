@@ -17,6 +17,7 @@
  */
 
 import { Prisma } from '@prisma/client';
+import { makeCuid } from './engine/cuid.js';
 
 /**
  * Persistiert ein generateTournament-Ergebnis (Gruppenphase) in der DB.
@@ -97,11 +98,33 @@ export async function persistGenerated(prisma, tournamentId, gen) {
       }
 
       // 4c) Matches. Jede Group hat n(n-1)/2 Round-Robin-Spiele.
+      //
+      //     Issue 1 Fix (2026-08-12): Wir nehmen NICHT die Engine-ID
+      //     (`g_A_1`, `g_B_1`, …) als DB-Primary-Key. Die ist zwar
+      //     INNERHALB dieses generate-Aufrufs stabil, aber NICHT global
+      //     eindeutig — zwei Turniere mit derselben Konfig würden
+      //     kollidierende IDs erzeugen, was die PRIMARY KEY auf matches.id
+      //     verletzt und mit "Unique constraint failed on the (not
+      //     available)" abbricht. Der vorherige defensive
+      //     `match.deleteMany({where:{tournamentId}})` deckt nur Re-Generate
+      //     für DASSELBE Turnier ab — ein NEUES Turnier mit kollidierenden
+      //     IDs blieb hängen.
+      //
+      //     Wir generieren daher JETZT pro Match einen frischen cuid,
+      //     BEVOR wir inserten. Die Engine-Labels bleiben über
+      //     `engineId` als optionales Feld am Match-Objekt erhalten
+      //     (für Logs / Debugging), wandern aber NICHT in die DB. Wenn
+      //     später KO-Matches persistiert werden, müssen deren
+      //     `winnerAdvancesTo` / `loserAdvancesTo` über dieselbe Map auf
+      //     die neuen Cuids umgeschrieben werden — siehe TODO bei
+      //     persistBracket().
       const matches = g.matches ?? [];
       if (matches.length > 0) {
         await tx.match.createMany({
           data: matches.map((m) => ({
-            id: m.id,
+            // Frische global-eindeutige ID — kein Risiko mehr, mit
+            // Matches anderer Turniere zu kollidieren.
+            id: makeCuid(),
             tournamentId,
             stageId: groupStage.id,
             groupId: groupRow.id,
@@ -124,7 +147,9 @@ export async function persistGenerated(prisma, tournamentId, gen) {
     // 5) KO-Bracket (falls vorhanden). Wird in einer separaten Phase erzeugt
     //    (nach Ende der Gruppenphase). Hier noch leer, der Helper bleibt
     //    offen dafür.
-    //    TODO: wenn persistBracket() existiert, hier aufrufen.
+    //    TODO: wenn persistBracket() existiert, muss es die gleiche
+    //          `engineId → cuid`-Map führen und `winnerAdvancesTo` /
+    //          `loserAdvancesTo` der KO-Matches entsprechend umschreiben.
 
     return { groupCount: gen.groups.length, matchCount, teamCount };
   });

@@ -26,6 +26,7 @@ export * from './qualify.js';
 export * from './bracket.js';
 export * from './propagate.js';
 export * from './schedule.js';
+export * from './cuid.js';
 
 import { mergeConfig } from './config.js';
 import { distributeTeamsIntoGroups } from './distribute.js';
