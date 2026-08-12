@@ -41,10 +41,23 @@ import { Prisma } from '@prisma/client';
  */
 export async function persistGenerated(prisma, tournamentId, gen) {
   return prisma.$transaction(async (tx) => {
-    // 1) Alte Stages dieses Turniers löschen (Cascade auf Groups + Matches).
+    // 1) Alte Matches dieses Turniers explizit entfernen.
+    //
+    //    Hintergrund: Wenn die Engine für die neue Konfig IDs produziert,
+    //    die bereits in der DB liegen (z.B. Re-Generate nach Teamentfernung
+    //    oder Konfig-Anpassung), würde das anschließende createMany() mit
+    //    "Unique constraint failed on the (not available)" abbrechen.
+    //    Der CASCADE auf matches.stageId → stages.id sollte das eigentlich
+    //    über die folgende stage.deleteMany erledigen — als
+    //    belt-and-suspenders räumen wir hier explizit auf, BEVOR wir die
+    //    Stages anfassen. Damit ist die Reihenfolge unabhängig vom
+    //    CASCADE-Verhalten der DB.
+    await tx.match.deleteMany({ where: { tournamentId } });
+
+    // 2) Alte Stages dieses Turniers löschen (Cascade auf Groups).
     await tx.stage.deleteMany({ where: { tournamentId } });
 
-    // 2) Eine Stage für die Gruppenphase.
+    // 3) Eine Stage für die Gruppenphase.
     const groupStage = await tx.stage.create({
       data: {
         tournamentId,
@@ -57,11 +70,11 @@ export async function persistGenerated(prisma, tournamentId, gen) {
     let matchCount = 0;
     let teamCount = 0;
 
-    // 3) Pro Gruppe: Group_ + Memberships + Round-Robin-Matches.
+    // 4) Pro Gruppe: Group_ + Memberships + Round-Robin-Matches.
     for (let i = 0; i < gen.groups.length; i++) {
       const g = gen.groups[i];
 
-      // 3a) Group_-Row.
+      // 4a) Group_-Row.
       const groupRow = await tx.group_.create({
         data: {
           stageId: groupStage.id,
@@ -70,7 +83,7 @@ export async function persistGenerated(prisma, tournamentId, gen) {
         },
       });
 
-      // 3b) Memberships (Team → Gruppe).
+      // 4b) Memberships (Team → Gruppe).
       const members = g.members ?? [];
       if (members.length > 0) {
         await tx.groupMembership.createMany({
@@ -83,7 +96,7 @@ export async function persistGenerated(prisma, tournamentId, gen) {
         teamCount += members.length;
       }
 
-      // 3c) Matches. Jede Group hat n(n-1)/2 Round-Robin-Spiele.
+      // 4c) Matches. Jede Group hat n(n-1)/2 Round-Robin-Spiele.
       const matches = g.matches ?? [];
       if (matches.length > 0) {
         await tx.match.createMany({
@@ -108,7 +121,7 @@ export async function persistGenerated(prisma, tournamentId, gen) {
       }
     }
 
-    // 4) KO-Bracket (falls vorhanden). Wird in einer separaten Phase erzeugt
+    // 5) KO-Bracket (falls vorhanden). Wird in einer separaten Phase erzeugt
     //    (nach Ende der Gruppenphase). Hier noch leer, der Helper bleibt
     //    offen dafür.
     //    TODO: wenn persistBracket() existiert, hier aufrufen.

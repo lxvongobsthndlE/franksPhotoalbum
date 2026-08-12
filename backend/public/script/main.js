@@ -600,6 +600,14 @@ function toast(msg, type = 'info') {
 }
 
 // ── BOOT ─────────────────────────────────────────────────
+// Issue 2: Beim Tab-Schließen das Wizard-Flag zurücksetzen.
+// pagehide feuert zuverlässiger als beforeunload (auch bei Back/Forward
+// und bei reload), und wir können hier kein async-Cleanup mehr
+// absetzen — das Flag selbst ist die kritische Information.
+window.addEventListener('pagehide', () => {
+  wizardMounted = null;
+});
+
 window.addEventListener('load', async () => {
   hide('loading');
   show('auth-page');
@@ -1674,6 +1682,9 @@ async function switchToFeed(view = 'all') {
   saveLastModuleState();
   closeSidebar();
   renderSidebar();
+  // Issue 2: Wizard zumachen, falls er noch offen war — ohne diese
+  // Zeile hängt das Flag beim nächsten „Neues Turnier"-Klick.
+  await teardownWizard();
   await loadFeedPosts(true);
 }
 
@@ -1686,6 +1697,10 @@ async function switchToTournaments(view = 'instances') {
   saveLastModuleState();
   closeSidebar();
   renderSidebar();
+  // Issue 2: Auch beim Wechsel INNERHALB des Turniermoduls (Dashboard
+  // ↔ Instanzen) den Wizard zumachen, sonst zeigt der Klick auf
+  // „Neues Turnier" fälschlich „Wizard ist bereits offen".
+  await teardownWizard();
   await loadActiveTournamentView(true);
 }
 
@@ -5204,29 +5219,45 @@ async function openTournamentWizard() {
       '\nName:', state.name,
       '\nPrüfen mit: inspectTournament("' + state.tournamentId + '")'
     );
+    // Issue 2: Mount-Flag freigeben — nach erfolgreichem Generate ist
+    // der Wizard durch. Sonst blockt der nächste Klick auf
+    // „Neues Turnier" mit „Wizard ist bereits offen".
+    wizardMounted = null;
     return { ok: true, body: data };
   };
 
+  // Issue 2: Letzte Verteidigungslinie für onGenerate. Wenn apiCall
+  // wirft oder syncTeams mitten im Lauf eskaliert, MUSS wizardMounted
+  // freigegeben werden — sonst hängt der User fest. Wir wrappen den
+  // ganzen onGenerate-Body in try/catch, der am Ende das Flag löst.
+  // (Innerhalb der Funktion haben wir mehrere {ok:false}-Returns für
+  // Geschäftsregel-Verstöße; diese setzen das Flag NICHT — bewusst,
+  // damit der User den Wizard noch bedienen kann, um z. B. fehlende
+  // Teams nachzutragen.)
+  const onGenerateSafe = async (state, opts) => {
+    try {
+      return await onGenerate(state, opts);
+    } catch (err) {
+      console.warn('[wizard] onGenerate threw (outer):', err);
+      wizardMounted = null;
+      return {
+        ok: false,
+        body: {
+          error: 'generate_failed',
+          message:
+            'Beim Generieren ist ein unerwarteter Fehler aufgetreten. ' +
+            'Bitte prüfe die Browser-Konsole und versuche es erneut.',
+        },
+      };
+    }
+  };
+
   const onCancel = async () => {
-    wizardMounted = null;
-    // Vor dem Reload der Listenansicht #grid + Header-Buttons
-    // zurück auf den Normalzustand, sonst bleibt das Foto-Grid
-    // blockiert und die Buttons versteckt.
-    const grid = document.getElementById('grid');
-    if (grid) {
-      grid.classList.remove(WIZARD_HOST_CLASS);
-      grid.innerHTML = '';
-    }
-    // Galerie-Titel wiederherstellen — wir hatten ihn auf
-    // "Neues Turnier" gesetzt, damit oben nicht mehr "Turniere"
-    // (Listenansicht) zu sehen ist, während der Wizard offen ist.
-    const title = $('gal-title');
-    if (title && title.dataset.tWizardTitle === '1') {
-      title.textContent = title.dataset.tWizardPrevTitle || 'Gemeinsamer Ordner';
-      delete title.dataset.tWizardTitle;
-      delete title.dataset.tWizardPrevTitle;
-    }
-    showTournamentHeaderButtons();
+    // Issue 2: Aufräumen über die zentrale teardownWizard()-Funktion.
+    // Damit fahren onCancel und alle externen Aufrufer (Modul-Wechsel,
+    // Gruppen-Wechsel, pagehide) exakt dieselbe Sequenz — keine Drift
+    // zwischen den Pfaden.
+    await teardownWizard();
     await loadActiveTournamentView(true);
   };
 
@@ -5240,7 +5271,7 @@ async function openTournamentWizard() {
     groupId: curGroupId,
     initialState,
     onStateChange,
-    onGenerate,
+    onGenerate: onGenerateSafe,
     onCancel,
   });
 
@@ -5276,6 +5307,42 @@ async function openTournamentWizard() {
 // Mount-Handle, damit andere Stellen (loadActiveTournamentView etc.)
 // den Wizard bei Bedarf zerstören können.
 let wizardMounted = null;
+
+/**
+ * Issue 2 — Zentrales Aufräumen für den Wizard-Mount.
+ *
+ * Wird in ALLEN Ausstiegs-Pfaden aufgerufen:
+ *   1. onCancel (User klickt „Abbrechen")
+ *   2. onGenerate Erfolg (Server hat das Turnier angelegt)
+ *   3. onGenerate Fehler (apiCall wirft, syncTeams eskaliert, …)
+ *   4. switchToFeed / switchToTournaments / switchToPhotos (User
+ *      wechselt das Modul, ohne den Wizard zu schließen)
+ *   5. switchToGroup (User wechselt die Gruppe)
+ *   6. pagehide (Tab wird geschlossen — kein async-Cleanup möglich,
+ *      aber das Flag muss konsistent sein)
+ *
+ * Ohne diesen Block blieb wizardMounted nach Generate-Success auf dem
+ * alten Element stehen — der nächste Klick auf „Neues Turnier" zeigte
+ * dann „Wizard ist bereits offen", obwohl gar keiner mehr im DOM war.
+ *
+ * Die Funktion ist idempotent: wenn nichts zu tun ist (kein Mount,
+ * keine Daten-Attribute am Titel), läuft sie ohne Effekt durch.
+ */
+async function teardownWizard() {
+  wizardMounted = null;
+  const grid = document.getElementById('grid');
+  if (grid) {
+    grid.classList.remove(WIZARD_HOST_CLASS);
+    grid.innerHTML = '';
+  }
+  const title = $('gal-title');
+  if (title && title.dataset.tWizardTitle === '1') {
+    title.textContent = title.dataset.tWizardPrevTitle || 'Gemeinsamer Ordner';
+    delete title.dataset.tWizardTitle;
+    delete title.dataset.tWizardPrevTitle;
+  }
+  showTournamentHeaderButtons();
+}
 
 /**
  * Diagnose-Helper: alles aus der DB zu einem Turnier in die Konsole
@@ -13238,6 +13305,10 @@ async function switchGroup(groupId) {
   } catch (e) {}
   invalidateCounts();
   renderGroupSwitcher();
+  // Issue 2: Wenn der Wizard gerade offen war, beim Gruppenwechsel
+  // sauber zumachen — sonst zeigt der nächste Klick auf „Neues Turnier"
+  // fälschlich „Wizard ist bereits offen".
+  await teardownWizard();
   // Reload everything for new group
   await loadGroupMembers();
   curAlbum = null;

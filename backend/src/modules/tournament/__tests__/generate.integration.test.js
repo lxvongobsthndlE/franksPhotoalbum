@@ -76,6 +76,7 @@ function createLocalMockPrisma() {
       createMany: fn(),
       update: fn(),
       updateMany: fn(),
+      deleteMany: fn(),
       groupBy: fn(),
       count: fn(),
     },

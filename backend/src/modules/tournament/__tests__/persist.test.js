@@ -100,6 +100,14 @@ function createMemoryPrisma({ failOn = null } = {}) {
         for (const m of data) state.matches.set(m.id, { ...m });
         return { count: data.length };
       }),
+      deleteMany: vi.fn(async ({ where }) => {
+        if (where.tournamentId) {
+          for (const [id, m] of state.matches) {
+            if (m.tournamentId === where.tournamentId) state.matches.delete(id);
+          }
+        }
+        return { count: 0 };
+      }),
     },
   };
 
@@ -375,5 +383,26 @@ describe('persistGenerated — Idempotenz / Re-Generate', () => {
     expect(groupKeys).toEqual(['C']);
     // Member nur aus Gruppe C.
     expect(state.memberships).toHaveLength(2);
+  });
+
+  it('Re-Generate mit überlappenden Match-IDs überschreibt sauber (kein Unique-Constraint-Fehler)', async () => {
+    // Regression für Issue 1: Beim Re-Generate produziert die Engine
+    // unter Umständen IDs, die in der DB noch liegen. Ohne defensives
+    // match.deleteMany würde createMany() mit "Unique constraint failed"
+    // abbrechen. Mit dem expliziten Cleanup ist die Reihenfolge unabhängig
+    // vom CASCADE-Verhalten der DB.
+    const { prisma, state } = createMemoryPrisma();
+    await persistGenerated(prisma, 't-1', buildFixtureGen());
+    // Nach erstem Lauf liegen g_A_1 und g_B_1 in der DB.
+    expect([...state.matches.keys()].sort()).toEqual(['g_A_1', 'g_B_1']);
+
+    // Zweiter Lauf mit IDENTISCHEM Engine-Output → gleiche IDs.
+    // Früher brach das mit Unique-Constraint ab.
+    const result = await persistGenerated(prisma, 't-1', buildFixtureGen());
+
+    expect(result.groupCount).toBe(2);
+    expect(result.matchCount).toBe(2);
+    // Immer noch genau die zwei Matches, nicht vier.
+    expect([...state.matches.keys()].sort()).toEqual(['g_A_1', 'g_B_1']);
   });
 });
