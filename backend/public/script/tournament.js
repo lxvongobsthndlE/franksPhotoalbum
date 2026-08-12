@@ -134,6 +134,137 @@ async function deleteDraft(tournamentId) {
   }
 }
 
+// ----------------------------------------------------------------
+// Team-Sync zum Server (Spec §1.2, §3 Schritt 2).
+//
+// Vor diesem Fix hatte der Wizard 12 Teams im state.teams, aber keine
+// davon in der DB. POST /generate brach dann mit "Mindestens 2 Teams
+// erforderlich" ab — obwohl der User Teams eingegeben hatte. Ursache:
+// Wizard baute state.teams auf, sendete sie aber NIE an den Server
+// (nur die Config via PATCH). Der Server sah also eine leere teams-
+// Tabelle.
+//
+// syncTeamsToBackend() ist ein inkrementelles Sync:
+//   1. POST /api/tournaments/:id/teams mit allen aktuellen Namen
+//      (Server skippt Duplikate per tournamentId+name-Index, deshalb
+//      ist die Funktion idempotent).
+//   2. Server-Antwort enthält die kanonische ID-Liste. Wir mappen
+//      die IDs zurück nach state.teams[i].id (per Name-Match).
+//   3. Welche Server-IDs nicht mehr im aktuellen state sind, werden
+//      per DELETE /:id/teams/:teamId entfernt. So entsteht ein
+//      sauberer Spiegel zwischen Wizard-State und DB.
+//
+// Aufgerufen wird sie aus main.js onStateChange beim Übergang
+// Schritt 2 → 3 (sobald der User "Weiter" aus Step 2 klickt). Beim
+// Verlassen des Wizards in onGenerate läuft ein letzter Sync als
+// Sicherheitsnetz (falls der User direkt zu "Turnier generieren"
+// springt, ohne dass die Auto-Save-Schleife gelaufen ist).
+//
+// Spec §13.5: "Ursache beheben statt Meldung verschönern". Hier
+// war die Ursache, dass teams nicht im Request landeten — die
+// Fehlermeldung war symptomatisch korrekt ("Mindestens 2 Teams
+// erforderlich"), aber der Wizard hat sie selbst verursacht.
+// ----------------------------------------------------------------
+async function syncTeamsToBackend(state) {
+  if (!state.tournamentId) {
+    return { ok: false, error: 'no_tournament', added: 0, removed: 0 };
+  }
+  if (!Array.isArray(state.teams) || state.teams.length === 0) {
+    // Nichts zu syncen. Aber: falls vorher Teams da waren und der
+    // User alle entfernt hat, müssen wir die Server-Teams aufräumen.
+    const prevIds = Array.isArray(state.__syncedTeamIds)
+      ? state.__syncedTeamIds
+      : [];
+    let removed = 0;
+    for (const id of prevIds) {
+      try {
+        await fetchWithAuth(
+          `/api/tournaments/${encodeURIComponent(state.tournamentId)}/teams/${encodeURIComponent(id)}`,
+          { method: 'DELETE' }
+        );
+        removed++;
+      } catch (err) {
+        console.warn('[wizard] team-Delete failed:', err);
+      }
+    }
+    state.__syncedTeamIds = [];
+    return { ok: true, added: 0, removed };
+  }
+
+  // 1. POST alle aktuellen Namen. Server skippt Duplikate.
+  let res;
+  try {
+    res = await fetchWithAuth(
+      `/api/tournaments/${encodeURIComponent(state.tournamentId)}/teams`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          names: state.teams.map((t) => String(t?.name ?? '').trim()).filter(Boolean),
+        }),
+      }
+    );
+  } catch (err) {
+    return { ok: false, error: 'network', message: err.message };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: body?.error || `teams_sync_failed_${res.status}`,
+      message: body?.message || `Teams konnten nicht gespeichert werden (${res.status}).`,
+    };
+  }
+
+  // 2. ID-Mapping: Server liefert { teams: [{ id, name, seed }] }.
+  // Wir schreiben die IDs zurück nach state.teams[i].id (per Name),
+  // damit spätere Syncs erkennen, welche Teams neu hinzugekommen sind.
+  const serverTeams = Array.isArray(body.teams) ? body.teams : [];
+  const byName = new Map(serverTeams.map((t) => [t.name, t.id]));
+  for (const t of state.teams) {
+    const name = String(t?.name ?? '').trim();
+    if (!t.id && byName.has(name)) {
+      t.id = byName.get(name);
+    }
+  }
+
+  // 3. IDs, die im letzten Sync da waren, aber jetzt nicht mehr im
+  // state → DELETE. So bleiben Wizard-State und DB synchron, auch
+  // wenn der User Teams im Wizard entfernt hat.
+  const previousIds = Array.isArray(state.__syncedTeamIds)
+    ? state.__syncedTeamIds.slice()
+    : [];
+  const currentIds = new Set(
+    state.teams.map((t) => t.id).filter(Boolean)
+  );
+  const toDelete = previousIds.filter((id) => !currentIds.has(id));
+  let removed = 0;
+  for (const id of toDelete) {
+    try {
+      await fetchWithAuth(
+        `/api/tournaments/${encodeURIComponent(state.tournamentId)}/teams/${encodeURIComponent(id)}`,
+        { method: 'DELETE' }
+      );
+      removed++;
+    } catch (err) {
+      console.warn('[wizard] team-Delete failed:', err);
+    }
+  }
+
+  // Cache für den nächsten Sync-Vergleich.
+  state.__syncedTeamIds = state.teams.map((t) => t.id).filter(Boolean);
+
+  return {
+    ok: true,
+    added: Number(body.added) || 0,
+    removed,
+    teamCount: state.teams.length,
+  };
+}
+// Export für main.js onStateChange + Tests.
+export { syncTeamsToBackend };
+
 /**
  * Übersetzt einen Fehler aus createDraft()/ensureDraftPromise() in
  * eine deutsche, für den End-User verständliche Meldung.

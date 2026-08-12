@@ -5,14 +5,13 @@
 // Geladen werden die Dateien als reiner Text und vergleichen die Funktion
 // in normalisierter Form (Whitespace egal — Minifier-robust).
 
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, test, expect } from 'vitest';
 
-const fs = require('node:fs');
-const path = require('node:path');
-
-const SERVER = path.join(__dirname, '..', 'normalize-confirm-name.js');
+const SERVER = path.join(import.meta.dirname, '..', 'normalize-confirm-name.js');
 const BROWSER = path.join(
-  __dirname, '..', '..', '..', '..', 'public', 'script', 'normalize-confirm-name.js'
+  import.meta.dirname, '..', '..', '..', '..', 'public', 'script', 'normalize-confirm-name.js'
 );
 
 describe('normalizeConfirmName — Server/Browser Quellen-Identität', () => {

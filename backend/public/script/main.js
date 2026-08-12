@@ -11,6 +11,7 @@ import {
   persistConfig,
   buildGeneratePayload,
   ensureDraftPromise,
+  syncTeamsToBackend,
 } from './tournament.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -5079,8 +5080,30 @@ async function openTournamentWizard() {
   const onStateChange = async (state) => {
     if (!state.tournamentId) return;
     const stepIdx = Number(state.step) || 1;
-    if (prevStep.value === stepIdx) return;
+    const prev = prevStep.value;
+    if (prev === stepIdx) return;
     prevStep.value = stepIdx;
+
+    // Beim Verlassen von Step 2 (Teams): Teams inkrementell zum Server
+    // syncen. Vorher wurden nur Config/meta gepatcht, nicht die Teams
+    // selbst — POST /generate brach dann mit "Mindestens 2 Teams
+    // erforderlich" ab, obwohl der User Teams eingetragen hatte.
+    // Ursache war: Wizard baute state.teams auf, sendete sie aber NIE.
+    if (prev === 2) {
+      try {
+        const sync = await syncTeamsToBackend(state);
+        if (!sync.ok) {
+          console.warn('[wizard] syncTeamsToBackend failed:', sync);
+        } else if (sync.added > 0 || sync.removed > 0) {
+          console.info(
+            `[wizard] teams synced: +${sync.added} / -${sync.removed} (total ${sync.teamCount})`
+          );
+        }
+      } catch (err) {
+        console.warn('[wizard] syncTeamsToBackend threw', err);
+      }
+    }
+
     const fields = knownFieldsByStep[stepIdx] || [];
     if (fields.length === 0) return;
     try {
@@ -5138,6 +5161,29 @@ async function openTournamentWizard() {
     }
 
     const payload = buildGeneratePayload(state, opts);
+
+    // Letzte Verteidigungslinie: einmal Teams syncen, BEVOR wir
+    // /generate aufrufen. Falls onStateChange (z. B. durch schnelles
+    // Durchklicken) nicht gelaufen ist, holen wir das hier nach.
+    // syncTeamsToBackend ist idempotent (Server skippt Duplikate),
+    // also kostet ein zweiter Sync nichts.
+    try {
+      const sync = await syncTeamsToBackend(state);
+      if (!sync.ok) {
+        return {
+          ok: false,
+          body: {
+            error: sync.error || 'teams_sync_failed',
+            message: sync.message ||
+              'Die Teams konnten nicht zum Server übertragen werden. ' +
+              'Bitte prüfe die Browser-Konsole und versuche es erneut.',
+          },
+        };
+      }
+    } catch (err) {
+      console.warn('[wizard] pre-generate syncTeamsToBackend threw', err);
+    }
+
     // apiCall() aus auth-oidc.js setzt Authorization: Bearer <token>
     // automatisch und macht 401-Auto-Refresh. raw fetch hier wäre
     // derselbe Bug wie in tournament.js vor diesem Fix.
