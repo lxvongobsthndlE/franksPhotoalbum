@@ -154,30 +154,13 @@ textarea {
   font-size: 13px;
 }
 
-.tournament-instance-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.tournament-instance-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.tournament-instance-group-head h2 {
-  margin: 0;
-  font-size: 15px;
-  color: var(--text2);
-}
-
-.tournament-instance-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
-}
+/*
+   .tournament-instance-group
+   .tournament-instance-group-head
+   .tournament-instance-grid
+   wurden 2026-08-13 in den Issue-6-Block unten verschoben und um
+   Volle-Breite-Layout + Phasen-Status-Färbung ergänzt.
+*/
 
 .tournament-instance-card {
   min-width: 0;
@@ -189,6 +172,71 @@ textarea {
 
 .tournament-instance-empty {
   grid-column: 1 / -1;
+}
+
+/* ─── Issue 6d (2026-08-13): 'Turnier erstellen'-Button ─────────────── */
+/*
+   Übersteuert .btn-primary (full-width) für den einzigen Use-Case im
+   Header. Höhe und Schrift bleiben identisch zu Standard-Buttons,
+   damit der "Aktualisieren"-Ghost-Button daneben optisch gleichwertig
+   wirkt.
+*/
+.tournament-new-instance-btn {
+  width: auto;
+  margin-top: 0;
+  padding: 10px 18px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(138, 106, 74, 0.22);
+}
+
+/* ─── Issue 6e (2026-08-13): Phasen-Blöcke füllen die Listen-Breite ─── */
+/*
+   Spec §8.0: kein "vergrößertes Handy-Layout". Auf 1920er-Schirmen
+   müssen die Phasen-Gruppen head + Grid die volle Breite der
+   Liste nutzen, nicht in einer schmalen Mittelspalte hängen.
+   Vorher hatte .tournament-page-shell `display: flex; flex-direction: column`
+   ohne explizite `width: 100%` — in einigen Grids rutschte der Inhalt
+   in die schmale `#grid`-Defaultspalte.
+*/
+.tournament-page-shell {
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+}
+
+.tournament-instance-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--border2);
+}
+
+.tournament-instance-group[data-phase-group='live'] {
+  border-color: var(--accent);
+  background: rgba(255, 244, 220, 0.55);
+}
+
+.tournament-instance-group[data-phase-group='other'] {
+  border-color: #c5a25c;
+  background: rgba(245, 222, 179, 0.45);
+}
+
+.tournament-instance-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tournament-instance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  width: 100%;
 }
 
 .tournament-toolbar {

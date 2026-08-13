@@ -1782,6 +1782,21 @@ export function tournamentPhaseLabel(phase) {
 }
 
 /**
+ * Liefert das deutsche Label für einen Turnier-Modus.
+ * Spec §1.2: User sieht Modus als Klartext, nicht als DB-Token.
+ * Unbekannter Modus → "Sonstiges" (Fallback, kein Rohwert).
+ */
+const TOURNAMENT_MODE_LABELS = {
+  groups_ko: 'Gruppen + K.-o.',
+  groups_only: 'Nur Gruppenphase',
+  ko_only: 'Nur K.-o.',
+  double_elim: 'Double Elimination',
+};
+export function tournamentModeLabel(mode) {
+  return TOURNAMENT_MODE_LABELS[mode] ?? 'Sonstiges';
+}
+
+/**
  * Legacy-Helper: ein-Argument-Form für alten main.js-Code,
  * der direkt tournamentStatusLabel(status) statt
  * tournamentPhaseLabel(tournamentStatusPhase(status)) aufrief.

@@ -15,6 +15,7 @@ import {
   tournamentStatusPhase,
   tournamentPhaseLabel,
   tournamentStatusLabel,
+  tournamentModeLabel,
   TOURNAMENT_PHASE_ORDER,
 } from './tournament.js';
 
@@ -2271,12 +2272,19 @@ async function loadTournamentInstances(reset = false) {
   }
 
   try {
-    // v3: /api/tournaments/group/:groupId — flaches Array
+    // v3: /api/tournaments/group/:groupId — Antwort ist
+    //   { tournaments: [...], isAdmin, rawCount }
+    // Vorher haben wir `instanceData` direkt als Array behandelt —
+    // weil die Antwort ein Objekt ist, blieb tournamentInstances
+    // immer [] und die Liste zeigte 0 Turniere, obwohl die DB voll
+    // war. Jetzt extrahieren wir explizit das `tournaments`-Feld.
     const instanceData = await apiCall(
       `/tournaments/group/${encodeURIComponent(curGroupId)}`,
       'GET'
     );
-    tournamentInstances = Array.isArray(instanceData) ? instanceData : [];
+    tournamentInstances = Array.isArray(instanceData?.tournaments)
+      ? instanceData.tournaments
+      : [];
     // Module ist aktiv — Cache-Flag setzen
     if (typeof window !== 'undefined') window.__tournamentModuleEnabled = true;
 
@@ -2348,7 +2356,13 @@ function renderTournamentInstancesPage() {
     .map(([phase, instances]) => {
       const instanceCards = instances
         .map((instance) => {
-          const matchCount = instance?._count?.matches ?? 0;
+          // Backend liefert Stats bereits aggregiert im prepareTournamentView:
+          // { teamCount, groupCount, matchCount, finishedCount }.
+          // Wir nehmen die Counts vom Backend, nicht aus _count (das gibt
+          // es hier nicht — war ein alter Annahme-Fehler).
+          const matchCount = instance?.matchCount ?? 0;
+          const teamCount = instance?.teamCount ?? null;
+          const groupCount = instance?.groupCount ?? null;
           const activeClass =
             activeTournamentInstance?.id === instance.id ? ' tournament-card-active' : '';
           // data-instance-phase und Badge zeigen die Phase (nicht den
@@ -2359,7 +2373,7 @@ function renderTournamentInstancesPage() {
               <h3>${esc(instance.name || 'Turnier')}</h3>
               <span class="tournament-status-badge">${esc(tournamentPhaseLabel(phase))}</span>
             </div>
-            <p>Matches: ${matchCount}</p>
+            <p class="t-instance-stats">${tournamentModeLabel(instance.mode)} · ${teamCount ?? '–'} Teams · ${groupCount ?? '–'} Gruppen · ${matchCount} Spiele</p>
             <div class="tournament-card-actions tournament-instance-actions">
               <button class="btn btn-ghost" onclick="openTournamentInstance('${instance.id}')">Öffnen</button>
               ${canManageInstances ? `<button class="preset-icon-btn danger" type="button" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')" title="Löschen" aria-label="Löschen">${ICON_TRASH}</button>` : ''}
@@ -2430,11 +2444,18 @@ function renderTournamentInstanceDetailV3(t) {
   const grid = $('grid');
   if (!grid) return;
 
+  // Counts aus den Backend-Top-Level-Listen (siehe openTournamentInstance:
+  // wir mergen res.tournament mit res.teams/stages/groups/matches/stats).
+  // Vorher stand hier `t._count?.matches ?? 0` und
+  // `t.stages?.[0]?.groups` — beide Annahmen waren falsch. Die DB hat
+  // alles richtig persistiert (siehe DB-Audit 2026-08-13), aber der
+  // Renderer hat die falschen Felder gelesen → "GRUPPEN: 0, SPIELE: 0".
   const teamCount = Array.isArray(t.teams) ? t.teams.length : 0;
-  const matchCount = t._count?.matches ?? 0;
-  const groupsCount = Array.isArray(t.stages?.[0]?.groups) ? t.stages[0].groups.length : 0;
+  const matchCount = Array.isArray(t.matches) ? t.matches.length : 0;
+  const groupsCount = Array.isArray(t.groups) ? t.groups.length : 0;
   const statusLabel = tournamentStatusLabel(t.status);
   const phase = tournamentStatusPhase(t.status);
+  const modeLabel = tournamentModeLabel(t.mode);
 
   const canManage = canManageTournamentPresetsInCurrentGroup();
   const publicBadge = t.isPublic ? `<span class="t-badge t-badge-live" title="Öffentlich via Token">🔓 Public</span>` : '';
@@ -2451,9 +2472,10 @@ function renderTournamentInstanceDetailV3(t) {
     </li>`
   ).join('') || '<li class="t-hint">Noch keine Teams angelegt.</li>';
 
-  // Gruppen-Tab: Zebra-Tabellen mit Qualifikations-Zonen grün/gelb
-  const groupsHtml = (t.stages?.[0]?.groups || []).length > 0
-    ? `<div class="t-group-grid">${(t.stages[0].groups).map((g) =>
+  // Gruppen-Tab: Zebra-Tabellen mit Qualifikations-Zonen grün/gelb.
+  // Gruppen sind im DTO TOP-LEVEL (nicht unter stages[0].groups).
+  const groupsHtml = (t.groups || []).length > 0
+    ? `<div class="t-group-grid">${(t.groups).map((g) =>
         `<div class="t-group-card">
           <h4>Gruppe ${esc(g.key || g.name || '?')}</h4>
           <table class="t-group-table">
@@ -2509,7 +2531,7 @@ function renderTournamentInstanceDetailV3(t) {
       <div class="tournament-detail-tab-body" data-tab-body="overview">
         <div class="wizard-summary-grid">
           <div class="wizard-summary-row"><span>Status</span><strong>${esc(statusLabel)}</strong></div>
-          <div class="wizard-summary-row"><span>Modus</span><strong>${esc(t.mode || '-')}</strong></div>
+          <div class="wizard-summary-row"><span>Modus</span><strong>${esc(modeLabel)}</strong></div>
           <div class="wizard-summary-row"><span>Teams</span><strong>${teamCount}</strong></div>
           <div class="wizard-summary-row"><span>Gruppen</span><strong>${groupsCount}</strong></div>
           <div class="wizard-summary-row"><span>Spiele</span><strong>${matchCount}</strong></div>
