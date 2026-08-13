@@ -324,7 +324,8 @@ describe('persistGenerated — Happy Path', () => {
 
   it('Rückgabe hat korrekte Counts', async () => {
     const result = await persistGenerated(prisma, 't-1', buildFixtureGen());
-    expect(result).toEqual({ groupCount: 2, matchCount: 2, teamCount: 4 });
+    // buildFixtureGen ist groups_only → kein Bracket → bracketMatchCount: 0
+    expect(result).toEqual({ groupCount: 2, matchCount: 2, teamCount: 4, bracketMatchCount: 0 });
   });
 });
 

@@ -70,6 +70,11 @@ export async function persistGenerated(prisma, tournamentId, gen) {
 
     let matchCount = 0;
     let teamCount = 0;
+    // engineId → cuid wird im Verlauf der Transaktion aufgebaut:
+    //   - zuerst für die Gruppen-Matches (damit KO-Verweise auf Gruppen
+    //     zeigen könnten — Spec §6.3.2 macht das für den direkten Aufstieg)
+    //   - dann für die KO-Matches (winnerAdvancesTo / loserAdvancesTo)
+    const idMap = new Map();
 
     // 4) Pro Gruppe: Group_ + Memberships + Round-Robin-Matches.
     for (let i = 0; i < gen.groups.length; i++) {
@@ -111,47 +116,145 @@ export async function persistGenerated(prisma, tournamentId, gen) {
       //     IDs blieb hängen.
       //
       //     Wir generieren daher JETZT pro Match einen frischen cuid,
-      //     BEVOR wir inserten. Die Engine-Labels bleiben über
-      //     `engineId` als optionales Feld am Match-Objekt erhalten
-      //     (für Logs / Debugging), wandern aber NICHT in die DB. Wenn
-      //     später KO-Matches persistiert werden, müssen deren
-      //     `winnerAdvancesTo` / `loserAdvancesTo` über dieselbe Map auf
-      //     die neuen Cuids umgeschrieben werden — siehe TODO bei
-      //     persistBracket().
+      //     BEVOR wir inserten, und merken uns das Mapping
+      //     engineId → cuid in `idMap`. KO-Matches in Schritt 5
+      //     rewiren ihre `winnerAdvancesTo` / `loserAdvancesTo` darüber.
       const matches = g.matches ?? [];
       if (matches.length > 0) {
         await tx.match.createMany({
-          data: matches.map((m) => ({
-            // Frische global-eindeutige ID — kein Risiko mehr, mit
-            // Matches anderer Turniere zu kollidieren.
-            id: makeCuid(),
-            tournamentId,
-            stageId: groupStage.id,
-            groupId: groupRow.id,
-            round: String(m.roundNumber ?? m.round ?? 1),
-            bracketType: 'winner',
-            bracketPos: m.bracketPos ?? null,
-            teamHome: m.teamHome,
-            teamAway: m.teamAway,
-            placeholderHome: m.placeholderHome ?? undefined,
-            placeholderAway: m.placeholderAway ?? undefined,
-            status: 'scheduled',
-            scheduledAt: m.scheduledAt ?? null,
-            field: m.field ?? null,
-          })),
+          data: matches.map((m) => {
+            const dbId = makeCuid();
+            if (m.id) idMap.set(m.id, dbId);
+            return {
+              // Frische global-eindeutige ID — kein Risiko mehr, mit
+              // Matches anderer Turniere zu kollidieren.
+              id: dbId,
+              tournamentId,
+              stageId: groupStage.id,
+              groupId: groupRow.id,
+              round: String(m.roundNumber ?? m.round ?? 1),
+              bracketType: 'winner',
+              bracketPos: m.bracketPos ?? null,
+              teamHome: m.teamHome,
+              teamAway: m.teamAway,
+              placeholderHome: m.placeholderHome ?? undefined,
+              placeholderAway: m.placeholderAway ?? undefined,
+              status: 'scheduled',
+              scheduledAt: m.scheduledAt ?? null,
+              field: m.field ?? null,
+            };
+          }),
         });
         matchCount += matches.length;
       }
     }
 
-    // 5) KO-Bracket (falls vorhanden). Wird in einer separaten Phase erzeugt
-    //    (nach Ende der Gruppenphase). Hier noch leer, der Helper bleibt
-    //    offen dafür.
-    //    TODO: wenn persistBracket() existiert, muss es die gleiche
-    //          `engineId → cuid`-Map führen und `winnerAdvancesTo` /
-    //          `loserAdvancesTo` der KO-Matches entsprechend umschreiben.
+    // 5) KO-Bracket (falls vorhanden).
+    //
+    //    P0-Folge-Aufgabe zu Issue 1 (2026-08-12): Die Verweise
+    //    `winnerAdvancesTo` und `loserAdvancesTo` zeigen in der Engine
+    //    auf Engine-Labels (`ko_SF_1`, `ko_3RD_1`, …). Wir rewiren
+    //    sie HIER über `idMap` auf die frisch generierten cuid-IDs,
+    //    BEVOR wir inserten. Sonst zeigen die Folge-Match-Verweise ins
+    //    Leere, und ein Viertelfinal-Sieger taucht im Halbfinale nicht auf.
+    //
+    //    Ablauf:
+    //      a) KO-Stage anlegen.
+    //      b) Für jedes KO-Match: cuid vergeben, in idMap eintragen.
+    //      c) `winnerAdvancesTo` / `loserAdvancesTo` per idMap ersetzen
+    //         (oder null, wenn das Ziel-Match nicht gefunden wurde —
+    //         das darf in einer korrekten Engine-Ausgabe nicht passieren).
+    //      d) `homeSourceMatchId` / `awaySourceMatchId` ebenfalls rewiren
+    //         (auch wenn sie aktuell nicht persistiert werden, dokumentieren
+    //         wir die Konsistenz am Objekt).
+    //      e) Alle KO-Matches in einer createMany einfügen.
+    //
+    //    Idempotenz: Re-Generate leert oben via match.deleteMany +
+    //    stage.deleteMany ALLE Stages dieses Turniers inkl. KO-Stage.
+    //    Wir bauen also eine NEUE KO-Stage mit NEUEN cuids.
+    let bracketMatchCount = 0;
+    const bracket = gen.bracket ?? { matches: [] };
+    if (bracket.matches && bracket.matches.length > 0) {
+      const koStage = await tx.stage.create({
+        data: {
+          tournamentId,
+          type: 'ko',
+          name: 'KO-Phase',
+          orderIndex: 1,
+        },
+      });
 
-    return { groupCount: gen.groups.length, matchCount, teamCount };
+      // 5b) Zwei-Phasen-Rewiring:
+      //
+      //   Pass 1: cuid vergeben und idMap aufbauen — BEVOR irgendwelche
+      //   Referenzen aufgelöst werden. Hintergrund: In einem einzigen
+      //   .map()-Durchlauf ist `idMap.get('ko_SF_1')` undefined, wenn
+      //   ko_QF_1 verarbeitet wird — SF_1 kommt erst später dran. Daher
+      //   erst die komplette Map füllen, dann rewiren.
+      //
+      //   Pass 2: pro Match die winnerAdvancesTo / loserAdvancesTo per
+      //   idMap auf die frischen cuid-IDs umschreiben. dangling refs
+      //   (Engine-Bug: verweist auf nicht-existente Engine-ID) werden als
+      //   null geschrieben UND geloggt, damit der Bug sichtbar wird.
+      for (const m of bracket.matches) {
+        const dbId = makeCuid();
+        idMap.set(m.id, dbId);
+      }
+
+      const koRows = bracket.matches.map((m) => {
+        const winnerTarget = m.winnerAdvancesTo
+          ? idMap.get(m.winnerAdvancesTo) ?? null
+          : null;
+        const loserTarget = m.loserAdvancesTo
+          ? idMap.get(m.loserAdvancesTo) ?? null
+          : null;
+
+        if (m.winnerAdvancesTo && !winnerTarget) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[persistGenerated] KO-Match ${m.id} (${m.round}/${m.bracketPos}) ` +
+              `verweist auf unbekanntes winnerAdvancesTo ${m.winnerAdvancesTo}`,
+          );
+        }
+        if (m.loserAdvancesTo && !loserTarget) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[persistGenerated] KO-Match ${m.id} (${m.round}/${m.bracketPos}) ` +
+              `verweist auf unbekanntes loserAdvancesTo ${m.loserAdvancesTo}`,
+          );
+        }
+
+        return {
+          id: idMap.get(m.id),
+          tournamentId,
+          stageId: koStage.id,
+          groupId: null,
+          round: m.round ?? null,
+          bracketType: m.bracketType ?? 'winner',
+          bracketPos: m.bracketPos ?? null,
+          teamHome: m.teamHome ?? null,
+          teamAway: m.teamAway ?? null,
+          placeholderHome: m.placeholderHome ?? undefined,
+          placeholderAway: m.placeholderAway ?? undefined,
+          status: 'scheduled',
+          scheduledAt: m.scheduledAt ?? null,
+          field: m.field ?? null,
+          winnerAdvancesTo: winnerTarget,
+          loserAdvancesTo: loserTarget,
+        };
+      });
+
+      // 5e) KO-Matches als Batch einfügen.
+      await tx.match.createMany({ data: koRows });
+      bracketMatchCount = koRows.length;
+    }
+
+    return {
+      groupCount: gen.groups.length,
+      matchCount,
+      bracketMatchCount,
+      teamCount,
+    };
   });
 }
 
