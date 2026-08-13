@@ -12,6 +12,10 @@ import {
   buildGeneratePayload,
   ensureDraftPromise,
   syncTeamsToBackend,
+  tournamentStatusPhase,
+  tournamentPhaseLabel,
+  tournamentStatusLabel,
+  TOURNAMENT_PHASE_ORDER,
 } from './tournament.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -2153,9 +2157,12 @@ function renderTournamentHeaderActions() {
           onClick: () => loadActiveTournamentView(true),
         },
         {
+          // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
+          // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
+          // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
           id: 'tournament-new-instance-btn',
-          label: '⚡ Neues Turnier (Wizard)',
-          className: 'btn btn-primary',
+          label: 'Turnier erstellen',
+          className: 'btn btn-primary tournament-new-instance-btn',
           onClick: openTournamentWizard,
         },
       ]
@@ -2316,35 +2323,9 @@ async function loadTournamentInstances(reset = false) {
  * sehen und nutzen das Turniermodul direkt.
  */
 
-function tournamentStatusLabel(status) {
-  const map = {
-    draft: 'Entwurf',
-    registration: 'Registrierung',
-    scheduled: 'Geplant',
-    in_progress: 'Laufend',
-    completed: 'Abgeschlossen',
-    cancelled: 'Abgebrochen',
-  };
-  return map[status] || status || '-';
-}
-
-function tournamentInstancePhase(status) {
-  if (status === 'draft') return 'draft';
-  if (status === 'registration' || status === 'scheduled') return 'registration';
-  if (status === 'in_progress') return 'live';
-  if (status === 'completed' || status === 'cancelled') return 'completed';
-  return 'draft';
-}
-
-function tournamentInstancePhaseLabel(phase) {
-  const map = {
-    draft: 'Entwurf',
-    registration: 'Registrierung',
-    live: 'Live',
-    completed: 'Abgeschlossen',
-  };
-  return map[phase] || 'Entwurf';
-}
+// tournamentStatusLabel / tournamentStatusPhase / tournamentPhaseLabel
+// sind jetzt in tournament.js exportiert (v3-Mapping, Issue 6, 2026-08-13).
+// Diese Zeile ist absichtlich leer — die Legacy-Funktionen sind entfernt.
 
 function renderTournamentInstancesPage() {
   const grid = $('grid');
@@ -2352,15 +2333,15 @@ function renderTournamentInstancesPage() {
 
   grid.className = 'grid tournaments-grid';
   const canManageInstances = canManageTournamentPresetsInCurrentGroup();
-  const groupedInstances = {
-    draft: [],
-    registration: [],
-    live: [],
-    completed: [],
-  };
+  // v3-Phasen-Buckets in fester Reihenfolge (TOURNAMENT_PHASE_ORDER
+  // aus tournament.js). Unbekannte Status landen in 'other'
+  // ("Sonstige") — siehe Spec §13.5 "Keine stillen Annahmen".
+  const groupedInstances = {};
+  for (const phase of TOURNAMENT_PHASE_ORDER) groupedInstances[phase] = [];
 
   for (const instance of tournamentInstances) {
-    groupedInstances[tournamentInstancePhase(instance.status)].push(instance);
+    const phase = tournamentStatusPhase(instance.status);
+    groupedInstances[phase].push(instance);
   }
 
   const instanceGroupsHtml = Object.entries(groupedInstances)
@@ -2370,10 +2351,13 @@ function renderTournamentInstancesPage() {
           const matchCount = instance?._count?.matches ?? 0;
           const activeClass =
             activeTournamentInstance?.id === instance.id ? ' tournament-card-active' : '';
+          // data-instance-phase und Badge zeigen die Phase (nicht den
+          // rohen Status), damit Phasen-Tab-Filter und Styling auf der
+          // Phase aufsetzen können, nicht auf dem v3/v2-Status.
           return `<article class="tournament-card tournament-instance-card${activeClass}" data-instance-phase="${esc(phase)}">
             <div class="tournament-card-head">
               <h3>${esc(instance.name || 'Turnier')}</h3>
-              <span class="tournament-status-badge">${esc(tournamentInstancePhaseLabel(phase))}</span>
+              <span class="tournament-status-badge">${esc(tournamentPhaseLabel(phase))}</span>
             </div>
             <p>Matches: ${matchCount}</p>
             <div class="tournament-card-actions tournament-instance-actions">
@@ -2384,9 +2368,9 @@ function renderTournamentInstancesPage() {
         })
         .join('');
 
-      return `<section class="tournament-instance-group">
+      return `<section class="tournament-instance-group" data-phase-group="${esc(phase)}">
         <div class="tournament-instance-group-head">
-          <h2>${esc(tournamentInstancePhaseLabel(phase))}</h2>
+          <h2>${esc(tournamentPhaseLabel(phase))}</h2>
           <span class="tournament-meta-pill">${instances.length}</span>
         </div>
         <div class="tournament-instance-grid">
@@ -2404,18 +2388,37 @@ function renderTournamentInstancesPage() {
 
 async function openTournamentInstance(instanceId) {
   try {
-    // v3: /api/tournaments/:id — flat tournament object with teams, stages, groups, matches
-    const instance = await apiCall(
+    // v3: /api/tournaments/:id — Antwort ist { tournament, teams, stages,
+    // groups, matches, stats, isAdmin, public }. Wir brauchen für die
+    // Detail-View das innere Tournament-DTO + die Top-Level-Listen.
+    // activeTournamentInstance MUSS das innere Tournament-DTO sein, sonst
+    // scheitern alle Vergleiche `activeTournamentInstance?.id ===
+    // instanceId` in den Sub-Renderern (loadStandingsTab, loadScheduleTab,
+    // ...). Vorher wurde die ganze Response gespeichert → .id === undefined
+    // → Sub-Renderer fanden nichts.
+    const res = await apiCall(
       `/tournaments/${encodeURIComponent(instanceId)}`,
       'GET'
     );
+    const instance = res?.tournament ?? res;
     activeTournamentInstance = instance;
     curTournamentView = 'instances';
     saveLastModuleState();
     renderSidebar();
-    renderTournamentInstanceDetailV3(instance);
+    // Renderer bekommt sowohl das DTO (für id/name/status/logoUrl/...)
+    // als auch die Top-Level-Listen (für teams/stages/groups/matches).
+    renderTournamentInstanceDetailV3({ ...instance,
+      teams: Array.isArray(res?.teams) ? res.teams : (instance.teams ?? []),
+      stages: Array.isArray(res?.stages) ? res.stages : (instance.stages ?? []),
+      groups: Array.isArray(res?.groups) ? res.groups : (instance.groups ?? []),
+      matches: Array.isArray(res?.matches) ? res.matches : (instance.matches ?? []),
+      stats: res?.stats ?? instance.stats ?? null,
+    });
   } catch (e) {
     toast(e.serverMessage || 'Turnier-Details konnten nicht geladen werden', 'error');
+    throw e; // Issue 6: navigateToGeneratedInstance fängt diesen Throw
+    // und fällt auf die Liste zurück. Vorher schluckte openTournamentInstance
+    // den Fehler → Wizard-Teardown lief nie → "Wizard bleibt offen".
   }
 }
 
@@ -2431,7 +2434,7 @@ function renderTournamentInstanceDetailV3(t) {
   const matchCount = t._count?.matches ?? 0;
   const groupsCount = Array.isArray(t.stages?.[0]?.groups) ? t.stages[0].groups.length : 0;
   const statusLabel = tournamentStatusLabel(t.status);
-  const phase = tournamentInstancePhase(t.status);
+  const phase = tournamentStatusPhase(t.status);
 
   const canManage = canManageTournamentPresetsInCurrentGroup();
   const publicBadge = t.isPublic ? `<span class="t-badge t-badge-live" title="Öffentlich via Token">🔓 Public</span>` : '';
@@ -2491,7 +2494,7 @@ function renderTournamentInstanceDetailV3(t) {
         ${logoHtml}
         <h3>${esc(t.name || 'Turnier')}</h3>
         <div>
-          <span class="tournament-status-badge">${esc(tournamentInstancePhaseLabel(phase))}</span>
+          <span class="tournament-status-badge">${esc(tournamentPhaseLabel(phase))}</span>
           ${publicBadge}
         </div>
       </div>
@@ -4154,9 +4157,47 @@ async function openTournamentWizard() {
   // Geschäftsregel-Verstöße; diese setzen das Flag NICHT — bewusst,
   // damit der User den Wizard noch bedienen kann, um z. B. fehlende
   // Teams nachzutragen.)
+  //
+  // Issue 6 (2026-08-13): nach erfolgreichem Generate → Wizard SOFORT
+  // schließen, dann Turnier-Ansicht des NEUEN Turniers öffnen. Vorher
+  // blieb der Wizard-Mount stehen und der User landete im Nirvana
+  // ("TURNIER TAUCHT IN DER LISTE NICHT AUF" + "KEINE WEITERLEITUNG").
+  // Reihenfolge ist wichtig:
+  //   1. teardownWizard()  → räumt Wizard-Host-Klasse, innerHTML, Title
+  //                          und wizardMounted-Flag auf. Macht den
+  //                          "Turnier generieren"-Button sofort
+  //                          unerreichbar — kein Mehrfachklick mehr.
+  //   2. openTournamentInstance() / loadActiveTournamentView() →
+  //                          rendert die Ziel-Ansicht in das jetzt
+  //                          leere grid.
+  // Ohne Schritt 1 blieb die alte Ansicht stehen und wurde nur teilweise
+  // überschrieben → der User sah weiter den Wizard-Button.
+  const navigateToGeneratedInstance = async (tournamentId) => {
+    await teardownWizard();
+    if (!tournamentId) {
+      await loadActiveTournamentView(true);
+      return;
+    }
+    try {
+      await openTournamentInstance(tournamentId);
+    } catch (err) {
+      console.warn('[wizard] post-generate openTournamentInstance failed:', err);
+      // Fallback: Liste neu laden, damit der User das neue Turnier
+      // überhaupt irgendwo sieht (es ist nach Generate als 'generated'
+      // status in der DB und MUSS unter "Bereit" auftauchen).
+      await loadActiveTournamentView(true);
+    }
+  };
+
   const onGenerateSafe = async (state, opts) => {
     try {
-      return await onGenerate(state, opts);
+      const result = await onGenerate(state, opts);
+      if (result && result.ok) {
+        // Wizard lebt noch, bis die Detail-View steht. Erst danach
+        // wizardMounted lösen (Issue 2).
+        await navigateToGeneratedInstance(state.tournamentId);
+      }
+      return result;
     } catch (err) {
       console.warn('[wizard] onGenerate threw (outer):', err);
       wizardMounted = null;

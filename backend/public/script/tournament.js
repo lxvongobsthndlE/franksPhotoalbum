@@ -1713,6 +1713,89 @@ export function coerceWizardStep(value) {
   return DEFAULT_WIZARD_STATE.step;
 }
 
+// ----------------------------------------------------------------
+// Phasen-Klassifikation v3 (Issue 6, 2026-08-13).
+//
+// v3-Status (DB-seitig, Prisma schema.prisma Tournament.status):
+//   draft         Entwurf — Konfig angelegt, noch keine Spiele.
+//   generated     Bereit — Engine gelaufen, Spiele + Brackets in der DB,
+//                 erste Runde noch nicht "startknopf" gedrückt.
+//   group_stage   Läuft — Phase Gruppenphase aktiv (mind. 1 Spiel
+//                 abgehakt, KO noch nicht gestartet).
+//   ko_stage      Läuft — KO-Phase aktiv.
+//   finished      Beendet — letztes Match beendet.
+//
+// v2-Aliase (zur Rückwärts-Kompatibilität alter Mock-DB-Datensätze):
+//   registration → ready (war: "Registrierung" vor v3)
+//   scheduled    → ready
+//   in_progress  → live
+//   completed    → finished
+//
+// Spec §13.5: Unbekannte Status-Werte werden unter "other" ("Sonstige")
+// gefangen — nicht falsch einsortiert, nicht verschluckt.
+//
+// "cancelled" wird mit "finished" zusammengefasst (Endzustand).
+// ----------------------------------------------------------------
+export const TOURNAMENT_PHASE_ORDER = ['draft', 'ready', 'live', 'finished', 'other'];
+
+const TOURNAMENT_STATUS_TO_PHASE = {
+  draft:        'draft',
+  generated:    'ready',
+  group_stage:  'live',
+  ko_stage:     'live',
+  finished:     'finished',
+  cancelled:    'finished',
+  // v2-Aliase:
+  registration: 'ready',
+  scheduled:    'ready',
+  in_progress:  'live',
+  completed:    'finished',
+};
+
+const TOURNAMENT_PHASE_LABELS = {
+  draft:     'Entwurf',
+  ready:     'Bereit',
+  live:      'Läuft',
+  finished:  'Beendet',
+  cancelled: 'Abgebrochen',
+  other:     'Sonstige',
+};
+
+/**
+ * Mappt einen DB-Status-String auf den v3-Phasen-Key.
+ * Unbekannt / leer / null → 'other' (NICHT 'draft' — Issue 6:
+ * stillschweigendes falsches Einsortieren war der Bug.)
+ */
+export function tournamentStatusPhase(status) {
+  if (status && typeof status === 'string' && TOURNAMENT_STATUS_TO_PHASE[status]) {
+    return TOURNAMENT_STATUS_TO_PHASE[status];
+  }
+  return 'other';
+}
+
+/**
+ * Liefert das deutsche Label für einen Phasen-Key.
+ * Unbekannter Key → "Sonstige" (Fallback).
+ */
+export function tournamentPhaseLabel(phase) {
+  return TOURNAMENT_PHASE_LABELS[phase] ?? 'Sonstige';
+}
+
+/**
+ * Legacy-Helper: ein-Argument-Form für alten main.js-Code,
+ * der direkt tournamentStatusLabel(status) statt
+ * tournamentPhaseLabel(tournamentStatusPhase(status)) aufrief.
+ * Bleibt für Aufrufer-Kompat erhalten — gibt aber nicht 'Sonstige'
+ * für unbekannte Status zurück (sondern den Status selbst),
+ * damit Stale-DB-Calls keine neue Bucket-Klasse erfinden.
+ */
+export function tournamentStatusLabel(status) {
+  if (status && TOURNAMENT_PHASE_LABELS[TOURNAMENT_STATUS_TO_PHASE[status]]) {
+    return TOURNAMENT_PHASE_LABELS[TOURNAMENT_STATUS_TO_PHASE[status]];
+  }
+  return status || '-';
+}
+
 /**
  * Eintrittspunkt für Screen B. Liefert ein .t-mod-Wurzelelement,
  * das der Aufrufer in den DOM einsetzt.
@@ -1913,7 +1996,7 @@ function renderWizardProgress(state, opts, root) {
       if (stepNum <= state.step) {
         state.step = stepNum;
         notifyChange(state, opts);
-        rerender();
+        root?._rerender?.();
       }
     });
     li.appendChild(btn);
