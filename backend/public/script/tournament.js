@@ -1592,7 +1592,7 @@ function renderAside(isAdmin, tournamentCount) {
     adminBlock.appendChild(adminTitle);
     const adminText = document.createElement('div');
     adminText.className = 't-list-card-info';
-    adminText.textContent = 'Der Turnier-Wizard kommt im nächsten Schritt.';
+    adminText.textContent = 'Du kannst gleich ein Turnier erstellen.';
     adminBlock.appendChild(adminText);
     aside.appendChild(adminBlock);
   }
@@ -1872,7 +1872,7 @@ export function renderWizardView(opts = {}) {
   if (!opts.groupId && state.groupId) {
     console.warn(
       '[wizard] opts.groupId fehlt, aber initialState.groupId ist gesetzt. ' +
-      'Der Wizard geht in den Mock-Modus und legt keinen Entwurf an. ' +
+      'Die Turnier-Erstellung geht in den Mock-Modus und legt keinen Entwurf an. ' +
       '→ renderWizardView({ groupId, initialState, ... }) — groupId MUSS ' +
       'als Top-Level-Option übergeben werden, nicht nur in initialState.'
     );
@@ -1971,11 +1971,11 @@ function renderWizardProgress(state, opts, root) {
   const wrap = document.createElement('div');
   wrap.className = 't-wizard-progress';
   wrap.setAttribute('role', 'navigation');
-  wrap.setAttribute('aria-label', 'Wizard-Schritte');
+  wrap.setAttribute('aria-label', 'Turnier erstellen — Schritte');
 
   const title = document.createElement('div');
   title.className = 't-wizard-progress-title';
-  title.textContent = 'Neues Turnier';
+  title.textContent = 'Turnier erstellen';
   wrap.appendChild(title);
 
   const list = document.createElement('ol');

@@ -3987,7 +3987,7 @@ async function openTournamentWizard() {
 
   // Falls der Wizard schon offen ist: nicht doppelt mounten.
   if (wizardMounted) {
-    toast('Wizard ist bereits offen', 'info');
+    toast('Turnier-Erstellung ist bereits offen', 'info');
     return;
   }
 
@@ -4086,7 +4086,7 @@ async function openTournamentWizard() {
         console.error(
           '[wizard] onGenerate: state.tournamentId fehlt nach Retry.\n' +
           '  state.groupId =', state.groupId, '\n' +
-          '  opts.groupId (im Wizard) wurde übergeben =', !!curGroupId, '\n' +
+          '  opts.groupId (für die Turnier-Erstellung) wurde übergeben =', !!curGroupId, '\n' +
           '  state.__draftError =', state.__draftError || '(leer)', '\n' +
           '  → Wahrscheinlichste Ursache: keine Berechtigung oder Server nicht erreichbar.'
         );
@@ -4281,7 +4281,7 @@ async function openTournamentWizard() {
   if (title && !title.dataset.tWizardTitle) {
     title.dataset.tWizardPrevTitle = title.textContent;
     title.dataset.tWizardTitle = '1';
-    title.textContent = 'Neues Turnier';
+    title.textContent = 'Turnier erstellen';
   }
   hideTournamentHeaderButtons();
   wizardMounted = wizardEl;
