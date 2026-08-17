@@ -351,13 +351,26 @@ export function buildPatchPayload(state, { changedFields = null } = {}) {
     bestThirds: state.bestThirdsCount,
     hasThirdPlacePlayoff: state.thirdPlaceMatch,
     schedule: {
-      slotMinutes: 15,                                  // Engine-Default
+      // Bug 2 (2026-08-17): slotMinutes ist eine Legacy-Konfig-Option.
+      // Die Engine berechnet den Slot-Abstand jetzt selbst aus
+      // matchDurationMinutes + pauseAfterMatches. Wir senden matchDuration
+      // und Pause explizit; slotMinutes bleibt als Kompat-Feld stehen,
+      // damit bestehende DB-Configs nicht brechen.
+      slotMinutes: (state.matchDuration ?? 30) + (state.pauseMinutes ?? 0),
       matchDurationMinutes: state.matchDuration,
       pauseAfterMatches: state.pauseMinutes,
       parallelFields: state.numTables,
       startTime: state.startTime,
     },
   };
+  // numGroups gehört in config (Spec §3 / Engine-Eingabe). Vor diesem
+  // Fix wurde numGroups nur im /generate-Body mitgeschickt — Engine
+  // konnte es dort zwar lesen, aber wenn der User den Plan nach dem
+  // ersten Generate ändert (z. B. zurück in den Wizard geht), konnte
+  // /reschedule die config nicht mehr heranziehen. Wir schreiben es
+  // daher mit in config.numGroups, das der Validator ab sofort
+  // zulassen muss (siehe config-validator.js).
+  config.numGroups = state.numGroups;
   // location: leere Strings werden zu null (kein „ " im Druckkopf).
   const locationClean = (typeof state.location === 'string'
                         && state.location.trim() === '')
@@ -383,8 +396,18 @@ export function buildPatchPayload(state, { changedFields = null } = {}) {
   for (const [wizardName, apiName] of Object.entries(metaFieldsByName)) {
     if (include(wizardName)) body[apiName] = meta[apiName];
   }
+  // Mode wird vom Server als Top-Level-Feld akzeptiert (Bug A,
+  // 2026-08-17). Vorher schickte der Wizard ihn nur beim Create mit
+  // — nach Step 3 hatte der PATCH keine Chance, ihn zu aktualisieren,
+  // und der Header zeigte dauerhaft den Create-Default ('groups_ko').
+  if (include('mode')) {
+    body.mode = state.mode;
+  }
   // config wird IMMER mitgeschickt, sobald ein Engine-Feld betroffen ist.
+  // numGroups seit 2026-08-17 (Bug A): war vorher nur im /generate-Body
+  // und konnte nach Step 3 nicht mehr aktualisiert werden.
   const configOnly = [
+    'numGroups',
     'distributionMethod', 'pointsWin', 'pointsDraw', 'pointsLoss',
     'tiebreakers', 'advancePerGroup', 'bestThirdsCount',
     'thirdPlaceMatch', 'numTables', 'matchDuration',
@@ -474,6 +497,14 @@ export function buildGeneratePayload(state, opts = {}) {
     ? Math.ceil(state.teams.length / state.numGroups)
     : 0;
   body.groupSize = groupSize;
+  // Modus explizit mitschicken (Bug A, 2026-08-17). Body hat Priorität
+  // vor der DB-Spalte (routes.js Z. 587: `request.body?.mode ?? ctx…`).
+  // Verteidigungslinie: wenn der PATCH-Auto-Save nicht durchgekommen ist
+  // (Wizard-Regression, Race Condition), weiß der Server trotzdem,
+  // welchen Modus der User wollte — Spec §13.10, keine stillen Annahmen.
+  if (state.mode) {
+    body.mode = state.mode;
+  }
   if (opts.confirmTournamentName) {
     body.confirmTournamentName = opts.confirmTournamentName;
   }
@@ -1714,6 +1745,150 @@ export function coerceWizardStep(value) {
 }
 
 // ----------------------------------------------------------------
+// §9-Konstellations-Validierung (2026-08-17, Bug B).
+//
+// Spec §9 sagt: "Wenn eine Konstellation nicht eindeutig auflösbar ist,
+// zeigt die App das dem Veranstalter an, statt sich still zu entscheiden."
+//
+// Konkreter Fall, der im UI-Bug-Report dokumentiert ist:
+//   4 Teams / 2 Gruppen à 2 / Top 2 + 0 beste Dritte = 4 Qualifikanten
+//   → alle 4 Teams kommen weiter, niemand scheidet aus
+//   → Halbfinale mit allen 4 = sinnlos, jeder spielt nochmal
+//
+// validateConstitution() ist eine Pure-Function, die ALLE §9-Fälle
+// prüft und ein Array von Warnungen zurückgibt. Sie wird vom Wizard
+// in Step 4 gerendert und kann vom Backend-Audit/Tests ebenfalls
+// aufgerufen werden.
+//
+// Rückgabe:
+//   {
+//     level: 'ok' | 'warn' | 'block',
+//     messages: [{ severity, code, text, fix? }, ...]
+//   }
+//
+//   - 'ok':    keine Probleme (kann Messages mit severity 'info' enthalten)
+//   - 'warn':  sinnvolle Konstellation mit Schwächen, UI zeigt sie gelb
+//   - 'block': so sinnlos, dass die App das Generieren ablehnen sollte
+//
+// Codes (für Tests + Audit):
+//   - NO_TEAMS           keine Teams erfasst
+//   - TOO_FEW_TEAMS      weniger als 2 Teams
+//   - QUALIFIERS_GE_TEAMS  alle Teams qualifizieren sich (= Bug B)
+//   - SINGLE_GROUP_NO_KO   nur 1 Gruppe, kein KO-Modus gewählt
+//   - KO_WITH_ONE_TEAM   KO-Modus mit nur 1 Team
+// ----------------------------------------------------------------
+export function validateConstitution(state) {
+  const messages = [];
+  const teamCount = Array.isArray(state.teams) ? state.teams.length : 0;
+  const mode = state.mode ?? 'groups_ko';
+  const numGroups = Math.max(1, Number(state.numGroups) || 1);
+  const advancePerGroup = Math.max(1, Number(state.advancePerGroup) || 1);
+  const bestThirds = Math.max(0, Number(state.bestThirdsCount) || 0);
+
+  // 1) Keine Teams.
+  if (teamCount === 0) {
+    return {
+      level: 'block',
+      messages: [{
+        severity: 'error',
+        code: 'NO_TEAMS',
+        text: 'Es sind noch keine Teams erfasst.',
+      }],
+    };
+  }
+
+  // 2) Mindestens 2 Teams (generell).
+  if (teamCount < 2) {
+    return {
+      level: 'block',
+      messages: [{
+        severity: 'error',
+        code: 'TOO_FEW_TEAMS',
+        text: 'Ein Turnier braucht mindestens 2 Teams.',
+      }],
+    };
+  }
+
+  // 3) KO-Modi: prüfen, dass die KO-Runde tatsächlich jemanden
+  //    eliminiert. Wenn alle Teams weiterkommen, ist die KO-Phase
+  //    sinnlos (Bug B: 4 Teams / 2 Gruppen / Top 2 = alle 4 weiter).
+  const hasKoPhase =
+    mode === 'groups_ko' ||
+    mode === 'ko_only' ||
+    mode === 'double_elim';
+  if (hasKoPhase) {
+    if (mode === 'ko_only') {
+      if (teamCount < 2) {
+        return {
+          level: 'block',
+          messages: [{
+            severity: 'error',
+            code: 'KO_WITH_ONE_TEAM',
+            text: 'KO-Modus braucht mindestens 2 Teams.',
+          }],
+        };
+      }
+      // ko_only: alle Teams sind direkt im Bracket, daher OK sofern >= 2.
+    } else {
+      // groups_ko oder double_elim: Qualifikanten = Gruppen * advance + beste Dritte.
+      const qualifiers = numGroups * advancePerGroup + bestThirds;
+      if (qualifiers >= teamCount) {
+        return {
+          level: 'block',
+          messages: [{
+            severity: 'error',
+            code: 'QUALIFIERS_GE_TEAMS',
+            text:
+              `${numGroups} Gruppen × ${advancePerGroup} Aufsteiger + ` +
+              `${bestThirds} beste Dritte = ${qualifiers} Qualifikanten. ` +
+              `Bei ${teamCount} Teams kommt jeder weiter — die KO-Phase ` +
+              `wäre sinnlos. Reduziere die Anzahl der Gruppen oder die ` +
+              `Aufsteiger pro Gruppe.`,
+            fix: {
+              reduceAdvancePerGroup: Math.max(
+                1,
+                Math.floor(teamCount / numGroups) - 1,
+              ),
+            },
+          }],
+        };
+      }
+    }
+  }
+
+  // 4) groups_only mit 1 Gruppe = Ligamodus (§9.7). Andere Modi mit
+  //    1 Gruppe sind ebenfalls OK (kleines Turnier).
+  if (mode === 'groups_only' && numGroups === 1 && teamCount >= 2) {
+    messages.push({
+      severity: 'info',
+      code: 'SINGLE_GROUP_NO_KO',
+      text:
+        '1 Gruppe ohne KO — das ist der Ligamodus. Alle Teams spielen ' +
+        'jede Runde gegeneinander.',
+    });
+  }
+
+  // 5) Mehr Gruppen als Teams/2 — der Stepper dürfte das eigentlich
+  //    gar nicht zulassen, aber wenn der State extern manipuliert
+  //    wurde, fangen wir's hier ab.
+  if (numGroups > Math.floor(teamCount / 2)) {
+    messages.push({
+      severity: 'error',
+      code: 'TOO_MANY_GROUPS',
+      text:
+        `Mit ${teamCount} Teams sind maximal ` +
+        `${Math.floor(teamCount / 2)} Gruppen möglich (min. 2 Teams/Gruppe).`,
+    });
+  }
+
+  const hasError = messages.some((m) => m.severity === 'error');
+  return {
+    level: messages.length === 0 ? 'ok' : (hasError ? 'block' : 'warn'),
+    messages,
+  };
+}
+
+// ----------------------------------------------------------------
 // Phasen-Klassifikation v3 (Issue 6, 2026-08-13).
 //
 // v3-Status (DB-seitig, Prisma schema.prisma Tournament.status):
@@ -2533,7 +2708,8 @@ function renderStep2Teams(wrap, state, opts) {
   addBtn.textContent = '+ Team hinzufügen';
   addBtn.addEventListener('click', () => {
     const next = nextPlaceholderName(state.teams);
-    state.teams.push({ name: next, color: null, seed: state.teams.length + 1 });
+    const color = nextPaletteColor(state.teams);
+    state.teams.push({ name: next, color, seed: state.teams.length + 1 });
     notifyChange(state, opts);
     // Zahlenfeld oben spiegelt IMMER die Listen-Länge — nicht eine
     // alte Eingabe des Users. Sonst hat man zwei sich widersprechende
@@ -2567,7 +2743,7 @@ function renderStep2Teams(wrap, state, opts) {
       for (let i = current; i < target; i++) {
         state.teams.push({
           name: nextPlaceholderName(state.teams),
-          color: null,
+          color: nextPaletteColor(state.teams),
           seed: i + 1,
         });
       }
@@ -2608,11 +2784,19 @@ function renderStep2Teams(wrap, state, opts) {
       });
       if (dlg.cancelled) return;
     }
-    state.teams = newEntries.map((e, i) => ({
-      name: e.name,
-      color: null,
-      seed: i + 1,
-    }));
+    // Neue Teams bekommen der Reihe nach Palette-Farben, die noch
+    // nicht in `state.teams` vergeben sind. Damit der Reihe nach alle
+    // 8 Farben durchgegangen werden, bauen wir die Liste der
+    // "schon vergebenen Farben" iterativ auf.
+    const assignedSoFar = [];
+    state.teams = newEntries.map((e, i) => {
+      const color = nextPaletteColor([
+        ...state.teams,
+        ...assignedSoFar,
+      ]);
+      assignedSoFar.push({ name: e.name, color });
+      return { name: e.name, color, seed: i + 1 };
+    });
     state.teamInput = newEntries.map((e) => e.name).join('\n');
     notifyChange(state, opts);
     refreshShell();
@@ -2896,8 +3080,56 @@ function refreshAfterMutation() {
   root.parentNode?.replaceChild(fresh, root);
 }
 
+/**
+ * Team-Farbpalette — MUSS identisch sein mit
+ * `backend/src/modules/tournament/team-colors.js` (gleiche Reihenfolge,
+ * gleiche Hex-Werte). Wir prüfen die Übereinstimmung per
+ * `team-colors-parity.test.js`.
+ *
+ * Wird beim Anlegen automatisch vergeben (Weg A und Weg B im Wizard)
+ * und als Fallback in `renderTeamRows` benutzt, falls ein Team noch
+ * keine eigene Farbe hat.
+ */
+const TEAM_COLOR_PALETTE = [
+  '#4F46E5', // Indigo
+  '#059669', // Emerald
+  '#D97706', // Amber
+  '#E11D48', // Rose
+  '#0284C7', // Sky
+  '#7C3AED', // Violet
+  '#0D9488', // Teal
+  '#EA580C', // Orange
+];
+
+/**
+ * Liefert die nächste freie Palette-Farbe, die noch kein Team hat.
+ * Cycling: wenn alle Palette-Farben belegt sind, wird modulo gewickelt.
+ */
+function nextPaletteColor(existingTeams) {
+  const palette = TEAM_COLOR_PALETTE;
+  if (palette.length === 0) return null;
+  const used = new Set(
+    (existingTeams || [])
+      .map((t) => (typeof t?.color === 'string' ? t.color.toLowerCase() : null))
+      .filter(Boolean),
+  );
+  for (const color of palette) {
+    if (!used.has(color.toLowerCase())) return color;
+  }
+  const paletteCount = (existingTeams || []).filter((t) => {
+    const c = (t?.color ?? '').toLowerCase();
+    return palette.some((p) => p.toLowerCase() === c);
+  }).length;
+  return palette[paletteCount % palette.length];
+}
+
+/**
+ * Fallback für `renderTeamRows`, wenn ein Team keine Farbe hat — nimmt
+ * die Position in der Liste modulo Palette-Länge. NICHT für neue
+ * Teams verwenden, dort `nextPaletteColor`.
+ */
 function paletteColor(index) {
-  const palette = ['#8B6B4A', '#4F7A4A', '#C08A2E', '#2F5F86', '#A0616F', '#5C5C5C', '#7A6F8B', '#3D5A6C'];
+  const palette = TEAM_COLOR_PALETTE;
   return palette[index % palette.length];
 }
 
@@ -3390,6 +3622,40 @@ function renderStep4Qualifikation(wrap, state, opts) {
     form.appendChild(tpmField);
   }
 
+  // §9-Konstellations-Validierung (2026-08-17, Bug B).
+  // Inline-Warnung statt stillem Generieren — die App zeigt dem
+  // Veranstalter sofort, ob seine Konstellation Sinn ergibt.
+  // Wir rendern sie in Step 4, weil dort die Qualifikations-Auswahl
+  // (Aufsteiger/beste Dritte) getroffen wird — die kritische Eingabe
+  // für "alle kommen weiter".
+  if (Array.isArray(state.teams) && state.teams.length > 0) {
+    const constitution = validateConstitution(state);
+    if (constitution.level !== 'ok') {
+      const banner = document.createElement('div');
+      banner.className = constitution.level === 'block'
+        ? 't-wizard-warn t-wizard-warn--block'
+        : 't-wizard-warn';
+      banner.setAttribute('role', 'alert');
+      for (const msg of constitution.messages) {
+        const line = document.createElement('div');
+        line.className = 't-wizard-warn-line';
+        // Prefix für severity — klar, nicht Code-only.
+        const prefix = msg.severity === 'error'
+          ? '❌ Konstellation problematisch: '
+          : msg.severity === 'warn'
+            ? '⚠️ Hinweis: '
+            : 'ℹ️ ';
+        line.textContent = prefix + msg.text;
+        banner.appendChild(line);
+        // Optional: "Trotzdem generieren" für block-Cases. Da §9
+        // "anzeigen statt entscheiden" sagt, lassen wir den Button
+        // weiterhin blockiert und signalisieren das via Klassen.
+        // Bei Bedarf kann das in Etappe B.6 zu einem Toggle werden.
+      }
+      form.appendChild(banner);
+    }
+  }
+
   // Tische
   const tblField = document.createElement('div');
   tblField.className = 't-wizard-field';
@@ -3673,6 +3939,40 @@ function renderStep5Zusammenfassung(wrap, state, opts) {
   gen.type = 'button';
   gen.className = 't-btn t-btn--primary';
   gen.textContent = 'Turnier generieren';
+
+  // §9-Block: bei problematischer Konstellation ist der Button
+  // disabled und der Footer zeigt die Begründung inline. Der User
+  // muss zurück in Step 3/4 und die Konstellation reparieren.
+  // Spec §9: "zeigt das dem Veranstalter an, statt sich still zu
+  // entscheiden." — disable ist genau das.
+  const constitution = validateConstitution(state);
+  if (constitution.level === 'block') {
+    gen.disabled = true;
+    gen.title = 'Konstellation blockiert die Generierung — siehe Hinweis unten.';
+    const block = document.createElement('div');
+    block.className = 't-wizard-warn t-wizard-warn--block';
+    block.setAttribute('role', 'alert');
+    for (const msg of constitution.messages) {
+      const line = document.createElement('div');
+      line.className = 't-wizard-warn-line';
+      line.textContent = (msg.severity === 'error' ? '❌ ' : '⚠️ ') + msg.text;
+      block.appendChild(line);
+    }
+    block.textContent =
+      'Diese Konstellation kann nicht generiert werden. ' +
+      'Bitte zurück zu Schritt 3 oder 4 und anpassen.';
+    // Re-render mit Messages (überschreibt die obere Zeile, OK so).
+    while (block.firstChild) block.removeChild(block.firstChild);
+    for (const msg of constitution.messages) {
+      const line = document.createElement('div');
+      line.className = 't-wizard-warn-line';
+      line.textContent =
+        (msg.severity === 'error' ? '❌ ' : '⚠️ ') + msg.text;
+      block.appendChild(line);
+    }
+    wrap.appendChild(block);
+  }
+
   const inlineError = document.createElement('div');
   inlineError.className = 't-wizard-gen-error';
   inlineError.setAttribute('role', 'alert');
@@ -3789,7 +4089,7 @@ function errorMessageFromResult(result) {
  *
  * @returns Promise<{ cancelled: true } | { cancelled: false, typedName: string }>
  */
-function openConfirmDialog({ title, message, expectedName, confirmLabel, danger = true }) {
+export function openConfirmDialog({ title, message, expectedName, confirmLabel, danger = true }) {
   return new Promise((resolve) => {
     const backdrop = document.createElement('div');
     backdrop.className = 't-confirm-backdrop';

@@ -2430,12 +2430,17 @@ async function openTournamentInstance(instanceId) {
     renderSidebar();
     // Renderer bekommt sowohl das DTO (für id/name/status/logoUrl/...)
     // als auch die Top-Level-Listen (für teams/stages/groups/matches).
+    // Bug 1 (2026-08-17): isAdmin kommt vom Server auf Top-Level der
+    // Response (nicht im inneren tournament-Objekt). Vor diesem Fix war
+    // t.isAdmin immer undefined → Renderer hat Member-View angezeigt
+    // → kein "Ergebnis eintragen"-Button.
     renderTournamentInstanceDetailV3({ ...instance,
       teams: Array.isArray(res?.teams) ? res.teams : (instance.teams ?? []),
       stages: Array.isArray(res?.stages) ? res.stages : (instance.stages ?? []),
       groups: Array.isArray(res?.groups) ? res.groups : (instance.groups ?? []),
       matches: Array.isArray(res?.matches) ? res.matches : (instance.matches ?? []),
       stats: res?.stats ?? instance.stats ?? null,
+      isAdmin: res?.isAdmin === true,
     });
   } catch (e) {
     toast(e.serverMessage || 'Turnier-Details konnten nicht geladen werden', 'error');

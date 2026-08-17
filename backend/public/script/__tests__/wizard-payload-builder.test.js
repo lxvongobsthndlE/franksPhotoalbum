@@ -71,7 +71,9 @@ describe('buildPatchPayload — alle Felder', () => {
     expect(cfg.schedule.matchDurationMinutes).toBe(45);
     expect(cfg.schedule.pauseAfterMatches).toBe(5);
     expect(cfg.schedule.startTime).toBe('14:00');
-    expect(cfg.schedule.slotMinutes).toBe(15);
+    // Bug 2 (2026-08-17): slotMinutes wird jetzt aus matchDuration + pause
+    // berechnet (vorher Hardcode 15). 45 + 5 = 50.
+    expect(cfg.schedule.slotMinutes).toBe(50);
   });
 
   it('Wizard hat KEIN doubleRoundRobin mehr in der Config', () => {

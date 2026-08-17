@@ -65,54 +65,92 @@ export function generateTournament(input) {
     throw new Error('generateTournament: numGroups muss >= 1 sein');
   }
 
+  // Bug 3 (2026-08-17): Bei 'ko_only' und 'double_elim' wird KEINE
+  // Gruppenphase gespielt — alle Teams gehen direkt ins KO-Bracket.
+  // Vorher baute die Engine IMMER Gruppen (Phase 1+2), die dann nur als
+  // Top-N-Quelle fürs Bracket dienten. Für 'ko_only' bedeutete das:
+  //   - 4 Teams / 1 Gruppe → 6 RR-Matches (sinnlos, werden nie gespielt)
+  //   - qualifyPerGroup (Default 2) → nur 2 Teams im Bracket
+  //   - bracketSize=2 → nur F (kein SF) → keine Halbfinal-Spiele
+  // Spec §6.1: "Bei 'ko_only' entfällt die Gruppenphase vollständig."
+  // Wir setzen daher groupStage auf [] und konstruieren die Qualifikanten
+  // direkt aus dem seeded Team-Set.
+  const skipGroups = config.mode === 'ko_only' || config.mode === 'double_elim';
+
   // Gruppen-Keys default A, B, C, …
-  const groupKeys = input.groupKeys ?? defaultGroupKeys(numGroups);
+  const groupKeys = input.groupKeys ?? defaultGroupKeys(skipGroups ? 1 : numGroups);
 
-  // Phase 1: Verteilung
-  const rawGroups = distributeTeamsIntoGroups(teams, numGroups, {
-    method: config.distribution,
-    seed: input.config?.distributionSeed ?? 'default',
-  });
+  let groupStage = [];
 
-  // Phase 2: Round-Robin + Standings + Tiebreaker pro Gruppe
-  const groupStage = [];
-  for (let g = 0; g < rawGroups.length; g++) {
-    const grpTeams = rawGroups[g];
-    const grpTeamIds = grpTeams.map((t) => t.id);
-    const matches = buildRoundRobinMatches(grpTeamIds).map((m, idx) => ({
-      ...m,
-      id: `g_${groupKeys[g]}_${idx + 1}`,
-      stageType: 'group',
-      groupKey: groupKeys[g],
-      groupIndex: g,
-      status: 'scheduled',
-    }));
-
-    const standingsRows = computeStandings(grpTeamIds, input.matches ?? [], config);
-    const { sortedRows, unresolved } = applyTiebreaker(
-      standingsRows.map((r) => ({ ...r, name: grpTeams.find((t) => t.id === r.teamId)?.name })),
-      input.matches ?? [],
-      config,
-    );
-
-    groupStage.push({
-      groupKey: groupKeys[g],
-      groupName: input.groupNames?.[g] ?? `Gruppe ${groupKeys[g]}`,
-      members: grpTeams,
-      matches,
-      standings: sortedRows,
-      unresolved,
+  if (!skipGroups) {
+    // Phase 1: Verteilung
+    const rawGroups = distributeTeamsIntoGroups(teams, numGroups, {
+      method: config.distribution,
+      seed: input.config?.distributionSeed ?? 'default',
     });
+
+    // Phase 2: Round-Robin + Standings + Tiebreaker pro Gruppe
+    for (let g = 0; g < rawGroups.length; g++) {
+      const grpTeams = rawGroups[g];
+      const grpTeamIds = grpTeams.map((t) => t.id);
+      const matches = buildRoundRobinMatches(grpTeamIds).map((m, idx) => ({
+        ...m,
+        id: `g_${groupKeys[g]}_${idx + 1}`,
+        stageType: 'group',
+        groupKey: groupKeys[g],
+        groupIndex: g,
+        status: 'scheduled',
+      }));
+
+      const standingsRows = computeStandings(grpTeamIds, input.matches ?? [], config);
+      const { sortedRows, unresolved } = applyTiebreaker(
+        standingsRows.map((r) => ({ ...r, name: grpTeams.find((t) => t.id === r.teamId)?.name })),
+        input.matches ?? [],
+        config,
+      );
+
+      groupStage.push({
+        groupKey: groupKeys[g],
+        groupName: input.groupNames?.[g] ?? `Gruppe ${groupKeys[g]}`,
+        members: grpTeams,
+        matches,
+        standings: sortedRows,
+        unresolved,
+      });
+    }
   }
 
   // Phase 3: Qualifikation
-  const qualify = qualifyAndSeed(
-    {
-      groupStandings: groupStage.map((g) => g.standings),
-      groupKeys,
-    },
-    config,
-  );
+  //   - Gruppenphase: aus Standings die Top-N + beste Dritte
+  //   - ko_only / double_elim: alle Teams sind Qualifikanten (seed-sortiert)
+  let qualify;
+  if (skipGroups) {
+    // Direkt-Qualifikation: jedes Team kommt ins Bracket. Seeds 1..N nach
+    // user-set seed, sonst nach Team-ID (deterministisch).
+    const seeded = teams.slice().sort((a, b) => {
+      const sa = a.seed ?? Number.MAX_SAFE_INTEGER;
+      const sb = b.seed ?? Number.MAX_SAFE_INTEGER;
+      if (sa !== sb) return sa - sb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    qualify = {
+      qualifiers: seeded.map((t, idx) => ({
+        seed: idx + 1,
+        teamId: t.id,
+        name: t.name,
+        source: { groupKey: null },
+      })),
+      bestThirdsUsed: 0,
+    };
+  } else {
+    qualify = qualifyAndSeed(
+      {
+        groupStandings: groupStage.map((g) => g.standings),
+        groupKeys,
+      },
+      config,
+    );
+  }
 
   // Phase 4: Bracket (nur wenn Modus KO beinhaltet)
   let bracket = { matches: [], bracketSize: 0, byeSeeds: [], unresolvedConflicts: [] };

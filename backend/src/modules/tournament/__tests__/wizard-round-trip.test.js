@@ -197,7 +197,10 @@ function buildRequestBodies(state) {
       bestThirds: state.bestThirdsCount,
       hasThirdPlacePlayoff: state.thirdPlaceMatch,
       schedule: {
-        slotMinutes: 15,
+        // Bug 2 (2026-08-17): slotMinutes wird jetzt aus matchDuration
+        // + pause berechnet — Engine nutzt matchDurationMinutes als
+        // primäre Quelle.
+        slotMinutes: state.matchDuration + state.pauseMinutes,
         matchDurationMinutes: state.matchDuration,
         pauseAfterMatches: state.pauseMinutes,
         parallelFields: state.numTables,
@@ -633,5 +636,127 @@ describe('Wizard → DB → DTO Round-Trip (12 Teams, alle Optionen)', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.error).toMatch(/team/i);
+  });
+
+  // ---------------------------------------------------------------
+  // Bug A (2026-08-17): Modus und numGroups müssen per PATCH
+  // aktualisierbar sein, sonst zeigt der Header dauerhaft den
+  // Create-Default, obwohl der User in Step 3 etwas anderes gewählt
+  // hat. Diese beiden Tests sind die direkte Regressionssicherung.
+  // ---------------------------------------------------------------
+  it('Bug A: PATCH aktualisiert den Modus (Wizard kann umschalten)', async () => {
+    // Wizard wählt in Step 3 "Nur K.-o." statt des Create-Defaults.
+    state.mode = 'ko_only';
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/tournaments',
+      payload: { ...bodies.createBody, mode: state.mode },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    // PATCH enthält jetzt mode: 'ko_only' — wie buildPatchPayload
+    // es nach dem Fix serialisiert (Top-Level, nicht in config).
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { ...bodies.patchBody, mode: state.mode },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+
+    // PATCH muss mode an Prisma weitergegeben haben — sonst hat der
+    // Server das Feld verschluckt und der Header bleibt falsch.
+    const lastUpdate =
+      prisma.tournament.update.mock.calls[
+        prisma.tournament.update.mock.calls.length - 1
+      ][0];
+    expect(lastUpdate.data.mode).toBe('ko_only');
+
+    // DTO nach /generate enthält den gewechselten Modus.
+    await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tId}/teams`,
+      payload: bodies.teamsBody,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    const genRes = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tId}/generate`,
+      payload: bodies.generateBody,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(genRes.statusCode).toBe(201);
+    const getRes = await app.inject({
+      method: 'GET',
+      url: `/api/tournaments/${tId}`,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(getRes.json().tournament.mode).toBe('ko_only');
+  });
+
+  it('Bug A: PATCH aktualisiert config.numGroups', async () => {
+    // Wizard stellt in Step 3 von 4 auf 2 Gruppen um.
+    state.numGroups = 2;
+    const customPatchBody = {
+      ...bodies.patchBody,
+      config: { ...bodies.patchBody.config, numGroups: 2 },
+    };
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/tournaments',
+      payload: bodies.createBody,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: customPatchBody,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const lastUpdate =
+      prisma.tournament.update.mock.calls[
+        prisma.tournament.update.mock.calls.length - 1
+      ][0];
+    expect(lastUpdate.data.config.numGroups).toBe(2);
+  });
+
+  it('Bug A: PATCH lehnt unbekannten Modus mit 400 ab (kein stiller Fallback)', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/tournaments',
+      payload: bodies.createBody,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { ...bodies.patchBody, mode: 'unsinnig' },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('mode');
+  });
+
+  it('Bug A: PATCH lehnt numGroups < 1 mit 400 ab', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/tournaments',
+      payload: bodies.createBody,
+      headers: { 'x-test-user': u.admin.id },
+    });
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: {
+        ...bodies.patchBody,
+        config: { ...bodies.patchBody.config, numGroups: 0 },
+      },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('numGroups');
   });
 });
