@@ -143,7 +143,35 @@ app.get('/health', async (request, reply) => {
 await app.register(fastifyStatic, {
   root: path.join(__dirname, '../public'),
   prefix: '/',
+  // Wir setzen KEINEN Long-Term-Cache für JS/CSS/HTML. Wenn der User
+  // einen Tab offen lässt und wir ein File editieren, soll der nächste
+  // Reload die neue Version sehen — ohne Hard-Reload (Strg+Shift+R).
+  // Warum: dev-with-minio.mjs startet den Server mit `--watch`, aber
+  // der Browser cached Frontend-Assets sehr aggressiv. Ein Hard-Reload
+  // umgeht den Cache, ist aber UX-schlecht. In Production (NODE_ENV !==
+  // 'development') bleibt das Verhalten unverändert.
+  cacheControl: false,
 });
+
+// Dev-Mode: explizit `Cache-Control: no-store` auf JS/CSS/HTML-Responses,
+// damit Browser-F5 (nicht Ctrl+F5) bereits die neue Version zieht.
+// In Production (NODE_ENV=production) ist die Middleware inaktiv.
+if ((process.env.NODE_ENV || 'development') === 'development') {
+  app.addHook('onSend', async (request, reply, payload) => {
+    const url = request.url || '';
+    if (
+      url.startsWith('/script/') ||
+      url.startsWith('/style/') ||
+      url === '/' ||
+      url.endsWith('.html') ||
+      url.endsWith('.js') ||
+      url.endsWith('.css')
+    ) {
+      reply.header('Cache-Control', 'no-store');
+    }
+    return payload;
+  });
+}
 
 const start = async () => {
   try {

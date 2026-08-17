@@ -366,6 +366,56 @@ describe('Pflicht-Test 3: Member POST /matches/:matchId/result', () => {
     expect(body.match.id).toBe('m-1');
     expect(typeof body.match.statusLabel).toBe('string');
   });
+
+  // Schema-Drift-Regressionstest (Bug 2026-08-17):
+  //   POST /result hat früher winnerTeamId/isDraw/completedAt an
+  //   Prisma.match.update übergeben — drei Spalten, die im
+  //   schema.prisma NICHT existieren. Prisma lehnt das mit
+  //   "Unknown argument …" ab. Wenn dieser Test fehlschlägt, hat
+  //   jemand wieder Felder hinzugefügt, die nicht im Schema stehen.
+  it('Bug Schema-Drift: POST /result schreibt NUR Schema-konforme Felder', async () => {
+    prisma.match.update.mockResolvedValue({
+      id: 'm-1',
+      tournamentId: tLive,
+      stageId: 's-group',
+      teamHome: 'team-a',
+      teamAway: 'team-b',
+      scoreHome: 2,
+      scoreAway: 1,
+      status: 'finished',
+    });
+    prisma.tournamentTeam.findMany.mockResolvedValue([
+      { id: 'team-a', name: 'Alpha', tournamentId: tLive },
+      { id: 'team-b', name: 'Beta', tournamentId: tLive },
+    ]);
+    prisma.stage.findMany.mockResolvedValue([
+      { id: 's-group', type: 'group', name: 'Gruppenphase', orderIndex: 0 },
+    ]);
+    prisma.group_.findMany.mockResolvedValue([]);
+    prisma.match.findMany.mockResolvedValue([]);
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tLive}/matches/m-1/result`,
+      payload: { scoreHome: 2, scoreAway: 1 },
+      headers: { 'x-test-user': u.global.id },
+    });
+
+    // Die Route muss an prisma.match.update() GENAU diese 3 Felder
+    // übergeben — nicht mehr und nicht weniger. Jeder unerlaubte
+    // Feldname wäre "Unknown argument" und würde Prisma werfen lassen.
+    expect(prisma.match.update).toHaveBeenCalledTimes(1);
+    const updateArgs = prisma.match.update.mock.calls[0][0];
+    const dataKeys = Object.keys(updateArgs.data).sort();
+    expect(dataKeys).toEqual(['scoreAway', 'scoreHome', 'status']);
+    expect(updateArgs.data.scoreHome).toBe(2);
+    expect(updateArgs.data.scoreAway).toBe(1);
+    expect(updateArgs.data.status).toBe('finished');
+    // Vor allem: KEINE Schema-Geister.
+    expect('winnerTeamId' in updateArgs.data).toBe(false);
+    expect('isDraw' in updateArgs.data).toBe(false);
+    expect('completedAt' in updateArgs.data).toBe(false);
+  });
 });
 
 // ------------------------------------------------------------------

@@ -2976,22 +2976,29 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
     return `${timeStr}${tischStr}${labelStr}· ${homeName} – ${awayName}`.trim();
   };
 
+  // Hilfsfunktion für die kleinen Subline (HF 1 · 10:00 · Platte 1).
+  // Eine Zeile, grau — keine separate Vorschau-Box mehr.
+  const sublineFor = (m) => {
+    if (!m) return '';
+    const parts = [];
+    if (m.label) parts.push(esc(m.label));
+    if (m.scheduledTime) parts.push(esc(m.scheduledTime));
+    if (typeof m.field === 'number') parts.push(`Platte ${m.field}`);
+    return parts.join(' · ');
+  };
+
   const dlg = document.createElement('div');
   dlg.id = 'result-entry-modal';
   dlg.className = 'dlg-bg';
   dlg.innerHTML = `
     <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
       <div class="tournament-detail-dlg-head">
-        <h3>⚽ Ergebnis eintragen</h3>
+        <h3>Ergebnis eintragen</h3>
         <button type="button" class="modal-x" data-action="close">✕</button>
       </div>
       <form id="result-entry-form" class="tournament-detail-form">
         ${initialMatch
-          ? `<label class="tournament-detail-field">
-              <span class="tournament-detail-label">Match</span>
-              <input type="text" disabled value="${esc(labelFor(initialMatch))}">
-              <input type="hidden" id="re-match-id" value="${esc(initialMatch.id)}">
-            </label>`
+          ? `<input type="hidden" id="re-match-id" value="${esc(initialMatch.id)}">`
           : (openSorted.length
               ? `<label class="tournament-detail-field">
                   <span class="tournament-detail-label">Match <span class="t-required">*</span></span>
@@ -3001,24 +3008,29 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
                       `<option value="${esc(id)}">${esc(labelFor(m))}</option>`
                     )).join('')}
                   </select>
-                  <span class="t-hint">Sortiert nach Zeit (früheste zuerst, ohne Zeit ans Ende).</span>
                 </label>`
               : `<p class="t-hint">Keine offenen Matches vorhanden — bitte zuerst Spiele generieren.</p>`
             )}
-        <div id="re-info" class="re-info" aria-live="polite" hidden></div>
-        <div class="t-grid-2">
-          <label class="tournament-detail-field">
-            <span class="tournament-detail-label">Ergebnis Heim</span>
-            <input id="re-home" type="number" min="0" value="0" required>
-          </label>
-          <label class="tournament-detail-field">
-            <span class="tournament-detail-label">Ergebnis Gast</span>
-            <input id="re-away" type="number" min="0" value="0" required>
-          </label>
+        <div id="re-subline" class="re-subline" aria-live="polite"></div>
+        <div class="re-score-row">
+          <span class="re-team">
+            <i class="t-dot re-dot" id="re-home-dot"></i>
+            <span class="re-team-name" id="re-home-name">–</span>
+          </span>
+          <input id="re-home" type="number" min="0" value="0" required
+                 class="re-score-input" aria-label="Ergebnis Heim">
+        </div>
+        <div class="re-score-row">
+          <span class="re-team">
+            <i class="t-dot re-dot" id="re-away-dot"></i>
+            <span class="re-team-name" id="re-away-name">–</span>
+          </span>
+          <input id="re-away" type="number" min="0" value="0" required
+                 class="re-score-input" aria-label="Ergebnis Gast">
         </div>
         <div class="tournament-card-actions">
           <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
-          <button type="submit" class="btn btn-primary">💾 Ergebnis speichern</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
         </div>
       </form>
     </div>`;
@@ -3028,42 +3040,36 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   });
 
   const mIdInput = dlg.querySelector('#re-match-id');
-  const infoEl = dlg.querySelector('#re-info');
-  const renderInfo = (id) => {
-    const m = findMatch(id);
-    if (!m) { infoEl.hidden = true; infoEl.innerHTML = ''; return; }
-    const homeName = m.home?.name || 'offen';
-    const awayName = m.away?.name || 'offen';
-    const timeStr = m.scheduledTime || '–';
-    const tischStr = typeof m.field === 'number' ? `Platte ${m.field}` : '–';
-    const labelStr = m.label || '–';
-    // Schlichte HTML-Struktur, kein Grid. Flexibler im Modal-Container.
-    infoEl.innerHTML = `
-      <div class="re-info-row re-info-meta">
-        <div class="re-info-time">${esc(timeStr)} · ${esc(tischStr)}</div>
-        <div class="re-info-label">${esc(labelStr)}</div>
-      </div>
-      <div class="re-info-row re-info-teams">
-        <span class="re-info-team re-info-home">
-          <i class="t-dot" style="background:${esc(m.home?.color || 'var(--line)')}"></i>
-          <span class="name">${esc(homeName)}</span>
-        </span>
-        <span class="re-info-vs">– : –</span>
-        <span class="re-info-team re-info-away">
-          <span class="name">${esc(awayName)}</span>
-          <i class="t-dot" style="background:${esc(m.away?.color || 'var(--line)')}"></i>
-        </span>
-      </div>
-    `;
-    infoEl.hidden = false;
+  const sublineEl = dlg.querySelector('#re-subline');
+  const homeNameEl = dlg.querySelector('#re-home-name');
+  const awayNameEl = dlg.querySelector('#re-away-name');
+  const homeDotEl = dlg.querySelector('#re-home-dot');
+  const awayDotEl = dlg.querySelector('#re-away-dot');
+  const setHomeAway = (m) => {
+    if (!m) {
+      homeNameEl.textContent = '–';
+      awayNameEl.textContent = '–';
+      homeDotEl.style.background = 'var(--line)';
+      awayDotEl.style.background = 'var(--line)';
+      sublineEl.textContent = '';
+      return;
+    }
+    homeNameEl.textContent = m.home?.name || 'offen';
+    awayNameEl.textContent = m.away?.name || 'offen';
+    homeDotEl.style.background = m.home?.color || 'var(--line)';
+    awayDotEl.style.background = m.away?.color || 'var(--line)';
+    sublineEl.textContent = sublineFor(m);
   };
 
-  // Initial-Info rendern (preset oder leer bei Dropdown).
-  if (initialMatch) renderInfo(initialMatch.id);
+  // Initial-Befüllung (preset oder leer bei Dropdown).
+  if (initialMatch) setHomeAway(initialMatch);
 
-  // Bei Dropdown-Wechsel Info neu rendern.
+  // Bei Dropdown-Wechsel Subline + Teamnamen neu setzen.
   if (mIdInput && mIdInput.tagName === 'SELECT') {
-    mIdInput.addEventListener('change', () => renderInfo(mIdInput.value));
+    mIdInput.addEventListener('change', () => {
+      const m = findMatch(mIdInput.value);
+      setHomeAway(m);
+    });
   }
 
   dlg.querySelector('#result-entry-form').addEventListener('submit', async (e) => {

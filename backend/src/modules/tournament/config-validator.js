@@ -62,6 +62,25 @@ export function validateConfigPatch(input) {
   const out = {};
   const src = input;
 
+  // ---- Anzahl Gruppen (Bug A, 2026-08-17)
+  //
+  // Vor diesem Fix stand numGroups nur im /generate-Body — die Engine
+  // konnte es dort lesen, aber config.numGroups blieb null. Bei
+  // Re-Generate oder /reschedule fehlte der Wert, und die Engine
+  // fiel auf 1 Gruppe zurück. Jetzt darf der Wizard numGroups in
+  // config schreiben, und der Validator lehnt ungültige Werte ab.
+  if ('numGroups' in src) {
+    const v = src.numGroups;
+    if (!Number.isInteger(v) || v < 1) {
+      return {
+        ok: false,
+        error: 'invalid_config',
+        message: 'numGroups muss eine ganze Zahl >= 1 sein.',
+        field: 'numGroups',
+      };
+    }
+    out.numGroups = v;
+  }
   // ---- Verteilung
   if ('distribution' in src) {
     if (!ALLOWED_DISTRIBUTION.includes(src.distribution)) {

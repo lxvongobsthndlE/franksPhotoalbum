@@ -115,6 +115,26 @@
   height: calc(100vh - 60px); /* Platz für App-Header */
   overflow: hidden;
 }
+
+/* Detail-View-Host: dasselbe Muster wie t-wizard-host — wenn ein
+   Turnier-Detail offen ist, bricht das Foto-Grid aus main.css
+   (`.tournaments-grid { grid-template-columns: repeat(auto-fill, ...) }`)
+   die `.t-mod` in eine ~280px-Spalte. Diese Klasse hebt das auf,
+   damit `.t-shell` seine volle Breite bekommt und die drei Spalten
+   greifen. Wird beim Öffnen gesetzt, beim „Zurück zur Liste"
+   über `switchToTournamentInstances()` → `loadTournamentInstances()`
+   wieder entfernt (das setzt grid.className = 'grid tournaments-grid'). */
+.t-detail-host {
+  display: block !important;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.t-detail-host > .t-mod {
+  height: calc(100vh - 60px);
+  overflow: hidden;
+}
 .t-mod table { border-collapse: collapse; width: 100%; }
 .t-mod button {
   font-family: inherit; font-size: inherit; cursor: pointer;
@@ -388,6 +408,76 @@
 }
 .t-card-title { font-weight: 600; font-size: 15px; }
 .t-card-body  { padding: var(--s4); }
+
+/* ----------------------------------------------------------------
+   TOOLBAR + FILTER-CHIPS
+   Filter-Reihenfolge im Spielplan (Spec §13.6):
+   Alle · Nur offene · Beendet · Gruppenphase · K.O. · Spieltage · Gruppen
+   ---------------------------------------------------------------- */
+.t-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--line);
+}
+.t-chip {
+  font: inherit;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.3;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.t-chip:hover { background: var(--paper); }
+.t-chip.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.t-chip .count {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.t-chip.is-active .count { opacity: 0.9; }
+
+/* ----------------------------------------------------------------
+   HINWEIS-TEXT (Platzhalter, Ablauf, leere Filter-Treffer)
+   ---------------------------------------------------------------- */
+.t-hint {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}
+.t-hint strong { color: var(--ink); font-style: normal; font-weight: 600; }
+
+/* ----------------------------------------------------------------
+   ASIDE-LISTE (Plattenbelegung u. ä. Kompaktlisten in der Kontextspalte)
+   ---------------------------------------------------------------- */
+.t-aside-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  font-size: 13px;
+}
+.t-aside-list li {
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.t-aside-list li:last-child { border-bottom: none; }
+.t-aside-list strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+
 .t-section-label {
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -396,6 +486,40 @@
   font-weight: 600;
   margin-bottom: var(--s3);
 }
+
+/* Standings-Tabellen (Etappe B.3 — Gruppen-View) */
+.t-standings-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 var(--s3);
+}
+.t-standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.t-standings-table th,
+.t-standings-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.t-standings-table th {
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.t-standings-rank { width: 28px; color: var(--ink-soft); }
+.t-standings-team { font-weight: 500; color: var(--ink); }
+.t-standings-row.is-first td { background: var(--surface-alt); font-weight: 600; }
+.t-standings-row.is-first .t-standings-rank::before { content: '★ '; color: var(--accent); }
+.t-standings-row.is-second .t-standings-rank::before { content: '↑ '; color: var(--ink-soft); }
 
 /* ----------------------------------------------------------------
    SCREEN A — TURNIERLISTE (§13.2)
@@ -592,22 +716,29 @@
    Verwendung:
      <div class="t-match" data-size="normal">  ← Standard
        <span class="t-match-bar"></span>
-       <div class="t-match-meta">...</div>
-       <div class="t-match-team">...</div>
-       <div class="t-match-score">...</div>
-       <div class="t-match-team right">...</div>
-       <div class="t-match-action">...</div>
+       <div class="t-match-meta">
+         <div>10:30 · Platte 3</div>   ← Zeile 1: Zeit · Tisch
+         <div>VF 1</div>                ← Zeile 2: Bezeichnung (VF/HF/Gruppenspiel …)
+       </div>
+       <div class="t-match-team">…</div>
+       <div class="t-match-score">…</div>
+       <div class="t-match-team right">…</div>
+       <div class="t-match-action">…</div>
      </div>
 
    oder per Modifier-Klasse:
      .t-match--compact    (Kontextspalte, Liste)
      .t-match--large      (Detail-Panel, Beamer)
 
-   Identische innere Anatomie, nur Layout-Proportionen ändern sich.
+   Spalten-Layout (Prototyp, Zeile 128): 6 Grid-Spalten
+     bar | meta | heim | score | gast | aktion
+
+   Meta ist 120 px breit (NICHT 96 px wie im Prototyp), weil bei uns
+   auch die Bezeichnung mit druntersteht. Sonst nichts frei erfunden.
    ---------------------------------------------------------------- */
 .t-match {
   display: grid;
-  grid-template-columns: 3px 96px 1fr auto 1fr 108px;
+  grid-template-columns: 3px 120px minmax(0, 1fr) auto minmax(0, 1fr) 108px;
   gap: var(--s3);
   align-items: center;
   padding: var(--s3) var(--s4);
@@ -623,23 +754,59 @@
 }
 .t-match--done .t-match-bar { background: var(--qualified); }
 .t-match--done .t-match-team { color: var(--ink-soft); }
+.t-match--live .t-match-bar { background: var(--live, var(--accent)); }
 
+/* Meta-Spalte — ZWEI Zeilen, OHNE nowrap/ellipsis.
+     Zeile 1: Zeit · Tisch — 14 px, tabular-nums, --ink
+     Zeile 2: Bezeichnung — 11 px, --ink-soft, darf umbrechen */
 .t-match-meta {
-  font-size: 12px;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
+.t-match-meta-line {
+  /* Keine Ellipse, kein nowrap — die Spalte ist breit genug. */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.t-match-meta-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+.t-match-meta-label {
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
 .t-match-team {
   display: flex; align-items: center; gap: var(--s2);
   font-weight: 500;
+  min-width: 0; /* verhindert, dass das Flex-Item über die 1fr-Spalte hinausgeht */
 }
 .t-match-team.right { justify-content: flex-end; text-align: right; }
 .t-match-team .name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .t-match-team.is-winner .name { font-weight: 700; color: var(--ink); }
+
+/* Farb-Punkt (8px) vor dem Heim-Namen bzw. nach dem Gast-Namen.
+   Teams ohne gesetzte Farbe bekommen einen dezenten grauen Punkt. */
+.t-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
 
 .t-match-score {
   font-variant-numeric: tabular-nums;
@@ -656,7 +823,21 @@
   border: 1px dashed var(--line);
 }
 
-.t-match-action { text-align: right; }
+/* Action-Spalte — Admin-Button ODER Member-Text. NIE leer: der Member
+   sieht entweder die Bezeichnung oder „Beendet", der Admin sieht den
+   Button (oder „Erneut" bei schon eingetragenem Ergebnis). */
+.t-match-action {
+  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+.t-match-action-text {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: right;
+}
 
 /* Kompakte Variante — nur Score + Namen + Bar, komprimiert.
    Verwendet in Kontextspalte und schnellen Listen. */
@@ -675,54 +856,54 @@
 }
 .t-match.t-match--compact .t-match-score  { grid-area: score; font-size: 14px; padding: 2px 8px; min-width: 48px; }
 
-/* Große Variante — Detail-Panel + Beamer, eigene Karte pro Match. */
+/* Große Variante — Detail-Panel + Beamer, eigene Karte pro Match.
+   Spalten-Basis gleich wie Standard, aber breiter (etwas mehr Atem). */
 .t-match.t-match--large {
-  grid-template-columns: 4px 132px 1fr auto 1fr 140px;
+  grid-template-columns: 4px 144px minmax(0, 1fr) auto minmax(0, 1fr) 140px;
   padding: var(--s4) var(--s6);
   border: 1px solid var(--line);
   border-bottom: 1px solid var(--line); /* Override "last-child"-Reset */
   border-radius: var(--r-card);
   margin-bottom: var(--s3);
+  gap: var(--s4);
 }
 .t-match.t-match--large:last-child { margin-bottom: 0; }
-.t-match.t-match--large .t-match-meta  { font-size: 13px; }
-.t-match.t-match--large .t-match-team  { font-size: 17px; }
-.t-match.t-match--large .t-match-score { font-size: 22px; padding: 6px 14px; min-width: 80px; }
+.t-match.t-match--large .t-match-meta-time  { font-size: 16px; }
+.t-match.t-match--large .t-match-meta-label { font-size: 13px; }
+.t-match.t-match--large .t-match-team       { font-size: 17px; }
+.t-match.t-match--large .t-match-score      { font-size: 22px; padding: 6px 14px; min-width: 80px; }
 
 /* Auf <768px Modul-Breite: Match wird zur Karte (Stack) statt zur Zeile.
-   Gilt für ALLE Größen. */
+   Meta-Zelle bleibt zweizeilig oben, dann Heim + Score/Gast in der
+   zweiten Zeile, Action-Spalte spannt über alle 3 Zeilen am rechten
+   Rand. */
 @container (max-width: 767px) {
   .t-match,
   .t-match.t-match--large {
-    grid-template-columns: 3px 1fr auto;
+    grid-template-columns: 3px minmax(0, 1fr) auto;
     grid-template-areas:
-      "bar meta act"
-      "bar home score"
-      "bar away score";
-    row-gap: 2px;
+      "bar meta  act"
+      "bar home  act"
+      "bar score away";
+    row-gap: var(--s2);
     column-gap: var(--s3);
   }
-  .t-match-bar    { grid-area: bar; }
-  .t-match-meta   { grid-area: meta; }
-  .t-match-team   { grid-area: home; }
+  .t-match-bar     { grid-area: bar; }
+  .t-match-meta    { grid-area: meta; }
+  .t-match-team    { grid-area: home; }
   .t-match-team.right {
     grid-area: away;
     justify-content: flex-start;
     text-align: left;
   }
-  .t-match-score  { grid-area: score; align-self: center; }
-  .t-match-action { grid-area: act; text-align: right; }
+  .t-match-score   { grid-area: score; align-self: center; justify-self: center; }
+  .t-match-action  { grid-area: act; align-self: start; }
 }
 
 /* ----------------------------------------------------------------
-   DOT (klein, 8×8) — wiederverwendbares Indikator-Element
+   DOT (klein, 8×8) — wiederverwendbares Indikator-Element.
+   Basis-Definition steht oben bei .t-match. Hier nur die Status-Modifier.
    ---------------------------------------------------------------- */
-.t-dot {
-  width: 8px; height: 8px;
-  border-radius: 999px;
-  flex: none;
-  display: inline-block;
-}
 .t-dot.t-dot--open      { background: var(--open); }
 .t-dot.t-dot--qualified { background: var(--qualified); }
 .t-dot.t-dot--out       { background: var(--out); }

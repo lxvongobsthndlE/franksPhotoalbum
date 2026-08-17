@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Screen B — Tiebreaker-DnD-Test</title>
+  <link rel="stylesheet" href="./style/main.css" />
+  <link rel="stylesheet" href="./style/tournament.css" />
+  <style>
+    html, body { margin: 0; background: var(--paper, #FAF7F1); min-height: 100vh; }
+    .preview-frame { display: flex; min-height: 100vh; }
+    .preview-fake-sidebar { display: none; }
+    #root { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 0; }
+    .dnd-banner {
+      position: fixed; top: 12px; right: 12px; z-index: 1000;
+      background: #FFF; border: 1px solid var(--line, #E7DFD2);
+      border-radius: 999px; padding: 6px 12px; font-size: 12px;
+      font-family: inherit; max-width: 360px;
+    }
+    .dnd-banner .ok { color: #2c6e3f; font-weight: 600; }
+    .dnd-banner .fail { color: #a33; font-weight: 600; }
+    .dnd-banner code { font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="dnd-banner" id="banner">Teste…</div>
+  <div class="preview-frame">
+    <div id="root"></div>
+  </div>
+
+  <script type="module">
+    import { renderWizardView } from './script/tournament.js';
+
+    const STATE = {
+      step: 3,
+      name: 'Test',
+      date: '', location: '', sport: 'becher', logoUrl: null,
+      teamInput: '', teams: [],
+      mode: 'groups_ko', numGroups: 3,
+      distributionMethod: 'seeded', doubleRoundRobin: false,
+      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      tiebreakers: ['points', 'headToHead', 'goalDiff', 'goalsFor', 'goalsAgainst', 'lottery'],
+      advancePerGroup: 2, bestThirdsCount: 2, thirdPlaceMatch: true,
+      numTables: 4, tableNames: [],
+      startTime: '14:00', matchDuration: 15, pauseMinutes: 5,
+    };
+
+    const ROOT = document.getElementById('root');
+    const BANNER = document.getElementById('banner');
+
+    ROOT.appendChild(renderWizardView({ initialState: STATE, onCancel:()=>{}, onComplete:()=>{}, onStateChange:()=>{} }));
+
+    // ---- DnD-Simulation: ziehe "Losentscheid" (Position 6) auf Position 1.
+    function simulateDrag() {
+      const list = document.querySelector('.t-wizard-tie-list');
+      if (!list) { show('FAIL: keine .t-wizard-tie-list gefunden', false); return; }
+      const rows = Array.from(list.querySelectorAll('.t-wizard-tie-row'));
+      if (rows.length < 6) { show('FAIL: erwarte 6 Rows, fand ' + rows.length, false); return; }
+
+      const source = rows[5]; // Losentscheid
+      const target = rows[0]; // davor Platz
+
+      const fire = (target, type, x, y) => {
+        const ev = new PointerEvent(type, {
+          bubbles: true, cancelable: true,
+          pointerId: 1, pointerType: 'mouse', isPrimary: true,
+          clientX: x, clientY: y, button: 0,
+        });
+        target.dispatchEvent(ev);
+      };
+
+      const srcRect = source.getBoundingClientRect();
+      const tgtRect = target.getBoundingClientRect();
+      const startX = srcRect.left + srcRect.width / 2;
+      const startY = srcRect.top + srcRect.height / 2;
+      // Lande ÜBER "Punkte" → Losentscheid rutscht an Position 1.
+      const endY = tgtRect.top - 6;
+
+      fire(source, 'pointerdown', startX, startY);
+
+      // Schrittweise bewegen (synchron, ohne sleep), damit
+      // (a) THRESHOLD überschritten wird und (b) der Placeholder-Index
+      //     sich Stück für Stück aktualisiert.
+      const steps = 10;
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const y = startY + (endY - startY) * t;
+        fire(source, 'pointermove', startX, y);
+      }
+
+      fire(source, 'pointerup', startX, endY);
+
+      // Reihenfolge nach Re-Render prüfen
+      const after = Array.from(document.querySelectorAll('.t-wizard-tie-label')).map((l) => l.textContent.trim());
+      const expectedFirst = 'Losentscheid';
+      if (after[0] === expectedFirst) {
+        show(`OK: DnD funktioniert. Neue Reihenfolge: ${after.join(' → ')}`, true);
+      } else {
+        show(`FAIL: Erste Position ist "${after[0]}", erwartet "${expectedFirst}". Reihe: ${after.join(' → ')}`, false);
+      }
+    }
+
+    function show(text, ok) {
+      BANNER.innerHTML = ok
+        ? `<span class="ok">${text}</span>`
+        : `<span class="fail">${text}</span>`;
+    }
+
+    // Render abwarten, dann sofort simulieren — synchron, damit der
+    // headless-Screenshot den Endzustand einfängt.
+    requestAnimationFrame(simulateDrag);
+  </script>
+</body>
+</html>

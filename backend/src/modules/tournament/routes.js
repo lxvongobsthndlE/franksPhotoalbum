@@ -31,6 +31,7 @@ import {
   resetCascade,
   propagateWinner,
   mergeConfig,
+  generateSchedule,
 } from './engine/index.js';
 import {
   buildTournamentViewContext,
@@ -47,6 +48,7 @@ import {
   getTournamentAssetStat,
 } from '../../utils/storage.js';
 import { resizeLogoImage } from './asset.js';
+import { nextPaletteColor } from './team-colors.js';
 
 export default async function tournamentRoutes(fastify) {
   // ─────────────────────────────────────────────────────────
@@ -163,6 +165,49 @@ export default async function tournamentRoutes(fastify) {
       // --- Meta-Felder (immer erlaubt)
       for (const k of ['name', 'logoUrl', 'coverUrl', 'startsAt', 'endsAt']) {
         if (k in body) data[k] = body[k];
+      }
+
+      // --- Modus (Spec §1.2: Turniermodus — Top-Level-Spalte, nicht in
+      //     config, weil die Engine sie überall erwartet). Wizard darf
+      //     den Modus nachträglich wechseln, solange das Turnier noch
+      //     nicht generiert ist. §13: keine stillen Annahmen — ein
+      //     ungültiger Modus führt zu 400, kein Fallback auf Default.
+      //
+      //     Hintergrund (2026-08-17, Bug A): Vor diesem Fix konnte der
+      //     Wizard in Step 3 einen anderen Modus wählen, der PATCH
+      //     schickte ihn aber NICHT, weil buildPatchPayload ihn nicht
+      //     serialisierte. Beim /generate wurde dann der Create-Default
+      //     ('groups_ko') aus der DB gelesen — Header zeigte falsch.
+      const ALLOWED_MODES = ['groups_ko', 'groups_only', 'ko_only', 'double_elim'];
+      if ('mode' in body) {
+        if (!ALLOWED_MODES.includes(body.mode)) {
+          return reply.code(400).send({
+            error: 'invalid_mode',
+            message:
+              'mode muss einer von ' + ALLOWED_MODES.join(', ') + ' sein.',
+            field: 'mode',
+          });
+        }
+        // Sobald Spiele existieren, ist der Modus eingefroren —
+        // wechseln würde die Tabellen-Bedeutung rückwirkend ändern
+        // (z. B. aus KO-Match wird Gruppen-Match mit anderer Wertung).
+        const finishedCount = await fastify.prisma.match.count({
+          where: {
+            tournamentId: ctx.tournament.id,
+            status: 'finished',
+          },
+        });
+        if (finishedCount > 0) {
+          return reply.code(409).send({
+            error: 'mode_locked_results_present',
+            message:
+              'Der Modus kann nicht mehr geändert werden, sobald ' +
+              'Ergebnisse vorliegen — die Bedeutung der Tabelle und ' +
+              'des Brackets würde sich rückwirkend ändern.',
+            finishedMatches: finishedCount,
+          });
+        }
+        data.mode = body.mode;
       }
 
       // --- Grunddaten (Spec §1.2: Ort, Sport, Tischlabels)
@@ -315,8 +360,35 @@ export default async function tournamentRoutes(fastify) {
         return reply.code(400).send({ error: 'Keine gültigen Teamnamen' });
       }
       const unique = [...new Set(clean)];
+
+      // Existierende Teams laden, damit wir die nächste freie Palette-Farbe
+      // bestimmen können. Teams mit explizit gesetzter Farbe werden nicht
+      // überschrieben — nur neu hinzugefügte bekommen eine Default-Farbe,
+      // wenn der Body keine mitliefert.
+      const existingTeams = await fastify.prisma.tournamentTeam.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        orderBy: { createdAt: 'asc' },
+      });
+      const colorAssignments = [];
+      const existingByName = new Map(existingTeams.map((t) => [t.name, t]));
+
+      const newTeamsData = [];
+      for (const name of unique) {
+        if (existingByName.has(name)) {
+          // skipDuplicates wird diesen Namen ignorieren — wir brauchen
+          // keine Farbe zuweisen.
+          continue;
+        }
+        const color = nextPaletteColor([
+          ...existingTeams,
+          ...colorAssignments,
+        ]);
+        colorAssignments.push({ name, color });
+        newTeamsData.push({ tournamentId: ctx.tournament.id, name, color });
+      }
+
       const result = await fastify.prisma.tournamentTeam.createMany({
-        data: unique.map((name) => ({ tournamentId: ctx.tournament.id, name })),
+        data: newTeamsData,
         skipDuplicates: true,
       });
       // DTO-Antwort, nicht die Roh-Teams.
@@ -330,6 +402,7 @@ export default async function tournamentRoutes(fastify) {
           id: t.id,
           name: t.name,
           seed: t.seed ?? null,
+          color: t.color ?? null,
         })),
       });
     } catch (err) {
@@ -548,13 +621,43 @@ export default async function tournamentRoutes(fastify) {
       const config = ctx.tournament.config ?? {};
       const baseDate = request.body?.baseDate ?? config.baseDate ?? null;
 
+      // Modus-Priorität (Bug A, 2026-08-17): Body-Wert > DB-Spalte.
+      //
+      // Body hat Priorität, weil der Wizard den Modus bei jedem
+      // Generate explizit mitschickt (buildGeneratePayload) und der
+      // PATCH vor Generate als Auto-Save gilt. Wenn der PATCH
+      // fehlgeschlagen ist (Race, Wizard-Regression), fängt der
+      // Body-Wert das ab — Spec §13.10: keine stillen Annahmen.
+      //
+      // Whitelist hier statt beim Service-Layer: /generate ist nicht
+      // öffentlich, sondern Admin-only (requireTournamentWrite
+      // oben). Trotzdem Validierung, weil ungültige Werte sonst
+      // die Engine in einen Fehlerzustand bringen würden.
+      const ALLOWED_MODES_FOR_GENERATE = [
+        'groups_ko', 'groups_only', 'ko_only', 'double_elim',
+      ];
+      let mode = ctx.tournament.mode;
+      if (request.body?.mode !== undefined) {
+        if (!ALLOWED_MODES_FOR_GENERATE.includes(request.body.mode)) {
+          return reply.code(400).send({
+            error: 'invalid_mode',
+            message:
+              'mode muss einer von ' +
+              ALLOWED_MODES_FOR_GENERATE.join(', ') +
+              ' sein.',
+            field: 'mode',
+          });
+        }
+        mode = request.body.mode;
+      }
+
       const gen = generateTournament({
         teams: teams.map((t) => ({ id: t.id, name: t.name, seed: t.seed ?? null })),
         config: {
           ...config,
           numGroups: request.body?.numGroups ?? config.numGroups,
           groupSize: request.body?.groupSize ?? config.groupSize,
-          mode: ctx.tournament.mode,
+          mode,
           distribution: config.distribution ?? 'snake',
         },
         baseDate,
@@ -613,8 +716,223 @@ export default async function tournamentRoutes(fastify) {
   });
 
   // ─────────────────────────────────────────────────────────
+  // 3b. Reschedule — Zeitplan neu berechnen OHNE Datenverlust
+  // ─────────────────────────────────────────────────────────
+  //
+  // Warum getrennt von /generate: /generate löscht alle Spiele und legt
+  // sie neu an. Wenn schon Ergebnisse da sind, gehen diese verloren
+  // (bzw. werden per §13.10 explizit bestätigt — das fühlt sich für
+  // „nur die Zeiten sind durcheinander" übertrieben an).
+  //
+  // /reschedule hingegen:
+  //   - lässt `status`, `scoreHome`, `scoreAway`, `winnerTeamId`,
+  //     `winnerAdvancesTo`, `loserAdvancesTo`, `bracketType`, `round`,
+  //     `bracketPos` UNANGETASTET
+  //   - überschreibt nur `scheduledAt` und `field`
+  //   - wirft KEINE Spiele weg und erzeugt auch keine neuen
+  //   - ist idempotent: 2× reschedule hintereinander liefert identische
+  //     Zeiten (Spec §10.9 Determinismus via Engine)
+  //
+  // Erwartetes Input-Shape:
+  //   {
+  //     baseDate?: string (ISO),     // Default: heute
+  //     confirmTournamentName?: string  // Pflicht wenn finishedMatches > 0
+  //   }
+  //
+  // Antwort: gleiches Shape wie /generate, ABER ohne `unresolvedConflicts`
+  // und ohne `warnings` (wir verändern nur scheduledAt/field).
+  fastify.post('/:id/reschedule', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      // 'finished' ist endgültig.
+      if (ctx.tournament.status === 'finished') {
+        return reply.code(409).send({
+          error: 'tournament_finished',
+          message: 'Beendete Turniere können nicht neu terminiert werden.',
+        });
+      }
+
+      const config = mergeConfig(ctx.tournament.config ?? {});
+
+      // Matches mit ihrer Stage laden, damit wir stage.type auswerten können.
+      const rawMatches = await fastify.prisma.match.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        include: { stage: true },
+        orderBy: [{ stageId: 'asc' }, { bracketPos: 'asc' }],
+      });
+
+      if (rawMatches.length === 0) {
+        return reply.code(400).send({
+          error: 'no_matches',
+          message: 'Keine Spiele vorhanden — bitte zuerst generieren.',
+        });
+      }
+
+      // §13.10: wenn schon Ergebnisse existieren, muss der User den
+      // Turniernamen tippen (Bestätigung). Das ist hier KEIN „Wirklich
+      // löschen?"-Fall (wir löschen nichts), aber wir wollen den User
+      // innehalten lassen, falls er aus Versehen klickt.
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      if (finishedCount > 0) {
+        const confirmName = request.body?.confirmTournamentName;
+        if (
+          typeof confirmName !== 'string' ||
+          normalizeConfirmName(confirmName) !==
+            normalizeConfirmName(ctx.tournament.name)
+        ) {
+          return reply.code(409).send({
+            error: 'results_present',
+            message:
+              'Es sind bereits Ergebnisse eingetragen. ' +
+              'Tippe zur Bestätigung den Turniernamen in das Feld im Dialog.',
+            finishedMatches: finishedCount,
+            needsConfirmation: true,
+          });
+        }
+      }
+
+      // Engine-Input-Shape bauen.
+      // generateSchedule braucht: id, teamHome, teamAway, stageType, round,
+      //   roundNumber, bracketPos.
+      // Wir haben in der DB: stageId, groupId, round (als String mit
+      // KO-Label ODER Spieltag-Zahl), bracketPos, teamHome, teamAway.
+      // Für KO-Matches: round ist „QF"/„SF"/„F"/„3RD" — direkt nutzbar.
+      // Für Gruppen-Matches: round ist die Spieltag-Zahl als String.
+      //   Wir parsen die Zahl UND setzen stageType='group'.
+      const isGroupStage = (type) => type === 'group' || type === 'intermediate_group';
+
+      const engineInput = rawMatches.map((m) => {
+        const stageType = isGroupStage(m.stage?.type) ? 'group' : 'ko';
+        if (stageType === 'ko') {
+          return {
+            id: m.id,
+            teamHome: m.teamHome,
+            teamAway: m.teamAway,
+            stageType: 'ko',
+            round: m.round,
+            bracketPos: m.bracketPos,
+          };
+        }
+        // group
+        const roundNumber = Number.parseInt(m.round ?? '1', 10);
+        return {
+          id: m.id,
+          teamHome: m.teamHome,
+          teamAway: m.teamAway,
+          stageType: 'group',
+          groupKey: m.groupId, // nur fürs Logging, nicht für Sortierung
+          roundNumber: Number.isFinite(roundNumber) ? roundNumber : 1,
+          bracketPos: m.bracketPos,
+        };
+      });
+
+      const baseDateStr = request.body?.baseDate ?? config.baseDate ?? null;
+      const baseDate = baseDateStr ? new Date(baseDateStr) : new Date();
+
+      const scheduled = generateSchedule(engineInput, config, baseDate);
+
+      // Map: id → { scheduledAt, field }
+      const updates = new Map();
+      for (const s of scheduled) {
+        if (s && s.scheduledAt) {
+          updates.set(s.id, { scheduledAt: s.scheduledAt, field: s.field });
+        }
+      }
+
+      // DB-Update: nur scheduledAt + field. ALLES andere bleibt.
+      // Wir gehen Match für Match durch (kein Bulk-Update wegen
+      // unterschiedlicher `field`-Werte).
+      let updatedCount = 0;
+      for (const m of rawMatches) {
+        const u = updates.get(m.id);
+        if (!u) continue;
+        await fastify.prisma.match.update({
+          where: { id: m.id },
+          data: {
+            scheduledAt: u.scheduledAt,
+            field: u.field ?? null,
+          },
+        });
+        updatedCount += 1;
+      }
+
+      // Antwort: frischer View (Renderer soll die neue Liste anzeigen).
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+
+      return reply.send({
+        tournament: view.tournament,
+        teams: view.teams,
+        stages: view.stages,
+        groups: view.groups,
+        matches: view.matches,
+        stats: view.stats,
+        rescheduledCount: updatedCount,
+        finishedCountAtTimeOfReschedule: finishedCount,
+      });
+    } catch (err) {
+      return handleError(reply, err, 'Reschedule fehlgeschlagen');
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────
   // 4. Standings (Read)
   // ─────────────────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────────────────
+  // 3c. Backfill-Team-Farben — einmaliger Migrations-Helfer
+  // ─────────────────────────────────────────────────────────
+  //
+  // Vor dem Auto-Color-Feature hatten Teams `color = null`. Dieser
+  // Endpoint weist allen Teams ohne Farbe eine Palette-Farbe zu —
+  // in `createdAt asc`-Reihenfolge, damit die Zuweisung stabil ist,
+  // auch wenn er mehrfach aufgerufen wird.
+  //
+  // Idempotent: 2× hintereinander liefert das zweite Mal `updatedCount: 0`.
+  // Body: nichts. Antwort: `{ updatedCount }`.
+  fastify.post('/:id/teams/backfill-colors', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      const teams = await fastify.prisma.tournamentTeam.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Nur Teams ohne Farbe bekommen eine Palette-Farbe. Teams, die schon
+      // eine haben (z. B. durch explizites PATCH oder durch Wizard nach
+      // dem Color-Feature), bleiben unangetastet.
+      const palette = [];
+      let updatedCount = 0;
+      for (const t of teams) {
+        if (t.color) continue; // schon gefärbt — überspringen
+        const nextColor = nextPaletteColor(palette);
+        palette.push({ color: nextColor });
+        await fastify.prisma.tournamentTeam.update({
+          where: { id: t.id },
+          data: { color: nextColor },
+        });
+        updatedCount += 1;
+      }
+
+      return reply.send({ updatedCount });
+    } catch (err) {
+      return handleError(reply, err, 'Backfill-Team-Farben fehlgeschlagen');
+    }
+  });
 
   // GET /api/tournaments/:id/standings
   fastify.get('/:id/standings', async (request, reply) => {
@@ -744,8 +1062,14 @@ export default async function tournamentRoutes(fastify) {
         return reply.code(409).send({ error: 'Match hat noch keine Teams (Platzhalter offen)' });
       }
 
-      const winnerTeamId =
-        scoreHome > scoreAway ? match.teamHome : scoreAway > scoreHome ? match.awayTeam : null;
+      // winnerTeamId / loserTeamId / isDraw leben NUR im DTO (siehe
+      // access/match.js:prepareMatchView) — sie werden aus den Scores
+      // berechnet, NICHT persistiert. Schema kennt diese Spalten nicht
+      // (Schema-Drift-Bug, 2026-08-17). Daher nur scoreHome/scoreAway/
+      // status in die DB schreiben.
+      //
+      // „completedAt" gäbe es im Schema auch nicht — falls wir das später
+      // brauchen, kommt es in einer Migration. Vorerst nicht setzen.
       const isDraw = scoreHome === scoreAway;
 
       const updated = await fastify.prisma.match.update({
@@ -754,9 +1078,6 @@ export default async function tournamentRoutes(fastify) {
           scoreHome,
           scoreAway,
           status: 'finished',
-          winnerTeamId,
-          isDraw,
-          completedAt: new Date(),
         },
       });
 
@@ -766,25 +1087,33 @@ export default async function tournamentRoutes(fastify) {
         where: { id: match.stageId },
       });
       if (stage && stage.type !== 'group' && !isDraw) {
-        const allMatches = await fastify.prisma.match.findMany({
-          where: { tournamentId: ctx.tournament.id },
-        });
-        const afterReset = resetCascade(match.id, allMatches);
-        const afterProp = propagateWinner(updated, afterReset);
-        const byId = new Map(afterProp.map((m) => [m.id, m]));
-        for (const m of afterReset) {
-          const next = byId.get(m.id);
-          if (!next) continue;
-          const before = allMatches.find((x) => x.id === m.id);
-          if (
-            before &&
-            (before.teamHome !== next.teamHome || before.teamAway !== next.teamAway)
-          ) {
-            await fastify.prisma.match.update({
-              where: { id: m.id },
-              data: { teamHome: next.teamHome, teamAway: next.teamAway },
-            });
-            propagated.push(m.id);
+        // Für KO-Propagation brauchen wir den Sieger. Aus den Scores
+        // ableiten — NICHT aus der DB lesen.
+        const winnerTeamId =
+          scoreHome > scoreAway ? match.teamHome : scoreAway > scoreHome ? match.teamAway : null;
+        if (winnerTeamId) {
+          const allMatches = await fastify.prisma.match.findMany({
+            where: { tournamentId: ctx.tournament.id },
+          });
+          const afterReset = resetCascade(match.id, allMatches);
+          // propagateWinner braucht scoreHome/scoreAway auf `updated`, das
+          // wir gerade frisch zurückbekommen haben — die DB hat sie schon.
+          const afterProp = propagateWinner(updated, afterReset);
+          const byId = new Map(afterProp.map((m) => [m.id, m]));
+          for (const m of afterReset) {
+            const next = byId.get(m.id);
+            if (!next) continue;
+            const before = allMatches.find((x) => x.id === m.id);
+            if (
+              before &&
+              (before.teamHome !== next.teamHome || before.teamAway !== next.teamAway)
+            ) {
+              await fastify.prisma.match.update({
+                where: { id: m.id },
+                data: { teamHome: next.teamHome, teamAway: next.teamAway },
+              });
+              propagated.push(m.id);
+            }
           }
         }
       }
