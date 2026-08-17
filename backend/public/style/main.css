@@ -188,6 +188,23 @@ textarea {
   font-size: 14px;
   box-shadow: 0 2px 8px rgba(138, 106, 74, 0.22);
 }
+/* Etappe B (2026-08-14): button.tournament-new-instance-btn hat höhere
+   Spezifität (0,1,1) als .btn-primary (0,1,0) und überschreibt dessen
+   `width: 100%`. Der generische .btn-primary-Default soll nur in Modal-
+   Footern gelten, nicht in Headern — Aufräumen erfolgt separat. */
+button.tournament-new-instance-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+/* Etappe B (2026-08-17): defensive Breite für ALLE Buttons in der
+   Turnier-Header-Aktion-Zeile (Klasse wird in main.js:2177 an beide
+   Buttons gehängt: tournament-refresh-btn + tournament-new-instance-btn).
+   Falls .tournament-new-instance-btn je wegfällt, soll der Refresh-
+   Button trotzdem nicht auf full-width fallen. */
+button.tournament-header-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
 
 /* ─── Issue 6e (2026-08-13): Phasen-Blöcke füllen die Listen-Breite ─── */
 /*
@@ -5634,13 +5651,64 @@ textarea {
   margin-top: 4px;
 }
 
-/* Tabs (für Ghost vs User-Auswahl) */
-.tournament-detail-tab-row,
-.tournament-detail-tabs {
+/* v3 Etappe B.4 — Match-Vorschau im Ergebnis-Modal.
+   Schlichte Block-Struktur, KEIN Grid (.t-match passt hier nicht:
+   das Modal ist schmal, sein 6-Spalten-Layout würde einklappen). */
+.re-info {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3);
+  background: var(--surface-alt, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 8px;
+  margin-top: var(--s3);
+}
+.re-info-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.re-info-meta {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.re-info-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink, #1f1b16);
+}
+.re-info-label {
+  font-size: 11px;
+  color: var(--muted, #837b6e);
+  letter-spacing: 0.02em;
+}
+.re-info-teams {
+  gap: var(--s4);
+}
+.re-info-team {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: 1;
+  min-width: 0;
+}
+.re-info-team .name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.re-info-home { justify-content: flex-start; }
+.re-info-away { justify-content: flex-end; }
+.re-info-vs {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted, #837b6e);
+  font-size: 14px;
+  flex: 0 0 auto;
 }
 
 /* v3: Teamliste im Detail-Tab */
@@ -5712,32 +5780,6 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-}
-.t-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  padding: 9px 12px;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition:
-    color 120ms ease,
-    border-color 120ms ease;
-  font-weight: 600;
-}
-.t-tab:hover {
-  color: var(--text2);
-}
-.t-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-.tournament-detail-tab-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 /* Match-Result-Modal: Heim vs Gast Header */
@@ -6136,236 +6178,6 @@ textarea {
   white-space: nowrap;
 }
 
-/* Bracket: Toolbar + Tabs */
-.t-bracket-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-.t-bracket-tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 3px;
-  border: 1px solid var(--border);
-}
-.t-bracket-tab {
-  background: transparent;
-  border: none;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 6px;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.t-bracket-tab.active {
-  background: var(--card);
-  color: var(--accent);
-}
-
-/* Bracket: Group+KO Layout (Gruppenphase) */
-.t-bracket-groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-.t-bracket-group {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
-}
-.t-bracket-group h4 {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 700;
-}
-.t-bracket-group-matches {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Bracket: Modern Grid (Challonge-Style mit Connectoren via ::before/::after) */
-.t-bracket-grid {
-  display: grid;
-  /* WICHTIG (Phase-3 Fix): Auf Desktop mehrere Spalten nebeneinander,
-     auf Mobile horizontal scrollbar. minmax(220px, 1fr) sorgt dafür,
-     dass Spalten ihre Mindestbreite behalten UND den verfügbaren Platz füllen. */
-  grid-template-columns: repeat(var(--t-bracket-cols, 4), minmax(220px, 1fr));
-  gap: 36px 24px;
-  align-items: stretch;
-  min-width: min-content;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-.t-bracket-round {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-.t-bracket-round-head {
-  text-align: center;
-  padding: 6px 10px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.t-bracket-round-head strong {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.t-bracket-matches {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  flex: 1;
-  justify-content: space-around;
-}
-
-/* Bracket: Match-Card mit Drag&Drop */
-.t-bracket-match {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition:
-    transform 120ms ease,
-    box-shadow 120ms ease,
-    border-color 120ms ease;
-  overflow: hidden;
-  position: relative;
-}
-.t-bracket-match.is-clickable {
-  cursor: pointer;
-}
-.t-bracket-match.is-clickable:hover {
-  transform: translateY(-1px);
-  border-color: var(--accent);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
-}
-.t-bracket-match.is-completed {
-  border-color: rgba(90, 158, 122, 0.35);
-  background: linear-gradient(180deg, var(--card), rgba(90, 158, 122, 0.04));
-}
-.t-bracket-match.is-drop-target {
-  border-style: dashed;
-  border-color: var(--accent);
-}
-.t-bracket-match.is-drop-target.is-drag-over {
-  background: var(--accent-l);
-  border-style: solid;
-  box-shadow: 0 0 0 2px var(--accent);
-}
-.t-bracket-match.is-void {
-  opacity: 0.55;
-}
-.t-bracket-match-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 10px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-}
-.t-bracket-team {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--text2);
-  border-bottom: 1px solid var(--border);
-  position: relative;
-  min-height: 36px;
-}
-.t-bracket-team:last-child {
-  border-bottom: none;
-}
-.t-bracket-team.is-winner {
-  background: rgba(218, 165, 32, 0.12);
-  font-weight: 700;
-}
-.t-bracket-team.is-winner .t-bracket-team-name::before {
-  content: '🏆 ';
-  font-size: 11px;
-}
-.t-bracket-team.is-tbd {
-  color: var(--muted);
-  font-style: italic;
-}
-.t-bracket-team.is-tbd.is-drop-slot {
-  border: 1.5px dashed var(--accent);
-  background: var(--accent-l);
-}
-.t-bracket-team.is-draggable {
-  cursor: grab;
-}
-.t-bracket-team.is-draggable:hover {
-  background: var(--bg);
-}
-.t-bracket-team.is-dragging {
-  opacity: 0.4;
-}
-.t-bracket-team-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.t-bracket-team-score {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  min-width: 24px;
-  text-align: right;
-  color: var(--text2);
-}
-.t-bracket-venue {
-  padding: 4px 10px;
-  font-size: 11px;
-  color: var(--muted);
-  background: var(--bg);
-  border-top: 1px solid var(--border);
-}
-.t-bracket-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 24px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-  color: var(--muted);
-  text-align: center;
-}
-
 /* Mobile: Bracket vertikal statt horizontal */
 @media (max-width: 768px) {
   .t-overview-grid {
@@ -6376,17 +6188,6 @@ textarea {
   }
   .t-podium-1 {
     transform: none;
-  }
-  .t-bracket-grid {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-  .t-bracket-matches {
-    gap: 10px;
-  }
-  .t-bracket-team {
-    padding: 10px 12px;
-    min-height: 40px;
   }
   .t-team-card {
     padding: 12px;
@@ -6677,100 +6478,6 @@ textarea {
   flex: 1;
 }
 
-/* Scheduling-View (Zeitraster) */
-.t-schedule-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.t-schedule-grid {
-  display: grid;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 8px 0;
-}
-.t-schedule-grid-inner {
-  display: grid;
-  gap: 6px;
-  min-width: min-content;
-}
-.t-schedule-time-cell {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--muted);
-  padding: 6px 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  text-align: center;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.t-schedule-table-cell {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text2);
-  padding: 6px 8px;
-  background: var(--accent-l);
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  text-align: center;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.t-schedule-slot {
-  background: var(--bg);
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  padding: 4px;
-  min-height: 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.t-schedule-slot.is-occupied {
-  background: var(--card);
-  border-style: solid;
-}
-.t-schedule-match {
-  background: var(--accent);
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: grab;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  text-align: left;
-}
-.t-schedule-match.is-conflict {
-  background: var(--red, #c0392b);
-  border: 2px solid #fff;
-}
-.t-schedule-match-team {
-  font-weight: 600;
-}
-.t-schedule-match-score {
-  font-size: 10px;
-  font-weight: 400;
-  opacity: 0.9;
-}
-.t-schedule-empty {
-  padding: 32px;
-  text-align: center;
-  color: var(--muted);
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-}
 
 /* Cascade-Warnung Dialog */
 .t-cascade-warn {
@@ -6886,88 +6593,6 @@ textarea {
   text-align: left;
 }
 
-/* S3.3 — Bracket (CSS-Grid, Spalten = Runden) */
-.t-bracket {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(160px, 1fr);
-  gap: 28px;
-  overflow-x: auto;
-  padding: 12px 4px;
-}
-.t-bracket-round {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  gap: 10px;
-}
-.t-bracket-round h5 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  text-align: center;
-}
-.t-bracket-match {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 13px;
-  position: relative;
-}
-/* Verbindungslinie zur nächsten Runde via ::after */
-.t-bracket-match::after {
-  content: "";
-  position: absolute;
-  right: -16px;
-  top: 50%;
-  width: 12px;
-  border-top: 1px solid var(--border);
-}
-.t-bracket-match:last-child::after { display: none; }
-
-/* S3.3 — Schedule-Grid (Tische × Slots) */
-.t-schedule-grid {
-  display: grid;
-  gap: 4px;
-  font-size: 13px;
-}
-.t-schedule-cell {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
-  min-height: 56px;
-}
-.t-schedule-cell.t-schedule-cell-empty {
-  background: transparent;
-  border: 1px dashed var(--border);
-}
-.t-schedule-match {
-  cursor: grab;
-}
-.t-schedule-match.is-dragging { opacity: 0.4; }
-.t-schedule-match.has-conflict {
-  border-color: #e53935;
-  background: rgba(229, 57, 53, 0.08);
-}
-
-/* S4.2 — HTML5-Drag&Drop Schedule: Konfliktmarkierung auf Zellen, Drop-Target */
-.t-schedule-cell.is-conflict {
-  background: rgba(229, 57, 53, 0.08);
-  outline: 2px solid #e53935;
-}
-.t-schedule-cell.is-drop-target {
-  background: rgba(126, 231, 135, 0.15);
-  outline: 2px dashed #7ee787;
-}
-.t-schedule-cell.empty {
-  background: transparent;
-  border: 1px dashed var(--border);
-}
-.t-schedule-match-teams {
   display: block;
   font-size: 12px;
   white-space: nowrap;
@@ -7079,57 +6704,6 @@ textarea {
   color: var(--muted);
 }
 
-/* S4.5 — Print-CSS: Spielfeld-tauglich, schwarz-weiß, alles auf einer Seite wenn möglich */
-@media print {
-  body { background: #fff !important; color: #000 !important; font-size: 11pt; }
-  .t-shell-side,
-  .t-shell-context,
-  .sidebar,
-  .navbar,
-  .modal-x,
-  .tournament-card-actions,
-  .tournament-detail-tabs,
-  .toast-container,
-  #invite-banner,
-  #auth-page,
-  #loading,
-  .dlg-bg { display: none !important; }
-  .t-shell { display: block !important; padding: 0 !important; max-width: 100% !important; }
-  .tournament-card { box-shadow: none !important; border: 1px solid #000 !important; background: #fff !important; }
-  .tournament-card-head { border-bottom: 1px solid #000 !important; padding: 8pt 0 !important; }
-  .tournament-card-head h3 { font-size: 18pt !important; color: #000 !important; }
-  .tournament-detail-tab-body { display: block !important; page-break-after: always; }
-  .tournament-detail-tab-body:last-child { page-break-after: auto; }
-  .t-group-card,
-  .t-bracket-match,
-  .t-schedule-cell,
-  .t-wiz-seed-row,
-  .t-match-card,
-  .tournament-card {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  /* Druck zeigt standardmäßig Übersicht + alle aktiven Tabs (Spec §8.5) */
-  .tournament-detail-tab-body { display: block !important; }
-  /* Tabellen schwarz-weiß mit Zebras */
-  .t-standings-table th,
-  .t-standings-table td,
-  .t-schedule-table th,
-  .t-schedule-table td {
-    border: 1px solid #000 !important;
-    color: #000 !important;
-  }
-  /* Bracket-Connector-Linien dicker, schwarz */
-  .t-bracket-match::after { background: #000 !important; }
-  /* Buttons zu Textlinks werden */
-  .btn { border: none !important; background: transparent !important; color: #000 !important; padding: 0 !important; }
-  /* a-Tags sichtbar mit URL (für Link-Traceability) */
-  a[href]::after { content: ' (' attr(href) ')'; font-size: 9pt; color: #444; }
-  .tournament-card-actions a[href]::after { content: ''; }
-  /* Verhindere leere Seiten */
-  .t-shell::before { display: block; content: attr(data-print-title); font-size: 14pt; font-weight: bold; }
-}
-
 /* S3.4 — Match-Karte (konsistent über alle Views) */
 .t-match-card {
   display: grid;
@@ -7157,11 +6731,5 @@ textarea {
   padding: 2px 8px;
   background: var(--bg-1);
   border-radius: 4px;
-}
-.t-match-status {
-  font-size: 11px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
