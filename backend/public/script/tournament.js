@@ -15,7 +15,17 @@ import {
   nextPlaceholderName,
   parseTeamInput,
   duplicateNames,
+  groupRowSizes,
 } from './tournament-team-helpers.js';
+
+// Pure Funktionen für die Wizard-Vorschau (Spec §13.3, Bug 10).
+// Regressionsschutz: thirdPlaceMatch muss sich auf die Vorschau
+// auswirken — siehe wizard-preview-helpers.js für Details.
+import {
+  computeEndInfo,
+  estimateKoGames,
+  bracketSizeLabel,
+} from './wizard-preview-helpers.js';
 
 // ----------------------------------------------------------------
 // Entwurfs-Lebenszyklus (Spec §1.2, §12).
@@ -3405,17 +3415,6 @@ function renderStep3Modus(wrap, state, opts) {
   }
 }
 
-function groupRowSizes(teamCount, numGroups) {
-  if (teamCount <= 0 || numGroups <= 0) return [];
-  const base = Math.floor(teamCount / numGroups);
-  const remainder = teamCount % numGroups;
-  const sizes = [];
-  for (let i = 0; i < numGroups; i++) {
-    sizes.push(i < remainder ? base + 1 : base);
-  }
-  return sizes;
-}
-
 // ----------------------------------------------------------------
 // Tiebreaker-DnD: Touch- und Maus-tauglich via Pointer Events.
 // HTML5-Drag ignoriert Touchscreens, daher der Umweg.
@@ -3614,6 +3613,18 @@ function renderStep4Qualifikation(wrap, state, opts) {
     tpm.addEventListener('change', () => {
       state.thirdPlaceMatch = tpm.checked;
       notifyChange(state, opts);
+      // refreshShell() triggert Preview-Card-Re-Render (zeigt jetzt
+      // 8 statt 7 K.-o.-Spiele). refreshShell ist hier OK, weil die
+      // Checkbox KEINEN Fokus hält wie ein Textfeld — der "Fokus weg"-
+      // Bug (BUG 2) betrifft nur Inputs. Konsistent mit advancePerGroup
+      // und bestThirdsCount, die ebenfalls refreshShell() rufen.
+      //
+      // Bug 10 (2026-08-18): Ohne diesen refreshShell()-Aufruf blieb
+      // sowohl die Live-EndInfo-Zeile als auch die rechte Preview-Card
+      // bei 7 K.-o.-Spielen stehen, obwohl state.thirdPlaceMatch true
+      // war. computeEndInfo lieferte korrekt 8 — nur wurde es nirgends
+      // neu gerendert.
+      refreshShell();
     });
     const tpmLabel = document.createElement('span');
     tpmLabel.textContent = 'Spiel um Platz 3';
@@ -3780,70 +3791,6 @@ function renderStep4Qualifikation(wrap, state, opts) {
     const fresh = renderWizardView({ ...root._opts, initialState: state });
     root.parentNode?.replaceChild(fresh, root);
   }
-}
-
-function computeEndInfo(state) {
-  const sizes = groupRowSizes(state.teams.length, state.numGroups);
-  let groupGames = 0;
-  let koGames = 0;
-
-  if (state.mode === 'ko_only') {
-    // Reines K.-o.: n Teams → n-1 Spiele bis zum Sieger
-    // (Siegerpfad). Bei „Spiel um Platz 3" +1.
-    // Freilose werden bei der Zeitplanung nicht extra gerechnet — der
-    // Bracket hat trotzdem (Zweierpotenz − 1) Slots, aber kein Team
-    // bestreitet ein Freilos-Spiel. n-1 ist die ehrliche Aussage.
-    koGames = Math.max(0, state.teams.length - 1)
-      + (state.thirdPlaceMatch ? 1 : 0);
-  } else if (state.mode === 'groups_only') {
-    // Reine Gruppenphase, keine K.-o.-Phase.
-    groupGames = sizes.reduce((sum, n) => sum + (n * (n - 1)) / 2, 0)
-      * (state.doubleRoundRobin ? 2 : 1);
-  } else {
-    // groups_ko: Gruppenphase + K.-o.-Baum aus den Qualifikanten.
-    groupGames = sizes.reduce((sum, n) => sum + (n * (n - 1)) / 2, 0)
-      * (state.doubleRoundRobin ? 2 : 1);
-    const qualifiers = state.numGroups * state.advancePerGroup
-      + state.bestThirdsCount;
-    koGames = estimateKoGames(qualifiers) + (state.thirdPlaceMatch ? 1 : 0);
-  }
-
-  const totalGames = Math.round(groupGames) + koGames;
-  const slotMinutes = state.matchDuration + state.pauseMinutes;
-  // Slots = ceil(totalGames / numTables).
-  const slots = Math.max(1, Math.ceil(totalGames / Math.max(1, state.numTables)));
-  const totalMinutes = slots * slotMinutes;
-  // Startzeit + Min.
-  const [hh, mm] = (state.startTime || '14:00').split(':').map(Number);
-  const endMinutes = (hh * 60 + mm) + totalMinutes;
-  const endH = Math.floor((endMinutes / 60) % 24);
-  const endM = endMinutes % 60;
-  const endLabel = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-  return {
-    endLabel,
-    totalMinutes,
-    groupGames: Math.round(groupGames),
-    koGames,
-  };
-}
-
-function estimateKoGames(qualifiers) {
-  if (qualifiers < 2) return 0;
-  // Bracket-Größe = kleinste Zweierpotenz >= qualifiers.
-  const bracket = Math.pow(2, Math.ceil(Math.log2(Math.max(2, qualifiers))));
-  // Siegerpfad: bracket - 1 Spiele; bei 2 Teams: 1 Spiel = Finale.
-  return bracket - 1;
-}
-
-function bracketSizeLabel(qualifiers) {
-  if (qualifiers < 2) return 'kein K.-o.-Baum';
-  const bracket = Math.pow(2, Math.ceil(Math.log2(qualifiers)));
-  if (bracket === 2) return 'Finale';
-  if (bracket === 4) return 'Halbfinale';
-  if (bracket === 8) return 'Viertelfinale';
-  if (bracket === 16) return 'Achtelfinale';
-  if (bracket === 32) return 'Sechzehntelfinale';
-  return `${bracket}er-Baum`;
 }
 
 function recommendForQualifiers(qualifiers) {

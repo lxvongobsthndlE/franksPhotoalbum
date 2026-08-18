@@ -15,6 +15,28 @@ export function isPlaceholderName(name) {
   return /^Team \d+$/.test(String(name ?? '').trim());
 }
 
+/**
+ * Verteilt `teamCount` Teams auf `numGroups` Gruppen. Die größeren
+ * Gruppen bekommen +1 Team, sodass die Gesamtsumme stimmt.
+ *
+ *   Beispiel: 10 Teams / 3 Gruppen → [4, 3, 3]
+ *             12 Teams / 3 Gruppen → [4, 4, 4]
+ *             7 Teams / 2 Gruppen  → [4, 3]
+ *
+ * Wird sowohl vom Wizard-Step-3 (Verteilung) als auch von
+ * `wizard-preview-helpers.js` (computeEndInfo) gebraucht.
+ */
+export function groupRowSizes(teamCount, numGroups) {
+  if (teamCount <= 0 || numGroups <= 0) return [];
+  const base = Math.floor(teamCount / numGroups);
+  const remainder = teamCount % numGroups;
+  const sizes = [];
+  for (let i = 0; i < numGroups; i++) {
+    sizes.push(i < remainder ? base + 1 : base);
+  }
+  return sizes;
+}
+
 export function nextPlaceholderName(teams) {
   // Nimm die höchste vergebene "Team N"-Nummer + 1, damit
   // "Team 1, Team 2, Team 5" → nächster Platzhalter "Team 6" heißt.
