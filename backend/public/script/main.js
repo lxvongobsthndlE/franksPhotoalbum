@@ -2589,6 +2589,28 @@ function renderTournamentInstanceDetailV3(t) {
     // wo der User das Turnier sieht. Admin-only.
     const showReschedule = isAdmin && t.status !== 'finished';
 
+    // Bug 15 Politur (2026-08-18, User-Punkt 2): „Zurück" und „Drucken"
+    // werden auf Mobile in einem Kontextmenü (drei-Punkte-Button rechts
+    // oben) gebündelt. Auf Desktop/Tablet bleiben sie als inline-Buttons
+    // sichtbar — die `.t-mod-header-actions-btn`-Klasse wird per
+    // @container-Querie ein-/ausgeblendet. Die Menü-Items tragen
+    // dieselben data-action-Werte wie die Buttons, damit die Handler
+    // unverändert funktionieren.
+    const headerActionsHtml = `
+      <div class="t-mod-header-actions">
+        <button type="button" class="t-btn t-btn--ghost t-mod-header-actions-btn" data-action="back" title="Zurück zur Liste">Zurück</button>
+        <button type="button" class="t-btn t-btn--ghost t-mod-header-actions-btn" data-action="print" title="Drucken">Drucken</button>
+        <div class="t-mod-menu" data-open="false">
+          <button type="button" class="t-mod-menu-toggle" aria-label="Aktionen" aria-haspopup="true" aria-expanded="false">
+            <span class="t-mod-menu-toggle-icon" aria-hidden="true">⋮</span>
+          </button>
+          <div class="t-mod-menu-list" role="menu">
+            <button type="button" data-action="back" role="menuitem">Zurück zur Liste</button>
+            <button type="button" data-action="print" role="menuitem">Drucken</button>
+          </div>
+        </div>
+      </div>`;
+
     // Host-Klasse setzen, BEVOR wir innerHTML schreiben. Analog zum
     // Wizard-Pattern (t-wizard-host): hebt das `tournaments-grid`-
     // Karten-Raster aus main.css auf, damit .t-mod die volle Breite
@@ -2601,10 +2623,7 @@ function renderTournamentInstanceDetailV3(t) {
         <header class="t-mod-header">
           ${logoHtml}
           ${badgeRowHtml}
-          <div class="t-mod-header-actions">
-            <button type="button" class="t-btn t-btn--ghost" data-action="back" title="Zurück zur Liste">Zurück</button>
-            <button type="button" class="t-btn t-btn--ghost" data-action="print" title="Drucken">Drucken</button>
-          </div>
+          ${headerActionsHtml}
         </header>
         <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
           <button type="button" class="is-active" data-view="spielplan">Spielplan</button>
@@ -2735,15 +2754,57 @@ function renderTournamentInstanceDetailV3(t) {
       });
     });
 
-    // Header-Aktionen: Zurück + Drucken (Platzhalter).
-    detail.querySelector('[data-action="back"]')?.addEventListener('click', () => {
-      if (typeof switchToTournamentInstances === 'function') {
-        switchToTournamentInstances();
-      } else {
-        history.back();
-      }
+    // Header-Aktionen: Zurück + Drucken. Bug 15 Politur
+    // (2026-08-18): beide Aktionen gibt es jetzt zweimal im DOM — einmal
+    // als inline-Button (Desktop/Tablet) und einmal als Menü-Item im
+    // Kontextmenü (Mobile). querySelectorAll bindet beide Sätze, sonst
+    // bekommt nur der erste Match einen Listener.
+    detail.querySelectorAll('[data-action="back"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (typeof switchToTournamentInstances === 'function') {
+          switchToTournamentInstances();
+        } else {
+          history.back();
+        }
+      });
     });
-    detail.querySelector('[data-action="print"]')?.addEventListener('click', () => window.print());
+    detail.querySelectorAll('[data-action="print"]').forEach((btn) => {
+      btn.addEventListener('click', () => window.print());
+    });
+
+    // Bug 15 Politur (2026-08-18): Kontextmenü-Toggle für Mobile.
+    // Klick auf den ⋮-Button öffnet/schließt das Dropdown. Outside-Click
+    // schließt es. Escape-Taste ebenfalls. ARIA-Status wird mitgezogen.
+    const menu = detail.querySelector('.t-mod-menu');
+    if (menu) {
+      const toggle = menu.querySelector('.t-mod-menu-toggle');
+      const setOpen = (open) => {
+        menu.dataset.open = open ? 'true' : 'false';
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setOpen(menu.dataset.open !== 'true');
+      });
+      // Beim Klick auf einen Menü-Eintrag: Menü schließen.
+      menu.querySelectorAll('.t-mod-menu-list button').forEach((item) => {
+        item.addEventListener('click', () => setOpen(false));
+      });
+      // Outside-Click: Menü schließen.
+      // (Listener wird beim nächsten Re-Render überschrieben — `detail`
+      // ist frisch, also keine Akkumulation. Aber für Sicherheit: vorher
+      // entfernen wäre overkill; wir verlassen uns auf den GC.)
+      document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target)) setOpen(false);
+      });
+      // Escape-Taste.
+      detail.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && menu.dataset.open === 'true') {
+          setOpen(false);
+          toggle.focus();
+        }
+      });
+    }
     detail.querySelector('[data-action="reschedule"]')?.addEventListener('click', () => {
       rescheduleTournament(t.id, t.name).then((ok) => {
         if (ok) {

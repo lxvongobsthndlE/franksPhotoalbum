@@ -220,6 +220,8 @@
 .t-mod-tabs {
   /* SICHTBAR nur < 768px. Auf Desktop versteckt (siehe Media Query). */
   display: none;
+  position: relative;      /* Bug 15 Politur (2026-08-18): Bezugspunkt
+                               für den rechten Scroll-Fade-Hinweis. */
   height: 44px;            /* FIXE Höhe, kein min-height */
   align-items: center;
   flex-wrap: nowrap;
@@ -234,13 +236,37 @@
   scrollbar-width: none;
 }
 .t-mod-tabs::-webkit-scrollbar { display: none; }
+/* Bug 15 Politur (2026-08-18, User-Punkt 1): Auf Mobile hat die Tab-
+   Leiste 8 Einträge, die bei 390px Breite nicht alle passen — sie
+   scrollt horizontal, aber der User sieht das nicht (Scrollbar ist
+   versteckt, rechts abgeschnittene Tabs wirken wie verlorene
+   Inhalte). Ein weicher Fade von transparent zu var(--surface) am
+   rechten Rand zeigt: „Da geht's weiter, scroll nach links". 32px
+   Breite reicht für einen sanften Übergang ohne den ersten Tab
+   dahinter zu verstecken. */
+.t-mod-tabs::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--surface));
+  pointer-events: none;
+  border-bottom: 1px solid var(--line);  /* Border-Bottom mitziehen,
+                                            damit der Fade-Block den
+                                            unteren Strich nicht
+                                            unterbricht. */
+}
 
 .t-mod-tab {
   flex: 0 0 auto;          /* Tab schrumpft NICHT, behält seinen Inhalt */
   height: 44px;            /* FIXE Höhe, gleich wie die Leiste */
   line-height: 1;          /* keine zusätzliche Vertikalleitung */
   white-space: nowrap;     /* kein Umbruch, auch bei langen Namen */
-  padding: 0 var(--s4);
+  padding: 0 var(--s3);     /* Bug 15 Politur: 12px statt 16px Padding
+                               (User-Wunsch: "Tabs schmaler" als
+                               Alternative zum Scroll-Hint). */
   display: inline-flex;
   align-items: center;
   border: none;
@@ -316,6 +342,15 @@
   .t-mod-aside {
     display: none;
   }
+  /* Bug 15 Politur (2026-08-18): Auf Desktop/Tablet zeigen wir die
+     „Zurück"/„Drucken"-Buttons wieder inline (Kontextmenü ausblenden).
+     Toggling passiert hier, nicht im Renderer — eine einzige Wahrheit. */
+  .t-mod-header-actions > .t-mod-header-actions-btn {
+    display: inline-flex;
+  }
+  .t-mod-menu {
+    display: none;
+  }
 }
 @container (min-width: 1500px) {
   .t-shell {
@@ -376,16 +411,92 @@
   .t-mod-header-info .t-mod-header-badges .t-badge {
     flex: 0 0 auto;
   }
+  /* Bug 15 Politur (2026-08-18, User-Punkt 2): „Zurück" und „Drucken"
+     werden auf Mobile in einem Kontextmenü rechts oben gebündelt.
+     Das spart eine komplette Zeile — der Header ist auf Mobile jetzt:
+       Zeile 1: Logo + Titel + Sub + Badge + Menü-Button
+     Statt vorher zwei Zeilen (Logo+Info, dann Buttons). */
   .t-mod-header-actions {
     margin-left: 0;
-    flex-basis: 100%;
+    /* KEIN flex-basis: 100% mehr — die Aktions-Zeile teilt sich die
+       erste Zeile mit dem Titel via flex-wrap auf dem Header. */
     display: flex;
+    align-items: center;
     gap: var(--s2);
+    flex: 0 0 auto;
   }
+  /* Desktop-Inline-Buttons ausblenden — auf Mobile nur das Kontextmenü. */
+  .t-mod-header-actions > .t-mod-header-actions-btn {
+    display: none;
+  }
+  /* Kontextmenü sichtbar. Auf Desktop (.t-mod-menu-host) ist es
+     ausgeblendet — dort erscheinen die Inline-Buttons. */
+  .t-mod-menu {
+    position: relative;
+    display: block;
+  }
+  .t-mod-menu-toggle {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 18px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    padding: 0;
+    /* Robuster gegen Emoji-Rendering-Unterschiede zwischen OS. */
+    font-family: inherit;
+  }
+  .t-mod-menu-toggle:hover {
+    background: var(--surface-alt);
+    color: var(--ink);
+  }
+  .t-mod-menu-toggle-icon {
+    transform: translateY(-1px);  /* optisch zentrieren */
+  }
+  .t-mod-menu-list {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 180px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow2);
+    padding: 6px;
+    z-index: 50;
+    display: none;
+  }
+  .t-mod-menu[data-open="true"] .t-mod-menu-list { display: block; }
+  .t-mod-menu-list button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .t-mod-menu-list button:hover {
+    background: var(--surface-alt);
+  }
+  /* Bug 15 Politur: flex-basis 100% (zweite Zeile) entfällt komplett.
+     Der vorherige .t-mod-header-actions .t-btn { flex: 1 } Block
+     wird hiermit überschrieben. */
   .t-mod-header-actions .t-btn {
-    flex: 1;
-    justify-content: center;
-    padding: 10px var(--s3);
+    flex: 0 0 auto;
+    padding: 8px 14px;
     font-size: 14px;
   }
   /* Bug 15 (2026-08-18, User-Punkt 4): Kontextspalte entfällt auf
