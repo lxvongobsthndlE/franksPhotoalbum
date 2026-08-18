@@ -27,6 +27,7 @@ import {
   renderAsideNext,
   renderAsideTables,
   applyPropagatedMatches,
+  renderStandingsGroups,
 } from './spielplan-helpers.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -2727,8 +2728,16 @@ async function togglePublishV3(tournamentId, makePublic) {
  * Schreibt in den neuen Mount [data-tab-body="gruppen-mount"], nicht in
  * das alte `[data-tab-body="groups"]` der v2-Shell.
  *
- * Spaltenbezeichnung richtet sich nach der Sportart des Turniers
- * (Spec §5.4): Bierpong → „Becher", Fußball → „Tore", Sonstiges → „Punkte".
+ * Spec §13.7 Spaltenfolge: Pl. · Team · Sp. · S · U · N · Becher · Diff · Pkt.
+ * Spaltenbezeichnung „Becher" / „Tore" / „Punkte" richtet sich nach der
+ * Sportart des Turniers (Spec §5.4): Bierpong → Becher, Fußball → Tore,
+ * Sonstiges → Punkte.
+ *
+ * Bug 8 (2026-08-18): Vorher wurden `s.wins` / `s.draws` / `s.losses` /
+ * `s.goalDifference` gelesen — die Engine liefert aber `won` / `drawn` /
+ * `lost` / `goalDiff`. Resultat: alle Werte 0 außer Pkt. Außerdem fehlte
+ * die Spalte „Sp." (played) und „Becher" wurde als Score-Label in Spalte
+ * 3 statt als Doppelwert (erzielt:kassiert) in Spalte 7 angezeigt.
  */
 async function loadStandingsTab(tournamentId) {
   if (!tournamentId) return;
@@ -2738,7 +2747,7 @@ async function loadStandingsTab(tournamentId) {
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/standings`, 'GET');
     const groups = data.groups || [];
-    const scoreLabel = data.scoreShort || data.scoreLabel || 'P';
+    const scoreLabel = data.scoreLabel || 'Punkte';
 
     if (groups.length === 0) {
       mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Keine Gruppen vorhanden.</p></div></div>';
@@ -2751,33 +2760,7 @@ async function loadStandingsTab(tournamentId) {
       return;
     }
 
-    const groupsHtml = groups.map((g) => {
-      const rows = (g.standings || []).map((s, i) => {
-        const isFirst = i === 0;
-        const isSecond = i === 1;
-        return `<tr class="t-standings-row${isFirst ? ' is-first' : ''}${isSecond ? ' is-second' : ''}">
-          <td class="t-standings-rank">${i + 1}.</td>
-          <td class="t-standings-team">${esc(s.name || s.teamId || '—')}</td>
-          <td>${s.points ?? 0}</td>
-          <td>${s.wins ?? 0}</td>
-          <td>${s.draws ?? 0}</td>
-          <td>${s.losses ?? 0}</td>
-          <td>${s.goalDifference ?? 0}</td>
-        </tr>`;
-      }).join('');
-      const title = esc(g.groupName || g.groupKey || 'Gruppe');
-      return `<div class="t-card">
-        <div class="t-card-body">
-          <h3 class="t-standings-group-title">${title}</h3>
-          <table class="t-standings-table">
-            <thead>
-              <tr><th>#</th><th>Team</th><th>${esc(scoreLabel)}</th><th>S</th><th>U</th><th>N</th><th>TD</th></tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>`;
-    }).join('');
+    const groupsHtml = renderStandingsGroups(groups, scoreLabel);
     mount.innerHTML = groupsHtml;
   } catch (e) {
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;

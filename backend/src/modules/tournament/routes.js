@@ -977,15 +977,25 @@ export default async function tournamentRoutes(fastify) {
         };
       });
 
-      // Sport-Steuerung der Spaltenbezeichnung (Spec §5.4):
-      //   Bierpong  → „Becher"
-      //   Fußball   → „Tore"
-      //   Sonstiges → „Punkte"
+      // Sport-Steuerung der Spaltenbezeichnung (Spec §5.4, §13.7):
+      //   Bierpong  → „Becher" / Kürzel B
+      //   Fußball   → „Tore"   / Kürzel T
+      //   Sonstiges → „Punkte" / Kürzel P
+      //
+      // Wir leiten Label + Kürzel aus dem `sport`-Feld des Turniers ab,
+      // nicht aus gesonderten scoreLabel/scoreShort-Feldern — die gab es
+      // im Schema nie und führten zu Inkonsistenzen (Bug 8, 2026-08-18:
+      // Default 'Tore' obwohl Default-Sport 'becher' war).
+      const sport = view.tournament.sport ?? 'becher';
+      const labelBySport = { becher: 'Becher', tore: 'Tore', punkte: 'Punkte' };
+      const shortBySport = { becher: 'B', tore: 'T', punkte: 'P' };
+      const scoreLabel = labelBySport[sport] ?? 'Punkte';
+      const scoreShort = shortBySport[sport] ?? 'P';
       return {
         groups: groupRows,
-        sport: view.tournament.sport ?? 'becher',
-        scoreLabel: view.tournament.scoreLabel ?? 'Tore',
-        scoreShort: view.tournament.scoreShort ?? 'T',
+        sport,
+        scoreLabel,
+        scoreShort,
       };
     } catch (err) {
       return handleError(reply, err, 'Standings laden fehlgeschlagen');

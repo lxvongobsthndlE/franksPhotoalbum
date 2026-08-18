@@ -339,6 +339,75 @@ export function renderAsideTables(matches, limit = 6) {
   return `<ul class="t-aside-list">${items}</ul>`;
 }
 
+/**
+ * Renderer für die Gruppentabellen (Spec §13.7).
+ *
+ * Spalten in fester Reihenfolge: Pl · Team · Sp · S · U · N · Becher · Diff · Pkt.
+ *
+ * Regressionsschutz für Bug 8 (2026-08-18): Vorher wurden `s.wins` /
+ * `s.draws` / `s.losses` / `s.goalDifference` gelesen — die Engine
+ * liefert aber `won` / `drawn` / `lost` / `goalDiff`. Folge: alle Werte
+ * 0 außer Pkt. Die Pure-Function hier liest die korrekten Felder und
+ * formt „Becher" als Doppelwert (erzielt:kassiert) — nicht als Score-
+ * Label in Spalte 3.
+ *
+ * Top-2 bekommen `is-first` / `is-second`-Klassen für den Qualifikations-
+ * Marker (CSS-Hook für den Haken).
+ *
+ * @param {Array<{groupName?,groupKey?,standings:Array}>} groups
+ * @param {string} scoreLabel   "Becher" | "Tore" | "Punkte" (sport-abhängig)
+ * @returns {string} HTML
+ */
+export function renderStandingsGroups(groups, scoreLabel) {
+  const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
+  return groups
+    .map((g) => {
+      const rows = (g.standings || [])
+        .map((s, i) => {
+          const gf = s.goalsFor ?? 0;
+          const ga = s.goalsAgainst ?? 0;
+          const gd = s.goalDiff ?? (gf - ga);
+          const isFirst = i === 0;
+          const isSecond = i === 1;
+          return `<tr class="t-standings-row${isFirst ? ' is-first' : ''}${isSecond ? ' is-second' : ''}">
+            <td class="t-standings-rank">${i + 1}.</td>
+            <td class="t-standings-team">${esc(s.name || s.teamId || '—')}</td>
+            <td class="t-standings-num">${s.played ?? 0}</td>
+            <td class="t-standings-num">${s.won ?? 0}</td>
+            <td class="t-standings-num">${s.drawn ?? 0}</td>
+            <td class="t-standings-num">${s.lost ?? 0}</td>
+            <td class="t-standings-num">${gf}:${ga}</td>
+            <td class="t-standings-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}">${fmtDiff(gd)}</td>
+            <td class="t-standings-num is-points">${s.points ?? 0}</td>
+          </tr>`;
+        })
+        .join('');
+      const title = esc(g.groupName || g.groupKey || 'Gruppe');
+      return `<div class="t-card">
+        <div class="t-card-body">
+          <h3 class="t-standings-group-title">${title}</h3>
+          <table class="t-standings-table">
+            <thead>
+              <tr>
+                <th>Pl.</th>
+                <th>Team</th>
+                <th>Sp.</th>
+                <th>S</th>
+                <th>U</th>
+                <th>N</th>
+                <th>${esc(scoreLabel)}</th>
+                <th>Diff</th>
+                <th>Pkt.</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
 // Browser-Global-Hook: Falls spielplan-helpers.js per <script>
 // geladen wird (statt als ES-Modul), exponiert es die Helfer unter
 // window.spielplanHelpers, damit main.js sie findet.
@@ -354,5 +423,6 @@ if (typeof window !== 'undefined') {
     renderAsideNext,
     renderAsideTables,
     applyPropagatedMatches,
+    renderStandingsGroups,
   };
 }

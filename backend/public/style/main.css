@@ -5767,6 +5767,29 @@ button.tournament-header-btn {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+/* Numerische Zellen rechtsbündig + monospaced (Bug 8, 2026-08-18:
+   Spec §13.7 hat neun Spalten — Sp/S/U/N/Becher/Diff/Pkt. alle
+   rechtsbündig, damit die Zahlen untereinander stehen). */
+.t-standings-table .t-standings-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.t-standings-table .t-standings-rank {
+  text-align: right;
+  width: 36px;
+  color: var(--muted);
+}
+.t-standings-table .t-standings-num.is-positive { color: var(--good, #2e7d32); }
+.t-standings-table .t-standings-num.is-negative { color: var(--bad, #c62828); }
+.t-standings-table .t-standings-num.is-points {
+  font-weight: 700;
+  color: var(--text2);
+}
+/* Qualifikations-Marker für Top-N (Bug 9 vorbereitet): */
+.t-standings-row.is-first { background: rgba(46, 125, 50, 0.06); }
+.t-standings-row.is-second { background: rgba(255, 152, 0, 0.05); }
+.t-standings-row.is-first .t-standings-rank::after { content: " ✓"; color: var(--good, #2e7d32); }
+.t-standings-row.is-second .t-standings-rank::after { content: " ✓"; color: var(--warn, #ff9800); }
 }
 
 /* Match-Result-Modal: Heim vs Gast Header */
