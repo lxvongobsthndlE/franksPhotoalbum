@@ -2554,6 +2554,22 @@ function renderTournamentInstanceDetailV3(t) {
       ? '<span class="t-badge t-badge--phase">Öffentlich</span>'
       : '';
 
+    // Bug 15 (2026-08-18, User-Punkt 3): Auf Mobile (390px) ist Logo +
+    // Titel + Badge zu breit für eine Reihe. Wir umhüllen Titel-Text
+    // + Badges in einer eigenen Zeile (.t-mod-header-info), damit
+    // der Titel bei Bedarf schrumpfen kann und die Badges darunter
+    // umbrechen. Auf Desktop (≥768px) bleiben sie nebeneinander.
+    const badgeRowHtml = `<div class="t-mod-header-info">
+      <div class="t-mod-header-text">
+        <h1 class="t-title">${esc(t.name || 'Turnier')}</h1>
+        <div class="t-sub">${esc(modeLabel)} · ${teamCount} Teams</div>
+      </div>
+      <div class="t-mod-header-badges">
+        <span class="t-badge t-badge--phase">${esc(tournamentPhaseLabel(phase))}</span>
+        ${publicBadge}
+      </div>
+    </div>`;
+
     // Spielplan-View-Inhalt: kommt in Schritt 3.
     // Platzhalter zeigen ehrlich, was sie noch nicht können.
     const placeholder = (label, hintEtappe) => `
@@ -2564,6 +2580,14 @@ function renderTournamentInstanceDetailV3(t) {
       </div>`;
 
     const groupsViewHtml = `<div data-tab-body="gruppen-mount"></div>`;
+
+    // Bug 15 (2026-08-18, User-Punkt: „Mobile ist der Hauptfall"):
+    // „Zeitplan neu" gehört in die Spielplan-View, nicht in den
+    // globalen Header. Auf Mobile frisst der Header sonst ein
+    // Drittel des Bildschirms mit drei Buttons untereinander.
+    // Außerdem wandern alle zeitplan-relevanten Aktionen dort hin,
+    // wo der User das Turnier sieht. Admin-only.
+    const showReschedule = isAdmin && t.status !== 'finished';
 
     // Host-Klasse setzen, BEVOR wir innerHTML schreiben. Analog zum
     // Wizard-Pattern (t-wizard-host): hebt das `tournaments-grid`-
@@ -2576,18 +2600,22 @@ function renderTournamentInstanceDetailV3(t) {
       <div class="t-mod" id="tournament-detail" data-tournament-id="${esc(t.id)}">
         <header class="t-mod-header">
           ${logoHtml}
-          <div class="t-mod-header-text">
-            <h1 class="t-title">${esc(t.name || 'Turnier')}</h1>
-            <div class="t-sub">${esc(modeLabel)} · ${teamCount} Teams</div>
-          </div>
-          <span class="t-badge t-badge--phase">${esc(tournamentPhaseLabel(phase))}</span>
-          ${publicBadge}
+          ${badgeRowHtml}
           <div class="t-mod-header-actions">
-            <button type="button" class="t-btn t-btn--ghost" data-action="back">Zurück zur Liste</button>
-            <button type="button" class="t-btn t-btn--ghost" data-action="print">Drucken</button>
-            ${isAdmin && t.status !== 'finished' ? '<button type="button" class="t-btn t-btn--primary" data-action="reschedule" title="Zeitplan neu terminieren (Block-Ordering R32 < R16 < QF < SF < 3RD < F)">Zeitplan neu</button>' : ''}
+            <button type="button" class="t-btn t-btn--ghost" data-action="back" title="Zurück zur Liste">Zurück</button>
+            <button type="button" class="t-btn t-btn--ghost" data-action="print" title="Drucken">Drucken</button>
           </div>
         </header>
+        <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
+          <button type="button" class="is-active" data-view="spielplan">Spielplan</button>
+          <button type="button" data-view="uebersicht">Übersicht</button>
+          <button type="button" data-view="gruppen">Gruppen</button>
+          <button type="button" data-view="baum">Turnierbaum</button>
+          <button type="button" data-view="teams">Teams</button>
+          <button type="button" data-view="regeln">Regeln</button>
+          <button type="button" data-view="drucken">Drucken</button>
+          <button type="button" data-view="einstellungen">Einstellungen</button>
+        </div>
         <div class="t-shell">
           <nav class="t-mod-nav" id="t-nav" aria-label="Turnier-Ansichten">
             <button type="button" class="is-active" data-view="spielplan">Spielplan <span class="count" id="cnt-matches"></span></button>
@@ -2604,6 +2632,7 @@ function renderTournamentInstanceDetailV3(t) {
               <div class="t-view-head">
                 <div class="t-view-title">Spielplan</div>
                 <div class="spacer"></div>
+                ${showReschedule ? '<button type="button" class="t-btn t-btn--ghost" data-action="reschedule" title="Zeitplan neu terminieren (Block-Ordering R32 < R16 < QF < SF < 3RD < F)">Zeitplan neu</button>' : ''}
                 ${isAdmin ? '<button type="button" class="t-btn t-btn--primary" data-action="enter-result-pick">Ergebnis eintragen</button>' : ''}
               </div>
               <div class="t-toolbar" id="t-filters"></div>
@@ -2662,33 +2691,47 @@ function renderTournamentInstanceDetailV3(t) {
     if (!detail) return;
 
     const navBtns = detail.querySelectorAll('.t-mod-nav button[data-view]');
+    const tabBtns = detail.querySelectorAll('.t-mod-tabs button[data-view]');
     const sections = detail.querySelectorAll('main.t-mod-main > section.t-view[data-view]');
 
-    navBtns.forEach((btn) => {
+    // Bug 15 (2026-08-18, Mobile): Es gibt zwei Tab-Leisten — die
+    // vertikale .t-mod-nav (Desktop) und die horizontale .t-mod-tabs
+    // (Mobile, scrollbar). Beide müssen synchron sein: Klick in einer
+    // schaltet die andere mit um. Sonst wirkt die Tab-Leiste auf dem
+    // Handy tot.
+    const allTabBtns = [...navBtns, ...tabBtns];
+    function switchToView(view, sourceBtn) {
+      allTabBtns.forEach((b) => b.classList.toggle('is-active', b === sourceBtn || b.dataset.view === view));
+      sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === view));
+    }
+
+    // Side-Effects pro Tab. Werden in beiden Leisten getriggert (die
+    // Buttons haben identische data-view-Werte).
+    function handleTabSideEffects(view) {
+      // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
+      if (view === 'gruppen') {
+        const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
+        if (mount && !mount.dataset.loaded) {
+          mount.dataset.loaded = '1';
+          loadStandingsTab(t.id).catch(() => {
+            mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
+          });
+        }
+      }
+      // Regeln-Tab: immer rendern, auch bei Mehrfachklick (Edit-Mode zurücksetzen).
+      if (view === 'regeln') {
+        const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
+        if (mount) {
+          renderRulesView(t.id, mount);
+        }
+      }
+    }
+
+    allTabBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
         const view = btn.dataset.view;
-        navBtns.forEach((b) => b.classList.toggle('is-active', b === btn));
-        sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === view));
-        // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
-        if (view === 'gruppen') {
-          const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
-          if (mount && !mount.dataset.loaded) {
-            mount.dataset.loaded = '1';
-            loadStandingsTab(t.id).catch(() => {
-              // Fallback: Platzhalter zeigen, wenn der alte Renderer im neuen
-              // Layout nicht passt.
-              mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
-            });
-          }
-        }
-        // Regeln-Tab (Spec §8.4 Info-Seite, User-Punkt 5): immer rendern,
-        // auch wenn wir den Tab mehrfach anklicken (Edit-Mode zurücksetzen).
-        if (view === 'regeln') {
-          const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
-          if (mount) {
-            renderRulesView(t.id, mount);
-          }
-        }
+        switchToView(view, btn);
+        handleTabSideEffects(view);
       });
     });
 

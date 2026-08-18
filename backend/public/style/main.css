@@ -281,6 +281,19 @@ button.tournament-header-btn {
   }
 }
 
+/* Bug 15 (2026-08-18, User-Punkt 5): Auf dem Handy leere Phasen-
+   Karten ganz weglassen — bei vier leeren Phasen muss ich nicht
+   an drei leeren Kästen vorbeiscrollen. Die Phasen-Gruppe wird
+   versteckt, sobald ihr einziger Inhalt ein .tournament-empty-
+   Hinweis ist (vom Renderer gesetzt, wenn instances.length === 0).
+   Auf Desktop bleiben die leeren Phasen sichtbar — der User sieht
+   dort schneller, dass er nichts hat. */
+@media (max-width: 480px) {
+  .tournament-instance-group:has(> .tournament-instance-grid > .tournament-instance-empty:only-child) {
+    display: none;
+  }
+}
+
 /* ── TOAST ── */
 .toast-container {
   position: fixed;

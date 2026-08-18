@@ -223,6 +223,11 @@
   height: 44px;            /* FIXE Höhe, kein min-height */
   align-items: center;
   flex-wrap: nowrap;
+  gap: var(--s1);           /* Bug 15: 4px Mindestabstand zwischen Tabs,
+                               damit "Spielplan" und "Übersicht" nicht
+                               zusammenkleben. */
+  padding: 0 var(--s3);     /* Bug 15: linker Einzug, damit der erste
+                               Tab nicht am Viewport-Rand klebt. */
   overflow-x: auto;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
@@ -324,6 +329,81 @@
   .t-mod-nav {
     border-right: none;
     border-bottom: 1px solid var(--line);
+  }
+  /* Bug 15 (2026-08-18, User-Punkt 1): Nav bleibt hidden, weil die
+     horizontale .t-mod-tabs-Leiste die Navigation übernimmt. Hier
+     defensiv doppelt setzen (oben ist .t-mod-nav auch display:none
+     im globalen Block). */
+  .t-mod-nav { display: none; }
+  /* Bug 15 (2026-08-18, User-Punkt 3): Header fressst ein Drittel des
+     Bildschirms, wenn Logo + Titel + Badge + Buttons alle in einer
+     flex-Reihe liegen. Auf Mobile zwei sichtbare Zeilen:
+       Zeile 1: Logo · Titel · Sub · Badge (alles in einer Reihe,
+               Logo schrumpft nicht, Titel-Text wächst)
+       Zeile 2: Header-Aktionen (volle Breite, gleichmäßig verteilt)
+     flex-basis: 100% auf .t-mod-header-actions zwingt die Aktions-
+     Reihe in eine eigene Zeile, auch wenn in Zeile 1 noch Platz wäre. */
+  .t-mod-header {
+    padding: var(--s3) var(--s4);
+    gap: var(--s3);
+  }
+  .t-mod-header > .t-logo { flex: 0 0 auto; }
+  /* Bug 15 (2026-08-18, User-Punkt 3): Auf Mobile fasst der Renderer
+     Titel + Badges in einem .t-mod-header-info-Container zusammen.
+     Hier: Titel-Text links wächst, Badges rechts. Bei schmalem
+     Viewport fallen die Badges unter den Titel-Text, weil der
+     Container flex-wrap: wrap hat. */
+  .t-mod-header-info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s2);
+    flex: 1;
+    min-width: 0;
+  }
+  .t-mod-header-info .t-mod-header-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .t-mod-header-info .t-mod-header-text .t-title {
+    font-size: 17px;
+  }
+  .t-mod-header-info .t-mod-header-badges {
+    display: flex;
+    gap: var(--s2);
+    flex-wrap: wrap;
+  }
+  .t-mod-header-info .t-mod-header-badges .t-badge {
+    flex: 0 0 auto;
+  }
+  .t-mod-header-actions {
+    margin-left: 0;
+    flex-basis: 100%;
+    display: flex;
+    gap: var(--s2);
+  }
+  .t-mod-header-actions .t-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px var(--s3);
+    font-size: 14px;
+  }
+  /* Bug 15 (2026-08-18, User-Punkt 4): Kontextspalte entfällt auf
+     dem Handy — die Infos wandern in die Übersicht (Etappe B.2).
+     Hier defensiv display:none, falls die CSS-Spezifität von oben
+     (min-width:768px) durch andere Regeln überschrieben wird. */
+  .t-mod-aside { display: none; }
+  /* Hauptbereich etwas knapper padden — auf 390px ist jeder Pixel
+     sichtbar. */
+  .t-mod-main { padding: var(--s4) var(--s3); }
+  .t-mod-tabs {
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+  }
+  .t-mod-tab {
+    height: 48px;
+    font-size: 14px;
   }
 }
 
