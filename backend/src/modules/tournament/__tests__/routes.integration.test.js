@@ -416,6 +416,130 @@ describe('Pflicht-Test 3: Member POST /matches/:matchId/result', () => {
     expect('isDraw' in updateArgs.data).toBe(false);
     expect('completedAt' in updateArgs.data).toBe(false);
   });
+
+  // Bug 2026-08-17 — KO-Matches lehnen Unentschieden ab.
+  //   Vorher: Score 1:1 in einem Halbfinale wurde still akzeptiert
+  //   (status=finished gesetzt), aber propagateWinner lief NICHT.
+  //   Resultat: Finale blieb leer, User wusste nicht warum.
+  //   Nachher: 400 no_draw_in_knockout + prisma.match.update GAR NICHT
+  //   aufgerufen.
+  it('Bug KO-Draw: POST /result mit 1:1 in KO-Stage → 400, kein DB-Write', async () => {
+    // KO-Match statt Gruppen-Match — andere stageId + type.
+    prisma.match.findFirst.mockResolvedValue({
+      id: 'm-sf-1',
+      tournamentId: tLive,
+      stageId: 's-ko',
+      teamHome: 'team-a',
+      teamAway: 'team-b',
+      scoreHome: null,
+      scoreAway: null,
+      status: 'open',
+    });
+    prisma.stage.findUnique.mockResolvedValue({
+      id: 's-ko', type: 'ko', name: 'K.-o.-Phase', orderIndex: 1,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tLive}/matches/m-sf-1/result`,
+      payload: { scoreHome: 1, scoreAway: 1 },
+      headers: { 'x-test-user': u.global.id },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.error).toBe('no_draw_in_knockout');
+    // Garantiere: wir haben KEIN Update abgesetzt.
+    expect(prisma.match.update).not.toHaveBeenCalled();
+  });
+
+  // Bug 2026-08-17 — propagatedMatches im Response.
+  //   Vorher: nur propagated = ['id1', 'id2'] (IDs).
+  //   Nachher: propagatedMatches = [<DTO>, <DTO>] — damit das Frontend
+  //   die Folgespiele in-place patchen kann (applyPropagatedMatches).
+  it('Bug Propagation-DTO: POST /result KO-Sieg → propagatedMatches = DTOs, nicht nur IDs', async () => {
+    prisma.match.findFirst.mockResolvedValue({
+      id: 'm-sf-1',
+      tournamentId: tLive,
+      stageId: 's-ko',
+      teamHome: 'team-a',
+      teamAway: 'team-b',
+      scoreHome: null,
+      scoreAway: null,
+      status: 'open',
+      winnerAdvancesTo: 'm-f-1',
+      loserAdvancesTo: null,
+    });
+    prisma.stage.findUnique.mockResolvedValue({
+      id: 's-ko', type: 'ko', name: 'K.-o.-Phase', orderIndex: 1,
+    });
+    prisma.match.update
+      .mockResolvedValueOnce({  // Update für m-sf-1 selbst
+        id: 'm-sf-1',
+        tournamentId: tLive,
+        stageId: 's-ko',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        scoreHome: 2,
+        scoreAway: 1,
+        status: 'finished',
+        winnerAdvancesTo: 'm-f-1',
+        loserAdvancesTo: null,
+      })
+      .mockResolvedValueOnce({  // Propagation für m-f-1 (Finale)
+        id: 'm-f-1',
+        tournamentId: tLive,
+        stageId: 's-ko',
+        teamHome: 'team-a',
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        status: 'open',
+      });
+    prisma.tournamentTeam.findMany.mockResolvedValue([
+      { id: 'team-a', name: 'Alpha', tournamentId: tLive },
+      { id: 'team-b', name: 'Beta', tournamentId: tLive },
+    ]);
+    prisma.stage.findMany.mockResolvedValue([
+      { id: 's-ko', type: 'ko', name: 'K.-o.-Phase', orderIndex: 1 },
+    ]);
+    prisma.group_.findMany.mockResolvedValue([]);
+    prisma.match.findMany.mockResolvedValue([
+      // m-sf-1 (gerade abgeschlossen) — hat winnerAdvancesTo gesetzt.
+      {
+        id: 'm-sf-1', tournamentId: tLive, stageId: 's-ko',
+        teamHome: 'team-a', teamAway: 'team-b',
+        scoreHome: 2, scoreAway: 1, status: 'finished',
+        winnerAdvancesTo: 'm-f-1', loserAdvancesTo: null,
+      },
+      // m-f-1 (Finale, leer → wird durch Propagation gefüllt)
+      {
+        id: 'm-f-1', tournamentId: tLive, stageId: 's-ko',
+        teamHome: null, teamAway: null,
+        scoreHome: null, scoreAway: null, status: 'open',
+        winnerAdvancesTo: null, loserAdvancesTo: null,
+      },
+    ]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tLive}/matches/m-sf-1/result`,
+      payload: { scoreHome: 2, scoreAway: 1 },
+      headers: { 'x-test-user': u.global.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // 1) propagated IDs für den Toast-Counter.
+    expect(body.propagated).toEqual(['m-f-1']);
+    // 2) propagatedMatches als DTO-Liste fürs In-place-Patching.
+    expect(Array.isArray(body.propagatedMatches)).toBe(true);
+    expect(body.propagatedMatches).toHaveLength(1);
+    expect(body.propagatedMatches[0].id).toBe('m-f-1');
+    // 3) DTO-Form: home/away Felder existieren (vom prepareMatchView).
+    //    Die genaue team-Zuordnung testen wir in access-match.test.js
+    //    — hier nur die Form: die Keys home/away sind da.
+    expect('home' in body.propagatedMatches[0]).toBe(true);
+    expect('away' in body.propagatedMatches[0]).toBe(true);
+  });
 });
 
 // ------------------------------------------------------------------

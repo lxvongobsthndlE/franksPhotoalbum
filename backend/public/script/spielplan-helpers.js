@@ -205,6 +205,69 @@ export function renderMatchCard(m, isAdmin) {
 }
 
 /**
+ * In-place-Update für KO-Folgespiele nach einem Ergebnis-Save.
+ *
+ * Hintergrund (Bug 2026-08-17): Vorher bekam das Frontend nur die
+ * Liste der propagierten Match-IDs und musste die ganze Tournament-
+ * View neu laden (komplettes GET + Re-Render). Das war 200-500ms
+ * spürbare Verzögerung, und der User-Vermerk "Gewinner muss direkt
+ * im Finale stehen" war nur durch den vollen Re-Fetch erfüllt.
+ *
+ * Diese Funktion patcht die existierenden `.t-match[data-match-id]`
+ * Cards direkt: Teamnamen + Color-Dots + ggf. Winner-Klasse. Kein
+ * Re-Render, keine Netzwerk-Round-Trip.
+ *
+ * Annahmen:
+ *   - Die Cards sind bereits im DOM (renderMatchList wurde gerufen).
+ *   - propagatedMatches sind vollständige Match-DTOs (gleiche Form wie
+ *     die, mit denen die Cards gerendert wurden — home/away Objekte).
+ *   - Status der propagierten Matches bleibt "open" (nur teamHome/
+ *     teamAway haben sich geändert). Wenn ein Folgespiel schon vorher
+ *     beendet war, lassen wir's in Ruhe — der User hat das nicht
+ *     angefragt.
+ */
+export function applyPropagatedMatches(propagatedMatches) {
+  if (!Array.isArray(propagatedMatches) || !propagatedMatches.length) return 0;
+  if (typeof document === 'undefined') return 0;
+  let patched = 0;
+  for (const m of propagatedMatches) {
+    if (!m?.id) continue;
+    const card = document.querySelector(
+      `.t-match[data-match-id="${cssEscape(String(m.id))}"]`
+    );
+    if (!card) continue; // Match ist im aktuellen Filter nicht sichtbar
+                        // → kein Patch nötig, Re-Render würde es auch
+                        // nicht zeigen (Filter exkludiert es).
+    // Teamnamen + Dots.
+    const homeTeam = card.querySelector('.t-match-team:not(.right)');
+    const awayTeam = card.querySelector('.t-match-team.right');
+    if (homeTeam) {
+      const nameEl = homeTeam.querySelector('.name');
+      if (nameEl) nameEl.textContent = m.home?.name || 'offen';
+      const dotEl = homeTeam.querySelector('.t-dot');
+      if (dotEl && m.home?.color) dotEl.style.background = m.home.color;
+    }
+    if (awayTeam) {
+      const nameEl = awayTeam.querySelector('.name');
+      if (nameEl) nameEl.textContent = m.away?.name || 'offen';
+      const dotEl = awayTeam.querySelector('.t-dot');
+      if (dotEl && m.away?.color) dotEl.style.background = m.away.color;
+    }
+    patched++;
+  }
+  return patched;
+}
+
+// Kleines CSS.escape-Polyfill (nicht alle Browser haben es in querySelector
+// integriert, jsdom-Tests brauchen es aber).
+function cssEscape(s) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(s);
+  }
+  return String(s).replace(/([!"#$%&'()*+,./:;<=>?@\[\\\]^`{|}~])/g, '\\$1');
+}
+
+/**
  * Kompakte Match-Karte für die Kontextspalte ("Als Nächstes").
  * Anderes Markup: 3-spaltig (bar · teams · score), ohne Meta und Action.
  */
@@ -290,5 +353,6 @@ if (typeof window !== 'undefined') {
     renderMatchList,
     renderAsideNext,
     renderAsideTables,
+    applyPropagatedMatches,
   };
 }

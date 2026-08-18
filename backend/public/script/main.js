@@ -26,6 +26,7 @@ import {
   renderMatchList,
   renderAsideNext,
   renderAsideTables,
+  applyPropagatedMatches,
 } from './spielplan-helpers.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -3102,10 +3103,21 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         'success',
       );
       dlg.remove();
-      // Detail-View aktualisieren, OHNE Browser-Reload: Renderer
-      // holt sich frische Daten und re-rendert die List/Aside. KO-
-      // Brackets zeigen den richtigen Sieger, Tabelle zählt nach.
-      await openTournamentInstance(tournamentId);
+      // Detail-View aktualisieren, OHNE Browser-Reload. Wenn der Server
+      // propagatedMatches mitgeschickt hat, patchen wir den Spielplan
+      // in-place (siehe applyPropagatedMatches unten) — der Sieger steht
+      // dann sofort im nächsten Match, ohne full-re-render. Nur wenn
+      // KEINE propagation kam (Gruppenphase ohne Folgespiel), machen wir
+      // den vollen Re-Fetch, um sicher zu sein, dass auch Aside, Brackets
+      // und Tabellen stimmen.
+      const propagatedMatches = Array.isArray(result?.propagatedMatches)
+        ? result.propagatedMatches
+        : [];
+      if (propagatedMatches.length > 0 && typeof applyPropagatedMatches === 'function') {
+        applyPropagatedMatches(propagatedMatches);
+      } else {
+        await openTournamentInstance(tournamentId);
+      }
     } catch (err) {
       submitBtn.disabled = false;
       toast(err.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');

@@ -1062,6 +1062,26 @@ export default async function tournamentRoutes(fastify) {
         return reply.code(409).send({ error: 'Match hat noch keine Teams (Platzhalter offen)' });
       }
 
+      // KO-Matches dürfen kein Unentschieden — die nächste Runde braucht
+      // einen Sieger. Vorher (Bug 2026-08-17) wurde der Score gespeichert
+      // und die Propagation still übersprungen. Resultat: F-Karte leer,
+      // User wusste nicht warum.
+      const stage = await fastify.prisma.stage.findUnique({
+        where: { id: match.stageId },
+      });
+      const isKo = stage && stage.type !== 'group';
+      const isDraw = scoreHome === scoreAway;
+      if (isKo && isDraw) {
+        return reply.code(400).send({
+          error: 'no_draw_in_knockout',
+          message:
+            'In der K.-o.-Phase sind Unentschieden nicht möglich — ' +
+            'bitte einen Sieger eintragen (oder Verlängerung / Elfmeter als ' +
+            'eigenes Match planen).',
+          field: 'scoreHome',
+        });
+      }
+
       // winnerTeamId / loserTeamId / isDraw leben NUR im DTO (siehe
       // access/match.js:prepareMatchView) — sie werden aus den Scores
       // berechnet, NICHT persistiert. Schema kennt diese Spalten nicht
@@ -1070,8 +1090,6 @@ export default async function tournamentRoutes(fastify) {
       //
       // „completedAt" gäbe es im Schema auch nicht — falls wir das später
       // brauchen, kommt es in einer Migration. Vorerst nicht setzen.
-      const isDraw = scoreHome === scoreAway;
-
       const updated = await fastify.prisma.match.update({
         where: { id: match.id },
         data: {
@@ -1083,10 +1101,7 @@ export default async function tournamentRoutes(fastify) {
 
       // Cascade + Propagation in KO-Matches.
       let propagated = [];
-      const stage = await fastify.prisma.stage.findUnique({
-        where: { id: match.stageId },
-      });
-      if (stage && stage.type !== 'group' && !isDraw) {
+      if (isKo) {
         // Für KO-Propagation brauchen wir den Sieger. Aus den Scores
         // ableiten — NICHT aus der DB lesen.
         const winnerTeamId =
@@ -1118,13 +1133,21 @@ export default async function tournamentRoutes(fastify) {
         }
       }
 
-      // DTO-Antwort statt Roh-Row.
+      // DTO-Antwort statt Roh-Row. propagatedMatches enthält die
+      // DTO-Repräsentation der durch die Propagation aktualisierten
+      // Folgespiele — damit das Frontend den Spielplan in-place
+      // aktualisieren kann, ohne die ganze View neu zu fetchen.
+      // (Bug 2026-08-17: vorher waren das nur IDs, Frontend musste
+      // openTournamentInstance() neu laden — spürbare Verzögerung.)
       const view = await buildTournamentViewContext(
         fastify.prisma,
         ctx.tournament.id
       );
       const updatedDto = view.matches.find((m) => m.id === match.id);
-      return { match: updatedDto, propagated };
+      const propagatedDtos = propagated
+        .map((id) => view.matches.find((m) => m.id === id))
+        .filter(Boolean);
+      return { match: updatedDto, propagated, propagatedMatches: propagatedDtos };
     } catch (err) {
       return handleError(reply, err, 'Ergebnis eintragen fehlgeschlagen');
     }
