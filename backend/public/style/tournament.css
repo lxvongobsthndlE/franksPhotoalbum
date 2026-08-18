@@ -2067,3 +2067,53 @@ textarea.t-input {
   }
   .t-teams-row-status { display: none; }
 }
+
+/* ----------------------------------------------------------------
+   REGELN-TAB (Spec §8.4 Info-Seite, User-Punkt 5)
+   Plain-Text mit Paragraphs. Edit-Mode für Admins mit Textarea.
+   ---------------------------------------------------------------- */
+.t-rules-paragraphs p {
+  margin: 0 0 1em;
+  line-height: 1.55;
+  color: var(--ink, #1F1B16);
+}
+.t-rules-paragraphs p:last-child { margin-bottom: 0; }
+.t-rules-paragraphs br { line-height: 1.55; }
+
+.t-rules-textarea {
+  width: 100%;
+  min-height: 240px;
+  resize: vertical;
+  padding: var(--s3, 12px);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid var(--line, #E7DFD2);
+  border-radius: 8px;
+  background: var(--surface, #FFF);
+  color: var(--ink, #1F1B16);
+  box-sizing: border-box;
+}
+.t-rules-textarea:focus {
+  outline: 2px solid var(--accent, #B85C2C);
+  outline-offset: 1px;
+  border-color: var(--accent, #B85C2C);
+}
+.t-rules-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3, 12px);
+  margin-top: var(--s3, 12px);
+}
+.t-rules-meta .spacer { margin-left: auto; }
+.t-rules-meta > span {
+  font-size: 12px;
+  color: var(--ink-soft, #8A8077);
+  font-variant-numeric: tabular-nums;
+}
+.t-rules-overflow-note {
+  font-size: 12px;
+  color: var(--ink-soft, #8A8077);
+  font-style: italic;
+  margin-top: 1em;
+}

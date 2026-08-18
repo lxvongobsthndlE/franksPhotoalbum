@@ -259,6 +259,42 @@ export default async function tournamentRoutes(fastify) {
         }
         data.tableLabels = body.tableLabels;
       }
+      // --- Regelwerk (Spec §8.4 Info-Seite, User-Punkt 5) ---
+      //
+      // Plain-Text, Paragraphs only — kein HTML, kein Markdown.
+      // Backend kümmert sich nur um Sanitization: Whitespace trimmen,
+      // leerer String → null, hartes Längenlimit (10 KB reicht für ein
+      // Turnier-Regelwerk und schützt vor Missbrauch).
+      // Das Frontend splittet an Leerzeilen in <p>-Tags und escaped.
+      //
+      // Bewusst KEIN Lock nach Turnierstart — Regelwerk darf jederzeit
+      // aktualisiert werden (Turnierleitung merkt nach 3 Spielen, dass
+      // eine Sonderregel fehlt, und pflegt sie nach). Andere Felder
+      // (config.*) sind aus gutem Grund gesperrt; rules ist Info, nicht
+      // Spiel-Logik.
+      if ('rules' in body) {
+        if (body.rules !== null && typeof body.rules !== 'string') {
+          return reply.code(400).send({
+            error: 'invalid_rules',
+            message: 'rules muss ein String oder null sein.',
+            field: 'rules',
+          });
+        }
+        const MAX_RULES_LENGTH = 10000;
+        if (typeof body.rules === 'string' && body.rules.length > MAX_RULES_LENGTH) {
+          return reply.code(400).send({
+            error: 'rules_too_long',
+            message: `Regelwerk darf maximal ${MAX_RULES_LENGTH} Zeichen lang sein.`,
+            field: 'rules',
+            maxLength: MAX_RULES_LENGTH,
+          });
+        }
+        if (typeof body.rules === 'string' && body.rules.trim() === '') {
+          data.rules = null;
+        } else {
+          data.rules = body.rules;
+        }
+      }
 
       // --- Config (gesperrt, sobald Ergebnisse existieren —
       //     AUSNAHME: schedule.* ist auch bei Ergebnissen erlaubt,

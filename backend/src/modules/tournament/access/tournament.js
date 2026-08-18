@@ -110,6 +110,10 @@ export function prepareTournamentView(rawTournament, opts = {}) {
     tableLabels: Array.isArray(rawTournament.tableLabels)
       ? rawTournament.tableLabels
       : null,
+    // Regelwerk (Spec §8.4 Info-Seite). null, wenn nicht gepflegt.
+    rules: typeof rawTournament.rules === 'string'
+      ? rawTournament.rules
+      : null,
 
     createdById: rawTournament.createdById ?? null,
     createdAt: rawTournament.createdAt ?? null,

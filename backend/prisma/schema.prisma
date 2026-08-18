@@ -110,7 +110,11 @@ model Tournament {
   sport           String    @default("becher") // 'becher' | 'tore' | 'punkte'
   // Eigene Tischnamen (Step 4), erscheinen auf Ausdruck/Beamer.
   // Nicht zu verwechseln mit schedule.parallelFields (Anzahl).
-  tableLabels     Json?     // string[] | null
+  tableLabels     Json? // string[] | null
+  // Regelwerk (Spec §8.4 Info-Seite, User-Punkt 5): admin-editierbarer
+  // Plain-Text, members read-only. Paragraphs only — Frontend splittet
+  // an Leerzeilen in <p>-Tags, Backend sanitisiert (kein HTML/Markdown).
+  rules           String?
   createdById     String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -137,10 +141,10 @@ model TournamentTeam {
   seed          Int?
   createdAt     DateTime @default(now())
 
-  tournament  Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament  Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   memberships GroupMembership[]
-  matchesHome Match[]        @relation("MatchTeamHome")
-  matchesAway Match[]        @relation("MatchTeamAway")
+  matchesHome Match[]           @relation("MatchTeamHome")
+  matchesAway Match[]           @relation("MatchTeamAway")
 
   @@unique([tournamentId, name])
   @@index([tournamentId, seed])
@@ -219,15 +223,15 @@ model Match {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  tournament       Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  stage            Stage            @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  group            Group_?          @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  homeTeam         TournamentTeam?  @relation("MatchTeamHome", fields: [teamHome], references: [id], onDelete: SetNull)
-  awayTeam         TournamentTeam?  @relation("MatchTeamAway", fields: [teamAway], references: [id], onDelete: SetNull)
-  winnerAdvances   Match?           @relation("MatchWinnerAdvances", fields: [winnerAdvancesTo], references: [id], onDelete: SetNull)
-  loserAdvances    Match?           @relation("MatchLoserAdvances", fields: [loserAdvancesTo], references: [id], onDelete: SetNull)
-  incomingWinner   Match[]          @relation("MatchWinnerAdvances")
-  incomingLoser    Match[]          @relation("MatchLoserAdvances")
+  tournament     Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  stage          Stage           @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group          Group_?         @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  homeTeam       TournamentTeam? @relation("MatchTeamHome", fields: [teamHome], references: [id], onDelete: SetNull)
+  awayTeam       TournamentTeam? @relation("MatchTeamAway", fields: [teamAway], references: [id], onDelete: SetNull)
+  winnerAdvances Match?          @relation("MatchWinnerAdvances", fields: [winnerAdvancesTo], references: [id], onDelete: SetNull)
+  loserAdvances  Match?          @relation("MatchLoserAdvances", fields: [loserAdvancesTo], references: [id], onDelete: SetNull)
+  incomingWinner Match[]         @relation("MatchWinnerAdvances")
+  incomingLoser  Match[]         @relation("MatchLoserAdvances")
 
   @@index([tournamentId, stageId])
   @@index([scheduledAt])

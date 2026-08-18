@@ -30,6 +30,7 @@ import {
   renderStandingsGroups,
   renderBestThirdsTable,
 } from './spielplan-helpers.js';
+import { renderRulesParagraphs } from './rules-helpers.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -2522,6 +2523,7 @@ function renderTournamentInstanceDetailV3(t) {
             <button type="button" data-view="gruppen">Gruppen</button>
             <button type="button" data-view="baum">Turnierbaum</button>
             <button type="button" data-view="teams">Teams</button>
+            <button type="button" data-view="regeln">Regeln</button>
             <button type="button" data-view="drucken">Drucken</button>
             <button type="button" data-view="einstellungen">Einstellungen</button>
           </nav>
@@ -2550,6 +2552,14 @@ function renderTournamentInstanceDetailV3(t) {
             <section class="t-view" data-view="teams">
               <div class="t-view-head"><div class="t-view-title">Teams</div></div>
               ${placeholder('Die Team-Verwaltung', 'Kommt in Etappe B.5.')}
+            </section>
+            <section class="t-view" data-view="regeln">
+              <div class="t-view-head">
+                <div class="t-view-title">Regeln</div>
+                <div class="spacer"></div>
+                ${isAdmin ? '<button type="button" class="t-btn t-btn--ghost" data-action="edit-rules">Bearbeiten</button>' : ''}
+              </div>
+              <div data-tab-body="regeln-mount"></div>
             </section>
             <section class="t-view" data-view="drucken">
               <div class="t-view-head"><div class="t-view-title">Drucken</div></div>
@@ -2599,6 +2609,14 @@ function renderTournamentInstanceDetailV3(t) {
             });
           }
         }
+        // Regeln-Tab (Spec §8.4 Info-Seite, User-Punkt 5): immer rendern,
+        // auch wenn wir den Tab mehrfach anklicken (Edit-Mode zurücksetzen).
+        if (view === 'regeln') {
+          const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
+          if (mount) {
+            renderRulesView(t.id, mount);
+          }
+        }
       });
     });
 
@@ -2623,6 +2641,25 @@ function renderTournamentInstanceDetailV3(t) {
         }
       });
     });
+    // Regeln-Tab Aktionen. Header-Button „Bearbeiten" ist statisch
+    // gerendert (im Markup oben), Mount-Buttons „Speichern"/„Abbrechen"
+    // werden dynamisch von renderRulesView gebaut → wir delegieren
+    // auf den Mount, damit renderRulesView die Buttons nicht jedes Mal
+    // neu binden muss.
+    detail.querySelector('[data-action="edit-rules"]')?.addEventListener('click', () => {
+      enterRulesEditMode(t.id);
+    });
+    const regelnMount = detail.querySelector('[data-tab-body="regeln-mount"]');
+    if (regelnMount) {
+      regelnMount.addEventListener('click', (e) => {
+        const action = e.target?.closest?.('[data-action]')?.dataset?.action;
+        if (action === 'save-rules') {
+          saveRules(t.id);
+        } else if (action === 'cancel-rules') {
+          cancelRulesEditMode(t.id);
+        }
+      });
+    }
 
     // Spielplan-Zähler im Nav.
     const cnt = $('cnt-matches');
@@ -2772,6 +2809,129 @@ async function loadStandingsTab(tournamentId) {
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
   }
+}
+
+/**
+ * Regeln-Tab rendern (Spec §8.4 Info-Seite, User-Punkt 5).
+ *
+ * Plain-Text-Anzeige mit Paragraphs. Admins bekommen zusätzlich
+ * einen „Bearbeiten"-Button, der die Anzeige gegen ein Textarea
+ * austauscht. Members sehen read-only.
+ *
+ * Bewusst KEINE Formatierung: kein Markdown, kein HTML, keine Listen.
+ * Ein langer Absatz mit hartem Umbruch wird zu einer Zeile mit <br>s
+ * — das ist die maximale „Formatierung", die wir zulassen.
+ *
+ * Datenquelle: `activeTournamentInstance.rules` (vom GET /:id DTO).
+ * Bei aktivem Edit-Mode wird die `rules` im mount-Element als
+ * dataset-Attribut zwischengespeichert, damit ein Tab-Wechsel den
+ * Edit-Mode nicht verwirft.
+ */
+function renderRulesView(tournamentId, mount) {
+  const t = (typeof activeTournamentInstance === 'object' && activeTournamentInstance?.id === tournamentId)
+    ? activeTournamentInstance
+    : null;
+  const rules = t?.rules ?? '';
+  const isAdmin = !!t?.isAdmin;
+  const isEditing = mount.dataset.editing === '1';
+
+  // Edit-Modus: Textarea + Save/Cancel.
+  if (isAdmin && isEditing) {
+    mount.innerHTML = `
+      <div class="t-card">
+        <div class="t-card-body">
+          <textarea
+            class="t-rules-textarea"
+            data-tab-body="regeln-textarea"
+            rows="14"
+            maxlength="10000"
+            aria-label="Regelwerk bearbeiten"
+            placeholder="Regelwerk hier eingeben. Leerzeilen trennen Absätze. Keine Formatierung.">${esc(rules)}</textarea>
+          <div class="t-rules-meta">
+            <span data-tab-body="regeln-counter">${rules.length}/10000 Zeichen</span>
+            <div class="spacer"></div>
+            <button type="button" class="t-btn t-btn--ghost" data-action="cancel-rules">Abbrechen</button>
+            <button type="button" class="t-btn t-btn--primary" data-action="save-rules">Speichern</button>
+          </div>
+          <p class="t-hint">Absätze durch Leerzeilen trennen. Sonderzeichen sind erlaubt, HTML wird nicht ausgewertet.</p>
+        </div>
+      </div>
+    `;
+    const textarea = mount.querySelector('textarea');
+    const counter = mount.querySelector('[data-tab-body="regeln-counter"]');
+    textarea?.addEventListener('input', () => {
+      counter.textContent = `${textarea.value.length}/10000 Zeichen`;
+    });
+    return;
+  }
+
+  // Read-Mode (Member ODER Admin ohne Edit).
+  const body = rulesHelpers.renderRulesParagraphs(rules);
+  const emptyHint = body === ''
+    ? `<div class="t-card"><div class="t-card-body"><p class="t-hint">${isAdmin
+        ? 'Noch keine Regeln hinterlegt. Klick auf „Bearbeiten" fügt sie hinzu.'
+        : 'Noch keine Regeln hinterlegt.'}</p></div></div>`
+    : '';
+  mount.innerHTML = emptyHint || `
+    <div class="t-card">
+      <div class="t-card-body">
+        <div class="t-rules-paragraphs">${body}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bearbeiten-Button: vom Read-Mode in den Edit-Mode wechseln.
+ * Lokaler Handler, der an den Header-Button gebunden wird.
+ */
+function enterRulesEditMode(tournamentId) {
+  const mount = document.querySelector('[data-tab-body="regeln-mount"]');
+  if (!mount) return;
+  mount.dataset.editing = '1';
+  renderRulesView(tournamentId, mount);
+}
+
+/**
+ * Speichern-Handler: PATCH /api/tournaments/:id mit { rules }.
+ * Bei Erfolg: activeTournamentInstance.rules aktualisieren und
+ * zurück in den Read-Mode.
+ */
+async function saveRules(tournamentId) {
+  const mount = document.querySelector('[data-tab-body="regeln-mount"]');
+  const textarea = mount?.querySelector('textarea[data-tab-body="regeln-textarea"]');
+  if (!mount || !textarea) return;
+  const newRules = textarea.value;
+  const saveBtn = mount.querySelector('[data-action="save-rules"]');
+  const cancelBtn = mount.querySelector('[data-action="cancel-rules"]');
+  if (saveBtn) saveBtn.disabled = true;
+  if (cancelBtn) cancelBtn.disabled = true;
+  try {
+    const updated = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}`,
+      'PATCH',
+      { rules: newRules },
+    );
+    if (updated?.tournament?.rules !== undefined
+        && typeof activeTournamentInstance === 'object'
+        && activeTournamentInstance?.id === tournamentId) {
+      activeTournamentInstance.rules = updated.tournament.rules;
+    }
+    delete mount.dataset.editing;
+    renderRulesView(tournamentId, mount);
+    toast('Regelwerk gespeichert', 'success');
+  } catch (e) {
+    if (saveBtn) saveBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
+    toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+  }
+}
+
+function cancelRulesEditMode(tournamentId) {
+  const mount = document.querySelector('[data-tab-body="regeln-mount"]');
+  if (!mount) return;
+  delete mount.dataset.editing;
+  renderRulesView(tournamentId, mount);
 }
 
 /**
