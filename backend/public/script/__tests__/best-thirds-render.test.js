@@ -1,10 +1,16 @@
 /**
  * Tests für den Beste-Dritte-Renderer. Spec §6.3.1, §13.7.
  *
- * Regressionsschutz für Bug 9 (2026-08-18): Die Tabelle fehlte vorher
- * komplett. Spec verlangt pro-Spiel-normalisierte Werte (Pkt/Sp, Diff/Sp)
- * weil Gruppen unterschiedlich groß sein können (3er vs. 4er), und die
- * Top-N aus den "bestThirds" config bekommen eine Quali-Markierung.
+ * Regressionsschutz für Bug 9 (2026-08-18, fehlte komplett) und
+ * Bug 13 (2026-08-18, User-Punkt 2:„Wertung unverständlich").
+ *
+ * Nach Bug 13 zeigt die Tabelle dieselben Spalten wie die normale
+ * Gruppentabelle (Pl. · Team · Gruppe · Sp. · S · U · N · Becher ·
+ * Diff · Pkt.) plus eine Quali-Markierung. Die Sortierung BERUHT
+ * weiterhin auf den pro-Spiel-normalisierten Werten (Spec §10.4
+ * verlangt das), aber die Anzeige zeigt die absoluten Werte und
+ * blendet einen erklärenden Hinweis nur ein, wenn die zugrunde
+ * liegenden Gruppen unterschiedlich groß sind.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -18,21 +24,27 @@ describe('renderBestThirdsTable', () => {
       {
         teamId: 'A3',
         name: 'Team Alpha-Drei',
-        played: 3, points: 7, goalsFor: 10, goalsAgainst: 4, goalDiff: 6,
+        groupKey: 'A',
+        played: 3, won: 2, drawn: 1, lost: 0,
+        goalsFor: 10, goalsAgainst: 4, goalDiff: 6, points: 7,
         pointsPerGame: 2.33, goalDiffPerGame: 2.0,
         qualifies: true,
       },
       {
         teamId: 'B3',
         name: 'Team Bravo-Drei',
-        played: 3, points: 6, goalsFor: 8, goalsAgainst: 5, goalDiff: 3,
+        groupKey: 'B',
+        played: 3, won: 2, drawn: 0, lost: 1,
+        goalsFor: 8, goalsAgainst: 5, goalDiff: 3, points: 6,
         pointsPerGame: 2.0, goalDiffPerGame: 1.0,
         qualifies: true,
       },
       {
         teamId: 'C3',
         name: 'Team Charlie-Drei',
-        played: 2, points: 1, goalsFor: 2, goalsAgainst: 8, goalDiff: -6,
+        groupKey: 'C',
+        played: 2, won: 0, drawn: 1, lost: 1,
+        goalsFor: 2, goalsAgainst: 8, goalDiff: -6, points: 1,
         pointsPerGame: 0.5, goalDiffPerGame: -3.0,
         qualifies: false,
       },
@@ -43,24 +55,35 @@ describe('renderBestThirdsTable', () => {
     const html = renderBestThirdsTable(sample);
     expect(html).toContain('Beste Dritte');
     expect(html).toContain('Top 2 qualifizieren sich');
-    // Spalten: # · Team · Pkt/Sp · Diff/Sp · Status
+    // Spalten: Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. · ✓
     const headerMatch = html.match(/<thead>[\s\S]*?<\/thead>/);
     expect(headerMatch).toBeTruthy();
     expect(headerMatch[0]).toMatch(
-      /<th>#<\/th>[\s\S]*<th>Team<\/th>[\s\S]*<th>Pkt\/Sp<\/th>[\s\S]*<th>Diff\/Sp<\/th>[\s\S]*<th>Status<\/th>/,
+      /<th>Pl\.<\/th>[\s\S]*<th>Team<\/th>[\s\S]*<th>Gruppe<\/th>[\s\S]*<th>Sp\.<\/th>[\s\S]*<th>S<\/th>[\s\S]*<th>U<\/th>[\s\S]*<th>N<\/th>[\s\S]*<th>Becher<\/th>[\s\S]*<th>Diff<\/th>[\s\S]*<th>Pkt\.<\/th>[\s\S]*<th><\/th>/,
     );
   });
 
-  it('zeigt PRO-SPIEL-normalisierte Werte (nicht die absoluten)', () => {
-    // Bug 9-Hintergrund: User spec sagt explizit "Werte pro Spiel".
-    // 3er-Gruppe (2 Spiele) und 4er-Gruppe (3 Spiele) sind nur so
-    // vergleichbar.
+  it('zeigt absolute Werte (Pkt, Sp, S, U, N, Becher), NICHT pro-Spiel-normalisiert', () => {
+    // Bug 13-Hintergrund: User sah vorher Pkt/Sp und Diff/Sp — wirkte
+    // wie eine ganz andere Sportart. Jetzt: dieselben Spalten wie in
+    // den Gruppen, mit Absolut-Werten.
     const html = renderBestThirdsTable(sample);
-    // A3: Pkt/Sp = 2.33, Diff/Sp = 2.0
-    expect(html).toMatch(/<td[^>]*>2\.33<\/td>/);
-    expect(html).toMatch(/<td[^>]*>2<\/td>/);
-    // C3: Pkt/Sp = 0.5
-    expect(html).toMatch(/<td[^>]*>0\.5<\/td>/);
+    // Alpha: 7 Pkt, 3 Sp, 2 S, 1 U, 0 N, Becher 10:4, Diff +6
+    expect(html).toMatch(/<td[^>]*>7<\/td>/); // points
+    expect(html).toMatch(/<td[^>]*>3<\/td>/); // played
+    expect(html).toMatch(/<td[^>]*>2<\/td>/); // won
+    expect(html).toMatch(/<td[^>]*>1<\/td>/); // drawn
+    expect(html).toMatch(/<td[^>]*>0<\/td>/); // lost
+    expect(html).toContain('10:4');
+    expect(html).toContain('+6');
+  });
+
+  it('zeigt Gruppenzugehörigkeit (groupKey)', () => {
+    const html = renderBestThirdsTable(sample);
+    // Bug 13: User-Vorschlag — „plus Gruppenzugehörigkeit"
+    expect(html).toMatch(/<td class="t-thirds-group">A<\/td>/);
+    expect(html).toMatch(/<td class="t-thirds-group">B<\/td>/);
+    expect(html).toMatch(/<td class="t-thirds-group">C<\/td>/);
   });
 
   it('Top-N bekommen is-qualified, Rest is-out', () => {
@@ -72,12 +95,28 @@ describe('renderBestThirdsTable', () => {
     expect(qualifiedMatches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Status-Spalte zeigt „N Sp. · M Pkt" als Kontext-Info', () => {
+  it('zeigt Haken in der Mark-Spalte für qualifizierte Reihen', () => {
     const html = renderBestThirdsTable(sample);
-    // Alpha: 3 Sp. · 7 Pkt
-    expect(html).toMatch(/3 Sp\. · 7 Pkt/);
-    // Charlie: 2 Sp. · 1 Pkt
-    expect(html).toMatch(/2 Sp\. · 1 Pkt/);
+    // Genau 2 Haken in der t-thirds-mark-Spalte (Top 2).
+    const markCells = (html.match(/<td class="t-thirds-mark">✓<\/td>/g) || []);
+    expect(markCells.length).toBe(2);
+    // Ausgeschiedene Reihen: leeres Mark-Cell.
+    const emptyMarkCells = (html.match(/<td class="t-thirds-mark"><\/td>/g) || []);
+    expect(emptyMarkCells.length).toBe(1);
+  });
+
+  it('zeigt Hinweis auf pro-Spiel-Normierung nur bei ungleich großen Gruppen', () => {
+    // Bei Spiel-Anzahl-Mix → Hinweis.
+    const html = renderBestThirdsTable(sample); // 3 Sp. vs 2 Sp. → mixed
+    expect(html).toContain('unter');
+    expect(html).toContain('unterschiedlich groß');
+    // Bei gleichen Spiel-Anzahlen → kein Hinweis.
+    const samePlayed = {
+      qualifyCount: 2,
+      rows: sample.rows.map((r) => ({ ...r, played: 3 })),
+    };
+    const html2 = renderBestThirdsTable(samePlayed);
+    expect(html2).not.toContain('unterschiedlich groß');
   });
 
   it('gibt leeren String zurück wenn bestThirds null (kein bestThirds-Modus)', () => {
@@ -91,29 +130,49 @@ describe('renderBestThirdsTable', () => {
 
   it('zeigt die Rank-Spalte mit Position 1, 2, 3, … (auch bei 0-basierten Rows)', () => {
     const html = renderBestThirdsTable(sample);
-    // Position 1, 2, 3 in der Reihenfolge wie gerendert
     expect(html).toMatch(/<td class="t-thirds-rank">1\./);
     expect(html).toMatch(/<td class="t-thirds-rank">2\./);
     expect(html).toMatch(/<td class="t-thirds-rank">3\./);
-  });
-
-  it('qualifizierte Reihen bekommen einen Haken im Rank', () => {
-    const html = renderBestThirdsTable(sample);
-    // Zwei Reihen mit Haken (Top-2), eine ohne.
-    const hookCount = (html.match(/✓/g) || []).length;
-    // Top 2: 2 Reihen × 1 Haken = 2
-    // Plus Titel-Kommentar "Top 2" enthält keinen Haken.
-    expect(hookCount).toBe(2);
   });
 
   it('HTML-Escape für Teamnamen', () => {
     const html = renderBestThirdsTable({
       qualifyCount: 0,
       rows: [
-        { teamId: 'X', name: 'Team <script>', pointsPerGame: 1, goalDiffPerGame: 0, played: 1, points: 1 },
+        {
+          teamId: 'X', name: 'Team <script>', groupKey: 'A',
+          played: 1, won: 0, drawn: 0, lost: 1,
+          goalsFor: 1, goalsAgainst: 2, goalDiff: -1, points: 0,
+        },
       ],
     });
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
+  });
+
+  it('Diff-Spalte: positive Werte mit +, negative und 0 ohne Vorzeichen', () => {
+    const html = renderBestThirdsTable({
+      qualifyCount: 0,
+      rows: [
+        {
+          teamId: 'P', name: 'Plus', groupKey: 'A',
+          played: 2, won: 2, drawn: 0, lost: 0,
+          goalsFor: 5, goalsAgainst: 1, goalDiff: 4, points: 6,
+        },
+        {
+          teamId: 'Z', name: 'Zero', groupKey: 'B',
+          played: 2, won: 1, drawn: 0, lost: 1,
+          goalsFor: 3, goalsAgainst: 3, goalDiff: 0, points: 3,
+        },
+        {
+          teamId: 'N', name: 'Neg', groupKey: 'C',
+          played: 2, won: 0, drawn: 0, lost: 2,
+          goalsFor: 1, goalsAgainst: 5, goalDiff: -4, points: 0,
+        },
+      ],
+    });
+    expect(html).toContain('+4');
+    expect(html).toMatch(/<td class="t-thirds-num">0<\/td>/); // zero diff: kein +
+    expect(html).toContain('-4');
   });
 });

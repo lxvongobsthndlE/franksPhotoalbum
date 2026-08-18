@@ -1020,14 +1020,32 @@ export default async function tournamentRoutes(fastify) {
       // liefert die Drittplatzierten ALLER Gruppen, normalisiert nach
       // Punkten/Spiel (Spec §10.4 — IMMER pro Spiel). Wir hängen die
       // Top-N aus config.bestThirds als "qualifiziert" an.
+      //
+      // Bug #13 (User-Punkt 2, 2026-08-18): Die alte Variante mit nur
+      // „Pkt/Sp / Diff/Sp" war für den User nicht intuitiv — das wirkte
+      // wie eine ganz andere Sportart. Neue Renderer-Logik zeigt die
+      // ZEILEN in einer Tabelle mit denselben Spalten wie die normale
+      // Gruppentabelle (Team, Sp, S, U, N, Becher, Diff, Pkt) plus
+      // Gruppe. Dafür brauchen wir hier die groupKey pro Row.
+      //
+      // Wir mappen manuell über die groupRows, weil rankBestThirds nur
+      // die Standings-Zeilen zurückgibt — ohne ihren Gruppen-Key.
       let bestThirds = null;
       if ((config.bestThirds ?? 0) > 0) {
         const rowsPerGroup = groupRows.map((g) => g.standings);
         const ranked = rankBestThirds(rowsPerGroup);
+        // Hilfs-Index: (teamId → groupKey) für die nachträgliche Anreicherung.
+        const teamIdToGroupKey = new Map();
+        for (const g of groupRows) {
+          for (const sr of g.standings) {
+            if (sr?.teamId) teamIdToGroupKey.set(sr.teamId, g.groupKey);
+          }
+        }
         bestThirds = {
           qualifyCount: config.bestThirds,
           rows: ranked.map((r, idx) => ({
             ...r,
+            groupKey: teamIdToGroupKey.get(r.teamId) ?? null,
             qualifies: idx < config.bestThirds,
           })),
         };

@@ -5795,7 +5795,10 @@ button.tournament-header-btn {
    Eigene Karte UNTER den Gruppen-Karten, zeigt pro-Spiel-normalisierte
    Werte (Pkt/Sp, Diff/Sp) — die absoluten Werte sind zwischen Gruppen
    unterschiedlicher Größe nicht vergleichbar. Top-N (config.bestThirds)
-   bekommen grünen Haken, der Rest ist ausgegraut. */
+   bekommen grünen Haken, der Rest ist ausgegraut. Bug #13 (2026-08-18):
+   Renderer nutzt jetzt dieselben Spalten wie die normale Gruppentabelle
+   (Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.) plus
+   eine Quali-Markierung rechts. */
 .t-thirds-card { margin-top: 14px; }
 .t-thirds-title {
   font-size: 13px;
@@ -5820,13 +5823,21 @@ button.tournament-header-btn {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  font-weight: 600;
 }
 .t-thirds-table .t-thirds-rank { width: 36px; text-align: right; color: var(--muted); }
+.t-thirds-table .t-thirds-team { font-weight: 500; }
+.t-thirds-table .t-thirds-group { color: var(--muted); width: 60px; }
 .t-thirds-table .t-thirds-num { text-align: right; }
-.t-thirds-table .t-thirds-meta { color: var(--muted); font-size: 11px; }
+.t-thirds-table .t-thirds-num.is-positive { color: var(--good, #2e7d32); }
+.t-thirds-table .t-thirds-num.is-negative { color: var(--bad, #c0453a); }
+.t-thirds-table .t-thirds-num.is-points { font-weight: 700; }
+.t-thirds-table .t-thirds-mark {
+  width: 26px; text-align: center;
+  color: var(--good, #2e7d32); font-weight: 700;
+}
 .t-thirds-row.is-qualified { background: rgba(46, 125, 50, 0.06); }
 .t-thirds-row.is-out { opacity: 0.55; }
-.t-thirds-row.is-qualified .t-thirds-rank::after { content: " ✓"; color: var(--good, #2e7d32); }
 }
 
 /* Match-Result-Modal: Heim vs Gast Header */

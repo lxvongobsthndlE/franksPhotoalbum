@@ -411,16 +411,22 @@ export function renderStandingsGroups(groups, scoreLabel) {
 /**
  * Renderer für die „Beste Dritte"-Tabelle (Spec §6.3.1, §13.7).
  *
- * Spec §10.4: rankBestThirds liefert IMMER pro Spiel normalisiert
- * (Punkte/Spiel, Diff/Spiel). Wir zeigen genau diese normalisierten
- * Werte — nicht die absoluten — weil Gruppen mit unterschiedlicher
- * Spielanzahl (z. B. 3er-Gruppe vs. 4er-Gruppe) nur so vergleichbar sind.
+ * Bug #13 (2026-08-18, User-Punkt 2): Der vorherige Renderer zeigte
+ * nur Pkt/Sp und Diff/Sp — das wirkte auf den User wie „eine ganz
+ * andere Sportart". Die Sortierung der Drittplatzierten BERUHTE weiter
+ * auf den pro-Spiel-normalisierten Werten (Spec §10.4 verlangt das),
+ * aber die ANZEIGE folgt jetzt der normalen Gruppentabelle: Pl. · Team
+ * · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. — plus ein Haken
+ * bei den qualifizierten Top-N.
  *
- * Top-N aus config.bestThirds bekommen die Klasse `is-qualified` (grüner
- * Hintergrund + Haken). Der Rest bekommt `is-out` (ausgeschieden).
+ * Der Hinweis „pro Spiel" erscheint nur, wenn die zugrundeliegenden
+ * Gruppen tatsächlich unterschiedlich groß sind (3er vs. 4er), damit
+ * der User versteht, warum die Rangfolge nicht mit den Absolut-Zahlen
+ * 1:1 übereinstimmt. Bei gleich großen Gruppen ist die Hinweis-Box
+ * unnötig.
  *
- * Wenn `bestThirds` null ist (Turnier hat keine), geben wir einen leeren
- * String zurück — der Aufrufer weiß dann, dass keine Tabelle gewollt ist.
+ * Top-N aus config.bestThirds bekommen `is-qualified` (grüner Hin-
+ * tergrund + Haken). Der Rest bekommt `is-out`.
  *
  * @param {{qualifyCount:number,rows:Array}|null} bestThirds
  * @returns {string} HTML
@@ -430,30 +436,58 @@ export function renderBestThirdsTable(bestThirds) {
     return '';
   }
   const { qualifyCount, rows } = bestThirds;
-  const fmt = (n) => (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
+
+  // Hinweis nur einblenden, wenn die Drittplatzierten aus unter-
+  // schiedlich großen Gruppen kommen. Sonst wäre der Rank mit den
+  // absoluten Zahlen identisch und der Hinweis wäre verwirrend.
+  const playedSet = new Set(rows.map((r) => r.played ?? 0));
+  const mixedGroupSizes = playedSet.size > 1;
+
   const body = rows
     .map((r, i) => {
       const qualifies = r.qualifies === true;
+      const gf = r.goalsFor ?? 0;
+      const ga = r.goalsAgainst ?? 0;
+      const gd = r.goalDiff ?? (gf - ga);
       return `<tr class="t-thirds-row${qualifies ? ' is-qualified' : ' is-out'}">
-        <td class="t-thirds-rank">${i + 1}.${qualifies ? ' ✓' : ''}</td>
+        <td class="t-thirds-rank">${i + 1}.</td>
         <td class="t-thirds-team">${esc(r.name || r.teamId || '—')}</td>
-        <td class="t-thirds-num">${fmt(r.pointsPerGame ?? 0)}</td>
-        <td class="t-thirds-num">${fmt(r.goalDiffPerGame ?? 0)}</td>
-        <td class="t-thirds-meta">${r.played ?? 0} Sp. · ${r.points ?? 0} Pkt</td>
+        <td class="t-thirds-group">${esc(r.groupKey || '—')}</td>
+        <td class="t-thirds-num">${r.played ?? 0}</td>
+        <td class="t-thirds-num">${r.won ?? 0}</td>
+        <td class="t-thirds-num">${r.drawn ?? 0}</td>
+        <td class="t-thirds-num">${r.lost ?? 0}</td>
+        <td class="t-thirds-num">${gf}:${ga}</td>
+        <td class="t-thirds-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}">${fmtDiff(gd)}</td>
+        <td class="t-thirds-num is-points">${r.points ?? 0}</td>
+        <td class="t-thirds-mark">${qualifies ? '✓' : ''}</td>
       </tr>`;
     })
     .join('');
+
+  const mixedNote = mixedGroupSizes
+    ? `<p class="t-hint">Rangfolge nach Punkten pro Spiel (Spec §10.4) — die Gruppen sind unterschiedlich groß, daher sind die absoluten Zahlen nicht direkt vergleichbar.</p>`
+    : '';
+
   return `<div class="t-card t-thirds-card">
     <div class="t-card-body">
       <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
+      ${mixedNote}
       <table class="t-thirds-table">
         <thead>
           <tr>
-            <th>#</th>
+            <th>Pl.</th>
             <th>Team</th>
-            <th>Pkt/Sp</th>
-            <th>Diff/Sp</th>
-            <th>Status</th>
+            <th>Gruppe</th>
+            <th>Sp.</th>
+            <th>S</th>
+            <th>U</th>
+            <th>N</th>
+            <th>Becher</th>
+            <th>Diff</th>
+            <th>Pkt.</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>${body}</tbody>

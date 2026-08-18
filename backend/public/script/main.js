@@ -2413,8 +2413,65 @@ function renderTournamentInstancesPage() {
     </section>`;
 }
 
+/**
+ * Snapshot der UI-State VOR einem Re-Render der Detail-View.
+ * Damit beim erneuten Aufbau (z. B. nach Ergebnis-Save) Position,
+ * Tab und Filter erhalten bleiben. User-Punkt 1 (2026-08-18):
+ * „Ergebnisse eintragen klappt einwandfrei — aber nach jedem
+ * Speichern springt die Seite an den Anfang."
+ *
+ * Günstige Stelle: Vor dem API-Call, bevor `grid.innerHTML = ...`
+ * die DOM-Knoten ersetzt. `currentSpielplanFilter` ist ein Modul-
+ * global und überlebt den Re-Render von selbst — nur die DOM-
+ * State-Werte (scrollTop der Main, aktive Tab-Klasse) müssen
+ * bewahrt werden.
+ *
+ * Filter wird NICHT mitgespeichert: er ist schon global, und die
+ * Chip-Reihenfolge im neuen Render liest ihn ohnehin.
+ */
+function captureTournamentViewState() {
+  const main = document.querySelector('.t-mod-main');
+  const activeTab = document.querySelector('.t-mod-nav button.is-active');
+  return {
+    scrollTop: main ? main.scrollTop : 0,
+    activeView: activeTab?.dataset?.view ?? 'spielplan',
+  };
+}
+
+/**
+ * State aus captureTournamentViewState() auf den frisch gerenderten
+ * DOM anwenden. Läuft NACH renderTournamentInstanceDetailV3().
+ *
+ * Reihenfolge ist wichtig: erst Klassen umschalten, dann scrollen.
+ * `main.scrollTop` auf einem noch nicht angezeigten Element würde
+ * der Browser auf 0 clampen (Container muss im Layout sein).
+ */
+function restoreTournamentViewState(state) {
+  if (!state) return;
+  const navBtns = document.querySelectorAll('.t-mod-nav button[data-view]');
+  const sections = document.querySelectorAll('main.t-mod-main > section.t-view[data-view]');
+  const target = state.activeView ?? 'spielplan';
+  navBtns.forEach((b) => b.classList.toggle('is-active', b.dataset.view === target));
+  sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === target));
+  // Scroll erst nach Klassen-Wechsel setzen — sonst springt der
+  // Browser auf den Default-ScrollTop des neuen aktiven Sections.
+  // requestAnimationFrame: wartet einen Frame, damit der Browser
+  // Layout fertig hat (sonst tun sich manche Browser schwer mit
+  // scrollTop auf noch-nicht-sichtbaren Containern).
+  requestAnimationFrame(() => {
+    const main = document.querySelector('.t-mod-main');
+    if (main) {
+      main.scrollTop = state.scrollTop ?? 0;
+    }
+  });
+}
+
 async function openTournamentInstance(instanceId) {
   try {
+    // Bug #12 (User-Punkt 1, 2026-08-18): Vor dem Re-Render Scroll-
+    // Position und aktiven Tab merken, danach wiederherstellen.
+    // Vorher sprang die Seite nach jedem Save an den Anfang.
+    const viewState = captureTournamentViewState();
     // v3: /api/tournaments/:id — Antwort ist { tournament, teams, stages,
     // groups, matches, stats, isAdmin, public }. Wir brauchen für die
     // Detail-View das innere Tournament-DTO + die Top-Level-Listen.
@@ -2428,6 +2485,16 @@ async function openTournamentInstance(instanceId) {
       'GET'
     );
     const instance = res?.tournament ?? res;
+    // Bug #11 (User-Punkt 3, 2026-08-18): Das innere Tournament-DTO
+    // hat KEIN isAdmin — das ist ein Top-Level-Feld der Response.
+    // renderRulesView() las vorher activeTournamentInstance.isAdmin
+    // und bekam undefined → dachte jeder ist Member → Klick auf
+    // „Bearbeiten" blieb wirkungslos. isAdmin explizit auf den
+    // globalen State patchen, damit alle Sub-Views (Rules, später
+    // weitere Admin-Gates) den richtigen Wert sehen.
+    if (instance && typeof instance === 'object') {
+      instance.isAdmin = res?.isAdmin === true;
+    }
     activeTournamentInstance = instance;
     curTournamentView = 'instances';
     saveLastModuleState();
@@ -2446,6 +2513,11 @@ async function openTournamentInstance(instanceId) {
       stats: res?.stats ?? instance.stats ?? null,
       isAdmin: res?.isAdmin === true,
     });
+    // UI-State nach dem Render wiederherstellen. `restoreTournamentViewState`
+    // wird immer aufgerufen, auch wenn kein Capture nötig war — erstes
+    // Öffnen hat state = { scrollTop: 0, activeView: 'spielplan' }, was
+    // ein No-Op ist.
+    restoreTournamentViewState(viewState);
   } catch (e) {
     toast(e.serverMessage || 'Turnier-Details konnten nicht geladen werden', 'error');
     throw e; // Issue 6: navigateToGeneratedInstance fängt diesen Throw
