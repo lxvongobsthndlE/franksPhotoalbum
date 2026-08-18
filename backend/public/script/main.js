@@ -28,6 +28,7 @@ import {
   renderAsideTables,
   applyPropagatedMatches,
   renderStandingsGroups,
+  renderBestThirdsTable,
 } from './spielplan-helpers.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -2761,7 +2762,12 @@ async function loadStandingsTab(tournamentId) {
     }
 
     const groupsHtml = renderStandingsGroups(groups, scoreLabel);
-    mount.innerHTML = groupsHtml;
+    // Beste Dritte (Spec §6.3.1, §13.7). Wird nur gerendert, wenn das
+    // Turnier überhaupt welche zulässt (config.bestThirds > 0). Die
+    // Render-Funktion gibt einen leeren String zurück, wenn nichts da
+    // ist — also unbedenklich, hier zu konkatenieren.
+    const bestThirdsHtml = renderBestThirdsTable(data.bestThirds);
+    mount.innerHTML = groupsHtml + bestThirdsHtml;
   } catch (e) {
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');

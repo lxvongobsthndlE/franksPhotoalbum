@@ -408,6 +408,60 @@ export function renderStandingsGroups(groups, scoreLabel) {
     .join('');
 }
 
+/**
+ * Renderer für die „Beste Dritte"-Tabelle (Spec §6.3.1, §13.7).
+ *
+ * Spec §10.4: rankBestThirds liefert IMMER pro Spiel normalisiert
+ * (Punkte/Spiel, Diff/Spiel). Wir zeigen genau diese normalisierten
+ * Werte — nicht die absoluten — weil Gruppen mit unterschiedlicher
+ * Spielanzahl (z. B. 3er-Gruppe vs. 4er-Gruppe) nur so vergleichbar sind.
+ *
+ * Top-N aus config.bestThirds bekommen die Klasse `is-qualified` (grüner
+ * Hintergrund + Haken). Der Rest bekommt `is-out` (ausgeschieden).
+ *
+ * Wenn `bestThirds` null ist (Turnier hat keine), geben wir einen leeren
+ * String zurück — der Aufrufer weiß dann, dass keine Tabelle gewollt ist.
+ *
+ * @param {{qualifyCount:number,rows:Array}|null} bestThirds
+ * @returns {string} HTML
+ */
+export function renderBestThirdsTable(bestThirds) {
+  if (!bestThirds || !Array.isArray(bestThirds.rows) || bestThirds.rows.length === 0) {
+    return '';
+  }
+  const { qualifyCount, rows } = bestThirds;
+  const fmt = (n) => (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  const body = rows
+    .map((r, i) => {
+      const qualifies = r.qualifies === true;
+      return `<tr class="t-thirds-row${qualifies ? ' is-qualified' : ' is-out'}">
+        <td class="t-thirds-rank">${i + 1}.${qualifies ? ' ✓' : ''}</td>
+        <td class="t-thirds-team">${esc(r.name || r.teamId || '—')}</td>
+        <td class="t-thirds-num">${fmt(r.pointsPerGame ?? 0)}</td>
+        <td class="t-thirds-num">${fmt(r.goalDiffPerGame ?? 0)}</td>
+        <td class="t-thirds-meta">${r.played ?? 0} Sp. · ${r.points ?? 0} Pkt</td>
+      </tr>`;
+    })
+    .join('');
+  return `<div class="t-card t-thirds-card">
+    <div class="t-card-body">
+      <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
+      <table class="t-thirds-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Team</th>
+            <th>Pkt/Sp</th>
+            <th>Diff/Sp</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 // Browser-Global-Hook: Falls spielplan-helpers.js per <script>
 // geladen wird (statt als ES-Modul), exponiert es die Helfer unter
 // window.spielplanHelpers, damit main.js sie findet.
@@ -424,5 +478,6 @@ if (typeof window !== 'undefined') {
     renderAsideTables,
     applyPropagatedMatches,
     renderStandingsGroups,
+    renderBestThirdsTable,
   };
 }

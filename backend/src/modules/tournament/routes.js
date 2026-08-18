@@ -32,6 +32,7 @@ import {
   propagateWinner,
   mergeConfig,
   generateSchedule,
+  rankBestThirds,
 } from './engine/index.js';
 import {
   buildTournamentViewContext,
@@ -977,6 +978,25 @@ export default async function tournamentRoutes(fastify) {
         };
       });
 
+      // Beste Dritte (Spec §6.3.1, §13.7). Nur wenn das Turnier überhaupt
+      // welche zulässt (config.bestThirds > 0) — sonst wäre die Tabelle
+      // bei single-group-Turnieren leer oder irreführend. rankBestThirds
+      // liefert die Drittplatzierten ALLER Gruppen, normalisiert nach
+      // Punkten/Spiel (Spec §10.4 — IMMER pro Spiel). Wir hängen die
+      // Top-N aus config.bestThirds als "qualifiziert" an.
+      let bestThirds = null;
+      if ((config.bestThirds ?? 0) > 0) {
+        const rowsPerGroup = groupRows.map((g) => g.standings);
+        const ranked = rankBestThirds(rowsPerGroup);
+        bestThirds = {
+          qualifyCount: config.bestThirds,
+          rows: ranked.map((r, idx) => ({
+            ...r,
+            qualifies: idx < config.bestThirds,
+          })),
+        };
+      }
+
       // Sport-Steuerung der Spaltenbezeichnung (Spec §5.4, §13.7):
       //   Bierpong  → „Becher" / Kürzel B
       //   Fußball   → „Tore"   / Kürzel T
@@ -993,6 +1013,7 @@ export default async function tournamentRoutes(fastify) {
       const scoreShort = shortBySport[sport] ?? 'P';
       return {
         groups: groupRows,
+        bestThirds,
         sport,
         scoreLabel,
         scoreShort,

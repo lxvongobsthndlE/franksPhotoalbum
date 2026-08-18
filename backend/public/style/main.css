@@ -5790,6 +5790,43 @@ button.tournament-header-btn {
 .t-standings-row.is-second { background: rgba(255, 152, 0, 0.05); }
 .t-standings-row.is-first .t-standings-rank::after { content: " ✓"; color: var(--good, #2e7d32); }
 .t-standings-row.is-second .t-standings-rank::after { content: " ✓"; color: var(--warn, #ff9800); }
+
+/* v3: Beste-Dritte-Tabelle (Bug 9, 2026-08-18). Spec §6.3.1 + §13.7.
+   Eigene Karte UNTER den Gruppen-Karten, zeigt pro-Spiel-normalisierte
+   Werte (Pkt/Sp, Diff/Sp) — die absoluten Werte sind zwischen Gruppen
+   unterschiedlicher Größe nicht vergleichbar. Top-N (config.bestThirds)
+   bekommen grünen Haken, der Rest ist ausgegraut. */
+.t-thirds-card { margin-top: 14px; }
+.t-thirds-title {
+  font-size: 13px;
+  margin: 0 0 10px 0;
+  font-weight: 700;
+  color: var(--text2);
+}
+.t-thirds-meta-inline {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 6px;
+}
+.t-thirds-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+.t-thirds-table th, .t-thirds-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.t-thirds-table th {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.t-thirds-table .t-thirds-rank { width: 36px; text-align: right; color: var(--muted); }
+.t-thirds-table .t-thirds-num { text-align: right; }
+.t-thirds-table .t-thirds-meta { color: var(--muted); font-size: 11px; }
+.t-thirds-row.is-qualified { background: rgba(46, 125, 50, 0.06); }
+.t-thirds-row.is-out { opacity: 0.55; }
+.t-thirds-row.is-qualified .t-thirds-rank::after { content: " ✓"; color: var(--good, #2e7d32); }
 }
 
 /* Match-Result-Modal: Heim vs Gast Header */
