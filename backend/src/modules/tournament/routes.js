@@ -1040,6 +1040,20 @@ export default async function tournamentRoutes(fastify) {
   // POST /api/tournaments/:id/matches/:matchId/result
   // Body: { scoreHome: number, scoreAway: number }
   fastify.post('/:id/matches/:matchId/result', async (request, reply) => {
+    // Trace-ID für strukturiertes Logging (Bug 7, 2026-08-18). Frontend
+    // generiert sie pro Save-Click und schickt sie als Header. So lässt
+    // sich der Lebenszyklus eines Klicks über Frontend+Backend korrelieren,
+    // wenn der User "Ergebnis erscheint nicht in der Liste" meldet.
+    const traceId =
+      request.headers['x-trace-id'] ||
+      `srv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const log = (...args) => console.log(`[trace-${traceId}]`, ...args);
+    log('POST /result enter', {
+      tournamentId: request.params.id,
+      matchId: request.params.matchId,
+      body: request.body,
+    });
+
     try {
       const ctx = await requireTournamentWrite(
         request,
@@ -1048,19 +1062,36 @@ export default async function tournamentRoutes(fastify) {
       );
       const { scoreHome, scoreAway } = request.body ?? {};
       if (!Number.isInteger(scoreHome) || !Number.isInteger(scoreAway)) {
+        log('validate:fail scores-not-integer', { scoreHome, scoreAway });
         return reply.code(400).send({ error: 'scoreHome und scoreAway müssen Integer sein' });
       }
       if (scoreHome < 0 || scoreAway < 0) {
+        log('validate:fail scores-negative', { scoreHome, scoreAway });
         return reply.code(400).send({ error: 'Scores dürfen nicht negativ sein' });
       }
 
       const match = await fastify.prisma.match.findFirst({
         where: { id: request.params.matchId, tournamentId: ctx.tournament.id },
       });
-      if (!match) return reply.code(404).send({ error: 'Match nicht gefunden' });
+      if (!match) {
+        log('match:not-found');
+        return reply.code(404).send({ error: 'Match nicht gefunden' });
+      }
       if (!match.teamHome || !match.teamAway) {
+        log('match:teams-missing', { teamHome: match.teamHome, teamAway: match.teamAway });
         return reply.code(409).send({ error: 'Match hat noch keine Teams (Platzhalter offen)' });
       }
+      log('match:found', {
+        id: match.id,
+        stageId: match.stageId,
+        teamHome: match.teamHome,
+        teamAway: match.teamAway,
+        scoreHome: match.scoreHome,
+        scoreAway: match.scoreAway,
+        status: match.status,
+        winnerAdvancesTo: match.winnerAdvancesTo,
+        loserAdvancesTo: match.loserAdvancesTo,
+      });
 
       // KO-Matches dürfen kein Unentschieden — die nächste Runde braucht
       // einen Sieger. Vorher (Bug 2026-08-17) wurde der Score gespeichert
@@ -1072,6 +1103,7 @@ export default async function tournamentRoutes(fastify) {
       const isKo = stage && stage.type !== 'group';
       const isDraw = scoreHome === scoreAway;
       if (isKo && isDraw) {
+        log('validate:fail ko-draw-rejected');
         return reply.code(400).send({
           error: 'no_draw_in_knockout',
           message:
@@ -1090,65 +1122,109 @@ export default async function tournamentRoutes(fastify) {
       //
       // „completedAt" gäbe es im Schema auch nicht — falls wir das später
       // brauchen, kommt es in einer Migration. Vorerst nicht setzen.
-      const updated = await fastify.prisma.match.update({
-        where: { id: match.id },
-        data: {
-          scoreHome,
-          scoreAway,
-          status: 'finished',
-        },
+      //
+      // BUG 7 (2026-08-18): "KO-Ergebnis erscheint nicht in der Liste".
+      //   Vorher: score-update und cascade-updates waren SEQUENZIELLE
+      //   awaits OHNE Transaktion. Wenn die Cascade-Writes mid-loop
+      //   fehlschlugen, war der Score bereits committed und der User
+      //   sah einen Erfolg-Toast — beim Reload stand der Score da,
+      //   aber das Folgematch leer. Jetzt: score + cascade in EINER
+      //   Prisma-Transaktion → entweder beides committed oder beides
+      //   zurückgerollt.
+      //
+      // Wir PRE-COMPUTEN die Cascade-Schreibliste außerhalb der
+      // Transaktion (pure functions, kein DB-Zugriff), und führen nur
+      // die Writes selbst atomar aus. Das hält die Transaktion kurz.
+
+      let propagated = [];
+      let updated;
+      let updatedDto;
+      let propagatedDtos = [];
+
+      await fastify.prisma.$transaction(async (tx) => {
+        updated = await tx.match.update({
+          where: { id: match.id },
+          data: {
+            scoreHome,
+            scoreAway,
+            status: 'finished',
+          },
+        });
+        log('score:updated', { id: updated.id, scoreHome, scoreAway });
+
+        // Cascade + Propagation in KO-Matches.
+        if (isKo) {
+          // Für KO-Propagation brauchen wir den Sieger. Aus den Scores
+          // ableiten — NICHT aus der DB lesen.
+          const winnerTeamId =
+            scoreHome > scoreAway
+              ? match.teamHome
+              : scoreAway > scoreHome
+                ? match.teamAway
+                : null;
+          if (winnerTeamId) {
+            // allMatches INNERHALB der Transaktion lesen, damit
+            // eventuelle konkurrierende Writes sichtbar sind.
+            const allMatches = await tx.match.findMany({
+              where: { tournamentId: ctx.tournament.id },
+            });
+            const afterReset = resetCascade(match.id, allMatches);
+            // propagateWinner braucht scoreHome/scoreAway auf `updated`, das
+            // wir gerade frisch zurückbekommen haben — die DB hat sie schon.
+            const afterProp = propagateWinner(updated, afterReset);
+            const byId = new Map(afterProp.map((m) => [m.id, m]));
+            let writesPlanned = 0;
+            for (const m of afterReset) {
+              const next = byId.get(m.id);
+              if (!next) continue;
+              const before = allMatches.find((x) => x.id === m.id);
+              if (
+                before &&
+                (before.teamHome !== next.teamHome || before.teamAway !== next.teamAway)
+              ) {
+                await tx.match.update({
+                  where: { id: m.id },
+                  data: { teamHome: next.teamHome, teamAway: next.teamAway },
+                });
+                propagated.push(m.id);
+                writesPlanned++;
+              }
+            }
+            log('cascade:done', {
+              writesPlanned,
+              propagated,
+              winnerTeamId,
+            });
+          } else {
+            log('cascade:skip no-winner (draw?)');
+          }
+        } else {
+          log('cascade:skip not-ko');
+        }
+
+        // DTO-Antwort statt Roh-Row. propagatedMatches enthält die
+        // DTO-Repräsentation der durch die Propagation aktualisierten
+        // Folgespiele — damit das Frontend den Spielplan in-place
+        // aktualisieren kann, ohne die ganze View neu zu fetchen.
+        // (Bug 2026-08-17: vorher waren das nur IDs, Frontend musste
+        // openTournamentInstance() neu laden — spürbare Verzögerung.)
+        const view = await buildTournamentViewContext(
+          tx,
+          ctx.tournament.id
+        );
+        updatedDto = view.matches.find((m) => m.id === match.id);
+        propagatedDtos = propagated
+          .map((id) => view.matches.find((m) => m.id === id))
+          .filter(Boolean);
       });
 
-      // Cascade + Propagation in KO-Matches.
-      let propagated = [];
-      if (isKo) {
-        // Für KO-Propagation brauchen wir den Sieger. Aus den Scores
-        // ableiten — NICHT aus der DB lesen.
-        const winnerTeamId =
-          scoreHome > scoreAway ? match.teamHome : scoreAway > scoreHome ? match.teamAway : null;
-        if (winnerTeamId) {
-          const allMatches = await fastify.prisma.match.findMany({
-            where: { tournamentId: ctx.tournament.id },
-          });
-          const afterReset = resetCascade(match.id, allMatches);
-          // propagateWinner braucht scoreHome/scoreAway auf `updated`, das
-          // wir gerade frisch zurückbekommen haben — die DB hat sie schon.
-          const afterProp = propagateWinner(updated, afterReset);
-          const byId = new Map(afterProp.map((m) => [m.id, m]));
-          for (const m of afterReset) {
-            const next = byId.get(m.id);
-            if (!next) continue;
-            const before = allMatches.find((x) => x.id === m.id);
-            if (
-              before &&
-              (before.teamHome !== next.teamHome || before.teamAway !== next.teamAway)
-            ) {
-              await fastify.prisma.match.update({
-                where: { id: m.id },
-                data: { teamHome: next.teamHome, teamAway: next.teamAway },
-              });
-              propagated.push(m.id);
-            }
-          }
-        }
-      }
-
-      // DTO-Antwort statt Roh-Row. propagatedMatches enthält die
-      // DTO-Repräsentation der durch die Propagation aktualisierten
-      // Folgespiele — damit das Frontend den Spielplan in-place
-      // aktualisieren kann, ohne die ganze View neu zu fetchen.
-      // (Bug 2026-08-17: vorher waren das nur IDs, Frontend musste
-      // openTournamentInstance() neu laden — spürbare Verzögerung.)
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
-      const updatedDto = view.matches.find((m) => m.id === match.id);
-      const propagatedDtos = propagated
-        .map((id) => view.matches.find((m) => m.id === id))
-        .filter(Boolean);
+      log('response:sent 200', {
+        propagatedCount: propagated.length,
+        propagatedIds: propagated,
+      });
       return { match: updatedDto, propagated, propagatedMatches: propagatedDtos };
     } catch (err) {
+      log('error', err?.message || err);
       return handleError(reply, err, 'Ergebnis eintragen fehlgeschlagen');
     }
   });

@@ -2939,10 +2939,15 @@ async function rescheduleTournament(tournamentId, tournamentName) {
  * Nach dem Speichern:
  *   - Toast mit Score + ggf. „N Folgespiele aktualisiert"
  *   - Modal schließt
- *   - Detail-View wird via openTournamentInstance() neu geladen.
- *     Das ist KEIN Browser-Reload — nur ein re-render. Der Spielplan-
- *     Tab ist danach aktuell, KO-Brackets zeigen den richtigen Sieger,
- *     Aside zeigt das nächste offene Spiel.
+ *   - Detail-View wird IMMER via openTournamentInstance() neu geladen.
+ *     Vorher (Bug 2026-08-18) wurde bei Cascade ein In-Place-Patch
+ *     gemacht (applyPropagatedMatches) — der hat aber die Score-Karte
+ *     des GERADE gespeicherten Matches NICHT aktualisiert. Resultat:
+ *     das Match blieb in der Liste stale, der User dachte der Save
+ *     hätte nicht geklappt und speicherte doppelt. Jetzt: immer full
+ *     re-fetch, das ist die einzige korrekte Lösung.
+ *     KEIN Browser-Reload — nur ein re-render. KO-Brackets zeigen
+ *     den richtigen Sieger, Aside zeigt das nächste offene Spiel.
  */
 async function openResultEntryModal(tournamentId, matchId = null, allMatches = []) {
   if (!tournamentId) return;
@@ -3075,25 +3080,58 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
 
   dlg.querySelector('#result-entry-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Trace-ID für strukturiertes Logging (Bug 7, 2026-08-18). Eine ID
+    // pro Save-Klick, geht als x-trace-id-Header an den Server UND in
+    // jede Konsolen-Zeile dieses Lebenszyklus. Wenn der User wieder
+    // "Ergebnis erscheint nicht" meldet, brauchen wir nur diese ID, um
+    // Frontend + Backend zu korrelieren.
+    //
+    // Logs sind IMMER aktiv (Bug 7 ist User-blocking — der User muss
+    // beim nächsten Fehlversuch einfach die Konsole öffnen und uns die
+    // Trace-ID geben). Wer sie leiser haben will:
+    //   window.tournamentTraceSilent = true
+    const traceId =
+      'cli-' +
+      Date.now().toString(36) +
+      '-' +
+      Math.random().toString(36).slice(2, 6);
+    const tlog = (...args) => {
+      if (typeof window === 'undefined' || window.tournamentTraceSilent !== true) {
+        // eslint-disable-next-line no-console
+        console.log(`[trace-${traceId}]`, ...args);
+      }
+    };
+    tlog('modal:submit', { tournamentId, modalMatchId: matchId });
+
     const mId = mIdInput?.value?.trim();
     if (!mId) {
+      tlog('submit:abort no-match-id');
       toast('Bitte zuerst ein Match auswählen', 'error');
       return;
     }
     const sh = Number(dlg.querySelector('#re-home').value);
     const sa = Number(dlg.querySelector('#re-away').value);
     if (!Number.isInteger(sh) || !Number.isInteger(sa) || sh < 0 || sa < 0) {
+      tlog('submit:abort invalid-scores', { sh, sa });
       toast('Ergebnisse müssen nicht-negative ganze Zahlen sein', 'error');
       return;
     }
+    tlog('submit:scores-ok', { mId, sh, sa });
     const submitBtn = dlg.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     try {
+      tlog('apiCall:request', { method: 'POST', mId, sh, sa });
       const result = await apiCall(
         `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(mId)}/result`,
         'POST',
-        { scoreHome: sh, scoreAway: sa }
+        { scoreHome: sh, scoreAway: sa },
+        { headers: { 'x-trace-id': traceId } }
       );
+      tlog('apiCall:response', {
+        propagated: result?.propagated,
+        matchId: result?.match?.id,
+        propagatedMatchesCount: result?.propagatedMatches?.length,
+      });
       const propagated = Array.isArray(result?.propagated) ? result.propagated.length : 0;
       const undoNote = propagated
         ? ` (${propagated} Folgespiel${propagated === 1 ? '' : 'e'} aktualisiert)`
@@ -3102,23 +3140,38 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         `Ergebnis gespeichert (${sh} : ${sa})${undoNote}`,
         'success',
       );
+      tlog('toast:shown');
       dlg.remove();
-      // Detail-View aktualisieren, OHNE Browser-Reload. Wenn der Server
-      // propagatedMatches mitgeschickt hat, patchen wir den Spielplan
-      // in-place (siehe applyPropagatedMatches unten) — der Sieger steht
-      // dann sofort im nächsten Match, ohne full-re-render. Nur wenn
-      // KEINE propagation kam (Gruppenphase ohne Folgespiel), machen wir
-      // den vollen Re-Fetch, um sicher zu sein, dass auch Aside, Brackets
-      // und Tabellen stimmen.
-      const propagatedMatches = Array.isArray(result?.propagatedMatches)
-        ? result.propagatedMatches
-        : [];
-      if (propagatedMatches.length > 0 && typeof applyPropagatedMatches === 'function') {
-        applyPropagatedMatches(propagatedMatches);
-      } else {
-        await openTournamentInstance(tournamentId);
-      }
+      tlog('modal:removed');
+
+      // BUG 7 (2026-08-18, "Ergebnis erscheint nicht in der Liste"):
+      //   Die vorherige Optimierung hat bei Cascade nur die FOLGE-
+      //   Matches in-place gepatcht (applyPropagatedMatches) und einen
+      //   full-reload ÜBERSPRUNGEN. Das hat dazu geführt, dass die
+      //   Score-Karte des GERADE gespeicherten Matches stale blieb
+      //   (z. B. VF 3 zeigte weiter "– : –", obwohl das Ergebnis in
+      //   der DB stand). Der User sah nur den aktualisierten Cascade-
+      //   target und dachte, der Save hätte nicht geklappt → Doppel-
+      //   speicherung.
+      //
+      //   Fix: IMMER full re-fetch nach Score-Save. Die In-Place-Patch-
+      //   Funktion bleibt im Code (kann anderswo nützlich sein), wird
+      //   hier aber nicht mehr aufgerufen. Die 200-500ms sind es wert,
+      //   weil das die einzige korrekte Lösung für konsistente UI ist.
+      //
+      //   applyPropagatedMatches patcht nur Folge-Matches. Es müsste
+      //   AUCH die Source-Match-Karte (Score + isFinished + winner-
+      //   highlight) aktualisieren, damit der in-place-Pfad korrekt
+      //   wäre. Das wäre mehr Code für eine ~200ms-Optimierung, die
+      //   der User als "Speichern unzuverlässig" wahrnimmt.
+      tlog('view:openTournamentInstance start (always-full-refresh)');
+      await openTournamentInstance(tournamentId);
+      tlog('view:openTournamentInstance end');
+      tlog('submit:done');
     } catch (err) {
+      tlog('submit:error', { message: err?.message, status: err?.status });
+      // eslint-disable-next-line no-console
+      console.error(`[trace-${traceId}] submit failed:`, err);
       submitBtn.disabled = false;
       toast(err.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');
     }

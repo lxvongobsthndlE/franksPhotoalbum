@@ -160,10 +160,10 @@ async function parseApiResponse(response) {
 }
 
 // ── API CALL HELPER WITH AUTO-AUTHORIZATION ────────────────
-export async function apiCall(endpoint, method = 'GET', body = null) {
+export async function apiCall(endpoint, method = 'GET', body = null, extra = {}) {
   const options = {
     method,
-    headers: {},
+    headers: { ...(extra?.headers || {}) },
     credentials: 'include', // Include cookies (for refresh token)
   };
 
