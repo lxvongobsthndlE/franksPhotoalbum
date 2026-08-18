@@ -5744,52 +5744,106 @@ button.tournament-header-btn {
   outline: none;
 }
 
-/* v3: Standings / Schedule-Tabellen */
+/* v3: Standings / Schedule-Tabellen
+   Bug 14 (2026-08-18): table-layout: fixed + einheitliche Spaltenbreiten
+   über die drei Gruppentabellen und die Dritte-Wertung hinweg, damit
+   sie untereinander fluchten. Außerdem Header-Zahlenspalten rechtsbündig,
+   damit Überschrift und Werte immer dieselbe Ausrichtung haben (User-
+   Hinweis: bei „Pkt." lag die Überschrift mittig, die Zahl ganz rechts —
+   30px Versatz). Pl. + Team linksbündig, der Rest rechtsbündig. */
 .t-standings-table,
-.t-schedule-table {
+.t-thirds-table {
+  table-layout: fixed;
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
+.t-standings-table col,
+.t-thirds-table col { box-sizing: border-box; }
 .t-standings-table th,
 .t-standings-table td,
-.t-schedule-table th,
-.t-schedule-table td {
+.t-thirds-table th,
+.t-thirds-table td {
   padding: 6px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
 .t-standings-table th,
-.t-schedule-table th {
+.t-thirds-table th {
   font-size: 11px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-/* Numerische Zellen rechtsbündig + monospaced (Bug 8, 2026-08-18:
-   Spec §13.7 hat neun Spalten — Sp/S/U/N/Becher/Diff/Pkt. alle
-   rechtsbündig, damit die Zahlen untereinander stehen). */
-.t-standings-table .t-standings-num {
+/* Numerische Zellen + ihre Überschriften rechtsbündig.
+   Bug 14: vorher waren die <th> linksbündig (Default), die <td>
+   rechtsbündig — bei kurzen Überschriften wie „Pkt." entsteht
+   sofort der Versatz. Jetzt: gleiche text-align-Eigenschaft für
+   <th> und <td> in jeder Zahlenspalte. */
+.t-standings-table .t-standings-num,
+.t-standings-table th.is-num,
+.t-thirds-table .t-thirds-num,
+.t-thirds-table th.is-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.t-standings-table .t-standings-rank {
+.t-standings-table .t-standings-rank,
+.t-standings-table th.is-rank,
+.t-thirds-table .t-thirds-rank,
+.t-thirds-table th.is-rank {
   text-align: right;
-  width: 36px;
   color: var(--muted);
 }
-.t-standings-table .t-standings-num.is-positive { color: var(--good, #2e7d32); }
-.t-standings-table .t-standings-num.is-negative { color: var(--bad, #c62828); }
-.t-standings-table .t-standings-num.is-points {
+.t-standings-table .t-standings-team,
+.t-standings-table th.is-team,
+.t-thirds-table .t-thirds-team,
+.t-thirds-table th.is-team {
+  text-align: left;
+}
+.t-standings-table .t-standings-num.is-positive,
+.t-thirds-table .t-thirds-num.is-positive { color: var(--good, #2e7d32); }
+.t-standings-table .t-standings-num.is-negative,
+.t-thirds-table .t-thirds-num.is-negative { color: var(--bad, #c62828); }
+.t-standings-table .t-standings-num.is-points,
+.t-thirds-table .t-thirds-num.is-points {
   font-weight: 700;
   color: var(--text2);
 }
-/* Qualifikations-Marker für Top-N (Bug 9 vorbereitet): */
+/* Bug 14 (2026-08-18): Spaltenbreiten-Fallback für Markup ohne
+   <colgroup>. Der Renderer setzt die Breiten inzwischen explizit
+   per <col>-Element (alle drei Tabellen gleich), aber für eventuelle
+   alte Instanzen ohne colgroup bleiben diese Werte aktiv. Pl. + Mark
+   schmal, Team groß, Gruppe mittig, Zahlenspalten gleich verteilt. */
+.t-standings-table .t-standings-rank,
+.t-thirds-table .t-thirds-rank { width: 44px; }
+.t-thirds-table .t-thirds-group { width: 64px; }
+.t-standings-table .t-standings-num,
+.t-thirds-table .t-thirds-num { width: 8%; }
+.t-thirds-table .t-thirds-mark { width: 32px; }
+/* Qualifikations-Marker:
+   Bug 14: vorher gab es pro Reihe bis zu 3 Symbole (Stern/Pfeil + Zahl +
+   Häkchen-::after). Reduziert auf: Rank-Zahl + Häkchen daneben. Die
+   Zeilenfarbe (grün / orange / ausgegraut) trägt den Rest. */
 .t-standings-row.is-first { background: rgba(46, 125, 50, 0.06); }
 .t-standings-row.is-second { background: rgba(255, 152, 0, 0.05); }
-.t-standings-row.is-first .t-standings-rank::after { content: " ✓"; color: var(--good, #2e7d32); }
-.t-standings-row.is-second .t-standings-rank::after { content: " ✓"; color: var(--warn, #ff9800); }
+.t-standings-row.is-first .t-standings-rank::after,
+.t-standings-row.is-second .t-standings-rank::after {
+  content: " ✓";
+  margin-left: 4px;
+  font-weight: 700;
+}
+.t-standings-row.is-first .t-standings-rank::after { color: var(--good, #2e7d32); }
+.t-standings-row.is-second .t-standings-rank::after { color: var(--warn, #ff9800); }
+/* Dritte-Wertung: der Haken wanderte aus einer eigenen <td class="t-thirds-mark">
+   in die Rank-Zelle, damit die Tabelle dieselbe Spalten-Aufteilung
+   wie die Gruppen-Tabelle hat (Bug 14: konsistente Spaltenanzahl). */
+.t-thirds-row.is-qualified .t-thirds-rank::after {
+  content: " ✓";
+  margin-left: 4px;
+  font-weight: 700;
+  color: var(--good, #2e7d32);
+}
 
 /* v3: Beste-Dritte-Tabelle (Bug 9, 2026-08-18). Spec §6.3.1 + §13.7.
    Eigene Karte UNTER den Gruppen-Karten, zeigt pro-Spiel-normalisierte
@@ -5812,29 +5866,21 @@ button.tournament-header-btn {
   font-size: 11px;
   margin-left: 6px;
 }
-.t-thirds-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
-.t-thirds-table th, .t-thirds-table td {
-  padding: 6px 8px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-.t-thirds-table th {
-  font-size: 11px;
+/* Bug 14 (2026-08-18): Layout, Ausrichtung und Breiten werden jetzt
+   zusammen mit den Gruppen-Tabellen oben definiert (table-layout: fixed,
+   gleiche Spalten-Aufteilung). Hier nur noch die Dritte-spezifischen
+   Spalten: Gruppe-Spalte linksbündig, schmal, muted. */
+.t-thirds-table .t-thirds-group,
+.t-thirds-table th.is-group {
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
+  text-align: left;
 }
-.t-thirds-table .t-thirds-rank { width: 36px; text-align: right; color: var(--muted); }
 .t-thirds-table .t-thirds-team { font-weight: 500; }
-.t-thirds-table .t-thirds-group { color: var(--muted); width: 60px; }
-.t-thirds-table .t-thirds-num { text-align: right; }
-.t-thirds-table .t-thirds-num.is-positive { color: var(--good, #2e7d32); }
-.t-thirds-table .t-thirds-num.is-negative { color: var(--bad, #c0453a); }
-.t-thirds-table .t-thirds-num.is-points { font-weight: 700; }
-.t-thirds-table .t-thirds-mark {
-  width: 26px; text-align: center;
-  color: var(--good, #2e7d32); font-weight: 700;
+.t-thirds-table .t-thirds-mark,
+.t-thirds-table th.is-mark {
+  text-align: center;
+  color: var(--good, #2e7d32);
+  font-weight: 700;
 }
 .t-thirds-row.is-qualified { background: rgba(46, 125, 50, 0.06); }
 .t-thirds-row.is-out { opacity: 0.55; }

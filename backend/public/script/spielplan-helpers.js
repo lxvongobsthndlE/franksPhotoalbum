@@ -340,6 +340,23 @@ export function renderAsideTables(matches, limit = 6) {
 }
 
 /**
+ * Spaltenbreiten für Standings- und Dritte-Wertung-Tabellen.
+ *
+ * Bug 14 (2026-08-18, „Tabellen-Spalten fluchten nicht"): Vorher
+ * hatte jede Tabelle ihre Breiten aus dem Inhalt berechnet — bei
+ * drei Gruppen neben­einander sah das unruhig aus. Jetzt: feste
+ * Prozentbreiten über ein <colgroup> für alle Tabellen identisch.
+ * Pl. + Mark fix, Team bekommt den großen Rest, Zahlenspalten
+ * gleichmäßig. Wird per renderColgroup() als <col>-Liste eingesetzt.
+ */
+const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+
+function renderColgroup(widths) {
+  return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
+}
+
+/**
  * Renderer für die Gruppentabellen (Spec §13.7).
  *
  * Spalten in fester Reihenfolge: Pl · Team · Sp · S · U · N · Becher · Diff · Pkt.
@@ -352,7 +369,10 @@ export function renderAsideTables(matches, limit = 6) {
  * Label in Spalte 3.
  *
  * Top-2 bekommen `is-first` / `is-second`-Klassen für den Qualifikations-
- * Marker (CSS-Hook für den Haken).
+ * Marker (CSS-Hook für den Haken in derselben Zelle wie die Rank-Zahl).
+ *
+ * Bug 14: <th> bekommen `is-rank` / `is-team` / `is-num`-Klassen, damit
+ * Header-Zellen dieselbe Ausrichtung haben wie ihre <td>-Gegenstücke.
  *
  * @param {Array<{groupName?,groupKey?,standings:Array}>} groups
  * @param {string} scoreLabel   "Becher" | "Tore" | "Punkte" (sport-abhängig)
@@ -387,17 +407,18 @@ export function renderStandingsGroups(groups, scoreLabel) {
         <div class="t-card-body">
           <h3 class="t-standings-group-title">${title}</h3>
           <table class="t-standings-table">
+            ${renderColgroup(STANDINGS_COL_WIDTHS)}
             <thead>
               <tr>
-                <th>Pl.</th>
-                <th>Team</th>
-                <th>Sp.</th>
-                <th>S</th>
-                <th>U</th>
-                <th>N</th>
-                <th>${esc(scoreLabel)}</th>
-                <th>Diff</th>
-                <th>Pkt.</th>
+                <th class="is-rank">Pl.</th>
+                <th class="is-team">Team</th>
+                <th class="is-num">Sp.</th>
+                <th class="is-num">S</th>
+                <th class="is-num">U</th>
+                <th class="is-num">N</th>
+                <th class="is-num">${esc(scoreLabel)}</th>
+                <th class="is-num">Diff</th>
+                <th class="is-num">Pkt.</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -461,7 +482,6 @@ export function renderBestThirdsTable(bestThirds) {
         <td class="t-thirds-num">${gf}:${ga}</td>
         <td class="t-thirds-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}">${fmtDiff(gd)}</td>
         <td class="t-thirds-num is-points">${r.points ?? 0}</td>
-        <td class="t-thirds-mark">${qualifies ? '✓' : ''}</td>
       </tr>`;
     })
     .join('');
@@ -475,19 +495,19 @@ export function renderBestThirdsTable(bestThirds) {
       <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
       ${mixedNote}
       <table class="t-thirds-table">
+        ${renderColgroup(THIRDS_COL_WIDTHS)}
         <thead>
           <tr>
-            <th>Pl.</th>
-            <th>Team</th>
-            <th>Gruppe</th>
-            <th>Sp.</th>
-            <th>S</th>
-            <th>U</th>
-            <th>N</th>
-            <th>Becher</th>
-            <th>Diff</th>
-            <th>Pkt.</th>
-            <th></th>
+            <th class="is-rank">Pl.</th>
+            <th class="is-team">Team</th>
+            <th class="is-group">Gruppe</th>
+            <th class="is-num">Sp.</th>
+            <th class="is-num">S</th>
+            <th class="is-num">U</th>
+            <th class="is-num">N</th>
+            <th class="is-num">Becher</th>
+            <th class="is-num">Diff</th>
+            <th class="is-num">Pkt.</th>
           </tr>
         </thead>
         <tbody>${body}</tbody>

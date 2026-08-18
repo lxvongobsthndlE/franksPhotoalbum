@@ -55,12 +55,27 @@ describe('renderBestThirdsTable', () => {
     const html = renderBestThirdsTable(sample);
     expect(html).toContain('Beste Dritte');
     expect(html).toContain('Top 2 qualifizieren sich');
-    // Spalten: Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. · ✓
+    // Spalten: Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.
+    // Bug 14 (2026-08-18): <th> haben jetzt Ausrichtungs-Klassen, und
+    // die separate Mark-Spalte ist weg — der Quali-Haken hängt jetzt
+    // per ::after an der Rank-Zelle, damit alle Tabellen (Gruppe +
+    // Dritte) dieselbe Spaltenaufteilung haben.
     const headerMatch = html.match(/<thead>[\s\S]*?<\/thead>/);
     expect(headerMatch).toBeTruthy();
     expect(headerMatch[0]).toMatch(
-      /<th>Pl\.<\/th>[\s\S]*<th>Team<\/th>[\s\S]*<th>Gruppe<\/th>[\s\S]*<th>Sp\.<\/th>[\s\S]*<th>S<\/th>[\s\S]*<th>U<\/th>[\s\S]*<th>N<\/th>[\s\S]*<th>Becher<\/th>[\s\S]*<th>Diff<\/th>[\s\S]*<th>Pkt\.<\/th>[\s\S]*<th><\/th>/,
+      /<th class="is-rank">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-group">Gruppe<\/th>[\s\S]*<th class="is-num">Sp\.<\/th>[\s\S]*<th class="is-num">S<\/th>[\s\S]*<th class="is-num">U<\/th>[\s\S]*<th class="is-num">N<\/th>[\s\S]*<th class="is-num">Becher<\/th>[\s\S]*<th class="is-num">Diff<\/th>[\s\S]*<th class="is-num">Pkt\.<\/th>/,
     );
+  });
+
+  it('Bug 14: <colgroup> mit festen Spaltenbreiten für Dritte-Tabelle', () => {
+    const html = renderBestThirdsTable(sample);
+    expect(html).toMatch(/<colgroup>[\s\S]*<\/colgroup>/);
+    const cols = html.match(/<col style="width:[^"]+">/g) || [];
+    // 10 Spalten: Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.
+    expect(cols.length).toBe(10);
+    expect(cols[0]).toMatch(/width:6%/);
+    expect(cols[1]).toMatch(/width:auto/);
+    expect(cols[2]).toMatch(/width:8%/); // Gruppe
   });
 
   it('zeigt absolute Werte (Pkt, Sp, S, U, N, Becher), NICHT pro-Spiel-normalisiert', () => {
@@ -95,14 +110,16 @@ describe('renderBestThirdsTable', () => {
     expect(qualifiedMatches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('zeigt Haken in der Mark-Spalte für qualifizierte Reihen', () => {
+  it('zeigt Haken für qualifizierte Reihen (Bug 14: Haken in der Rank-Zelle, nicht eigener Spalte)', () => {
     const html = renderBestThirdsTable(sample);
-    // Genau 2 Haken in der t-thirds-mark-Spalte (Top 2).
-    const markCells = (html.match(/<td class="t-thirds-mark">✓<\/td>/g) || []);
-    expect(markCells.length).toBe(2);
-    // Ausgeschiedene Reihen: leeres Mark-Cell.
-    const emptyMarkCells = (html.match(/<td class="t-thirds-mark"><\/td>/g) || []);
-    expect(emptyMarkCells.length).toBe(1);
+    // Genau 2 Reihen bekommen die is-qualified-Klasse — der Haken
+    // wird per ::after an die Rank-Zelle gehängt, nicht als <td>.
+    const qualifiedRows = (html.match(/<tr class="t-thirds-row is-qualified">/g) || []);
+    expect(qualifiedRows.length).toBe(2);
+    const outRows = (html.match(/<tr class="t-thirds-row is-out">/g) || []);
+    expect(outRows.length).toBe(1);
+    // Es gibt keine <td class="t-thirds-mark"> mehr (Bug 14).
+    expect(html).not.toContain('t-thirds-mark');
   });
 
   it('zeigt Hinweis auf pro-Spiel-Normierung nur bei ungleich großen Gruppen', () => {

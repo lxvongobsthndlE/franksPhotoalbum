@@ -51,14 +51,28 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
 
   it('Spalten-Reihenfolge: Pl · Team · Sp · S · U · N · Becher · Diff · Pkt', () => {
     const html = renderStandingsGroups(fixture, 'Becher');
-    // Header prüfen — exakte Reihenfolge der Spec §13.7
+    // Header prüfen — exakte Reihenfolge der Spec §13.7.
+    // Bug 14 (2026-08-18): <th> bekommen jetzt Ausrichtungs-Klassen
+    // (is-rank / is-team / is-num), damit Header-Zellen dieselbe
+    // text-align-Eigenschaft haben wie ihre <td>-Gegenstücke.
     const headerMatch = html.match(/<thead>[\s\S]*?<\/thead>/);
     expect(headerMatch).toBeTruthy();
     const header = headerMatch[0];
-    // Reihenfolge der th-Labels:
+    // Reihenfolge der th-Labels (mit Ausrichtungs-Klassen):
     expect(header).toMatch(
-      /<th>Pl\.<\/th>[\s\S]*<th>Team<\/th>[\s\S]*<th>Sp\.<\/th>[\s\S]*<th>S<\/th>[\s\S]*<th>U<\/th>[\s\S]*<th>N<\/th>[\s\S]*<th>Becher<\/th>[\s\S]*<th>Diff<\/th>[\s\S]*<th>Pkt\.<\/th>/,
+      /<th class="is-rank">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-num">Sp\.<\/th>[\s\S]*<th class="is-num">S<\/th>[\s\S]*<th class="is-num">U<\/th>[\s\S]*<th class="is-num">N<\/th>[\s\S]*<th class="is-num">Becher<\/th>[\s\S]*<th class="is-num">Diff<\/th>[\s\S]*<th class="is-num">Pkt\.<\/th>/,
     );
+  });
+
+  it('Bug 14: <colgroup> mit festen Spaltenbreiten (table-layout: fixed)', () => {
+    const html = renderStandingsGroups(fixture, 'Becher');
+    // Genau 9 <col>-Elemente für die 9 Spalten, mit Prozentbreiten.
+    expect(html).toMatch(/<colgroup>[\s\S]*<\/colgroup>/);
+    const cols = html.match(/<col style="width:[^"]+">/g) || [];
+    expect(cols.length).toBe(9);
+    // Team-Spalte bekommt den großen Rest (auto), Pl. eine kleine Fix-Breite.
+    expect(cols[0]).toMatch(/width:6%/);
+    expect(cols[1]).toMatch(/width:auto/);
   });
 
   it('Spalte „Becher" zeigt erzielt:kassiert (gf:ga) als Doppelwert', () => {
@@ -115,9 +129,9 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     // Spalten-ÜBERSCHRIFT in Spalte 7 (gf:ga), nicht die Spalten 3
     // (Sp.) oder 9 (Pkt.).
     const html = renderStandingsGroups(fixture, 'Tore');
-    expect(html).toMatch(/<th>Tore<\/th>/);
+    expect(html).toMatch(/<th class="is-num">Tore<\/th>/);
     // Sicherstellen: Spalte 3 hat NICHT das Score-Label.
-    expect(html).not.toMatch(/<th>Tore<\/th><th>S<\/th>/);
+    expect(html).not.toMatch(/<th class="is-num">Tore<\/th><th class="is-num">S<\/th>/);
   });
 });
 
@@ -148,7 +162,7 @@ describe('renderStandingsGroups — Edge cases', () => {
       [{ groupKey: 'X', standings: [{ teamId: 't1', name: 'A', points: 5 }] }],
       'Punkte',
     );
-    expect(html).toMatch(/<th>Punkte<\/th>/);
+    expect(html).toMatch(/<th class="is-num">Punkte<\/th>/);
   });
 
   it('HTML-Escape für Teamnamen mit Sonderzeichen', () => {
