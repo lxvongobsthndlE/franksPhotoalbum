@@ -2667,7 +2667,7 @@ function renderTournamentInstanceDetailV3(t) {
             </section>
             <section class="t-view" data-view="baum">
               <div class="t-view-head"><div class="t-view-title">Turnierbaum</div></div>
-              ${placeholder('Der Turnierbaum', 'Kommt in Etappe B.4.')}
+              <div data-tab-body="baum-mount"></div>
             </section>
             <section class="t-view" data-view="teams">
               <div class="t-view-head"><div class="t-view-title">Teams</div></div>
@@ -2735,6 +2735,16 @@ function renderTournamentInstanceDetailV3(t) {
           loadStandingsTab(t.id).catch(() => {
             mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
           });
+        }
+      }
+      // Turnierbaum-Tab (Etappe B.4): einmal rendern, danach Re-Fetch
+      // nur über expliziten Reload. Verbindungslinien + Konvergenz-
+      // Versatz kommen aus tournament.css (.bracket-col:nth-child(n)).
+      if (view === 'baum') {
+        const mount = detail.querySelector('[data-tab-body="baum-mount"]');
+        if (mount && !mount.dataset.loaded) {
+          mount.dataset.loaded = '1';
+          loadBracketTab(t.id).catch(() => { /* Fehler ist im Funktionsrumpf */ });
         }
       }
       // Regeln-Tab: immer rendern, auch bei Mehrfachklick (Edit-Mode zurücksetzen).
@@ -2985,6 +2995,96 @@ async function loadStandingsTab(tournamentId) {
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
   }
+}
+
+/**
+ * Turnierbaum-Tab rendern (Etappe B.4).
+ *
+ * Spec §8.2: KO-Phase als links-nach-rechts-Baum, Runden = Spalten,
+ * Verbindungslinien zwischen den Spielen. Reiner Read-View — keine
+ * Aktionen am Baum selbst; Ergebnisse werden weiter über den
+ * Spielplan-Tab eingetragen, danach propagiert die Engine die Sieger
+ * ins Folge-Match und der nächste loadBracketTab zeigt den neuen Slot.
+ *
+ * Lazy: einmal rendern, dataset.loaded verhindert Re-Fetch bei
+ * Tab-Wechsel (wie loadStandingsTab).
+ */
+async function loadBracketTab(tournamentId) {
+  if (!tournamentId) return;
+  const mount = document.querySelector('[data-tab-body="baum-mount"]');
+  if (!mount) return;
+  mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Turnierbaum…</p></div></div>';
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/bracket`, 'GET');
+    const matches = Array.isArray(data && data.matches) ? data.matches : [];
+    const renderer = (window.spielplanHelpers && window.spielplanHelpers.bracket && window.spielplanHelpers.bracket.renderBracket)
+      || ((globalThis.spielplanHelpers && globalThis.spielplanHelpers.bracket && globalThis.spielplanHelpers.bracket.renderBracket));
+    if (typeof renderer !== 'function') {
+      throw new Error('Bracket-Renderer nicht verfügbar (spielplan-helpers.js nicht geladen)');
+    }
+    mount.innerHTML = renderer(matches);
+    wireBracketTabs(mount);  // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
+  } catch (e) {
+    mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
+    toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
+  }
+}
+
+/**
+ * Verdrahtet die Runden-Tab-Leiste oberhalb des Brackets.
+ *
+ * Spec §13.8 (Mobile-Pflicht): "Runden-Tabs zum direkten Springen, die
+ * aktuell sichtbare ist hervorgehoben." Auf Desktop sind die Tabs via CSS
+ * ausgeblendet (display:none), aber wir hängen die Listener trotzdem an —
+ * billig, robust.
+ *
+ * - Click-Handler: Klick auf einen Tab scrollt die zugehörige .bracket-col
+ *   in den Snap-Anfang von .bracket-wrap (smooth scrollIntoView).
+ * - Scroll-Spy: IntersectionObserver auf .bracket-col-Kinder mit root
+ *   = .bracket-wrap. Sobald eine Spalte > 50% sichtbar ist, wird ihr
+ *   Tab hervorgehoben (.is-active).
+ *
+ * @param {HTMLElement} root   Container, in dem der Bracket-Tab montiert wurde
+ */
+function wireBracketTabs(root) {
+  if (!root) return;
+  const wrap = root.querySelector('.bracket-wrap');
+  const tabs = root.querySelectorAll('.bracket-tab');
+  const cols = root.querySelectorAll('.bracket-col[data-bracket-col]');
+  if (!wrap || !tabs.length || !cols.length) return;
+
+  // Click-Handler
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const label = tab.dataset.bracketTab;
+      if (!label || typeof wrap.querySelector !== 'function') return;
+      // data-bracket-col enthält Sonderzeichen-gefährliche Strings →
+      // CSS.escape sichert den Selektor ab.
+      const target = wrap.querySelector(`.bracket-col[data-bracket-col="${CSS.escape(label)}"]`);
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+      }
+    });
+  });
+
+  // Scroll-Spy via IntersectionObserver
+  if (typeof IntersectionObserver === 'function') {
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio > 0.5) {
+            const label = entry.target.dataset.bracketCol;
+            tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.bracketTab === label));
+          }
+        });
+      },
+      { root: wrap, threshold: [0, 0.5, 1] }
+    );
+    cols.forEach((col) => io.observe(col));
+  }
+
+  // Initial: erster Tab aktiv.
+  if (tabs[0]) tabs[0].classList.add('is-active');
 }
 
 /**

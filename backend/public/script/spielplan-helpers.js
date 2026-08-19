@@ -516,6 +516,216 @@ export function renderBestThirdsTable(bestThirds) {
   </div>`;
 }
 
+// === Turnierbaum (Etappe B.4) ============================================
+//
+// Verbindungslinien zwischen den Spielen sind der Kern des Bracket-Tabs:
+// "Wer kommt gegen wen?" muss auf einen Blick erkennbar sein. Der reine
+// Spaltenansatz ohne Linien wäre nur eine Liste.
+//
+// DTO-Hinweise (verifiziert via bracket.js / access/match.js):
+//   - 3RD-Match hat round='3RD' (NICHT bracketType='loser' — die ist
+//     fälschlich 'winner', siehe bracket.js:407).
+//   - home.name / away.name sind bei Placeholder-Slots BEREITS durch
+//     resolvePlaceholder() in aufgelösten Text umgewandelt
+//     ("Sieger VF 1", "Verlierer HF 1"). winnerLabel/loserLabel im DTO
+//     meinen hingegen "der Sieger DIESES Spiels spielt in <label>" —
+//     das ist das Folge-Match-Label, NICHT der aktuelle Slot-Text.
+//   - Runden-Reihenfolge kommt aus KO_ROUND_ORDER (siehe
+//     backend/src/modules/tournament/engine/schedule.js:26-34). Damit
+//     sind Freilose (Runde mit weniger Spielen als erwartet) korrekt
+//     sortiert.
+
+// Muss identisch sein mit backend/src/modules/tournament/engine/schedule.js
+// Falls das Backend weitere Runden hinzufügt → hier ergänzen + Test anpassen.
+const KO_ROUND_ORDER = {
+  R64: 0, R32: 1, R16: 2, QF: 3, SF: 4, '3RD': 5, F: 6,
+};
+
+/**
+ * Gruppiert KO-Matches in Winner-Bracket-Runden (sortiert LINKS nach
+ * RECHTS: niedrigste Runde zuerst) und trennt das Spiel um Platz 3 ab.
+ *
+ * Erkennung 3RD: `m.round === '3RD'` (bracketType ist im DTO
+ * fälschlich 'winner', siehe bracket.js:407 — daher NICHT darauf
+ * verlassen).
+ *
+ * Erkennung Winner-Bracket-Runde: alles ohne 3RD, gruppiert nach
+ * roundLabel, sortiert nach KO_ROUND_ORDER über das erste Match.
+ *
+ * @param {Array} matches   KO-Match-DTOs (aus GET /:id/bracket)
+ * @returns {{winnerBracket: Array<{label:string, matches: Array}>, thirdPlace: object|null}}
+ */
+export function groupMatchesByRound(matches) {
+  if (!Array.isArray(matches)) return { winnerBracket: [], thirdPlace: null };
+
+  const thirdPlace = matches.find((m) => m && m.round === '3RD') || null;
+
+  // Reihenfolge der Winner-Bracket-Runden ableiten:
+  // distinct roundLabel → erste Runde = niedrigster KO_ROUND_ORDER-Wert.
+  const byLabel = new Map();
+  for (const m of matches) {
+    if (!m || m.round === '3RD') continue;
+    if (!byLabel.has(m.roundLabel)) byLabel.set(m.roundLabel, []);
+    byLabel.get(m.roundLabel).push(m);
+  }
+  const winnerBracket = [...byLabel.entries()]
+    .map(([label, list]) => ({
+      label,
+      matches: list.slice().sort((a, b) => (a?.bracketPos ?? 0) - (b?.bracketPos ?? 0)),
+    }))
+    .sort((a, b) => {
+      const aKey = a.matches[0]?.round ?? 'F';
+      const bKey = b.matches[0]?.round ?? 'F';
+      return (KO_ROUND_ORDER[aKey] ?? 99) - (KO_ROUND_ORDER[bKey] ?? 99);
+    });
+
+  return { winnerBracket, thirdPlace };
+}
+
+/**
+ * Match-Karte für einen Bracket-Knoten.
+ *
+ * Eigene Komponente (NICHT renderMatchCardCompact), weil Spec §13.8
+ * Z.872 eine eigene Meta-Zeile verlangt (Zeit · Platte oder "Beendet").
+ * Erbt die .t-match-Klassen für Winner-Highlighting + Score-Layout
+ * + Dots, ergänzt die Meta-Zeile und einen Placeholder-Modifier.
+ *
+ * WICHTIG: home.name / away.name sind bereits resolved. Bei einem
+ * offenen Halbfinale steht im away-Slot "Sieger VF 2" (NICHT
+ * "Verlierer" — Verlierer kommen nur im 3RD-Match vor). Wir greifen
+ * daher NICHT auf m.winnerLabel/m.loserLabel zu — die meinen das
+ * Folge-Match, nicht den aktuellen Slot.
+ *
+ * @param {object} m   Match-DTO
+ * @returns {string}   HTML
+ */
+export function renderMatchCardBracket(m, extraStyle = '') {
+  const homeName = esc(m?.home?.name ?? '—');
+  const awayName = esc(m?.away?.name ?? '—');
+
+  // Kartenlayout: Teams UNTEREINANDER (User-Korrektur 2026-08-18 —
+  // Wimbledon-/Champions-League-Pattern). Score wird aufgespalten:
+  // homeScore und awayScore stehen rechtsbündig untereinander, damit
+  // man das Ergebnis senkrecht ablesen kann.
+  const homeHasScore = typeof m?.scoreHome === 'number';
+  const awayHasScore = typeof m?.scoreAway === 'number';
+  const homeScore = homeHasScore ? `${m.scoreHome}` : '–';
+  const awayScore = awayHasScore ? `${m.scoreAway}` : '–';
+
+  const meta = m?.isFinished
+    ? 'Beendet'
+    : (m?.scheduledTime && typeof m?.field === 'number')
+      ? `${m.scheduledTime} · Platte ${m.field}`
+      : '–';
+
+  const homeIsPlaceholder = m?.home?.kind === 'placeholder';
+  const awayIsPlaceholder = m?.away?.kind === 'placeholder';
+  const isPlaceholder = homeIsPlaceholder || awayIsPlaceholder;
+
+  const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
+  const homeDot = `<i class="t-dot${homeIsPlaceholder ? ' t-dot--placeholder' : ''}" style="${dotStyle(m?.home?.color)}" aria-hidden="true"></i>`;
+  const awayDot = `<i class="t-dot${awayIsPlaceholder ? ' t-dot--placeholder' : ''}" style="${dotStyle(m?.away?.color)}" aria-hidden="true"></i>`;
+
+  const classes = ['t-match', 't-match--bracket'];
+  if (isPlaceholder) classes.push('t-match--placeholder');
+  if (m?.isFinished) classes.push('t-match--done');
+
+  return `<div class="${classes.join(' ')}" data-match-id="${esc(m?.id ?? '')}"${extraStyle}>
+    <div class="t-match-bar"></div>
+    <div class="t-match-team">${homeDot}<span class="name">${homeName}</span></div>
+    <div class="t-match-score${homeHasScore ? '' : ' empty'}">${esc(homeScore)}</div>
+    <div class="t-match-team">${awayDot}<span class="name">${awayName}</span></div>
+    <div class="t-match-score${awayHasScore ? '' : ' empty'}">${esc(awayScore)}</div>
+    <div class="t-match-meta-line">${esc(meta)}</div>
+  </div>`;
+}
+
+/**
+ * Top-Level-Renderer für den Turnierbaum-Tab.
+ *
+ * Erzeugt `.bracket-wrap` mit Grid pro Runde (LINKS = früheste Runde,
+ * RECHTS = Finale) plus separate `.bracket-3rd-row` für das Spiel um
+ * Platz 3. Verbindungslinien zwischen den Knoten kommen aus CSS
+ * (::before/::after auf .t-match--bracket).
+ *
+ * @param {Array} matches   KO-Match-DTOs
+ * @returns {string}        HTML
+ */
+export function renderBracket(matches) {
+  if (!Array.isArray(matches) || matches.length === 0) {
+    return '<div class="t-card"><div class="t-card-body"><p class="t-hint">Der Turnierbaum erscheint, sobald die KO-Phase generiert wurde.</p></div></div>';
+  }
+  const { winnerBracket, thirdPlace } = groupMatchesByRound(matches);
+  const cols = winnerBracket.length;
+  const rows = winnerBracket[0]?.matches?.length ?? 0;
+
+  // Mobile-Tab-Leiste: ein Button pro Runde (nur sinnvoll wenn > 1 Spalte).
+  // Auf Desktop via CSS ausgeblendet, Listener werden trotzdem angehängt.
+  const tabsHtml = cols > 1
+    ? `<div class="bracket-tabs">
+        ${winnerBracket.map((r) =>
+          `<button type="button" class="bracket-tab" data-bracket-tab="${esc(r.label)}">${esc(r.label)}</button>`
+        ).join('')}
+      </div>`
+    : '';
+
+  // Architektur (Etappe B.4 nach Bug-16 Fix, 2026-08-19):
+  //   .bracket-wrap ist display:grid. .bracket-col ist display:contents,
+  //   damit seine Karten direkt zu Grid-Items des Wrappers werden.
+  //   Jede Karte trägt inline grid-column/grid-row — Konvergenz geometrisch
+  //   via Zeilen-Vielfachen (Spalte 1: span 1, Spalte 2: span 2, …).
+  //   Renderer steuert die Position, skaliert ohne CSS-Änderung über
+  //   beliebige Team-Zahlen (32+, 64+).
+  const colsHtml = winnerBracket.map((r, colIdx) => {
+    const colNum = colIdx + 1;
+    // Konvergenz: jede Spalte k belegt 2^(k-1) Zeilen pro Card.
+    //   Spalte 1 → 1 Zeile, Spalte 2 → 2, Spalte 3 → 4, Spalte 4 → 8.
+    // Card mIdx beginnt bei Zeile 2 (Zeile 1 ist für das Label reserviert)
+    // und erstreckt sich über rowSpan Zeilen → landet mittig zwischen den
+    // beiden Source-Cards der Spalte links daneben.
+    const rowSpan = Math.pow(2, colIdx);
+    const cardsHtml = r.matches.map((m, mIdx) => {
+      const rowStart = mIdx * rowSpan + 2;        // Zeile 1 = Label, Cards ab Zeile 2
+      const rowEnd = rowStart + rowSpan - 1;
+      const style = ` style="grid-column:${colNum}; grid-row:${rowStart} / ${rowEnd + 1}"`;
+      return renderMatchCardBracket(m, style);
+    }).join('');
+    // Label nimmt Zeile 1 der jeweiligen Spalte ein (volle Breite).
+    const labelStyle = ` style="grid-column:${colNum}; grid-row:1"`;
+    const labelHtml = `<div class="bracket-col-label"${labelStyle}>${esc(r.label)}</div>`;
+    return `<div class="bracket-col" data-bracket-col="${esc(r.label)}">${labelHtml}${cardsHtml}</div>`;
+  }).join('');
+
+  // 3RD-Match in der FINAL-Spalte (cols, nicht cols - 1) — User-Korrektur
+  // 2026-08-18: "direkt unter dem Finale, damit auf einen Blick klar ist,
+  // dass beide zur Endrunde gehören." Position: Zeile nach der letzten
+  // Card-Reihe der Winner-Bracket + ein Padding (3 Zeilen).
+  const lastCardRow = rows * Math.pow(2, cols - 1) + 1;   // +1 weil Zeile 1 = Label
+  const thirdHtml = thirdPlace
+    ? `<div class="bracket-3rd-row" data-bracket-col="Platz 3" style="grid-column:${cols}; grid-row:${lastCardRow + 3}">
+        <div class="bracket-col-label">Spiel um Platz 3</div>
+        ${renderMatchCardBracket(thirdPlace)}
+      </div>`
+    : '';
+
+  return `${tabsHtml}
+    <div class="bracket-wrap" style="--bracket-cols:${cols}; --bracket-rows:${rows}; --bracket-3rd-col:${cols}">
+      <div class="bracket">${colsHtml}</div>
+      ${thirdHtml}
+    </div>`;
+}
+
+/**
+ * Bündelt die drei Bracket-Funktionen unter einem Namespace.
+ * Wird sowohl als ES-Modul-Export (`import { bracket } from ...`)
+ * als auch als Property auf window.spielplanHelpers verwendet.
+ */
+export const bracket = {
+  groupMatchesByRound,
+  renderMatchCardBracket,
+  renderBracket,
+};
+
 // Browser-Global-Hook: Falls spielplan-helpers.js per <script>
 // geladen wird (statt als ES-Modul), exponiert es die Helfer unter
 // window.spielplanHelpers, damit main.js sie findet.
@@ -533,5 +743,10 @@ if (typeof window !== 'undefined') {
     applyPropagatedMatches,
     renderStandingsGroups,
     renderBestThirdsTable,
+    bracket: {
+      groupMatchesByRound,
+      renderMatchCardBracket,
+      renderBracket,
+    },
   };
 }
