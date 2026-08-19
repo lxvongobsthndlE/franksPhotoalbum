@@ -1141,18 +1141,15 @@
 }
 /* Echte Spalten-Container. Cards stapeln sich via Flex-Column-Gap.
    Keine Konvergenz — "schlichtes Übereinander" laut User-Direktive.
-   Card-Breite ist bewusst KOMPAKT (140-180px ≈ 3-4cm). User-Feedback
-   2026-08-19: "viel einfachere Lösung — Cards auf 3-4cm begrenzen,
-   sonst kann alles bleiben". Schmale Cards wirken vollständig
-   (Score + Dot + gekürzter Name), breite Cards hatten zu viel
-   Leerraum zwischen Dot und Name. */
+   Desktop-Breite: 220-260px (Original vor Bug-16-Nachschlag-Versuchen).
+   User-Korrektur 2026-08-19: "und desktop kann es genauso bleiben wies war" */
 .bracket-col {
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
+  gap: var(--s4);
   flex: 0 0 auto;
-  min-width: 140px;
-  max-width: 180px;
+  min-width: 220px;
+  max-width: 260px;
   scroll-snap-align: start;
 }
 .bracket-col-label {
@@ -1183,33 +1180,30 @@
   font-weight: 600;
 }
 
-/* Bracket-Knoten — HORIZONTAL: Team A · Score · Team B in einer Zeile.
-   User-Direktive 2026-08-19: "egal welches Handy, schön und vollständig".
-   Layout: bar (3px) | home-name | score-wrap (zentral) | away-name.
-   Score zentral und prominent. Names schrumpfen mit text-overflow:ellipsis,
-   Score bleibt IMMER voll sichtbar. Meta-Zeile darunter klein (Zeit·Platte
-   oder "Beendet"). Card-Höhe ist konstant ~52-60px statt 90px+ — kompakt
-   und vollständig auf jeder Breite.
+/* Bracket-Knoten — VERTIKAL: Team + Score, Team + Score, Meta darunter.
+   User-Korrektur 2026-08-19: "ich will es wie davor, also untereinander
+   die namen und ergebnisse. so wie es es davor war". Score rechts
+   vom Team (typische Turnierbaum-Anordnung). Card-Höhe 90px auf
+   Desktop, schmaler auf Mobile.
    Layout via data-area (Bug-16 Fix 2026-08-19): nth-of-type ist BRÜCHIG
-   wenn alle Kinder divs sind. data-area matched semantisch. */
+   hier, weil ALLE Kinder divs sind. data-area matched semantisch. */
 .t-match--bracket {
   display: grid;
-  /* bar 3px | home flex | score-wrap auto (intrisisch) | away flex.
-     minmax(0, 1fr) sorgt dafür dass Names schrumpfen dürfen, ohne dass
-     der Score (intrisisch, auto) abgeschnitten wird. */
-  grid-template-columns: 3px minmax(0, 1fr) auto minmax(0, 1fr);
-  grid-template-rows: auto auto;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
   grid-template-areas:
-    "bar home  score    away"
-    "bar meta  meta     meta";
-  gap: 4px var(--s2);
-  padding: 8px 10px;
+    "bar home  home-score"
+    "bar away  away-score"
+    "bar meta  meta";
+  gap: 4px var(--s3);
+  padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card, 8px);
-  min-width: 0;       /* Card darf in der Spalte schrumpfen */
-  overflow: hidden;   /* Name-Ellipsis nicht über Card-Kante */
-  box-sizing: border-box;
+  min-height: 90px;
+  align-content: center;
+  min-width: 0;
+  overflow: hidden;
 }
 .t-match--bracket [data-area="bar"] {
   grid-area: bar;
@@ -1219,8 +1213,10 @@
   background: var(--line);
   border-radius: 2px;
 }
-.t-match--bracket [data-area="home"] { grid-area: home; justify-self: end; }
-.t-match--bracket [data-area="away"] { grid-area: away; justify-self: start; }
+.t-match--bracket [data-area="home"] { grid-area: home; }
+.t-match--bracket [data-area="away"] { grid-area: away; }
+.t-match--bracket [data-area="home-score"] { grid-area: home-score; }
+.t-match--bracket [data-area="away-score"] { grid-area: away-score; }
 .t-match--bracket [data-area="meta"] {
   grid-area: meta;
   width: 100%;
@@ -1235,55 +1231,25 @@
 .t-match--bracket [data-area="away"] {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--s2);
   min-width: 0;
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: 13px;
 }
-/* home: Dot + Name + Score-wrap nebeneinander? Nein — home-Slot ist nur
-   der Name-Bereich (rechtsbündig in der ersten Hälfte). Score-wrap
-   folgt im Grid. So sieht die Zeile aus:
-     ●TeamA          3 : 1          TeamB●
-   mit Dot links vom Heim-Team (rechtsbündig) und Dot rechts vom Gast
-   (linksbündig). Das ist die typische Turnierbaum-Anordnung. */
 .t-match--bracket [data-area="home"] .name,
 .t-match--bracket [data-area="away"] .name {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
-}
-.t-match--bracket [data-area="home"] {
-  flex-direction: row-reverse;        /* Dot rechts vom Namen = visuell rechts an home-Spalte */
-}
-.t-match--bracket [data-area="away"] {
-  flex-direction: row;                /* Dot links vom Namen = visuell links an away-Spalte */
-}
-
-/* Score-Wrap: zentrales Element mit grossem Score. Drei Spans nebeneinander
-   (home, ":", away), kompakt, tabular-nums damit 1:10 und 2:5 gleich
-   viel Platz brauchen. Empty-Scores (Placeholder oder noch nicht
-   gespielt) bekommen einen dezenten dashed Border statt nur ein "–"
-   das visuell verschwindet. */
-.t-match--bracket [data-area="score"] {
-  grid-area: score;
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 1px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 14px;
-  padding: 0 4px;
-  white-space: nowrap;
 }
 .t-match--bracket [data-area="home-score"],
 .t-match--bracket [data-area="away-score"] {
-  display: inline-block;
-  min-width: 1.4em;
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  min-width: 1.5em;
+  font-size: 14px;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -1294,16 +1260,18 @@
 .t-match--bracket [data-area="away-score"].empty {
   color: var(--muted, #8A8077);
   font-weight: 400;
-  /* Bewusst KEIN border, kein padding — "–" als simpler Text, ruhig. */
 }
-.t-match--bracket .t-match-score-sep {
-  color: var(--ink-soft);
-  font-weight: 400;
-  padding: 0 1px;
+.t-match--bracket.t-match--placeholder .name {
+  font-style: italic;
+  color: var(--muted, #8A8077);
 }
-
-/* Sieger-Highlighting: bei beendeten Matches bekommt das Gewinner-Team
-   einen fettgedruckten Namen + farbigen Dot. Verlierer wird grau. */
+.t-match--bracket .t-dot--placeholder {
+  background: transparent;
+  border-style: dashed;
+}
+/* Sieger-Highlighting (Bug-16-Nachschlag-2, bleibt aktiv): bei beendeten
+   Matches bekommt der Gewinner fett+schwarz, der Verlierer grau.
+   Card selbst hat schon t-match--done (Border-Treatment). */
 .t-match--bracket .t-match-team.is-winner .name {
   color: var(--ink);
   font-weight: 700;
@@ -1319,16 +1287,6 @@
 .t-match--bracket.t-match--done [data-area="home"].is-winner .t-dot,
 .t-match--bracket.t-match--done [data-area="away"].is-winner .t-dot {
   opacity: 1;
-}
-
-/* Placeholder (noch nicht bekannter Teilnehmer): italic, grauer Dot. */
-.t-match--bracket.t-match--placeholder .name {
-  font-style: italic;
-  color: var(--muted, #8A8077);
-}
-.t-match--bracket .t-dot--placeholder {
-  background: transparent;
-  border-style: dashed;
 }
 
 /* Runden-Tab-Leiste (oberhalb des Brackets) — Mobile-First, Desktop
@@ -1360,37 +1318,42 @@
   font-weight: 600;
 }
 
-/* === Mobile (≤ 767px) — Spec §13.8: Snap pro Runde, Tab-Leiste
+/* === Mobile (≤ 767px) — Tab-Bar + Snap zwischen Spalten.
    Pragmatischer Fallback auf @media statt @container: Edge-Headless
    rendert @container unzuverlässig, und unser t-mod ist ohnehin @media-
-   gesteuert. */
+   gesteuert. WICHTIG (User-Korrektur 2026-08-19): "wenn ich unter vf bin
+   will ich nicht noch daneben abgeschnitten das hf sehen" — Spalte
+   ist EXAKT so breit wie der Viewport, scroll-snap-stop:always sorgt
+   dafür dass immer nur eine Spalte voll sichtbar ist, angeschnittene
+   Nachbarn sind nicht im Viewport. */
 @media (max-width: 767px) {
   .bracket-tabs { display: flex; }
   .bracket-wrap {
-    scroll-snap-type: x mandatory;        /* Eine Runde pro Bildschirm */
-    scroll-padding-left: var(--s3);
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 0;
   }
   .bracket-col {
-    /* User-Direktive 2026-08-19: Cards bleiben 3-4cm (~140-180px),
-       auch auf Mobile. Vorteil: man sieht MEHRERE Spalten nebeneinander
-       und kann horizontal wischen statt nur eine Spalte pro Tab. */
-    min-width: 140px;
-    max-width: 180px;
+    /* Spalte = Bildschirmbreite minus beidseitiger s3-Padding (12px),
+       damit kein Nachbar angeschnitten sichtbar ist. */
+    flex: 0 0 calc(100vw - var(--s3) * 2);
+    width: calc(100vw - var(--s3) * 2);
+    max-width: calc(100vw - var(--s3) * 2);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
-  /* 3RD-Subblock bleibt in der F-Spalte — auf Mobile sieht der User
-     ihn automatisch, wenn er den F-Tab öffnet. */
   .bracket-3rd { max-width: 100%; }
 }
 
-/* Sehr schmale Geräte (<= 360px): Cards bleiben 140px, Font minimal
-   kleiner damit alles in die 3-4cm passt. Galaxy Fold Cover, iPhone SE. */
+/* Sehr schmale Geräte (<= 380px): Cards bleiben auf Bildschirm-Breite,
+   Font minimal kleiner damit alles in die 3-4cm passt. Galaxy Fold
+   Cover, iPhone SE. */
 @media (max-width: 380px) {
   .t-match--bracket [data-area="score"] {
     font-size: 13px;
   }
   .t-match--bracket [data-area="home"] .name,
   .t-match--bracket [data-area="away"] .name {
-    font-size: 11px;
+    font-size: 12px;
   }
   .t-match--bracket [data-area="meta"] {
     font-size: 9px;

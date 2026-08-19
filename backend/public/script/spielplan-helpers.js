@@ -603,13 +603,12 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   const homeName = esc(m?.home?.name ?? '—');
   const awayName = esc(m?.away?.name ?? '—');
 
-  // Kartenlayout: HORIZONTAL — Team A · Score · Team B in einer Zeile.
-  // User-Direktive 2026-08-19: "egal welches Handy, schön und vollständig".
-  // Vertikales Layout brauchte min-height:90px und wirkte auf Mobile leer,
-  // weil Name und Score in zwei Zeilen standen. Horizontal: alle drei
-  // Werte (Team-Score-Team) sind IMMER gleichzeitig sichtbar, weil die
-  // Card sich der Breite anpasst und die drei Bereiche proportional
-  // schrumpfen. Score bleibt zentral und prominent.
+  // Kartenlayout: VERTIKAL — Teams UNTEREINANDER, Name + Score in
+  // einer Zeile jeweils (Team-Score Zeile, Team-Score Zeile, Meta).
+  // User-Korrektur 2026-08-19: "ich will es wie davor, also untereinander
+  // die namen und ergebnisse. so wie es davor war. nur eben etwas schmaler".
+  // Horizontal-Layout (Bug-16-Nachschlag-2) wurde verworfen weil auf
+  // Desktop "schrecklich". Vertikal ist der gewohnte Turnierplakat-Stil.
   const homeHasScore = typeof m?.scoreHome === 'number';
   const awayHasScore = typeof m?.scoreAway === 'number';
   const homeScore = homeHasScore ? `${m.scoreHome}` : '–';
@@ -647,12 +646,9 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   return `<div class="${classes.join(' ')}" data-match-id="${esc(m?.id ?? '')}"${extraStyle}>
     <div class="t-match-bar" data-area="bar"></div>
     <div class="t-match-team${homeIsWinner ? ' is-winner' : ''}" data-area="home">${homeDot}<span class="name">${homeName}</span></div>
-    <div class="t-match-score-wrap" data-area="score">
-      <span class="t-match-score${homeHasScore ? '' : ' empty'}" data-area="home-score">${esc(homeScore)}</span>
-      <span class="t-match-score-sep">:</span>
-      <span class="t-match-score${awayHasScore ? '' : ' empty'}" data-area="away-score">${esc(awayScore)}</span>
-    </div>
+    <div class="t-match-score${homeHasScore ? '' : ' empty'}" data-area="home-score">${esc(homeScore)}</div>
     <div class="t-match-team${awayIsWinner ? ' is-winner' : ''}" data-area="away">${awayDot}<span class="name">${awayName}</span></div>
+    <div class="t-match-score${awayHasScore ? '' : ' empty'}" data-area="away-score">${esc(awayScore)}</div>
     ${metaHtml}
   </div>`;
 }
