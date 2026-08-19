@@ -2670,8 +2670,11 @@ function renderTournamentInstanceDetailV3(t) {
               <div data-tab-body="baum-mount"></div>
             </section>
             <section class="t-view" data-view="teams">
-              <div class="t-view-head"><div class="t-view-title">Teams</div></div>
-              ${placeholder('Die Team-Verwaltung', 'Kommt in Etappe B.5.')}
+              <div class="t-view-head">
+                <div class="t-view-title">Teams</div>
+                <div class="spacer"></div>
+              </div>
+              <div data-tab-body="teams-mount"></div>
             </section>
             <section class="t-view" data-view="regeln">
               <div class="t-view-head">
@@ -2752,6 +2755,16 @@ function renderTournamentInstanceDetailV3(t) {
         const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
         if (mount) {
           renderRulesView(t.id, mount);
+        }
+      }
+      // Teams-Tab (Etappe B.5): Liste + DnD-Reihenfolge, Admin-only edit.
+      if (view === 'teams') {
+        const mount = detail.querySelector('[data-tab-body="teams-mount"]');
+        if (mount && !mount.dataset.loaded) {
+          mount.dataset.loaded = '1';
+          loadTeamsTab(t).catch(() => {
+            mount.innerHTML = placeholder('Teams konnten nicht geladen werden.', '');
+          });
         }
       }
     }
@@ -3085,6 +3098,329 @@ function wireBracketTabs(root) {
 
   // Initial: erster Tab aktiv.
   if (tabs[0]) tabs[0].classList.add('is-active');
+}
+
+/**
+ * Teams-Tab rendern (Etappe B.5).
+ *
+ * Spec §1.2/§13.2: Admin-only für Edit (Rename + DnD-Reihenfolge).
+ * Member sehen Read-View mit der gesetzten Reihenfolge.
+ *
+ * Datenquelle: t.teams aus dem View-Kontext (vom Server mitgegeben
+ * beim Tournament-Detail-Fetch). Eine separate GET-Route ist nicht
+ * nötig — die Liste wird beim Tab-Wechsel ohnehin neu gerendert.
+ *
+ * @param {Object} t  Tournament-View-Objekt mit .id, .isAdmin, .status, .teams
+ */
+async function loadTeamsTab(t) {
+  if (!t || !t.id) return;
+  const mount = document.querySelector('[data-tab-body="teams-mount"]');
+  if (!mount) return;
+  const isAdmin = t.isAdmin === true;
+  // Reorder ist nur erlaubt im Status 'draft' — nach Generierung ist
+  // die Setzreihenfolge fix, weil die Engine sie als Bracket-Seed liest
+  // (Spec §6.1: "Bei KO entscheidet die Reihenfolge, gegen wen man spielt").
+  const reorderable = isAdmin && t.status === 'draft';
+
+  const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderTeamsList)
+    || ((globalThis.spielplanHelpers && globalThis.spielplanHelpers.renderTeamsList));
+  if (typeof renderer !== 'function') {
+    mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Teams-Renderer nicht verfügbar.</p></div></div>';
+    return;
+  }
+  const teams = Array.isArray(t.teams) ? t.teams : [];
+  mount.innerHTML = renderer(teams, { isAdmin, reorderable });
+
+  wireTeamsList(mount, t, { isAdmin, reorderable });
+}
+
+/**
+ * Verdrahtet die Teams-Liste: Inline-Rename (Admin) + Pointer-DnD
+ * (Admin + reorderable). Beide Features sind exklusiv — bei DnD wird
+ * das Input nicht als Drag-Quelle gewertet, sodass Rename und DnD
+ * sich nicht in die Quere kommen.
+ */
+function wireTeamsList(mount, t, { isAdmin, reorderable }) {
+  if (!mount) return;
+  const list = mount.querySelector('[data-role="teams-list"]');
+  if (!list) return;
+
+  if (isAdmin) {
+    // Inline-Rename: Klick auf den Namen öffnet ein <input>. Speichern
+    // per Enter oder Blur. Abbrechen per Escape.
+    list.addEventListener('click', (e) => {
+      const nameEl = e.target.closest('[data-role="team-name"]');
+      if (!nameEl) return;
+      const row = nameEl.closest('.t-team-row');
+      if (!row) return;
+      startInlineRename(row, t);
+    });
+  }
+
+  if (reorderable) {
+    attachTeamsDnD(list, t);
+  }
+}
+
+/**
+ * Inline-Rename eines Teams. Verwandelt die Name-Span in ein Input,
+ * speichert per Enter oder Blur, bricht per Escape ab.
+ *
+ * Bei `team_name_taken` (409) wird das Input zurück in den alten
+ * Namen verwandelt — die Fehlermeldung kommt via toast().
+ */
+function startInlineRename(row, t) {
+  if (!row || row.dataset.renaming === 'true') return;
+  const teamId = row.dataset.teamId;
+  const oldName = row.dataset.teamName || '';
+  if (!teamId) return;
+
+  row.dataset.renaming = 'true';
+  const nameEl = row.querySelector('[data-role="team-name"]');
+  if (!nameEl) {
+    row.dataset.renaming = '';
+    return;
+  }
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.className = 't-team-name-input';
+  input.setAttribute('aria-label', 'Teamname bearbeiten');
+  input.maxLength = 60;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const finish = async (commit) => {
+    if (committed) return;
+    committed = true;
+    const next = commit ? input.value.trim() : oldName;
+    // Bei gleichen Namen kein PATCH — spart Round-Trip + verhindert
+    // 409 bei identischem Namen.
+    if (commit && next && next !== oldName) {
+      try {
+        await apiCall(
+          `/tournaments/${encodeURIComponent(t.id)}/teams/${encodeURIComponent(teamId)}`,
+          'PATCH',
+          { name: next }
+        );
+        row.dataset.teamName = next;
+        // Row neu rendern mit dem neuen Namen, damit Marker-Initial +
+        // Edit-Hint wieder stimmen — wir ersetzen die ganze Row,
+        // damit DnD-Listener auf der Liste intakt bleiben.
+        const newName = document.createElement('span');
+        newName.className = 't-team-name';
+        newName.dataset.role = 'team-name';
+        newName.textContent = next;
+        input.replaceWith(newName);
+        // Marker-Initial aktualisieren.
+        const marker = row.querySelector('.t-team-marker');
+        if (marker) marker.textContent = (next.trim().charAt(0).toUpperCase() || '?');
+        row.dataset.renaming = '';
+        toast('Teamname gespeichert.', 'success');
+      } catch (e) {
+        // Server hat abgelehnt (409 duplicate o.ä.) — wir bauen das
+        // Input zurück in die alte Anzeige, damit der User die
+        // Fehlermeldung im Kontext sieht.
+        const restored = document.createElement('span');
+        restored.className = 't-team-name';
+        restored.dataset.role = 'team-name';
+        restored.textContent = oldName;
+        input.replaceWith(restored);
+        row.dataset.renaming = '';
+        toast((e && e.serverMessage) || 'Teamname konnte nicht gespeichert werden.', 'error');
+      }
+    } else {
+      const restored = document.createElement('span');
+      restored.className = 't-team-name';
+      restored.dataset.role = 'team-name';
+      restored.textContent = oldName;
+      input.replaceWith(restored);
+      row.dataset.renaming = '';
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+/**
+ * Pointer-basiertes DnD für die Teams-Tab-Reihenfolge (Etappe B.5).
+ *
+ * Idiom 1:1 wie der Wizard-Step-2 (siehe tournament.js:attachTeamDnD).
+ * Pointer-Events statt HTML5-Drag, weil HTML5-Drag auf Mobile häufig
+ * gar nicht feuert und Touch+mouse-Drag-Drop-Verhalten uneinheitlich
+ * ist. Touch + Mouse funktionieren mit Pointer-Events identisch.
+ *
+ * Nach Drop:
+ *   1. POST PATCH /:id/teams/reorder mit der neuen ID-Reihenfolge
+ *   2. Server liefert aktualisierte Teams → wir re-rendern die Liste,
+ *      damit Seed-Labels (#1, #2, …) wieder stimmen.
+ *   3. Bei Fehler (409 locked, 409 dup, Netz) machen wir einen
+ *      Reload via loadTeamsTab, um den Server-State wieder zu zeigen.
+ */
+function attachTeamsDnD(list, t) {
+  if (list.dataset.tTeamsDndBound === 'true') return;
+  list.dataset.tTeamsDndBound = 'true';
+
+  const THRESHOLD = 5;
+  let drag = null;
+
+  list.addEventListener('pointerdown', (e) => {
+    const row = e.target.closest('.t-team-row');
+    if (!row || !list.contains(row)) return;
+    // Während Inline-Rename aktiv: kein Drag.
+    if (row.dataset.renaming === 'true') return;
+    // Eingabefeld + Drag-Handle sind beide Drag-Quellen, der Rest
+    // (Name-Span, Marker) nicht — wir wollen, dass der User den
+    // Griff oder einen leeren Bereich der Row greift.
+    const handle = e.target.closest('.t-team-drag-handle');
+    const input = e.target.closest('input');
+    if (!handle && !input && !e.target.closest('.t-team-marker')) return;
+    const idx = Array.prototype.indexOf.call(list.children, row);
+    if (idx < 0) return;
+    drag = {
+      row,
+      index: idx,
+      startY: e.clientY,
+      offsetY: e.clientY - row.getBoundingClientRect().top,
+      active: false,
+      pointerId: e.pointerId,
+      placeholder: null,
+    };
+    row.setPointerCapture(e.pointerId);
+  });
+
+  list.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const dy = e.clientY - drag.startY;
+    if (!drag.active) {
+      if (Math.abs(dy) < THRESHOLD) return;
+      drag.active = true;
+      drag.row.classList.add('is-dragging');
+      const ph = document.createElement('li');
+      ph.className = 't-team-row t-team-row--placeholder';
+      ph.style.height = drag.row.offsetHeight + 'px';
+      drag.placeholder = ph;
+      drag.row.parentNode.insertBefore(ph, drag.row);
+      drag.row.style.position = 'absolute';
+      drag.row.style.left = '0';
+      drag.row.style.right = '0';
+      drag.row.style.width = '100%';
+    }
+    drag.row.style.top = (e.clientY - drag.offsetY) + 'px';
+
+    const others = Array.from(list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)'));
+    const draggedMid = e.clientY;
+    let targetIdx = others.length;
+    for (let i = 0; i < others.length; i++) {
+      const r = others[i].getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      if (draggedMid < mid) {
+        targetIdx = i;
+        break;
+      }
+    }
+    const ref = others[targetIdx] || null;
+    if (ref) list.insertBefore(drag.placeholder, ref);
+    else list.appendChild(drag.placeholder);
+  });
+
+  const cancel = () => {
+    if (!drag) return;
+    if (drag.active && drag.placeholder) {
+      drag.placeholder.remove();
+      drag.row.style.position = '';
+      drag.row.style.left = '';
+      drag.row.style.right = '';
+      drag.row.style.width = '';
+      drag.row.style.top = '';
+      drag.row.classList.remove('is-dragging');
+    }
+    drag = null;
+  };
+
+  const commit = async () => {
+    if (!drag || !drag.active) { drag = null; return; }
+    const phIdx = Array.prototype.indexOf.call(list.children, drag.placeholder);
+    drag.placeholder.remove();
+    drag.row.style.position = '';
+    drag.row.style.left = '';
+    drag.row.style.right = '';
+    drag.row.style.width = '';
+    drag.row.style.top = '';
+    drag.row.classList.remove('is-dragging');
+    const movedId = drag.row.dataset.teamId;
+    const currentIds = Array.from(list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)'))
+      .map((el) => el.dataset.teamId);
+    // Index nach Drop = phIdx, abzüglich der Drag-Row, falls dahinter.
+    const adjusted = phIdx > drag.index ? phIdx - 1 : phIdx;
+    const order = currentIds.slice();
+    const [moved] = order.splice(drag.index, 1);
+    order.splice(adjusted, 0, moved);
+
+    drag = null;
+
+    // Wenn die Reihenfolge nicht geändert wurde → kein Server-Round-Trip.
+    const originalOrder = Array.from(list.querySelectorAll('.t-team-row'))
+      .map((el) => el.dataset.teamId);
+    // Beim DnD war die gerenderte Reihenfolge = originalOrder (gleicher Screenshot).
+    // Wenn unsere berechnete order der gerenderten Reihenfolge entspricht, ist
+    // effektiv nichts passiert.
+    const same = order.length === originalOrder.length && order.every((id, i) => id === originalOrder[i]);
+    if (same) return;
+
+    try {
+      const res = await apiCall(
+        `/tournaments/${encodeURIComponent(t.id)}/teams/reorder`,
+        'PATCH',
+        { order }
+      );
+      // Server liefert die Teams in der neuen Reihenfolge mit aktualisierten seeds.
+      const updated = (res && Array.isArray(res.teams)) ? res.teams : null;
+      const mount = document.querySelector('[data-tab-body="teams-mount"]');
+      if (!mount) return;
+      const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderTeamsList);
+      if (!renderer) return;
+      // Re-Render mit den Server-Daten — ist die Single Source of Truth.
+      mount.innerHTML = renderer(updated || order.map((id) => ({ id })), {
+        isAdmin: true,
+        reorderable: true,
+      });
+      // DnD nach Re-Render neu binden.
+      wireTeamsList(mount, t, { isAdmin: true, reorderable: true });
+      toast('Reihenfolge gespeichert.', 'success');
+    } catch (e) {
+      // 409 gesperrt oder Validierung — wir holen den aktuellen Stand.
+      toast((e && e.serverMessage) || 'Reihenfolge konnte nicht gespeichert werden.', 'error');
+      // Reload des Tabs, damit der User den echten Stand sieht.
+      const mount = document.querySelector('[data-tab-body="teams-mount"]');
+      if (mount) {
+        mount.dataset.loaded = '';
+        loadTeamsTab(t).catch(() => {});
+      }
+    }
+  };
+
+  list.addEventListener('pointerup', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (drag.active) commit();
+    else drag = null;
+  });
+  list.addEventListener('pointercancel', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    cancel();
+  });
 }
 
 /**

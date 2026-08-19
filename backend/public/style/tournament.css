@@ -2590,3 +2590,141 @@ textarea.t-input {
   font-style: italic;
   margin-top: 1em;
 }
+
+/* ----------------------------------------------------------------
+   TEAMS-TAB (Etappe B.5)
+   Liste mit Inline-Rename (Admin) + Pointer-DnD-Reihenfolge
+   (Admin + Status === 'draft'). Read-only für Member. Visuell
+   angelehnt an Wizard-Step-2 (.t-wizard-team-row), aber ohne
+   Action-Buttons (Rename = Klick auf Name, DnD = Handle ziehen).
+   ---------------------------------------------------------------- */
+.t-teams-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+}
+.t-team-row {
+  display: grid;
+  grid-template-columns: auto 28px 1fr auto;
+  align-items: center;
+  gap: var(--s3, 12px);
+  padding: var(--s2, 8px) var(--s3, 12px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #E5DED5);
+  border-radius: var(--r-card, 8px);
+  position: relative;
+  touch-action: pan-y;          /* vertikalen Scroll erlauben, horizontales DnD blockieren */
+  user-select: none;
+}
+.t-team-row.is-dragging {
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  cursor: grabbing;
+  background: var(--surface, #fff);
+}
+.t-team-row--placeholder {
+  border: 1px dashed var(--line, #E5DED5);
+  background: transparent;
+  visibility: hidden;             /* Platzhalter hält die Höhe, ist unsichtbar */
+}
+.t-team-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-soft, #8A8077);
+  cursor: grab;
+  border-radius: 4px;
+}
+.t-team-drag-handle:hover { background: var(--line, #E5DED5); color: var(--ink, #1B1B1F); }
+.t-team-drag-handle.is-readonly {
+  cursor: default;
+  /* Member-View: kein Glyph (Renderer lässt das Zeichen weg), nur Platzhalter */
+}
+.t-team-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--line, #E5DED5);
+  color: var(--ink, #1B1B1F);
+  flex-shrink: 0;
+}
+.t-team-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink, #1B1B1F);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-teams-list.is-draggable .t-team-name {
+  cursor: pointer;                /* Editier-Hinweis via Cursor + Edit-Hint-Text */
+  border-bottom: 1px dashed transparent;
+}
+.t-teams-list.is-draggable .t-team-row:hover .t-team-name {
+  border-bottom-color: var(--line, #E5DED5);
+}
+.t-team-name-input {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink, #1B1B1F);
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--accent, #1D3557);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  font-family: inherit;
+}
+.t-team-seed {
+  font-size: 12px;
+  color: var(--ink-soft, #8A8077);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  background: var(--bg, #F7F4EE);
+  border-radius: 999px;
+}
+.t-team-edit-hint {
+  grid-column: 1 / -1;            /* eigene Zeile unter dem Row-Inhalt */
+  font-size: 11px;
+  color: var(--ink-soft, #8A8077);
+  font-style: italic;
+  margin-top: 2px;
+  display: none;                  /* per Default weg — nur bei Admin sichtbar */
+}
+.t-teams-list.is-draggable .t-team-edit-hint {
+  display: block;
+}
+.t-hint--info {
+  background: var(--bg, #F7F4EE);
+  border-left: 3px solid var(--accent, #1D3557);
+  padding: var(--s2, 8px) var(--s3, 12px);
+  border-radius: 4px;
+  font-style: normal;             /* Override für t-hint italic */
+  margin-bottom: var(--s3, 12px);
+}
+
+/* Mobile (≤ 600px): kompakter, ohne Marker-Verkleinerung — der
+   Platz ist eh knapp, daher Name + Seed in einer Zeile ohne Edit-Hint
+   (Hint wäre 3 Zeilen, das sprengt die Sicht). */
+@media (max-width: 600px) {
+  .t-team-row {
+    grid-template-columns: auto 24px 1fr auto;
+    padding: 6px 10px;
+  }
+  .t-team-name { font-size: 14px; }
+  .t-team-edit-hint { display: none; }   /* Hint ist Mobile zu viel */
+  .t-team-marker { width: 24px; height: 24px; font-size: 12px; }
+}

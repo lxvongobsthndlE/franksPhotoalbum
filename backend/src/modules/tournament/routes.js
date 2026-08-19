@@ -573,6 +573,95 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
+  // PATCH /api/tournaments/:id/teams/reorder — Setzreihenfolge per DnD (Admin)
+  //
+  // Etappe B.5: Teams-Tab erlaubt dem Admin die Setzreihenfolge per
+  // Drag&Drop festzulegen. Atomarer Endpoint: ein Request setzt alle
+  // Seeds in der angegebenen Reihenfolge, kein Drift zwischen
+  // Frontend-State und DB.
+  //
+  // Erlaubt nur im Status 'draft' — sobald ein Spielplan generiert wurde,
+  // ist die Reihenfolge fix. Member bekommen 403, andere Status-Werte 409.
+  // Wenn die Generierung mit gesetztem Seed-Wert arbeitet (qualify-engine
+  // liest seed), würde Reorder nach Generierung die Auslosung verändern
+  // und Matches neu zuordnen. Das ist Risk-of-Corruption, deshalb 409.
+  //
+  // Body: { order: string[] } — Team-IDs in der neuen Reihenfolge.
+  // Antwort: { ok: true, teams: TeamDTO[] } mit aktualisierten seeds.
+  fastify.patch('/:id/teams/reorder', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const { order } = request.body ?? {};
+      if (!Array.isArray(order) || order.length === 0) {
+        return reply.code(400).send({
+          error: 'teams_reorder_invalid',
+          message: 'order[] ist erforderlich.',
+        });
+      }
+      // Doppelte IDs ablehnen — sonst unklare Seed-Zuordnung.
+      if (new Set(order).size !== order.length) {
+        return reply.code(400).send({
+          error: 'teams_reorder_duplicates',
+          message: 'order[] darf keine doppelten IDs enthalten.',
+        });
+      }
+      // Status-Gate: nur im draft.
+      const tStatus = ctx.tournament.status;
+      if (tStatus !== 'draft') {
+        return reply.code(409).send({
+          error: 'teams_reorder_locked',
+          message: `Reorder ist nur im Status „draft" möglich — aktuell „${tStatus}".`,
+          status: tStatus,
+        });
+      }
+
+      // Alle Teams dieses Turniers laden + Validierung.
+      const allTeams = await fastify.prisma.tournamentTeam.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        select: { id: true },
+      });
+      const allIds = new Set(allTeams.map((t) => t.id));
+      // order[] muss GENAU alle Teams dieses Turniers enthalten (gleicher
+      // Satz, neue Reihenfolge) — sonst hätte der Frontend-State die
+      // DB-Wahrheit verloren.
+      if (order.length !== allTeams.length || !order.every((id) => allIds.has(id))) {
+        return reply.code(400).send({
+          error: 'teams_reorder_mismatch',
+          message: 'order[] muss genau die IDs aller Teams dieses Turniers enthalten.',
+        });
+      }
+
+      // Atomar: jedes Team bekommt seed = Index in order[].
+      // Prisma unterstützt keine batch-update mit unterschiedlichen
+      // Werten pro ID, also iterieren wir in einer Transaktion.
+      await fastify.prisma.$transaction(
+        order.map((teamId, idx) =>
+          fastify.prisma.tournamentTeam.update({
+            where: { id: teamId },
+            data: { seed: idx },
+          })
+        )
+      );
+
+      // Aktualisierte Liste mit neuen seeds zurückgeben.
+      const updated = await fastify.prisma.tournamentTeam.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        orderBy: { seed: 'asc' },
+      });
+      const { prepareTeamList } = await import('./access/team.js');
+      return {
+        ok: true,
+        teams: prepareTeamList(updated),
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Teams-Reorder fehlgeschlagen');
+    }
+  });
+
   // ─────────────────────────────────────────────────────────
   // 3. Generate — Round-Robin-Schedule erstellen (Admin)
   // ─────────────────────────────────────────────────────────

@@ -722,7 +722,112 @@ export const bracket = {
   groupMatchesByRound,
   renderMatchCardBracket,
   renderBracket,
+  serializeTeamsList,
+  renderTeamsList,
 };
+
+// ───────────────────────────────────────────────────────────────
+// Teams-Tab (Etappe B.5)
+// Reine Render- und Sanitize-Funktionen. DnD-/Inline-Rename-Logik
+// lebt in main.js, weil sie DOM + State braucht. Diese Pure-Functions
+// werden vom Frontend-Renderer UND vom DnD-Save-Branch gerufen, um
+// den `order`-Array aus der gerenderten Liste zu lesen.
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * Sanitize Team-DTOs für den Teams-Tab.
+ *
+ *   - wirft `null`/`undefined`-Items raus
+ *   - trimmed den Namen
+ *   - ersetzt leere Namen durch "Team" (Render-Fallback, kein User-Input)
+ *   - normalisiert color zu String oder null
+ *   - seed: null → Index im Array (Fallback, falls Backend noch keinen
+ *     seed vergeben hat — z.B. ganz frisches Turnier)
+ *   - sortiert nach seed asc (oder bei null nach Index-Reihenfolge)
+ *
+ * @param {Array} teams — TeamDTO[] aus `prepareTeamList()`.
+ * @returns {Array} — bereinigte Liste, sortiert.
+ */
+export function serializeTeamsList(teams) {
+  if (!Array.isArray(teams)) return [];
+  const out = [];
+  for (let i = 0; i < teams.length; i++) {
+    const t = teams[i];
+    if (t == null) continue;
+    const name = String(t.name ?? '').trim() || 'Team';
+    const color = (typeof t.color === 'string' && t.color.trim()) ? t.color.trim() : null;
+    const seed = (typeof t.seed === 'number' && Number.isFinite(t.seed)) ? t.seed : i;
+    out.push({
+      id: String(t.id ?? ''),
+      name,
+      color,
+      logoUrl: (typeof t.logoUrl === 'string' && t.logoUrl) ? t.logoUrl : null,
+      players: Array.isArray(t.players) ? t.players : null,
+      seed,
+    });
+  }
+  // Stabil nach seed asc sortieren. Bei gleichem seed (alle null→Index)
+  // bleibt die Reihenfolge via stable sort erhalten.
+  return out.sort((a, b) => (a.seed ?? 0) - (b.seed ?? 0));
+}
+
+/**
+ * Teams-Tab Renderer (Etappe B.5).
+ *
+ * Liefert ein `<ul class="t-teams-list">` mit einem `<li>` pro Team.
+ * Jede Row hat:
+ *   - data-team-id, data-team-name, data-seed
+ *   - Drag-Handle (☰) für DnD (nur sichtbar wenn Admin + reorderable)
+ *   - Logo/Initial als visueller Marker
+ *   - Name (Editier-Hint bei Admin: "Klicken zum Bearbeiten")
+ *
+ * Wenn `opts.isAdmin === false`: DnD-Handle + Edit-Hint weg, Liste ist read-only.
+ * Wenn `opts.reorderable === false`: DnD disabled (z.B. Status !== 'draft').
+ *
+ * @param {Array} teams — rohe TeamDTO[] (wird intern serialisiert)
+ * @param {Object} [opts]
+ * @param {boolean} [opts.isAdmin=false]
+ * @param {boolean} [opts.reorderable=false]
+ * @returns {string} HTML-String
+ */
+export function renderTeamsList(teams, opts = {}) {
+  const items = serializeTeamsList(teams);
+  const { isAdmin = false, reorderable = false } = opts;
+  const canEdit = isAdmin && reorderable;
+
+  if (items.length === 0) {
+    return '<p class="t-hint">Noch keine Teams angelegt. Lege sie im Wizard unter „Teams" an.</p>';
+  }
+
+  const editHint = canEdit
+    ? '<span class="t-team-edit-hint">Klicken zum Umbenennen</span>'
+    : '';
+
+  const rows = items.map((t, idx) => {
+    const initial = String(t.name).trim().charAt(0).toUpperCase() || '?';
+    const colorStyle = t.color ? `background:${esc(t.color)};color:#fff;` : '';
+    const seedLabel = (typeof t.seed === 'number') ? `#${t.seed + 1}` : '';
+    const handle = canEdit
+      ? '<span class="t-team-drag-handle" aria-label="Verschieben" title="Ziehen zum Sortieren">☰</span>'
+      : '<span class="t-team-drag-handle is-readonly" aria-hidden="true"></span>';
+    const row = `<li class="t-team-row${canEdit ? ' is-draggable' : ''}" data-team-id="${esc(t.id)}" data-team-name="${esc(t.name)}" data-seed="${idx}">
+      ${handle}
+      <span class="t-team-marker" style="${colorStyle}" aria-hidden="true">${esc(initial)}</span>
+      <span class="t-team-name" data-role="team-name">${esc(t.name)}</span>
+      <span class="t-team-seed">${esc(seedLabel)}</span>
+      ${editHint}
+    </li>`;
+    return row;
+  }).join('');
+
+  const hint = !reorderable && isAdmin
+    ? '<p class="t-hint t-hint--info">Die Reihenfolge ist gesperrt, weil der Spielplan bereits generiert wurde.</p>'
+    : (!isAdmin
+      ? '<p class="t-hint t-hint--info">Nur Admins können die Reihenfolge ändern.</p>'
+      : '');
+
+  return `${hint}<ul class="t-teams-list${canEdit ? ' is-draggable' : ''}" data-role="teams-list">${rows}</ul>`;
+}
 
 // Browser-Global-Hook: Falls spielplan-helpers.js per <script>
 // geladen wird (statt als ES-Modul), exponiert es die Helfer unter
@@ -746,5 +851,7 @@ if (typeof window !== 'undefined') {
       renderMatchCardBracket,
       renderBracket,
     },
+    serializeTeamsList,
+    renderTeamsList,
   };
 }
