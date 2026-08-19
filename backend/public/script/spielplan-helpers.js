@@ -603,10 +603,13 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   const homeName = esc(m?.home?.name ?? '—');
   const awayName = esc(m?.away?.name ?? '—');
 
-  // Kartenlayout: Teams UNTEREINANDER (User-Korrektur 2026-08-18 —
-  // Wimbledon-/Champions-League-Pattern). Score wird aufgespalten:
-  // homeScore und awayScore stehen rechtsbündig untereinander, damit
-  // man das Ergebnis senkrecht ablesen kann.
+  // Kartenlayout: HORIZONTAL — Team A · Score · Team B in einer Zeile.
+  // User-Direktive 2026-08-19: "egal welches Handy, schön und vollständig".
+  // Vertikales Layout brauchte min-height:90px und wirkte auf Mobile leer,
+  // weil Name und Score in zwei Zeilen standen. Horizontal: alle drei
+  // Werte (Team-Score-Team) sind IMMER gleichzeitig sichtbar, weil die
+  // Card sich der Breite anpasst und die drei Bereiche proportional
+  // schrumpfen. Score bleibt zentral und prominent.
   const homeHasScore = typeof m?.scoreHome === 'number';
   const awayHasScore = typeof m?.scoreAway === 'number';
   const homeScore = homeHasScore ? `${m.scoreHome}` : '–';
@@ -616,11 +619,16 @@ export function renderMatchCardBracket(m, extraStyle = '') {
     ? 'Beendet'
     : (m?.scheduledTime && typeof m?.field === 'number')
       ? `${m.scheduledTime} · Platte ${m.field}`
-      : '–';
+      : '';
 
   const homeIsPlaceholder = m?.home?.kind === 'placeholder';
   const awayIsPlaceholder = m?.away?.kind === 'placeholder';
   const isPlaceholder = homeIsPlaceholder || awayIsPlaceholder;
+
+  // Sieger-Hervorhebung: bei beendeten Matches wird der Name des
+  // Gewinners fett, der Verlierer grau. Das ist der Turnierplakat-Stil.
+  const homeIsWinner = homeHasScore && awayHasScore && m.scoreHome > m.scoreAway && m.isFinished;
+  const awayIsWinner = homeHasScore && awayHasScore && m.scoreAway > m.scoreHome && m.isFinished;
 
   const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
   const homeDot = `<i class="t-dot${homeIsPlaceholder ? ' t-dot--placeholder' : ''}" style="${dotStyle(m?.home?.color)}" aria-hidden="true"></i>`;
@@ -629,14 +637,23 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   const classes = ['t-match', 't-match--bracket'];
   if (isPlaceholder) classes.push('t-match--placeholder');
   if (m?.isFinished) classes.push('t-match--done');
+  if (homeIsWinner) classes.push('t-match--home-wins');
+  if (awayIsWinner) classes.push('t-match--away-wins');
+
+  const metaHtml = meta
+    ? `<div class="t-match-meta-line" data-area="meta">${esc(meta)}</div>`
+    : '';
 
   return `<div class="${classes.join(' ')}" data-match-id="${esc(m?.id ?? '')}"${extraStyle}>
     <div class="t-match-bar" data-area="bar"></div>
-    <div class="t-match-team" data-area="home">${homeDot}<span class="name">${homeName}</span></div>
-    <div class="t-match-score${homeHasScore ? '' : ' empty'}" data-area="home-score">${esc(homeScore)}</div>
-    <div class="t-match-team" data-area="away">${awayDot}<span class="name">${awayName}</span></div>
-    <div class="t-match-score${awayHasScore ? '' : ' empty'}" data-area="away-score">${esc(awayScore)}</div>
-    <div class="t-match-meta-line" data-area="meta">${esc(meta)}</div>
+    <div class="t-match-team${homeIsWinner ? ' is-winner' : ''}" data-area="home">${homeDot}<span class="name">${homeName}</span></div>
+    <div class="t-match-score-wrap" data-area="score">
+      <span class="t-match-score${homeHasScore ? '' : ' empty'}" data-area="home-score">${esc(homeScore)}</span>
+      <span class="t-match-score-sep">:</span>
+      <span class="t-match-score${awayHasScore ? '' : ' empty'}" data-area="away-score">${esc(awayScore)}</span>
+    </div>
+    <div class="t-match-team${awayIsWinner ? ' is-winner' : ''}" data-area="away">${awayDot}<span class="name">${awayName}</span></div>
+    ${metaHtml}
   </div>`;
 }
 

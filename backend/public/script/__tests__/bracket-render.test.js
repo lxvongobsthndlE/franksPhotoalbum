@@ -15,6 +15,15 @@
  * margin-top. Grund: display:contents auf .bracket-col + inline grid-column:1
  * auf allen Cards ließ alle Karten in Spalte 1 des Wrappers landeten.
  * Die Tests hier sind dem neuen Layout angepasst.
+ *
+ * Bug-16-NACHSCHLAG-2 (2026-08-19): HORIZONTALES Card-Layout
+ * (Team-A · Score · Team-B in einer Zeile statt untereinander).
+ * User-Direktive: "egal welches Handy, schön und vollständig". Vertikales
+ * Layout brauchte 90px min-height und wirkte auf Mobile leer. Horizontal
+ * hält die Card ~52px hoch, Score zentral prominent, Name schrumpft mit
+ * ellipsis. Sieger wird fett markiert, Verlierer grau. Meta-Zeile
+ * ("Beendet" oder "14:30 · Platte 2") nur wenn sinnvoll — leerer String
+ * bei offenen Matches ohne Zeit/Platte (früher "–" als Platzhalter).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -166,7 +175,7 @@ describe('groupMatchesByRound', () => {
 // renderMatchCardBracket
 // ──────────────────────────────────────────────────────────────────────────
 describe('renderMatchCardBracket', () => {
-  it('team-Heim/team-Auswärts rendert beide Namen + getrennte Scores (User-Korrektur 2026-08-18)', () => {
+  it('HORIZONTAL-Layout (Bug-16-Nachschlag-2): Team A · Score · Team B in einer Zeile', () => {
     const m = makeKoMatch({
       home: { kind: 'team', name: 'Heimteam A', color: '#abc' },
       away: { kind: 'team', name: 'Gastteam B', color: '#def' },
@@ -176,20 +185,25 @@ describe('renderMatchCardBracket', () => {
     expect(html).toContain('t-match--bracket');
     expect(html).toContain('Heimteam A');
     expect(html).toContain('Gastteam B');
-    // Wimbledon-/Champions-League-Pattern: getrennte Scores statt "2 : 1"
-    expect(html).toContain('>2</div>');
-    expect(html).toContain('>1</div>');
-    expect(html).not.toContain('2 : 1');
+    // Score-Wrap existiert: enthält home-score, ":", away-score.
+    expect(html).toContain('data-area="score"');
+    expect(html).toContain('t-match-score-sep');
+    expect(html).toContain('data-area="home-score">2</span>');
+    expect(html).toContain('data-area="away-score">1</span>');
+    // Kein kombinierter "2 : 1" String im HTML
+    expect(html).not.toContain('>2 : 1<');
     expect(html).not.toContain('t-match--placeholder');
     expect(html).not.toContain('empty');
   });
 
-  it('offenes Match zeigt zwei "–" als Scores (NICHT "– : –")', () => {
+  it('offenes Match zeigt zwei "–" als Scores (NICHT kombinierter "– : –")', () => {
     const m = makeKoMatch({ scoreHome: null, scoreAway: null });
     const html = renderMatchCardBracket(m);
-    expect(html).toContain('class="t-match-score empty" data-area="home-score">–</div>');
-    expect(html).toContain('class="t-match-score empty" data-area="away-score">–</div>');
-    expect(html).not.toContain('– : –');
+    // Score ist jetzt <span>, nicht <div>. Wichtig ist nur: leerer Slot,
+    // getrennte Spans, kein "– : –" als kombinierter String.
+    expect(html).toContain('class="t-match-score empty" data-area="home-score">–</span>');
+    expect(html).toContain('class="t-match-score empty" data-area="away-score">–</span>');
+    expect(html).not.toContain('>– : –<');
   });
 
   it('placeholder-Heim rendert home.name ("Sieger VF 1") kursiv (via t-match--placeholder Klasse)', () => {
@@ -217,7 +231,7 @@ describe('renderMatchCardBracket', () => {
     expect(html).not.toContain('Sieger HF');
   });
 
-  it('beendet-Match mit Score rendert "Beendet" in Meta-Zeile', () => {
+  it('beendet-Match mit Score rendert "Beendet" in Meta-Zeile + Sieger-Highlighting', () => {
     const m = makeKoMatch({
       scoreHome: 3, scoreAway: 2, isFinished: true,
       scheduledTime: '14:30', field: 2,
@@ -227,6 +241,11 @@ describe('renderMatchCardBracket', () => {
     expect(html).toContain('t-match--done');
     expect(html).not.toContain('14:30');
     expect(html).not.toContain('Platte 2');
+    // Sieger bekommt is-winner Klasse, Verlierer nicht
+    expect(html).toContain('class="t-match-team is-winner" data-area="home"');
+    expect(html).toContain('data-area="away"');
+    expect(html).toContain('t-match--home-wins');
+    expect(html).not.toContain('t-match--away-wins');
   });
 
   it('offenes Match mit scheduledTime + field rendert "14:30 · Platte 2"', () => {
@@ -238,10 +257,23 @@ describe('renderMatchCardBracket', () => {
     expect(html).not.toContain('Beendet');
   });
 
-  it('offenes Match ohne Zeit/Platte rendert "–"', () => {
+  it('offenes Match ohne Zeit/Platte: Meta-Zeile wird komplett weggelassen (kein leeres "–")', () => {
+    // Bug-16-Nachschlag-2: kein "–"-Platzhalter mehr. Wenn weder Zeit
+    // noch "Beendet" gesetzt sind, fehlt die Meta-Zeile einfach — die
+    // Card ist dann 2 Zeilen hoch statt 3, wirkt ruhiger.
     const m = makeKoMatch({ scheduledTime: null, field: null });
     const html = renderMatchCardBracket(m);
-    expect(html).toContain('<div class="t-match-meta-line" data-area="meta">–</div>');
+    expect(html).not.toContain('data-area="meta"');
+    expect(html).not.toContain('t-match-meta-line');
+  });
+
+  it('Unentschieden zeigt keine is-winner-Klasse auf einem der Teams', () => {
+    const m = makeKoMatch({
+      scoreHome: 2, scoreAway: 2, isFinished: true,
+    });
+    const html = renderMatchCardBracket(m);
+    expect(html).toContain('t-match--done');
+    expect(html).not.toContain('is-winner');
   });
 
   it('XSS-Escape: <script> im Teamname wird escaped', () => {
@@ -286,9 +318,9 @@ describe('renderMatchCardBracket', () => {
     expect(html).toContain('data-area="bar"');
     expect(html).toContain('data-area="home"');
     expect(html).toContain('data-area="away"');
+    expect(html).toContain('data-area="score"');
     expect(html).toContain('data-area="home-score"');
     expect(html).toContain('data-area="away-score"');
-    expect(html).toContain('data-area="meta"');
     // NICHT mehr nth-of-type-Selectoren im CSS — der Renderer verlässt
     // sich auf data-area, semantisch eindeutig.
   });
