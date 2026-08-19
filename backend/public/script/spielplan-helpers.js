@@ -669,57 +669,34 @@ export function renderBracket(matches) {
       </div>`
     : '';
 
-  // Architektur (Etappe B.4 Bug-16-Fix, 2026-08-19):
-  //   .bracket-wrap ist Flex-Container (kein Grid). .bracket-col sind
-  //   ECHTE Spalten-Container (Flex-Column), die ihre Karten stapeln.
-  //   Konvergenz via `margin-top` auf Karten ab Spalte 2 — Destination-
-  //   card sitzt mit halbem Karten-Abstand + halbem Kartenoffset
-  //   zwischen zwei Source-Cards. Funktioniert nur mit fester Card-Höhe
-  //   (siehe CSS .t-match--bracket { min-height: ~90px }).
-  //   VORHERIGER Versuch mit display:contents + grid-row span N brach
-  //   zusammen, weil die Karten dann alle in Spalte 1 des Wrappers
-  //   landeten (inline grid-column:1 wurde ignoriert).
+  // Architektur (Etappe B.4 Bug-16-Nachschlag, 2026-08-19):
+  //   .bracket-wrap ist Flex, .bracket-col sind echte Flex-Column-Container.
+  //   Karten stapeln sich einfach per gap — KEINE Konvergenz-Rechnung,
+  //   KEIN margin-top, KEIN grid-row span. Verbindungslinien sind auch weg:
+  //   User-Korrektur 2026-08-19: "Vier normale Spalten nebeneinander, jede
+  //   mit ihren Karten. Fertig. Das ist übersichtlicher als ein Baum mit
+  //   falsch platzierten Karten."
+  //   3RD-Match (Spiel um Platz 3) liegt INNERHALB der Finale-Spalte als
+  //   unterste Card mit kleinem Label darüber. Vorteil: auf Mobile wird
+  //   3RD automatisch mit dem F-Tab sichtbar, keine eigene Tab-Bar-Spalte.
   const colsHtml = winnerBracket.map((r, colIdx) => {
-    const cardsHtml = r.matches.map((m, mIdx) => {
-      // Konvergenz (Bug-16, 2026-08-19): Card mIdx in Spalte colIdx
-      // bekommt margin-top = (2^colIdx * mIdx) * step + step/2
-      //   → Card-Center landet auf der Mittellinie zwischen den zwei
-      //     Source-Cards in Spalte (colIdx-1).
-      //   step = Card-Höhe (90px) + Spalten-Gap (12px) = 102px (CSS .bracket-col).
-      //   Math: VF1-Center=45, VF2-Center=147 → HF1-Center=96 → margin-top=51.
-      //   Math: HF1-Center=96, HF2-Center=300 → F-Center=198 → margin-top=153.
-      // Für Spalte 0 (colIdx=0): margin-top = 0 — die Karten stapeln
-      //   sich einfach per Flex-Column-Gap.
-      const marginTop = colIdx === 0
-        ? 0
-        : (Math.pow(2, colIdx) * mIdx) + 0.5;
-      // In CSS-calc-Schritten ausdrücken (0.5 = step/2 = halbe Card-Höhe+Gap).
-      const styleAttr = marginTop > 0
-        ? ` style="margin-top: calc(var(--bracket-card-step) * ${marginTop})"`
-        : '';
-      return renderMatchCardBracket(m, styleAttr);
-    }).join('');
+    const cardsHtml = r.matches.map((m) => renderMatchCardBracket(m)).join('');
+    const isFinalCol = colIdx === winnerBracket.length - 1;
+    const thirdHtml = (isFinalCol && thirdPlace)
+      ? `<div class="bracket-3rd">
+          <div class="bracket-3rd-label">Spiel um Platz 3</div>
+          ${renderMatchCardBracket(thirdPlace)}
+        </div>`
+      : '';
     return `<div class="bracket-col" data-bracket-col="${esc(r.label)}">
       <div class="bracket-col-label">${esc(r.label)}</div>
-      ${cardsHtml}
+      ${cardsHtml}${thirdHtml}
     </div>`;
   }).join('');
-
-  // 3RD-Match in eigener Row UNTER dem Finale (User-Korrektur 2026-08-18:
-  // "direkt unter dem Finale, damit auf einen Blick klar ist, dass beide
-  // zur Endrunde gehören"). Liegt in eigenem Flex-Item unterhalb der
-  // Winner-Bracket-Spalten (funktional eine 5. Zeile unter dem Flex).
-  const thirdHtml = thirdPlace
-    ? `<div class="bracket-3rd-row" data-bracket-col="Platz 3">
-        <div class="bracket-col-label">Spiel um Platz 3</div>
-        ${renderMatchCardBracket(thirdPlace)}
-      </div>`
-    : '';
 
   return `${tabsHtml}
     <div class="bracket-wrap" style="--bracket-cols:${cols}">
       ${colsHtml}
-      ${thirdHtml}
     </div>`;
 }
 

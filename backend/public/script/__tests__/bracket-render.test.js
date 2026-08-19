@@ -326,7 +326,11 @@ describe('renderBracket', () => {
     expect(renderBracket(null)).toContain('Der Turnierbaum erscheint, sobald die KO-Phase generiert wurde.');
   });
 
-  it('3RD-Match erscheint in separater .bracket-3rd-row UNTER dem Winner-Bracket', () => {
+  it('3RD-Match liegt INNERHALB der Finale-Spalte (Bug-16-Nachschlag 2026-08-19)', () => {
+    // User-Korrektur 2026-08-19: "3RD gehört in die Finale-Spalte, unter
+    // das Finale, mit der kleinen Beschriftung darüber. Auf dem Handy
+    // komme ich aktuell gar nicht hin — es fehlt in der Tab-Leiste.
+    // Wenn es in der Finale-Spalte sitzt, löst sich das von selbst."
     const matches = [
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
@@ -338,53 +342,67 @@ describe('renderBracket', () => {
       }),
     ];
     const html = renderBracket(matches);
-    expect(html).toContain('bracket-3rd-row');
+    // 3RD-Block heißt jetzt .bracket-3rd (nicht mehr .bracket-3rd-row)
+    expect(html).toContain('bracket-3rd');
     expect(html).toContain('Spiel um Platz 3');
-    // 3RD-Reihenfolge im DOM: nach den bracket-cols
-    const idxFirstCol = html.indexOf('class="bracket-col"');
-    const idx3rd = html.indexOf('bracket-3rd-row');
-    expect(idx3rd).toBeGreaterThan(idxFirstCol);
+    // 3RD-Block liegt INNERHALB der Final-Spalte: zwischen
+    // data-bracket-col="Finale" und der Halbfinal-Spalte (die im DOM
+    // davor kommt) muss die 3RD-Card erscheinen.
+    const idxFinalCol = html.indexOf('data-bracket-col="Finale"');
+    const idxFCard = html.indexOf('data-match-id="f1"');
+    const idx3rdCard = html.indexOf('data-match-id="3rd_1"');
+    expect(idxFinalCol).toBeGreaterThan(-1);
+    expect(idxFCard).toBeGreaterThan(idxFinalCol);
+    expect(idx3rdCard).toBeGreaterThan(idxFCard);
+    // 3RD-Card kommt NACH Final-Spalte aber VOR dem Wrapper-Close.
+    // Da das die einzige Spalte mit 3RD-Block ist, ist diese Bedingung
+    // sicher. (Echte Spalten-Lage testet der nächste Test.)
   });
 
-  it('BUG-16 (2026-08-19): Spalte-0-Cards haben KEIN margin-top (Stack-Via-Flex-Gap)', () => {
+  it('3RD-Block ist INNERHALB der Final-Spalte (kein Geschwister-Wrapper)', () => {
+    // Sicherheitscheck: 3RD darf NICHT in einer eigenen 4. .bracket-col landen.
     const matches = [
-      makeKoMatch({ id: 'qf1', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 1 }),
-      makeKoMatch({ id: 'qf2', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 2 }),
-      makeKoMatch({ id: 'qf3', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 3 }),
-      makeKoMatch({ id: 'qf4', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 4 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({
+        id: '3rd_1', round: '3RD', roundLabel: 'Spiel um Platz 3',
+        bracketType: 'winner', bracketPos: 1,
+        home: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 1', color: null },
+        away: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 2', color: null },
+      }),
     ];
     const html = renderBracket(matches);
-    // Spalte 0 (Viertelfinale): alle 4 Cards ohne margin-top
-    // (sie stapeln per Flex-Column-Gap, das ist robuster als pixelbasiert)
-    // Wir prüfen das, indem wir die qf1-Card isolieren und schauen, dass
-    // KEIN style="margin-top..." in ihr steckt.
-    const qf1Idx = html.indexOf('data-match-id="qf1"');
-    const qf1NextIdx = html.indexOf('data-match-id="qf2"');
-    const qf1Block = html.slice(qf1Idx, qf1NextIdx);
-    expect(qf1Block).not.toContain('margin-top');
+    // Es gibt 2 Winner-Bracket-Spalten (Halbfinale, Finale) — KEIN 3RD als 3. Spalte.
+    // Wir bauen dafür die HTML-Struktur manuell nach, indem wir den String
+    // zwischen Final-Spalte-Open und dem nächsten .bracket-col-Open prüfen.
+    const finalColOpen = html.indexOf('data-bracket-col="Finale"');
+    // Suche rückwärts den vorherigen .bracket-col-Open (= Halbfinale-Spalte).
+    const prevColOpen = html.lastIndexOf('class="bracket-col"', finalColOpen);
+    // Suche vorwärts den nächsten .bracket-col-Open — gibt es keinen,
+    // endet die Final-Spalte am Schluss des Wrappers.
+    const nextColOpen = html.indexOf('class="bracket-col"', finalColOpen + 1);
+    // 3RD-Card-Index muss zwischen Final-Col-Open und nächstem .bracket-col-Open
+    // liegen (oder am Ende, wenn keine weitere Spalte folgt).
+    const idx3rdCard = html.indexOf('data-match-id="3rd_1"');
+    expect(idx3rdCard).toBeGreaterThan(finalColOpen);
+    if (nextColOpen > -1) {
+      expect(idx3rdCard).toBeLessThan(nextColOpen);
+    }
   });
 
-  it('BUG-16 (2026-08-19): Spalte-1+ mIdx=0 hat margin-top = 0.5 step (mittig zwischen Source-Paar 0)', () => {
-    // 8er-Baum: SF mIdx=0 soll mit margin-top = 0.5 step eingefügt werden
-    // (Center der Card fällt auf halber Höhe zwischen VF1 und VF2).
+  it('BUG-16-NACHSCHLAG (2026-08-19): KEIN Card hat margin-top (Konvergenz raus)', () => {
+    // User-Korrektur 2026-08-19: "Vier normale Spalten nebeneinander, jede
+    // mit ihren Karten. KEINE Konvergenz-Rechnung, kein grid-row span."
     const matches = [
       makeKoMatch({ id: 'qf1', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'qf2', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 2 }),
-      makeKoMatch({ id: 'qf3', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 3 }),
-      makeKoMatch({ id: 'qf4', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 4 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'sf2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 }),
       makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
     ];
     const html = renderBracket(matches);
-    // sf1 (Spalte 1, mIdx=0): margin-top = 0.5 * step
-    expect(html).toMatch(/data-match-id="sf1"[^>]*margin-top: calc\(var\(--bracket-card-step\) \* 0\.5\)/);
-    // sf2 (Spalte 1, mIdx=1): margin-top = (2*1 + 0.5) * step = 2.5 * step
-    expect(html).toMatch(/data-match-id="sf2"[^>]*margin-top: calc\(var\(--bracket-card-step\) \* 2\.5\)/);
-    // f1 (Spalte 2, mIdx=0): margin-top = 0.5 * step
-    expect(html).toMatch(/data-match-id="f1"[^>]*margin-top: calc\(var\(--bracket-card-step\) \* 0\.5\)/);
+    // Auf keiner Card darf margin-top im style-Attribut stehen.
+    expect(html).not.toMatch(/data-match-id="[^"]+"[^>]*margin-top/);
   });
 
   it('bracket-tabs-Block mit einem Button pro Runde wird OBERHALB von .bracket-wrap gerendert (Mobile-Tab-Springer)', () => {
@@ -406,10 +424,9 @@ describe('renderBracket', () => {
     expect(idxTabs).toBeLessThan(idxWrap);
   });
 
-  it('8er-Baum: keine inline grid-column/grid-row mehr (Bug-16 Architektur-Reset)', () => {
-    // Die alte Architektur (display:contents + grid-row: span N) ist tot.
-    // Der Renderer setzt KEIN grid-column/grid-row mehr — die Spalten
-    // sind jetzt echte Flex-Container, Konvergenz via margin-top.
+  it('8er-Baum: keine inline grid-column/grid-row und kein margin-top (Bug-16-Nachschlag Architektur-Reset)', () => {
+    // Doppelte Sicherheit: weder grid-column/grid-row (alte display:contents-
+    // Architektur) noch margin-top (Konvergenz-Architektur) im Output.
     const matches = [
       makeKoMatch({ id: 'qf1', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'qf2', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 2 }),
@@ -419,5 +436,6 @@ describe('renderBracket', () => {
     const html = renderBracket(matches);
     expect(html).not.toContain('grid-column:');
     expect(html).not.toContain('grid-row:');
+    expect(html).not.toMatch(/data-match-id="[^"]+"[^>]*margin-top/);
   });
 });

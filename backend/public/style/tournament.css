@@ -1116,17 +1116,17 @@
      Spalte 3 (F,  1): gap 112px, top-offset 96px
    Für 16er-Baum (4 Spalten) interpoliert die Formel analog.
    ================================================================= */
-/* === TURNIERBAUM — Etappe B.4 (Architektur-Reset Bug-16) ===
-   Bracket-Reset (2026-08-19): .bracket-wrap ist Flex, .bracket-col sind
-   echte Spalten-Container (KEIN display:contents — das hat alle Cards
-   in eine einzige Spalte gesteckt, da die Karten inline grid-column:1
-   hatten und damit alle in Slot 1 landeten).
-   Konvergenz jetzt über margin-top auf Cards ab Spalte 2 — Destination-
-   Card sitzt mittig zwischen zwei Source-Cards. Funktioniert mit fester
-   Card-Höhe (min-height: var(--bracket-card-h, 90px)).
-   container-type: inline-size misst die Bracket-Breite (NICHT die
-   .t-mod-Breite — auf Tablet ist die sichtbare Bracket-Fläche schmaler
-   wegen t-mod-nav links + t-mod-aside rechts). */
+/* === TURNIERBAUM — Etappe B.4 (Architektur-Reset Bug-16-Nachschlag) ===
+   User-Korrektur 2026-08-19: "Vier normale Spalten nebeneinander, jede
+   mit ihren Karten. Fertig. Kein grid-row span, kein margin-top, keine
+   Konvergenz-Rechnung. Das ist übersichtlicher als ein Baum mit falsch
+   platzierten Karten."
+   Konsequenzen:
+   - Kein margin-top auf Cards.
+   - Keine Verbindungslinien (::before/::after weg).
+   - 3RD-Match liegt in der Final-Spalte unter der F-Card.
+   - Card hat min-width:0 damit sie auf Mobile bis zur vollen Spaltenbreite
+     schrumpfen kann, ohne dass der Score abgeschnitten wird. */
 .bracket-wrap {
   display: flex;
   flex-direction: row;
@@ -1135,14 +1135,12 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: var(--s2);
-  container-type: inline-size;
-  /* Scroll-Snap: Desktop ignoriert (proximity), Mobile mandatory. */
+  /* Scroll-Snap: Desktop proximity (locker), Mobile mandatory. */
   scroll-snap-type: x proximity;
   scroll-padding-left: var(--s3);
 }
-/* Echte Spalten-Container. Cards leben hier drin, gestapelt per Flex.
-   Konvergenz kommt aus der Card selbst (margin-top auf Cards in
-   Spalte 2+), NICHT aus diesem Container — der Container ist neutral. */
+/* Echte Spalten-Container. Cards stapeln sich via Flex-Column-Gap.
+   Keine Konvergenz — "schlichtes Übereinander" laut User-Direktive. */
 .bracket-col {
   display: flex;
   flex-direction: column;
@@ -1161,23 +1159,23 @@
   margin-bottom: var(--s1);
 }
 
-/* 3RD-Row: unter der FINAL-Spalte (User-Korrektur 2026-08-18: 3RD =
-   Teil der Endrunde, direkt unter Finale). Liegt AUSSERHALB der
-   Winner-Bracket-Spalten (siehe Renderer-Output: .bracket-3rd-row ist
-   Geschwister von .bracket, nicht Kind einer .bracket-col). */
-.bracket-3rd-row {
-  /* Bug-16 (2026-08-19): 3RD-Row muss UNTER dem Winner-Bracket stehen,
-     nicht daneben. flex-basis:100% erzwingt einen Zeilenumbruch in der
-     Flex-Layout-Strategie — danach wirken margin-top + padding-top +
-     border-top wie oberhalb aller Winner-Spalten. */
-  flex: 0 0 100%;
-  max-width: 360px;
+/* 3RD-Subblock (Bug-16-Nachschlag 2026-08-19): liegt INNERHALB der
+   Final-Spalte, unter der F-Card, mit eigenem kleinem Label.
+   border-top dashed grenzt ihn visuell von der F-Region ab. */
+.bracket-3rd {
   margin-top: var(--s5);
   padding-top: var(--s4);
   border-top: 1px dashed var(--line);
   display: flex;
   flex-direction: column;
-  gap: var(--s4);
+  gap: var(--s2);
+}
+.bracket-3rd-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
 }
 
 /* Bracket-Knoten — Teams UNTEREINANDER statt nebeneinander
@@ -1186,9 +1184,10 @@
    Ergebnis senkrecht ablesbar. Bei offenen Spielen jeweils "–".
    Layout via data-area (Bug-16 Fix 2026-08-19): nth-of-type ist BRÜCHIG
    hier, weil ALLE Kinder divs sind — die "erste Score" wäre dann das
-   t-match-bar-Element. data-area matched semantisch, nicht per Position. */
+   t-match-bar-Element. data-area matched semantisch, nicht per Position.
+   min-width:0 + minmax(0,1fr) ist KRITISCH für Mobile: Card darf
+   schrumpfen, ohne dass der Score abgeschnitten wird. */
 .t-match--bracket {
-  position: relative;          /* Bezugspunkt für ::before/::after Linien */
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr) auto;
   grid-template-rows: auto auto auto;
@@ -1201,11 +1200,10 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card, 8px);
-  /* Feste Card-Höhe-Hülle: Inhalt zentriert, Mindesthöhe 90px sorgt für
-     kompakte Karten UND für vorhersagbare Konvergenz (margin-top-Schritte
-     = Card-Höhe + Spalten-Gap, siehe --bracket-card-step). */
   min-height: 90px;
   align-content: center;
+  min-width: 0;       /* Card darf in der Spalte schrumpfen */
+  overflow: hidden;   /* Score nie über die Card-Kante hinaus */
 }
 .t-match--bracket [data-area="bar"] {
   grid-area: bar;
@@ -1254,6 +1252,9 @@
   background: transparent;
   border-radius: 0;
   padding: 0;
+  /* Wir wollen, dass der Score IMMER voll sichtbar ist — am rechten
+     Card-Rand, auch wenn der Name lang ist. Kein overflow:hidden hier,
+     damit der Score nicht abgeschnitten wird. */
 }
 .t-match--bracket [data-area="home-score"].empty,
 .t-match--bracket [data-area="away-score"].empty {
@@ -1272,41 +1273,6 @@
   background: transparent;
   border-style: dashed;
 }
-
-/* Konvergenz-Schritt: 1 Card-Höhe + 1 Spalten-Gap. Renderer multipliziert
-   diesen Wert mit (2^colIdx - 1) * mIdx, um Destination-Cards mittig
-   zwischen Source-Cards zu positionieren. Bei min-height:90px + gap:12px
-   = 102px pro Schritt. Spalte 2 Card mIdx=1: 102px. Spalte 3 Card mIdx=1:
-   306px. Spalte 3 Card mIdx=2: 102px. */
-.bracket-col {
-  /* Schritt-Variable für Konvergenz — vom Renderer gelesen. */
-  --bracket-card-step: calc(90px + var(--s4));
-}
-
-/* Verbindungslinien — Spec §8.2: Wer gegen wen kommt, muss auf einen
-   Blick erkennbar sein. Reine CSS-Linien (kein SVG), Konvergenz
-   ergibt sich durch grid-row: span N der Destination-Spalte. */
-.t-match--bracket::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 100%;
-  width: var(--s4);
-  height: 1px;
-  background: var(--line);
-}
-.t-match--bracket::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 100%;
-  width: var(--s4);
-  height: 1px;
-  background: var(--line);
-}
-/* Erste Spalte: keine eingehende Linie. Letzte Spalte: keine ausgehende Linie. */
-.bracket-col:first-child .t-match--bracket::before,
-.bracket-col:last-child  .t-match--bracket::after { display: none; }
 
 /* Runden-Tab-Leiste (oberhalb des Brackets) — Mobile-First, Desktop
    versteckt via display: none. */
@@ -1337,17 +1303,10 @@
   font-weight: 600;
 }
 
-/* === Mobile (≤ 767px) — Spec §13.8: Snap pro Runde, Tab-Leiste ===
-   Pragmatischer Fallback auf @media (max-width: 767px) statt @container:
-   (1) Edge-Headless rendert @container-Queries unzuverlässig.
-   (2) Auf Tablet misst @container die Bracket-Breite (nicht die
-       Modul-Breite) — auf dem Phone hier ist Modul-Breite = Bracket-Breite
-       (Navigation wird ausgeblendet oder unter Inhalt geschoben), daher
-       liefern beide Strategien dasselbe Ergebnis.
-   Bracket-Module in der App-Shell haben t-mod-nav links (260px) +
-   t-mod-aside rechts, also misst .t-mod < 767px bereits vor der Bracket.
-   Aber die Modul-Shell ist @media-geregelt, nicht @container, daher
-   ist @media hier ohnehin der robustere Schalter. */
+/* === Mobile (≤ 767px) — Spec §13.8: Snap pro Runde, Tab-Leiste
+   Pragmatischer Fallback auf @media statt @container: Edge-Headless
+   rendert @container unzuverlässig, und unser t-mod ist ohnehin @media-
+   gesteuert. */
 @media (max-width: 767px) {
   .bracket-tabs { display: flex; }
   .bracket-wrap {
@@ -1355,14 +1314,15 @@
     scroll-padding-left: var(--s3);
   }
   .bracket-col {
-    min-width: calc(100vw - var(--s3) * 2);  /* volle Bildschirm-Breite */
+    /* Card muss sich der verfügbaren Breite anpassen — auf 390px ist
+       die Spalte = 390 - 2*12 = 366px. Score + Dot + Name passen da
+       locker rein. */
+    min-width: calc(100vw - var(--s3) * 2);
+    max-width: calc(100vw - var(--s3) * 2);
   }
-  /* Verbindungslinien ausblenden — wenn nur 1 Runde sichtbar ist,
-     verbinden sie nichts und erzeugen nur visuelles Rauschen. */
-  .t-match--bracket::before,
-  .t-match--bracket::after { display: none; }
-  /* 3RD-Zeile darunter, volle Breite (1 Runde pro Screen, also Platz). */
-  .bracket-3rd-row { max-width: 100%; }
+  /* 3RD-Subblock bleibt in der F-Spalte — auf Mobile sieht der User
+     ihn automatisch, wenn er den F-Tab öffnet. */
+  .bracket-3rd { max-width: 100%; }
 }
 
 /* ----------------------------------------------------------------
