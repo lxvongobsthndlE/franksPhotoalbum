@@ -1186,16 +1186,20 @@
    vom Team (typische Turnierbaum-Anordnung). Card-Höhe 90px auf
    Desktop, schmaler auf Mobile.
    Layout via data-area (Bug-16 Fix 2026-08-19): nth-of-type ist BRÜCHIG
-   hier, weil ALLE Kinder divs sind. data-area matched semantisch. */
+   hier, weil ALLE Kinder divs sind. data-area matched semantisch.
+   Grid-Template: bar (3px) | home (flex) | home-score (min 36px) —
+   die Score-Spalte hat eine FESTE Mindestbreite, damit der Score
+   IMMER sichtbar ist (User-Korrektur 2026-08-19: "man sieht das
+   ergebnis nicht, siehe screenshot"). */
 .t-match--bracket {
   display: grid;
-  grid-template-columns: 3px minmax(0, 1fr) auto;
+  grid-template-columns: 3px minmax(0, 1fr) minmax(36px, auto);
   grid-template-rows: auto auto auto;
   grid-template-areas:
     "bar home  home-score"
     "bar away  away-score"
     "bar meta  meta";
-  gap: 4px var(--s3);
+  gap: 4px var(--s2);
   padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1246,20 +1250,24 @@
 .t-match--bracket [data-area="home-score"],
 .t-match--bracket [data-area="away-score"] {
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 700;
   text-align: right;
-  min-width: 1.5em;
+  min-width: 36px;
+  padding: 2px 6px;
   font-size: 14px;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  line-height: 1;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  line-height: 1.2;
+  align-self: center;
 }
 .t-match--bracket [data-area="home-score"].empty,
 .t-match--bracket [data-area="away-score"].empty {
   color: var(--muted, #8A8077);
   font-weight: 400;
+  background: transparent;
+  border-color: var(--line);
+  border-style: dashed;
 }
 .t-match--bracket.t-match--placeholder .name {
   font-style: italic;
@@ -1323,9 +1331,21 @@
    rendert @container unzuverlässig, und unser t-mod ist ohnehin @media-
    gesteuert. WICHTIG (User-Korrektur 2026-08-19): "wenn ich unter vf bin
    will ich nicht noch daneben abgeschnitten das hf sehen" — Spalte
-   ist EXAKT so breit wie der Viewport, scroll-snap-stop:always sorgt
-   dafür dass immer nur eine Spalte voll sichtbar ist, angeschnittene
-   Nachbarn sind nicht im Viewport. */
+   ist EXAKT so breit wie der sichtbare Wrap-Bereich, scroll-snap-stop:
+   always sorgt dafür dass immer nur eine Spalte voll sichtbar ist,
+   angeschnittene Nachbarn sind nicht im Viewport.
+
+   Spalte = 100% vom Flex-Parent (.bracket-wrap). NICHT 100cqw und NICHT
+   100vw — beide haben sich in der Praxis als zu breit erwiesen:
+     - 100vw = 440px (App-Window), aber Wrap nur 372px → 68px overflow
+     - 100cqw - s3*2 = 388px (tmod 412 - 24 padding), immer noch 16px
+       breiter als Wrap → Score-Track am rechten Rand abgeschnitten
+   User-Korrektur 2026-08-19: "man sieht das ergebnis nicht" — der
+   Score saß genau in diesem 16px-Overflow-Streifen und wurde vom
+   Wrap-Clip weggeschnitten. Mit flex: 0 0 100% (vom Wrap) sitzt die
+   Spalte bündig im Wrap, Card-Inhalt inclusive Score ist voll sichtbar.
+   Der Wrap selbst ist auf Mobile ohnehin auf die volle Inhaltsbreite
+   begrenzt, also muss die Spalte nicht noch zusätzlich schrumpfen. */
 @media (max-width: 767px) {
   .bracket-tabs { display: flex; }
   .bracket-wrap {
@@ -1333,11 +1353,10 @@
     scroll-padding-left: 0;
   }
   .bracket-col {
-    /* Spalte = Bildschirmbreite minus beidseitiger s3-Padding (12px),
-       damit kein Nachbar angeschnitten sichtbar ist. */
-    flex: 0 0 calc(100vw - var(--s3) * 2);
-    width: calc(100vw - var(--s3) * 2);
-    max-width: calc(100vw - var(--s3) * 2);
+    /* Spalte = exakte Wrap-Breite (kein Overflow, kein Score-Clip). */
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
     scroll-snap-align: start;
     scroll-snap-stop: always;
   }
@@ -1346,9 +1365,11 @@
 
 /* Sehr schmale Geräte (<= 380px): Cards bleiben auf Bildschirm-Breite,
    Font minimal kleiner damit alles in die 3-4cm passt. Galaxy Fold
-   Cover, iPhone SE. */
+   Cover, iPhone SE. Beachte: getrennte home-score / away-score (nicht
+   kombinierter "score" — der wurde in Bug-16-Nachschlag-3 entfernt). */
 @media (max-width: 380px) {
-  .t-match--bracket [data-area="score"] {
+  .t-match--bracket [data-area="home-score"],
+  .t-match--bracket [data-area="away-score"] {
     font-size: 13px;
   }
   .t-match--bracket [data-area="home"] .name,
