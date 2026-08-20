@@ -358,6 +358,11 @@ export default async function tournamentRoutes(fastify) {
   // MinIO-Räumen werden bewusst geschluckt — die DB-Zeile ist weg,
   // und ein verlorenes Objekt ist weniger schlimm als ein hängen
   // gebliebener Turnier-Eintrag.
+  //
+  // Confirm-Handshake (§13.10): wenn bereits Spiele beendet sind,
+  // muss der User den Turniernamen tippen. Bei 0 finished reicht
+  // das einfache DELETE — passend zur Turnier-Liste, wo der User
+  // noch keine Ergebnisse eingetragen haben kann.
   fastify.delete('/:id', async (request, reply) => {
     try {
       const ctx = await requireTournamentWrite(
@@ -365,6 +370,23 @@ export default async function tournamentRoutes(fastify) {
         fastify.prisma,
         request.params.id
       );
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      if (finishedCount > 0) {
+        const provided = normalizeConfirmName(request.body?.confirmTournamentName);
+        const expected = normalizeConfirmName(ctx.tournament.name);
+        if (provided !== expected) {
+          return reply.code(409).send({
+            error: 'delete_locked_results_present',
+            message:
+              `${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} ` +
+              `sind bereits beendet. Tippe zur Bestätigung den Turniernamen.`,
+            finishedMatches: finishedCount,
+            needsConfirmation: true,
+          });
+        }
+      }
       const tournamentId = ctx.tournament.id;
       await fastify.prisma.tournament.delete({ where: { id: tournamentId } });
       await deleteTournamentAsset(tournamentId, 'logo').catch(() => {});

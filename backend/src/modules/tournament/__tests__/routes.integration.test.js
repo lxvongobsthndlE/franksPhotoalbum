@@ -63,6 +63,7 @@ function createLocalMockPrisma() {
       createMany: fn(),
       update: fn(),
       updateMany: fn(),
+      count: fn(),
       groupBy: fn(),
     },
     $transaction: vi.fn(async (cb) => {
@@ -164,6 +165,10 @@ function baseStubs(prisma) {
   // match.groupBy wird für die List-Aggregation (Counts) gebraucht.
   // Default: leere Liste — Aggregate-Funktion verarbeitet das korrekt.
   prisma.match.groupBy.mockResolvedValue([]);
+  // match.count wird von DELETE /:id (Confirm-Handshake §13.10) und
+  // Reset-Results / Redraw / Groups / Schedule für die Lock-Prüfung
+  // gebraucht. Default: 0 finished.
+  prisma.match.count.mockResolvedValue(0);
 }
 
 afterEach(() => {
