@@ -40,7 +40,7 @@
    Übernommen aus turniermodul-prototyp.html :root (unverändert).
    ---------------------------------------------------------------- */
 .t-mod {
-  /* Farben */
+  /* ---- Farben: Grundton, aus [kru:]nest übernommen ---- */
   --paper:        #FAF7F1;
   --surface:      #FFFFFF;
   --surface-alt:  #F5F1E9;
@@ -49,16 +49,35 @@
   --line:         #E7DFD2;
   --accent:       #8B6B4A;
   --accent-soft:  #F0E7DA;
+
+  /* ---- Anzeigetafel: die eigene Handschrift des Moduls ----
+     Überall dort, wo Ergebnisse oder Zeiten stehen, wird der Grund
+     dunkel und die Ziffer hell. Das ist das Element, an dem man das
+     Turniermodul erkennt. Bewusst wärmer als reines Schwarz, damit es
+     zum Papier der App gehört statt darauf zu liegen. */
+  --board:        #211C16;
+  --board-ink:    #F7F2E8;
+  --board-dim:    #6B6055;
+
+  /* ---- Zustände ----
+     --done ist ein Alias für --qualified (Plan-Sektion 2.1 nennt den
+     Token --done, A2/A3-CSS verwendet aber var(--qualified) — beide
+     zeigen auf denselben Wert). */
   --open:         #C08A2E;
   --qualified:    #4F7A4A;
+  --done:         #4F7A4A;
   --out:          #A79E94;
   --danger:       #C0453A;
 
-  /* Radien */
-  --r-card: 12px;
-  --r-btn:  10px;
+  /* ---- Radien ----
+     4px für Score-Felder: bewusst kantiger als der Rest. Der kleine
+     Bruch ist Absicht — er macht das Score-Feld zum Fremdkörper im
+     guten Sinn. */
+  --r-card:  12px;
+  --r-btn:   10px;
+  --r-board: 4px;
 
-  /* Spacing-Skala */
+  /* ---- Spacing ---- */
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
@@ -66,23 +85,44 @@
   --s6: 24px;
   --s8: 32px;
 
-  /* KEIN --font: Schriftfamilie wird vom Body geerbt. */
-
-  /* Container-Klasse selbst: Full-Height-Inside-App-Shell.
-     CONTAINER-QUERY: Das Modul reagiert auf seine EIGENE Breite,
-     nicht auf die Fensterbreite. So funktioniert es korrekt, wenn
-     [kru:]nest eine Seitenleiste hat (236px Desktop, ausgeblendet
-     ≤900px) und das Modul dadurch mal 1584px, mal 820px breit ist. */
+  /* ---- Container-Vertrag (unverändert, nicht anfassen) ---- */
   container-type: inline-size;
-  /* WICHTIG: container-type setzt implizit contain: layout inline-size.
-     Dadurch wird die Größenermittlung vom Inhalt entkoppelt. Ohne
-     explizite width fällt das Modul in einem Column-Flex-Container
-     (z. B. <main>) auf 0px zurück. Deshalb: width: 100% als Modul-
-     Vertrag, nicht als Preview-Spezifikum. */
   width: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* ----------------------------------------------------------------
+   NACHTMODUS
+   ----------------------------------------------------------------
+   Selektor an [kru:]nest angepasst: dort steht [data-theme='dark']
+   (siehe main.css Zeile 22), kein body.dark oder theme-dark.
+
+   WICHTIG: Die Anzeigetafel dreht sich um. Auf hellem Grund ist sie
+   dunkel, auf dunklem Grund hell. So bleibt sie in beiden Modi das
+   auffälligste Element, statt mit dem Hintergrund zu verschmelzen.
+   ---------------------------------------------------------------- */
+[data-theme='dark'] .t-mod {
+  --paper:        #1A1714;
+  --surface:      #23201B;
+  --surface-alt:  #2A2620;
+  --ink:          #F2EDE4;
+  --ink-soft:     #A69C90;
+  --line:         #332E27;
+  --accent:       #B8916A;
+  --accent-soft:  #332A22;
+
+  /* Anzeigetafel umgekehrt */
+  --board:        #EDE6DA;
+  --board-ink:    #1A1714;
+  --board-dim:    #7A7166;
+
+  --open:         #D9A445;
+  --qualified:    #6B9A66;
+  --done:         #6B9A66;
+  --out:          #6E665D;
+  --danger:       #D66B60;
 }
 
 /* ----------------------------------------------------------------
@@ -2390,7 +2430,7 @@ textarea.t-input {
  * Color) ab 720px. Seed-Badge links, Status-Indikator rechts.
  * ---------------------------------------------------------------- */
 .t-teams-view {
-  background: var(--surface, #FFF);
+  background: var(--surface);
   border: 1px solid var(--line, #E7DFD2);
   border-radius: 12px;
   padding: 16px 20px;
@@ -2476,7 +2516,7 @@ textarea.t-input {
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: var(--surface, #FFF);
+  background: var(--surface);
   border: 1px solid var(--line, #E7DFD2);
   border-radius: 50%;
   font-size: 0.8rem;
@@ -2499,7 +2539,7 @@ textarea.t-input {
   padding: 0;
   border: 1px solid var(--line, #E7DFD2);
   border-radius: 6px;
-  background: var(--surface, #FFF);
+  background: var(--surface);
   cursor: pointer;
 }
 
@@ -2523,7 +2563,7 @@ textarea.t-input {
   line-height: 1.4;
   border-radius: 999px;
   border: 1px solid var(--line, #E7DFD2);
-  background: var(--surface, #FFF);
+  background: var(--surface);
   color: var(--ink-soft, #8A8077);
   cursor: pointer;
 }
@@ -2563,7 +2603,7 @@ textarea.t-input {
   line-height: 1.5;
   border: 1px solid var(--line, #E7DFD2);
   border-radius: 8px;
-  background: var(--surface, #FFF);
+  background: var(--surface);
   color: var(--ink, #1F1B16);
   box-sizing: border-box;
 }
@@ -2612,7 +2652,7 @@ textarea.t-input {
   align-items: center;
   gap: var(--s3, 12px);
   padding: var(--s2, 8px) var(--s3, 12px);
-  background: var(--surface, #fff);
+  background: var(--surface);
   border: 1px solid var(--line, #E5DED5);
   border-radius: var(--r-card, 8px);
   position: relative;
@@ -2623,7 +2663,7 @@ textarea.t-input {
   z-index: 10;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   cursor: grabbing;
-  background: var(--surface, #fff);
+  background: var(--surface);
 }
 .t-team-row--placeholder {
   border: 1px dashed var(--line, #E5DED5);
@@ -2685,7 +2725,7 @@ textarea.t-input {
   padding: 4px 6px;
   border: 1px solid var(--accent, #1D3557);
   border-radius: 4px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   font-family: inherit;
 }
 .t-team-seed {
@@ -2906,7 +2946,7 @@ textarea.t-input {
   z-index: 100;
 }
 .t-pick-team-modal-card {
-  background: var(--surface, #fff);
+  background: var(--surface);
   border-radius: var(--r-card, 8px);
   padding: var(--s4, 16px);
   width: min(420px, 92vw);
