@@ -90,6 +90,12 @@ export function prepareTournamentView(rawTournament, opts = {}) {
 
     startsAt: rawTournament.startsAt ?? null,
     endsAt: rawTournament.endsAt ?? null,
+    // Etappe B.8: Lock-Trigger. NULL = „Bereit" (entweder draft oder
+    // generated, aber noch nicht offiziell gestartet). Sobald ein Admin
+    // auf „Turnier starten" klickt, wird startedAt gesetzt und die
+    // Bracket-validierenden Sperren greifen.
+    startedAt: rawTournament.startedAt ?? null,
+    startedAtShort: formatDateShort(rawTournament.startedAt),
     startsAtDate: computedSingleDay
       ? ''
       : formatWeekdayDate(rawTournament.startsAt),

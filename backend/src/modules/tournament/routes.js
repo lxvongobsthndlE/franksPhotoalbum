@@ -50,6 +50,7 @@ import {
 } from '../../utils/storage.js';
 import { resizeLogoImage } from './asset.js';
 import { nextPaletteColor } from './team-colors.js';
+import { canEdit, canRevertToDraft, canStartTournament, requireConfirmForRedraw } from './locks.js';
 
 export default async function tournamentRoutes(fastify) {
   // ─────────────────────────────────────────────────────────
@@ -410,6 +411,16 @@ export default async function tournamentRoutes(fastify) {
         fastify.prisma,
         request.params.id
       );
+      // Etappe B.8: Teams add ist nur erlaubt in ENTWURF oder BEREIT
+      // (startedAt === null). In LÄUFT ist die Struktur eingefroren.
+      const teamsLock = canEdit(ctx.tournament, 0, 'teams');
+      if (!teamsLock.allowed) {
+        return reply.code(409).send({
+          error: 'teams_add_locked',
+          message: teamsLock.reason,
+          status: ctx.tournament.status,
+        });
+      }
       const { names } = request.body ?? {};
       if (!Array.isArray(names) || names.length === 0) {
         return reply.code(400).send({ error: 'names[] erforderlich' });
@@ -477,6 +488,15 @@ export default async function tournamentRoutes(fastify) {
         fastify.prisma,
         request.params.id
       );
+      // Etappe B.8: Teams remove ist nur erlaubt in ENTWURF oder BEREIT.
+      const teamsLock = canEdit(ctx.tournament, 0, 'teams');
+      if (!teamsLock.allowed) {
+        return reply.code(409).send({
+          error: 'teams_remove_locked',
+          message: teamsLock.reason,
+          status: ctx.tournament.status,
+        });
+      }
       const team = await fastify.prisma.tournamentTeam.findFirst({
         where: { id: request.params.teamId, tournamentId: ctx.tournament.id },
       });
@@ -631,13 +651,14 @@ export default async function tournamentRoutes(fastify) {
           message: 'order[] darf keine doppelten IDs enthalten.',
         });
       }
-      // Status-Gate: nur im draft.
-      const tStatus = ctx.tournament.status;
-      if (tStatus !== 'draft') {
+      // Status-Gate (Etappe B.8): Reorder ist in ENTWURF und BEREIT
+      // erlaubt, in LÄUFT (startedAt !== null) nicht.
+      const reorderLock = canEdit(ctx.tournament, 0, 'teams');
+      if (!reorderLock.allowed) {
         return reply.code(409).send({
           error: 'teams_reorder_locked',
-          message: `Reorder ist nur im Status „draft" möglich — aktuell „${tStatus}".`,
-          status: tStatus,
+          message: reorderLock.reason,
+          status: ctx.tournament.status,
         });
       }
 
@@ -723,15 +744,18 @@ export default async function tournamentRoutes(fastify) {
         });
       }
 
-      // Lock: ≥1 finished match → 409.
+      // Lock (Etappe B.8): Gruppen sind in LÄUFT (startedAt !== null)
+      // eingefroren — unabhängig vom finishedCount. Strikt nach Status.
       const finishedCount = await fastify.prisma.match.count({
         where: { tournamentId: ctx.tournament.id, status: 'finished' },
       });
-      if (finishedCount > 0) {
+      const groupsLock = canEdit(ctx.tournament, finishedCount, 'groups');
+      if (!groupsLock.allowed) {
         return reply.code(409).send({
           error: 'groups_locked_results_present',
-          message: `Gruppeneinteilung kann nicht geändert werden — ${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.`,
+          message: groupsLock.reason,
           finishedMatches: finishedCount,
+          status: ctx.tournament.status,
         });
       }
 
@@ -852,8 +876,21 @@ export default async function tournamentRoutes(fastify) {
         where: { tournamentId: ctx.tournament.id, status: 'finished' },
       });
 
-      // Wenn ≥1 finished, Confirm-Handshake (Spec §13.10).
-      if (finishedCount > 0) {
+      // Etappe B.8: read-only-Gate.
+      const drawLock = canEdit(ctx.tournament, finishedCount, 'draw');
+      if (!drawLock.allowed) {
+        return reply.code(409).send({
+          error: 'redraw_locked_readonly',
+          message: drawLock.reason,
+          status: ctx.tournament.status,
+        });
+      }
+
+      // Confirm-Handshake (Spec §13.10) bei LÄUFT + finishedCount > 0.
+      // Hinweis: in ENTWURF/BEREIT ist finishedCount === 0 (kein Match
+      // kann finished sein ohne dass gestartet wurde), aber wir prüfen
+      // requireConfirmForRedraw trotzdem defensiv.
+      if (requireConfirmForRedraw(ctx.tournament, finishedCount)) {
         const provided = normalizeConfirmName(request.body?.confirmTournamentName);
         const expected = normalizeConfirmName(ctx.tournament.name);
         if (provided !== expected) {
@@ -1203,11 +1240,15 @@ export default async function tournamentRoutes(fastify) {
         });
       }
 
-      // Lock: nur im draft editierbar.
-      if (ctx.tournament.status !== 'draft') {
+      // Lock (Etappe B.8): Spielfelder sind in LÄUFT (startedAt !== null)
+      // UND in ENTWURF/BEREIT editierbar. Nur im Status 'finished' sind
+      // sie gesperrt. Grund: User kann am Turniertag den Tischnamen
+      // noch anpassen (z.B. „Platte 3" → „Beach Court").
+      const fieldsLock = canEdit(ctx.tournament, 0, 'fields');
+      if (!fieldsLock.allowed) {
         return reply.code(409).send({
-          error: 'fields_locked_after_generate',
-          message: 'Spielfelder können nach der Generierung nicht mehr geändert werden — der Ausdruck zeigt die aktuelle Konfiguration.',
+          error: 'fields_locked',
+          message: fieldsLock.reason,
           status: ctx.tournament.status,
         });
       }
@@ -1641,6 +1682,182 @@ export default async function tournamentRoutes(fastify) {
       });
     } catch (err) {
       return handleError(reply, err, 'Reschedule fehlgeschlagen');
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 3b. Turnier-Lebenszyklus (Etappe B.8) — start, revert, shift
+  // ─────────────────────────────────────────────────────────
+
+  // POST /api/tournaments/:id/start — Turnier offiziell starten.
+  //
+  // Übergang von BEREIT (status='generated', startedAt=null) zu LÄUFT
+  // (startedAt gesetzt). Sperrt ab dann alle Bracket-validierenden
+  // Aktionen (Teams add/remove/reorder, Modus, Gruppen, Reorder).
+  // Spielfeld-Namen, Dauer, Plattenzahl und per-match-Schedule bleiben
+  // editierbar.
+  //
+  // Antwort: { ok: true, startedAt: ISO }.
+  // Locks:
+  //   - status !== 'generated' → 409 tournament_not_generated
+  //   - startedAt !== null → 409 tournament_already_started
+  fastify.post('/:id/start', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const startCheck = canStartTournament(ctx.tournament);
+      if (!startCheck.allowed) {
+        // startedAt hat Vorrang vor status — wenn bereits gestartet,
+        // ist es immer "already_started", auch wenn der Status wieder
+        // auf "generated" zurückspringen würde.
+        const code = ctx.tournament.startedAt !== null
+          ? 'tournament_already_started'
+          : 'tournament_not_generated';
+        return reply.code(409).send({
+          error: code,
+          message: startCheck.reason,
+          status: ctx.tournament.status,
+          startedAt: ctx.tournament.startedAt ?? null,
+        });
+      }
+      const startedAt = new Date();
+      await fastify.prisma.tournament.update({
+        where: { id: ctx.tournament.id },
+        data: { startedAt },
+      });
+      return { ok: true, startedAt: startedAt.toISOString() };
+    } catch (err) {
+      return handleError(reply, err, 'Turnier starten fehlgeschlagen');
+    }
+  });
+
+  // POST /api/tournaments/:id/revert-to-draft — Zurück zu Entwurf.
+  //
+  // Übergang von LÄUFT zurück zu ENTWURF. **Matches und Stages bleiben
+  // unverändert** (Spec §B.8: User-Use-Case „Team kommt zu spät, ich
+  // will den Spielplan behalten"). Setzt startedAt = null und
+  // status = 'draft'.
+  //
+  // Locks:
+  //   - status === 'finished' → 409 (sowieso nicht aufrufbar)
+  //   - startedAt === null → 409 tournament_not_started
+  //   - finishedCount > 0 → 409 revert_locked_results_present
+  //     mit needsConfirmation + confirmTournamentName (§13.10).
+  fastify.post('/:id/revert-to-draft', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      const revertCheck = canRevertToDraft(ctx.tournament, finishedCount);
+      if (!revertCheck.allowed) {
+        // 409 mit needsConfirmation wenn finishedCount > 0 (analog §13.10).
+        if (finishedCount > 0) {
+          const provided = normalizeConfirmName(request.body?.confirmTournamentName);
+          const expected = normalizeConfirmName(ctx.tournament.name);
+          if (provided !== expected) {
+            return reply.code(409).send({
+              error: 'revert_locked_results_present',
+              message: `Zurücksetzen nicht möglich — ${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet. Tippe zur Bestätigung den Turniernamen.`,
+              finishedMatches: finishedCount,
+              needsConfirmation: true,
+            });
+          }
+          // Confirm vorhanden und korrekt: durchwinken.
+        } else {
+          // startedAt === null oder status === 'finished' (selten).
+          return reply.code(409).send({
+            error: ctx.tournament.status === 'finished'
+              ? 'tournament_finished'
+              : 'tournament_not_started',
+            message: revertCheck.reason,
+            status: ctx.tournament.status,
+          });
+        }
+      }
+      await fastify.prisma.tournament.update({
+        where: { id: ctx.tournament.id },
+        data: { startedAt: null, status: 'draft' },
+      });
+      return { ok: true, status: 'draft' };
+    } catch (err) {
+      return handleError(reply, err, 'Zurücksetzen fehlgeschlagen');
+    }
+  });
+
+  // POST /api/tournaments/:id/shift-open-matches — offene Spiele verschieben.
+  //
+  // Body: { minutes: number } — positiv (später) oder negativ (früher),
+  // Range ±24h. Verschiebt alle Matches mit status='scheduled' und
+  // scheduledAt !== null. Locked Spiele (status='finished' oder
+  // 'live') bleiben unverändert.
+  //
+  // Antwort: { ok: true, shiftedCount }.
+  // Locks:
+  //   - status === 'finished' → 409 tournament_finished
+  //   - minutes ungültig → 400 invalid_minutes
+  fastify.post('/:id/shift-open-matches', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      if (ctx.tournament.status === 'finished') {
+        return reply.code(409).send({
+          error: 'tournament_finished',
+          message: 'Turnier ist beendet — Spiele können nicht mehr verschoben werden.',
+          status: ctx.tournament.status,
+        });
+      }
+      const minutes = Number(request.body?.minutes);
+      if (
+        !Number.isFinite(minutes) ||
+        minutes === 0 ||
+        minutes < -1440 ||
+        minutes > 1440
+      ) {
+        return reply.code(400).send({
+          error: 'invalid_minutes',
+          message: 'minutes muss eine Zahl ungleich 0 sein, im Bereich ±1440 (24 Stunden).',
+          received: request.body?.minutes,
+        });
+      }
+      const ms = minutes * 60_000;
+      // Prisma unterstützt kein Date-Increment in updateMany ohne Raw,
+      // also: betroffene Matches lesen, neuen Zeitstempel berechnen,
+      // einzeln updaten. Bei vielen Matches ginge das per Raw-SQL
+      // effizienter, aber für Turnier-Größenordnung (≤500 Spiele) ist
+      // die JS-Schleife schnell genug.
+      const targets = await fastify.prisma.match.findMany({
+        where: {
+          tournamentId: ctx.tournament.id,
+          status: 'scheduled',
+          scheduledAt: { not: null },
+        },
+        select: { id: true, scheduledAt: true },
+      });
+      if (targets.length === 0) {
+        return { ok: true, shiftedCount: 0 };
+      }
+      await fastify.prisma.$transaction(
+        targets.map((m) =>
+          fastify.prisma.match.update({
+            where: { id: m.id },
+            data: { scheduledAt: new Date(m.scheduledAt.getTime() + ms) },
+          })
+        )
+      );
+      return { ok: true, shiftedCount: targets.length };
+    } catch (err) {
+      return handleError(reply, err, 'Verschieben fehlgeschlagen');
     }
   });
 

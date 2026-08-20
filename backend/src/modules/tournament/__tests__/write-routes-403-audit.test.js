@@ -259,6 +259,19 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
         scoreHome: 3, scoreAway: 1,
       }),
     },
+    // Etappe B.8: drei neue Lebenszyklus-Routes.
+    {
+      label: 'POST /:id/start (Turnier starten)',
+      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/start`, {}),
+    },
+    {
+      label: 'POST /:id/revert-to-draft (Zurück zu Entwurf)',
+      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/revert-to-draft`, {}),
+    },
+    {
+      label: 'POST /:id/shift-open-matches (Offene Spiele verschieben)',
+      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/shift-open-matches`, { minutes: 20 }),
+    },
     {
       label: 'POST /:id/logo (Logo-Upload)',
       req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/logo`, {}),

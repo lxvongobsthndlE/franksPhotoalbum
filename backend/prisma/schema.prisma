@@ -103,6 +103,11 @@ model Tournament {
   publicRevokedAt DateTime?
   startsAt        DateTime?
   endsAt          DateTime?
+  // Etappe B.8: expliziter Lock-Trigger. NULL = Turnier wurde noch
+  // nicht offiziell gestartet (Entwurf oder Bereit). Sobald ein
+  // Admin auf „Turnier starten" klickt, wird das Feld gesetzt und
+  // die Bracket-validierenden Sperren greifen.
+  startedAt       DateTime?
   // Grunddaten (Spec §1.2): Ort gehört in den Druckkopf.
   location        String?
   // Sport steuert die Spaltenbezeichnung „Becher"/"Tore"/"Punkte"

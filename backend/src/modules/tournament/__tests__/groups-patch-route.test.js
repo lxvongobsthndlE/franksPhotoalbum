@@ -102,6 +102,8 @@ function baseStubs(prisma) {
       return {
         id: tLockedId, groupId: gId, status: 'group_stage', isPublic: false,
         publicToken: null, publicRevokedAt: null, logoUrl: null, config: null,
+        // Etappe B.8: startedAt ist der Lock-Trigger.
+        startedAt: new Date('2026-08-20T10:00:00Z'),
         group: { id: gId, createdBy: u.admin.id, name: 'G' },
       };
     }

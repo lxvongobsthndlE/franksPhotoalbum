@@ -48,6 +48,7 @@ const u = { member: { id: 'u-member', role: 'user' }, admin: { id: 'u-admin', ro
 const gId = 'g-1';
 const tDraftId = 't-draft';
 const tGeneratedId = 't-generated';
+const tFinishedId = 't-finished';
 
 function makeStub(overrides = {}) {
   return {
@@ -78,7 +79,15 @@ function baseStubs(prisma) {
   });
   prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
     if (where.id === tDraftId) return makeStub();
-    if (where.id === tGeneratedId) return makeStub({ id: tGeneratedId, status: 'group_stage' });
+    if (where.id === tGeneratedId) return makeStub({
+      id: tGeneratedId,
+      status: 'group_stage',
+      // Etappe B.8: startedAt setzt das Turnier in „LÄUFT".
+      // Spielfelder bleiben in LÄUFT editierbar (User kann am Turniertag
+      // z.B. „Platte 3" → „Beach Court" umbenennen).
+      startedAt: new Date('2026-08-20T10:00:00Z'),
+    });
+    if (where.id === tFinishedId) return makeStub({ id: tFinishedId, status: 'finished' });
     return null;
   });
   prisma.tournament.findMany.mockResolvedValue([]);
@@ -204,12 +213,20 @@ describe('PATCH /api/tournaments/:id/fields', () => {
     expect(res.json().error).toBe('fields_order_duplicate');
   });
 
-  it('409 wenn status !== draft', async () => {
+  it('200 in LÄUFT (Spielfeld-Namen dürfen am Turniertag noch geändert werden)', async () => {
     const res = await patchFields(tGeneratedId, {
       fields: [{ name: 'Platte 1', order: 0 }],
     });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(true);
+  });
+
+  it('409 wenn status === finished (read-only)', async () => {
+    const res = await patchFields(tFinishedId, {
+      fields: [{ name: 'Platte 1', order: 0 }],
+    });
     expect(res.statusCode).toBe(409);
-    expect(res.json().error).toBe('fields_locked_after_generate');
+    expect(res.json().error).toBe('fields_locked');
   });
 
   it('200 ok mit Stable-IDs', async () => {
