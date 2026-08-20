@@ -938,6 +938,140 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
+  // POST /api/tournaments/:id/balance-shuffle-groups — Gruppenzuordnung neu mischen (Admin)
+  //
+  // Etappe B.8 (User-Feedback 2026-08-20): Im Einstellungen-Tab.
+  // "Zufällig verteilen" mischt die Teams zwischen Gruppen neu — aber
+  // **Gruppengrößen bleiben gleich** (User-Anforderung: "ich will ja nicht
+  // Teams in andere Gruppen schieben, sondern tauschen, die Gruppengröße
+  // muss gleich bleiben"). Hintergrund: das alte DnD-System erlaubte
+  // beliebige Moves, was zu unausgeglichenen Gruppen führt. Diese Route
+  // ersetzt das für die "Zufällig verteilen"-Aktion.
+  //
+  // Algorithmus:
+  //   1. Aktuelle Gruppe-Struktur (mit Teamanzahl pro Gruppe) lesen —
+  //      die IST-Größen sind die SOLL-Größen.
+  //   2. Alle Team-IDs (Memberships) des Turniers flach einsammeln.
+  //   3. Fisher-Yates auf der flachen Liste.
+  //   4. In Chunks der ursprünglichen Gruppengrößen aufschneiden und
+  //      einer Gruppe zuweisen.
+  //   5. Atomar: alte Memberships löschen, neue einfügen.
+  //
+  // Lock: gleicher Lock wie PATCH /:id/groups (`canEdit(..., 'groups')`).
+  //       In LÄUFT (startedAt !== null) gesperrt, weil das die Pairings
+  //       verändert.
+  // Kein Confirm-Handshake nötig: gleiche Operation wie PATCH /:id/groups,
+  //       aber mit server-seitig generierter Ziel-Zuordnung.
+  // Result: keine Team-, Match- oder Stage-Änderungen — NUR die
+  //         GroupMembership-position/teamId-Zuordnung.
+  fastify.post('/:id/balance-shuffle-groups', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      // Lock (Etappe B.8): Gruppen-Mapping ist in LÄUFT eingefroren.
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      const lock = canEdit(ctx.tournament, finishedCount, 'groups');
+      if (!lock.allowed) {
+        return reply.code(409).send({
+          error: 'groups_locked_results_present',
+          message: lock.reason,
+          finishedMatches: finishedCount,
+          status: ctx.tournament.status,
+        });
+      }
+
+      // 1) Aktuelle Gruppen laden (in stabiler Key-Reihenfolge).
+      const groups = await fastify.prisma.group_.findMany({
+        where: { stage: { tournamentId: ctx.tournament.id } },
+        orderBy: { key: 'asc' },
+        select: { id: true, key: true },
+      });
+      if (groups.length === 0) {
+        return reply.code(409).send({
+          error: 'no_groups',
+          message: 'Es gibt noch keine Gruppen — Turnier muss generiert sein.',
+        });
+      }
+
+      // 2) Aktuelle Memberships lesen.
+      const memberships = await fastify.prisma.groupMembership.findMany({
+        where: { group: { stage: { tournamentId: ctx.tournament.id } } },
+        select: { id: true, groupId: true, teamId: true, position: true },
+      });
+      if (memberships.length === 0) {
+        return reply.code(409).send({
+          error: 'no_memberships',
+          message: 'Es gibt noch keine Team-Zuordnungen — Turnier muss generiert sein.',
+        });
+      }
+
+      // 3) Fisher-Yates auf der flachen Teamliste.
+      const teamIds = memberships.map((m) => m.teamId);
+      const shuffled = [...teamIds];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      // 4) In Chunks der ursprünglichen Gruppengrößen aufschneiden.
+      const groupSizes = groups.map(
+        (g) => memberships.filter((m) => m.groupId === g.id).length
+      );
+      if (groupSizes.reduce((a, b) => a + b, 0) !== shuffled.length) {
+        // Defensive — sollte nie passieren (group_.memberships + flat list
+        // sind per Konstrukt identisch), aber falls doch: Serverfehler.
+        return reply.code(500).send({
+          error: 'group_size_mismatch',
+          message: 'Interner Fehler: Gruppengrößen passen nicht zur Team-Anzahl.',
+        });
+      }
+      const newAssignments = []; // [{ groupId, teamId, position }]
+      let cursor = 0;
+      for (let gIdx = 0; gIdx < groups.length; gIdx++) {
+        const size = groupSizes[gIdx];
+        for (let p = 0; p < size; p++) {
+          newAssignments.push({
+            groupId: groups[gIdx].id,
+            teamId: shuffled[cursor],
+            position: p,
+          });
+          cursor++;
+        }
+      }
+
+      // 5) Atomar: alte Memberships löschen, neue einfügen.
+      await fastify.prisma.$transaction(async (tx) => {
+        await tx.groupMembership.deleteMany({
+          where: {
+            groupId: { in: groups.map((g) => g.id) },
+          },
+        });
+        await tx.groupMembership.createMany({
+          data: newAssignments,
+        });
+      });
+
+      // Antwort: frische View.
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return {
+        ok: true,
+        shuffledTeamCount: shuffled.length,
+        groups: view.groups,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Gruppeneinteilung konnte nicht gemischt werden');
+    }
+  });
+
   // PATCH /api/tournaments/:id/schedule — Einzel-Match-Zeit/Platte ändern (Admin)
   //
   // Etappe B.7: Im Spielplan-Tab mit „Bearbeiten"-Toggle kann der Admin

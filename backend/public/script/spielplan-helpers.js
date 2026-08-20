@@ -919,104 +919,289 @@ if (typeof window !== 'undefined') {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Etappe B.7 — Einstellungen-Tab Renderer
+// Etappe B.8 — Einstellungen-Tab Renderer (klappbar + status-aware)
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Etappe B.7 Block 1+5+Refactor: Settings-Tab-Layout. Liefert fünf
- * getrennte Layout-Blöcke (Aktionen / Gruppeneinteilung /
- * Setzreihenfolge / Spielfelder / Gefahrenzone) gemäß Plan D6 + A4.
+ * Etappe B.8: Einstellungen-Tab-Renderer mit klappbaren Blöcken.
+ *
+ * - Lock-Logik via `window.tournamentLocks` (UMD-Export aus
+ *   backend/src/modules/tournament/locks.js) — eine Wahrheit, zwei
+ *   Aufrufer.
+ * - Status-aware Default-Block offen:
+ *     draft: Aktionen + Spielfelder + Gefahrenzone
+ *     generated + startedAt null (BEREIT): Aktionen + Gruppen + Seeding + Felder + Gefahr
+ *     startedAt != null (LÄUFT): Aktionen (mit Zurück) + Felder + Gefahr
+ *     finished: nur Gefahrenzone
+ * - Revert-Banner (D8): wenn startedAt === null && status === 'draft'
+ *   und matches existieren → Hinweis: „Spielplan aus letztem Durchlauf
+ *   noch da".
+ * - Reason-Texte aus canEdit werden inline neben gesperrten Feldern
+ *   angezeigt (User-Anmerkung 2026-08-20).
  *
  * @param {Object} t  Tournament-View-Context (aus /api/tournaments/:id)
  * @param {Object} opts
  *   - isAdmin: boolean
- *   - finishedCount: number (für Lock-Hints)
- *   - isReschedulePending: boolean
+ *   - finishedCount: number
  * @returns {string} HTML
  */
 export function renderEinstellungen(t, opts = {}) {
   const { isAdmin = false, finishedCount = 0 } = opts;
   const status = t?.tournament?.status ?? 'draft';
-  const isLocked = finishedCount > 0;
+  const startedAt = t?.tournament?.startedAt ?? null;
   const isFinished = status === 'finished';
+  const isStarted = startedAt !== null;
   const groups = t?.groups ?? [];
   const teams = t?.teams ?? [];
   const fields = t?.tournament?.config?.fields ?? [];
+  const matches = t?.matches ?? [];
 
-  // Block 1 — Aktionen (oben, normal)
-  const actions = `
-    <section class="t-settings-section" data-section="actions">
-      <div class="t-settings-section-title">Aktionen</div>
-      <div class="t-settings-actions">
-        ${!isFinished && isAdmin
-          ? '<button class="t-btn t-btn--primary" data-action="finish-tournament" type="button">Turnier abschließen</button>'
-          : ''}
-        ${isAdmin
-          ? '<button class="t-btn t-btn--ghost" data-action="reschedule" type="button">Zeitplan neu terminieren</button>'
-          : ''}
-      </div>
-      ${finishedCount > 0
-        ? `<div class="t-hint t-hint--info">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet — Gruppen, Setzreihenfolge und Spielplan sind gesperrt.</div>`
-        : ''}
-    </section>
-  `;
+  // Lock-Status aus dem UMD-Single-Source-of-Truth.
+  // Fallback: einfache Inline-Logik, falls locks.js noch nicht geladen
+  // ist (z.B. in Tests).
+  const locks = (typeof window !== 'undefined' && window.tournamentLocks)
+    ? window.tournamentLocks
+    : null;
+  const lockState = locks
+    ? locks.lockStateFor({ status, startedAt }, finishedCount)
+    : null;
+  // canEditTeams.allowed ist false wenn Sperre, dann .reason zeigen.
+  const canEditGroups = lockState ? lockState.canEditGroups : { allowed: !isFinished && !isStarted, reason: null };
+  const canEditFields = lockState ? lockState.canEditFields : { allowed: !isFinished, reason: null };
+  const canEditTimes = lockState ? lockState.canEditTimes : { allowed: !isFinished, reason: null };
+  const canRedraw = lockState ? lockState.canRedraw : { allowed: !isFinished, reason: null };
+  const canStart = lockState ? lockState.canStart : { allowed: status === 'generated' && !isStarted, reason: null };
+  const canRevert = lockState ? lockState.canRevertToDraft : { allowed: false, reason: null };
+  const canEditResults = lockState ? lockState.canEditResults : { allowed: !isFinished, reason: null };
+  const canShift = lockState ? lockState.canShiftMatches : { allowed: !isFinished, reason: null };
+  const canReschedule = lockState ? lockState.canReschedule : { allowed: !isFinished, reason: null };
+
+  // Status-aware Default-offen (D6).
+  const isDraft = status === 'draft';
+  const isGenerated = status === 'generated' && !isStarted;
+  const isRunning = isStarted && !isFinished;
+  const defaultOpen = {
+    actions: true, // Aktionen immer sichtbar (Knöpfe sind der Hauptzweck)
+    groups: isGenerated,
+    seeding: isGenerated,
+    fields: true, // Felder bleiben in BEREIT + LÄUFT offen
+    'danger-zone': !isDraft, // Gefahrenzone read-only-Indikator
+  };
+  if (isFinished) {
+    // Beendet: nur Gefahrenzone offen.
+    defaultOpen.actions = true;
+    defaultOpen.groups = false;
+    defaultOpen.seeding = false;
+    defaultOpen.fields = false;
+  }
+  if (isRunning) {
+    defaultOpen.groups = false;
+    defaultOpen.seeding = false;
+  }
+
+  // Block 1 — Aktionen
+  const actionsBlock = renderActionsBlock({
+    t, isAdmin, isDraft, isGenerated, isRunning, isFinished,
+    canStart, canRevert, canShift, canReschedule, canEditResults,
+    finishedCount, matches,
+  });
 
   // Block 2 — Gruppeneinteilung
-  const groupsBoard = isAdmin && !isLocked
-    ? renderGroupsBoard(groups, teams, { isAdmin, reorderable: !isLocked })
-    : renderGroupsBoard(groups, teams, { isAdmin, reorderable: false });
+  //
+  // Etappe B.8 (User-Feedback 2026-08-20): DnD mit beliebigem Move
+  // verletzt die User-Anforderung „Teams tauschen, Gruppengröße gleich".
+  // Daher ist die Board-Read-Only — die Mischung läuft über den Button
+  // „Zufällig verteilen" (Backend: balance-shuffle-groups).
+  const groupsBoard = renderGroupsBoard(groups, teams, {
+    isAdmin,
+    reorderable: false,
+  });
 
   // Block 3 — Setzreihenfolge
   const teamsList = renderTeamsList(teams, {
     isAdmin,
-    reorderable: isAdmin && !isLocked,
+    reorderable: isAdmin && canRedraw.allowed,
   });
-  const redrawButton = isAdmin && !isLocked
-    ? '<button class="t-btn t-btn--ghost" data-action="redraw-seeding" type="button">Neu auslosen</button>'
+  const redrawButton = isAdmin && canRedraw.allowed
+    ? `<div class="t-settings-actions">
+         <button class="t-btn t-btn--ghost" data-action="redraw-seeding" type="button">Neu auslosen</button>
+       </div>
+       <div class="t-hint t-hint--info">Mischt nur die Setzreihenfolge (KO-Seed). Die Gruppenzuordnung bleibt unverändert — dafür gibt es „Zufällig verteilen" weiter oben.</div>`
+    : '';
+  const redrawReason = isAdmin && !canRedraw.allowed
+    ? `<div class="t-hint t-hint--info">${esc(canRedraw.reason ?? 'Sperrt, solange das Turnier läuft.')}</div>`
     : '';
 
-  // Block 4 — Spielfelder (A4)
-  const fieldsLocked = status !== 'draft';
-  const fieldsEditor = isAdmin
-    ? renderFieldsEditor(fields, { locked: fieldsLocked, isAdmin })
-    : renderFieldsEditor(fields, { locked: true, isAdmin: false });
+  // Block 4 — Spielfelder
+  const fieldsEditor = renderFieldsEditor(fields, {
+    locked: !canEditFields.allowed,
+    isAdmin,
+  });
+  const fieldsReason = isAdmin && !canEditFields.allowed
+    ? `<div class="t-hint t-hint--info">${esc(canEditFields.reason ?? 'Spielfelder sind gesperrt.')}</div>`
+    : '';
 
-  // Block 5 — Gefahrenzone (unten, abgesetzt)
+  // Block 5 — Gefahrenzone
   const dangerZone = isAdmin
     ? `
-      <section class="t-danger-zone" data-section="danger-zone">
-        <div class="t-danger-zone-title">Gefahrenzone</div>
-        <div class="t-danger-zone-actions">
-          <button class="t-btn t-btn--danger" data-action="reset-results" type="button">Alle Ergebnisse löschen</button>
-          <button class="t-btn t-btn--danger" data-action="delete-tournament" type="button">Turnier löschen</button>
+      <section class="t-settings-section t-danger-zone" data-section="danger-zone" data-collapsed="${!defaultOpen['danger-zone']}">
+        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${defaultOpen['danger-zone']}">
+          <span class="t-settings-section-title">Gefahrenzone</span>
+          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="t-settings-section-body">
+          <div class="t-danger-zone-actions">
+            <button class="t-btn t-btn--danger" data-action="reset-results" type="button" ${isFinished ? '' : 'disabled'}>Alle Ergebnisse löschen</button>
+            <button class="t-btn t-btn--danger" data-action="delete-tournament" type="button">Turnier löschen</button>
+          </div>
+          <div class="t-hint t-hint--info">Diese Aktionen verlangen die Eingabe des Turniernamens zur Bestätigung.</div>
         </div>
-        <div class="t-hint t-hint--info">Diese Aktionen verlangen die Eingabe des Turniernamens zur Bestätigung.</div>
       </section>
     `
     : '';
 
   return `
     <div class="t-settings-grid">
-      ${actions}
-      <section class="t-settings-section" data-section="groups">
-        <div class="t-settings-section-title">Gruppeneinteilung</div>
-        ${groupsBoard}
-        ${isAdmin && !isLocked
-          ? '<div class="t-hint t-hint--info">Achtung: Die Match-Paarungen wurden bei der Generierung festgelegt. DnD ändert nur die Anzeige der Gruppentabellen — die Spielpaarungen bleiben gleich.</div>'
-          : ''}
+      ${actionsBlock}
+      <section class="t-settings-section" data-section="groups" data-collapsed="${!defaultOpen.groups}">
+        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${defaultOpen.groups}">
+          <span class="t-settings-section-title">Gruppeneinteilung</span>
+          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="t-settings-section-body">
+          ${groupsBoard}
+          ${isAdmin && canEditGroups.allowed
+            ? '<div class="t-hint t-hint--info">Achtung: Die Match-Paarungen wurden bei der Generierung festgelegt. DnD ändert nur die Anzeige der Gruppentabellen — die Spielpaarungen bleiben gleich.</div>'
+            : ''}
+          ${isAdmin && !canEditGroups.allowed
+            ? `<div class="t-hint t-hint--info">${esc(canEditGroups.reason ?? 'Gruppeneinteilung ist gesperrt.')}</div>`
+            : ''}
+        </div>
       </section>
-      <section class="t-settings-section" data-section="seeding">
-        <div class="t-settings-section-title">Setzreihenfolge</div>
-        ${teamsList}
-        ${redrawButton ? `<div class="t-settings-actions">${redrawButton}</div>` : ''}
+      <section class="t-settings-section" data-section="seeding" data-collapsed="${!defaultOpen.seeding}">
+        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${defaultOpen.seeding}">
+          <span class="t-settings-section-title">Setzreihenfolge</span>
+          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="t-settings-section-body">
+          ${teamsList}
+          ${redrawButton ? `<div class="t-settings-actions">${redrawButton}</div>` : ''}
+          ${redrawReason}
+        </div>
       </section>
-      <section class="t-settings-section" data-section="fields">
-        <div class="t-settings-section-title">Spielfelder</div>
-        ${fieldsEditor}
-        <div class="t-hint t-hint--info">Auf dem Ausdruck erscheint der Feldname (z.B. „Platte 1") an der Stelle, wo das Feld tatsächlich aufgebaut ist. Daher sind die Namen nach der Generierung gesperrt.</div>
+      <section class="t-settings-section" data-section="fields" data-collapsed="${!defaultOpen.fields}">
+        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${defaultOpen.fields}">
+          <span class="t-settings-section-title">Spielfelder</span>
+          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="t-settings-section-body">
+          ${fieldsEditor}
+          ${canEditFields.allowed
+            ? '<div class="t-hint t-hint--info">Spielfeld-Namen erscheinen auf Ausdruck und Beamer. Auch in laufenden Turnieren noch änderbar (z.B. „Platte 3" → „Beach Court").</div>'
+            : ''}
+          ${fieldsReason}
+        </div>
       </section>
       ${dangerZone}
     </div>
+  `;
+}
+
+/**
+ * Block 1 — Aktionen. Enthält: Turnier starten / Zurück zu Entwurf /
+ * Turnier abschließen / Offene Spiele verschieben / Zeitplan neu
+ * berechnen.
+ */
+function renderActionsBlock(ctx) {
+  const {
+    t, isAdmin, isDraft, isGenerated, isRunning, isFinished,
+    canStart, canRevert, canShift, canReschedule, canEditResults,
+    finishedCount, matches,
+  } = ctx;
+  if (!isAdmin) {
+    return `
+      <section class="t-settings-section" data-section="actions" data-collapsed="false">
+        <div class="t-settings-section-title">Aktionen</div>
+        <div class="t-hint t-hint--info">Nur Admins dürfen Aktionen ausführen.</div>
+      </section>
+    `;
+  }
+
+  // Revert-Banner (D8): wenn draft + matches existieren, war das Turnier
+  // schon mal im LÄUFT und wurde zurückgesetzt.
+  const hasMatches = Array.isArray(matches) && matches.length > 0;
+  const showRevertBanner = isDraft && hasMatches;
+  const banner = showRevertBanner
+    ? `<div class="t-banner t-banner--warning">
+        <strong>Spielplan aus dem letzten Durchlauf noch da.</strong>
+        Du kannst Teams und Gruppen ändern. Klicke „Zeitplan neu berechnen", wenn du die Zeiten anpassen willst, oder „Turnier starten", wenn die alten Zeiten passen.
+      </div>`
+    : '';
+
+  // Knöpfe nach Status.
+  let buttons = '';
+
+  if (canStart.allowed) {
+    buttons += '<button class="t-btn t-btn--primary" data-action="start-tournament" type="button">Turnier starten</button>';
+  } else if (isGenerated && !canStart.allowed) {
+    buttons += `<button class="t-btn t-btn--primary" data-action="start-tournament" type="button" disabled>Turnier starten</button>`;
+  }
+
+  if (canRevert.allowed) {
+    buttons += '<button class="t-btn t-btn--ghost" data-action="revert-to-draft" type="button">Zurück zu Entwurf</button>';
+  }
+
+  // Offene Spiele verschieben (turnier-day use case).
+  if (canShift.allowed && (isRunning || isGenerated || isDraft && hasMatches)) {
+    buttons += `
+      <div class="t-shift-form">
+        <label class="t-shift-form-label">
+          Offene Spiele verschieben:
+          <input class="t-shift-minutes" type="number" value="0" step="5" data-shift-minutes>
+          min
+        </label>
+        <button class="t-btn t-btn--ghost" data-action="shift-open" type="button">Verschieben</button>
+        <div class="t-hint t-hint--info">Funktioniert nur für Spiele mit Status „geplant".</div>
+      </div>
+    `;
+  }
+
+  // Spieldauer + Plattenzahl → auto-reschedule.
+  if (canReschedule.allowed && (isRunning || isGenerated)) {
+    const duration = t?.tournament?.config?.schedule?.matchDurationMinutes ?? 30;
+    const parallelFields = t?.tournament?.config?.schedule?.parallelFields ?? 4;
+    buttons += `
+      <div class="t-reschedule-form">
+        <label class="t-reschedule-row">Spieldauer:
+          <input class="t-reschedule-duration" type="number" min="5" max="240" value="${duration}" data-reschedule-duration> min
+        </label>
+        <label class="t-reschedule-row">Platten:
+          <input class="t-reschedule-fields" type="number" min="1" max="12" value="${parallelFields}" data-reschedule-fields>
+        </label>
+        <button class="t-btn t-btn--primary" data-action="reschedule-auto" type="button">Zeitplan neu berechnen</button>
+        <div class="t-hint t-hint--info">Ändert alle Spielzeiten automatisch gemäß Dauer und Plattenanzahl. Bei vorhandenen Ergebnissen werden Zeiten verschoben, Scores bleiben erhalten.</div>
+      </div>
+    `;
+  }
+
+  if (!isFinished) {
+    buttons += '<button class="t-btn t-btn--ghost" data-action="finish-tournament" type="button">Turnier abschließen</button>';
+  }
+
+  // Status-Hint (Anzahl beendete Spiele).
+  const statusHint = finishedCount > 0
+    ? `<div class="t-hint t-hint--info">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.</div>`
+    : '';
+
+  return `
+    <section class="t-settings-section" data-section="actions" data-collapsed="false">
+      <div class="t-settings-section-title">Aktionen</div>
+      <div class="t-settings-actions">
+        ${banner}
+        ${buttons}
+        ${statusHint}
+      </div>
+    </section>
   `;
 }
 
@@ -1061,8 +1246,17 @@ export function renderGroupsBoard(groups, teams, opts = {}) {
       ${columns}
     </div>
     ${reorderable
-      ? '<div class="t-settings-actions"><button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button><button class="t-btn t-btn--ghost" data-action="reset-groups" type="button">Zurücksetzen</button><button class="t-btn t-btn--primary" data-action="save-groups" type="button">Speichern</button></div>'
-      : ''}
+      ? `<div class="t-hint t-hint--info">Ziehe Teams zwischen die Gruppen — oder klicke auf ein Team, um es per Auswahl zu verschieben.</div>
+         <div class="t-settings-actions">
+           <button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button>
+           <button class="t-btn t-btn--ghost" data-action="reset-groups" type="button">Zurücksetzen</button>
+           <button class="t-btn t-btn--primary" data-action="save-groups" type="button">Speichern</button>
+         </div>`
+      : `<div class="t-hint t-hint--info">Die Gruppeneinteilung wird vom Turnier verwaltet. Für eine neue Auslosung: „Zufällig verteilen" mischt die Teams neu — Gruppengrößen bleiben gleich. DnD ist hier deaktiviert.</div>
+         ${isAdmin ? `<div class="t-settings-actions">
+           <button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button>
+         </div>` : ''}`
+    }
   `;
 }
 

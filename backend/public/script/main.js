@@ -2448,11 +2448,22 @@ function captureTournamentViewState() {
  */
 function restoreTournamentViewState(state) {
   if (!state) return;
-  const navBtns = document.querySelectorAll('.t-mod-nav button[data-view]');
-  const sections = document.querySelectorAll('main.t-mod-main > section.t-view[data-view]');
+  const detail = $('tournament-detail');
+  if (!detail) return;
+  const navBtns = detail.querySelectorAll('.t-mod-nav button[data-view]');
+  const sections = detail.querySelectorAll('main.t-mod-main > section.t-view[data-view]');
   const target = state.activeView ?? 'spielplan';
   navBtns.forEach((b) => b.classList.toggle('is-active', b.dataset.view === target));
   sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === target));
+  // Bug-Fix Etappe B.8 (User-Feedback 2026-08-20): nach Re-Render
+  // (z.B. „Zufällig verteilen" → /redraw → openTournamentInstance) müssen
+  // die Tab-Side-Effects erneut laufen. Sonst ist der Einstellungen-Mount
+  // zwar per CSS-Klasse aktiv, aber loadEinstellungenTab() wurde nicht
+  // aufgerufen → Section ist leer. Symptom beim User: „Einstellungen
+  // sind nach dem Speichern leer, ich muss manuell neu draufklicken".
+  if (typeof handleTournamentTabSideEffects === 'function') {
+    handleTournamentTabSideEffects(target, activeTournamentInstance, detail);
+  }
   // Scroll erst nach Klassen-Wechsel setzen — sonst springt der
   // Browser auf den Default-ScrollTop des neuen aktiven Sections.
   // requestAnimationFrame: wartet einen Frame, damit der Browser
@@ -2464,6 +2475,116 @@ function restoreTournamentViewState(state) {
       main.scrollTop = state.scrollTop ?? 0;
     }
   });
+}
+
+/**
+ * Modul-Scope Tab-Side-Effects (Bug-Fix Etappe B.8).
+ *
+ * Wird sowohl beim Klick auf einen Tab-Button als auch beim
+ * `restoreTournamentViewState` nach einem Re-Render aufgerufen. Ohne
+ * den Restore-Call blieb der Einstellungen-Mount nach jeder Aktion
+ * (redraw, save-groups, etc.) leer, weil openTournamentInstance die
+ * ganze Detail-View neu rendert und dabei die `data-loaded`-Marker +
+ * Mount-Inhalte verliert.
+ *
+ * @param {string} view  Einer von: 'spielplan', 'uebersicht', 'gruppen',
+ *   'baum', 'teams', 'regeln', 'drucken', 'einstellungen'.
+ * @param {Object|null} t  Tournament-View-Context.
+ * @param {HTMLElement} detail  `#tournament-detail`-Container.
+ */
+
+/**
+ * Modul-Scope Tab-Placeholder (Etappe B.8).
+ *
+ * Ehemals lokal in `renderTournamentInstanceDetailV3` definiert, aber
+ * die Catch-Handler in `handleTournamentTabSideEffects` brauchen es
+ * auch — die Funktion ist auf Modulebene und sieht das lokale
+ * `placeholder` nicht. Daher hier als Modul-Scope-Helper.
+ *
+ * @param {string} label
+ * @param {string} hintEtappe
+ * @returns {string} HTML-String
+ */
+function placeholder(label, hintEtappe) {
+  return `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p class="t-hint"><strong>${esc(label)}</strong> wird gerade gebaut. ${esc(hintEtappe)}</p>
+        </div>
+      </div>`;
+}
+
+function handleTournamentTabSideEffects(view, t, detail) {
+  if (!detail) return;
+  // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
+  // Spielfelder / Gefahrenzone. Immer re-rendern, damit Status-
+  // Änderungen sichtbar werden (nach jedem Save).
+  if (view === 'einstellungen') {
+    const mount = detail.querySelector('[data-tab-body="einstellungen-mount"]');
+    if (mount) {
+      mount.innerHTML = '';
+      if (t?.id && typeof loadEinstellungenTab === 'function') {
+        loadEinstellungenTab(t, mount).catch(() => {
+          if (typeof placeholder === 'function') {
+            mount.innerHTML = placeholder('Einstellungen konnten nicht geladen werden.', '');
+          }
+        });
+      }
+      return;
+    }
+  }
+  // Regeln-Tab: immer rendern, auch bei Mehrfachklick (Edit-Mode zurücksetzen).
+  if (view === 'regeln') {
+    const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
+    if (mount && t?.id && typeof renderRulesView === 'function') {
+      renderRulesView(t.id, mount);
+    }
+    return;
+  }
+  // Teams-Tab (Etappe B.5): Liste + DnD-Reihenfolge, Admin-only edit.
+  // data-loaded-Guard: nach Re-Render ist das Attribut weg (frischer DOM),
+  // also wird der Loader erneut getriggert.
+  if (view === 'teams') {
+    const mount = detail.querySelector('[data-tab-body="teams-mount"]');
+    if (mount && !mount.dataset.loaded) {
+      mount.dataset.loaded = '1';
+      if (t?.id && typeof loadTeamsTab === 'function') {
+        loadTeamsTab(t).catch(() => {
+          if (typeof placeholder === 'function') {
+            mount.innerHTML = placeholder('Teams konnten nicht geladen werden.', '');
+          }
+        });
+      }
+    }
+    return;
+  }
+  // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
+  if (view === 'gruppen') {
+    const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
+    if (mount && !mount.dataset.loaded) {
+      mount.dataset.loaded = '1';
+      if (t?.id && typeof loadStandingsTab === 'function') {
+        loadStandingsTab(t.id).catch(() => {
+          if (typeof placeholder === 'function') {
+            mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
+          }
+        });
+      }
+    }
+    return;
+  }
+  // Turnierbaum-Tab (Etappe B.4): einmal rendern, danach Re-Fetch
+  // nur über expliziten Reload.
+  if (view === 'baum') {
+    const mount = detail.querySelector('[data-tab-body="baum-mount"]');
+    if (mount && !mount.dataset.loaded) {
+      mount.dataset.loaded = '1';
+      if (t?.id && typeof loadBracketTab === 'function') {
+        loadBracketTab(t.id).catch(() => {});
+      }
+    }
+    return;
+  }
 }
 
 async function openTournamentInstance(instanceId) {
@@ -2571,14 +2692,8 @@ function renderTournamentInstanceDetailV3(t) {
     </div>`;
 
     // Spielplan-View-Inhalt: kommt in Schritt 3.
-    // Platzhalter zeigen ehrlich, was sie noch nicht können.
-    const placeholder = (label, hintEtappe) => `
-      <div class="t-card">
-        <div class="t-card-body">
-          <p class="t-hint"><strong>${esc(label)}</strong> wird gerade gebaut. ${esc(hintEtappe)}</p>
-        </div>
-      </div>`;
-
+    // Platzhalter zeigt ehrlich, was sie noch nicht können — vgl. Module-Scope
+    // `placeholder`-Helper direkt vor `handleTournamentTabSideEffects`.
     const groupsViewHtml = `<div data-tab-body="gruppen-mount"></div>`;
 
     // Bug 15 (2026-08-18, User-Punkt: „Mobile ist der Hauptfall"):
@@ -2729,63 +2844,16 @@ function renderTournamentInstanceDetailV3(t) {
 
     // Side-Effects pro Tab. Werden in beiden Leisten getriggert (die
     // Buttons haben identische data-view-Werte).
-    function handleTabSideEffects(view) {
-      // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
-      if (view === 'gruppen') {
-        const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
-        if (mount && !mount.dataset.loaded) {
-          mount.dataset.loaded = '1';
-          loadStandingsTab(t.id).catch(() => {
-            mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
-          });
-        }
-      }
-      // Turnierbaum-Tab (Etappe B.4): einmal rendern, danach Re-Fetch
-      // nur über expliziten Reload. Verbindungslinien + Konvergenz-
-      // Versatz kommen aus tournament.css (.bracket-col:nth-child(n)).
-      if (view === 'baum') {
-        const mount = detail.querySelector('[data-tab-body="baum-mount"]');
-        if (mount && !mount.dataset.loaded) {
-          mount.dataset.loaded = '1';
-          loadBracketTab(t.id).catch(() => { /* Fehler ist im Funktionsrumpf */ });
-        }
-      }
-      // Regeln-Tab: immer rendern, auch bei Mehrfachklick (Edit-Mode zurücksetzen).
-      if (view === 'regeln') {
-        const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
-        if (mount) {
-          renderRulesView(t.id, mount);
-        }
-      }
-      // Teams-Tab (Etappe B.5): Liste + DnD-Reihenfolge, Admin-only edit.
-      if (view === 'teams') {
-        const mount = detail.querySelector('[data-tab-body="teams-mount"]');
-        if (mount && !mount.dataset.loaded) {
-          mount.dataset.loaded = '1';
-          loadTeamsTab(t).catch(() => {
-            mount.innerHTML = placeholder('Teams konnten nicht geladen werden.', '');
-          });
-        }
-      }
-      // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
-      // Spielfelder / Gefahrenzone. Immer re-rendern, damit Status-
-      // Änderungen sichtbar werden.
-      if (view === 'einstellungen') {
-        const mount = detail.querySelector('[data-tab-body="einstellungen-mount"]');
-        if (mount) {
-          mount.innerHTML = '';
-          loadEinstellungenTab(t, mount).catch(() => {
-            mount.innerHTML = placeholder('Einstellungen konnten nicht geladen werden.', '');
-          });
-        }
-      }
-    }
-
+    //
+    // Etappe B.8: Die Logik wurde in `handleTournamentTabSideEffects`
+    // (Modul-Scope) extrahiert, damit `restoreTournamentViewState`
+    // sie nach einem Re-Render erneut aufrufen kann. Sonst blieb der
+    // Einstellungen-Mount nach jeder Save-Aktion leer.
     allTabBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
         const view = btn.dataset.view;
         switchToView(view, btn);
-        handleTabSideEffects(view);
+        handleTournamentTabSideEffects(view, t, detail);
       });
     });
 
@@ -3358,30 +3426,45 @@ function wireTeamsList(mount, t, { isAdmin, reorderable }) {
  * @param {HTMLElement} mount  Container-Element [data-tab-body="einstellungen-mount"].
  */
 async function loadEinstellungenTab(t, mount) {
-  if (!t || !t.id || !mount) return;
-  const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderEinstellungen);
-  if (typeof renderer !== 'function') {
-    mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Einstellungen-Renderer nicht verfügbar.</p></div></div>';
-    return;
-  }
-  const finishedCount = Array.isArray(t.matches)
-    ? t.matches.filter((m) => m && m.isFinished === true).length
-    : 0;
-  const html = renderer(
-    {
-      tournament: {
-        id: t.id,
-        name: t.name,
-        status: t.status,
-        config: t.config || {},
+  // Etappe B.8: try/catch um den gesamten Renderer. Wenn openTournamentInstance
+  // neu lädt und die Datenform anders ist als der Renderer erwartet, soll
+  // der User einen Fehlertext sehen — nicht eine leere Seite.
+  try {
+    if (!t || !t.id || !mount) return;
+    const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderEinstellungen);
+    if (typeof renderer !== 'function') {
+      mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Einstellungen-Renderer nicht verfügbar.</p></div></div>';
+      return;
+    }
+    const finishedCount = Array.isArray(t.matches)
+      ? t.matches.filter((m) => m && m.isFinished === true).length
+      : 0;
+    const html = renderer(
+      {
+        tournament: {
+          id: t.id,
+          name: t.name,
+          status: t.status,
+          // Etappe B.8: startedAt an den Renderer durchreichen.
+          startedAt: t.startedAt ?? null,
+          config: t.config || {},
+        },
+        teams: Array.isArray(t.teams) ? t.teams : [],
+        groups: Array.isArray(t.groups) ? t.groups : [],
+        matches: Array.isArray(t.matches) ? t.matches : [],
       },
-      teams: Array.isArray(t.teams) ? t.teams : [],
-      groups: Array.isArray(t.groups) ? t.groups : [],
-    },
-    { isAdmin: t.isAdmin === true, finishedCount }
-  );
-  mount.innerHTML = html;
-  wireEinstellungen(mount, t, { finishedCount });
+      { isAdmin: t.isAdmin === true, finishedCount }
+    );
+    mount.innerHTML = html;
+    wireEinstellungen(mount, t, { finishedCount });
+  } catch (err) {
+    console.error('[loadEinstellungenTab] failed', err);
+    if (mount) {
+      mount.innerHTML = `<div class="t-card"><div class="t-card-body">
+        <p class="t-hint t-hint--error">Einstellungen konnten nicht aufgebaut werden: ${esc(err && err.message ? err.message : String(err))}</p>
+      </div></div>`;
+    }
+  }
 }
 
 /**
@@ -3391,7 +3474,85 @@ async function loadEinstellungenTab(t, mount) {
 function wireEinstellungen(mount, t, { finishedCount }) {
   if (!mount) return;
 
+  // ─── Klappbare Blöcke (D6) ───────────────────────────────────────
+  // Auf jeden Section-Header klicken → data-collapsed toggeln.
+  mount.querySelectorAll('[data-action="toggle-section"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const section = btn.closest('.t-settings-section');
+      if (!section) return;
+      const collapsed = section.getAttribute('data-collapsed') === 'true';
+      section.setAttribute('data-collapsed', String(!collapsed));
+      btn.setAttribute('aria-expanded', String(!collapsed));
+    });
+  });
+
   // ─── Aktionen ─────────────────────────────────────────────────────
+  // Turnier starten — Etappe B.8.
+  const startBtn = mount.querySelector('[data-action="start-tournament"]');
+  if (startBtn && !startBtn.disabled) {
+    startBtn.addEventListener('click', async () => {
+      const ok = await openConfirmDialog({
+        title: 'Turnier starten',
+        message:
+          'Ab jetzt sind Team-Anzahl, Modus, Reihenfolge und Gruppen gesperrt. ' +
+          'Spielfeld-Namen, Zeiten und Ergebnisse bleiben änderbar. ' +
+          'Du kannst das Turnier später zurücksetzen, solange keine Ergebnisse vorliegen.',
+        confirmLabel: 'Turnier starten',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await startTournament(t.id);
+    });
+  }
+
+  // Zurück zu Entwurf — Etappe B.8 (Spielplan bleibt erhalten, D8).
+  const revertBtn = mount.querySelector('[data-action="revert-to-draft"]');
+  if (revertBtn) {
+    revertBtn.addEventListener('click', async () => {
+      let typedName = null;
+      if (finishedCount > 0) {
+        const dlg = await openConfirmDialog({
+          title: 'Zurück zu Entwurf',
+          message:
+            `${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet. ` +
+            'Wenn du zurücksetzt, werden die Ergebnisse verworfen. Der vorhandene ' +
+            'Spielplan bleibt bestehen — du kannst danach Teams und Gruppen ändern und neu starten.\n\n' +
+            'Tippe zur Bestätigung den Turniernamen:',
+          expectedName: t.name,
+          confirmLabel: 'Zurücksetzen',
+        });
+        if (dlg.cancelled) return;
+        typedName = dlg.typedName;
+      } else {
+        const ok = await showConfirmDlg(
+          'Zurück zu Entwurf',
+          'Turnier zurücksetzen? Der vorhandene Spielplan bleibt bestehen — du kannst danach Teams und Gruppen anpassen und neu starten.',
+          'Zurücksetzen',
+          'Abbrechen',
+          false
+        );
+        if (!ok) return;
+      }
+      await revertToDraft(t.id, typedName);
+    });
+  }
+
+  // Offene Spiele verschieben — Etappe B.8 (Turnier-Day-Use-Case).
+  const shiftBtn = mount.querySelector('[data-action="shift-open"]');
+  if (shiftBtn) {
+    shiftBtn.addEventListener('click', async () => {
+      await shiftOpenMatches(t.id, mount);
+    });
+  }
+
+  // Spieldauer / Plattenzahl → Auto-Reschedule.
+  const rescheduleAutoBtn = mount.querySelector('[data-action="reschedule-auto"]');
+  if (rescheduleAutoBtn) {
+    rescheduleAutoBtn.addEventListener('click', async () => {
+      await rescheduleAuto(t.id, mount);
+    });
+  }
+
   // Turnier abschließen — simple Confirm ohne Namenseingabe.
   const finishBtn = mount.querySelector('[data-action="finish-tournament"]');
   if (finishBtn) {
@@ -3409,6 +3570,9 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   }
 
   // Zeitplan neu terminieren — existierender Flow (mit Confirm-Handshake wenn ≥1 finished).
+  // Hinweis: in der neuen UI hat dieser Knopf nur dann eine Wirkung, wenn der
+  // Renderer ihn noch rendert (Fallback). Hauptweg ist jetzt das Form mit
+  // Spieldauer/Platten + Auto-Reschedule.
   const rescheduleBtn = mount.querySelector('[data-action="reschedule"]');
   if (rescheduleBtn) {
     rescheduleBtn.addEventListener('click', async () => {
@@ -3417,11 +3581,21 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     });
   }
 
-  // ─── Gruppeneinteilung ────────────────────────────────────────────
-  // Zufällig verteilen — POST /:id/redraw (Fisher-Yates auf seed-Spalte).
-  const randomBtn = mount.querySelector('[data-action="randomize-groups"]');
-  if (randomBtn) {
-    randomBtn.addEventListener('click', async () => {
+  // ─── Setzreihenfolge ──────────────────────────────────────────────
+  // Etappe B.8: Bug-Fix. wireTeamsList wurde vorher NUR in loadTeamsTab
+  // aufgerufen — der Seeding-Block im Einstellungen-Tab zeigte Teams mit
+  // Drag-Handle und Edit-Hint, aber Klicks/DnD taten nichts.
+  if (t.isAdmin === true) {
+    const seedingTeamsList = mount.querySelector('[data-role="teams-list"]');
+    if (seedingTeamsList && typeof wireTeamsList === 'function') {
+      wireTeamsList(mount, t, { reorderable: true });
+    }
+  }
+
+  // Neu auslosen (Seeding-Block) — Etappe B.8 Bug-Fix: fehlte im wireEinstellungen.
+  const redrawSeedingBtn = mount.querySelector('[data-action="redraw-seeding"]');
+  if (redrawSeedingBtn) {
+    redrawSeedingBtn.addEventListener('click', async () => {
       if (finishedCount > 0) {
         toast('Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.', 'error');
         return;
@@ -3441,7 +3615,45 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     });
   }
 
-  // Speichern (Gruppen-DnD-Ergebnis) — PATCH /:id/groups.
+  // ─── Gruppeneinteilung ────────────────────────────────────────────
+  // Etappe B.8 (User-Feedback 2026-08-20): „Zufällig verteilen" ruft
+  // jetzt die NEUE Route /balance-shuffle-groups auf, NICHT mehr /redraw.
+  // Hintergrund: /redrow shuffelt nur die `seed`-Spalte (KO-Seed), aber
+  // NICHT die GroupMemberships — der User klickte darauf und sah keine
+  // Änderung. Die neue Route mischt die Teams zwischen den vorhandenen
+  // Gruppen, behält aber deren Größen (User-Spec: „Teams tauschen,
+  // Gruppengröße muss gleich bleiben").
+  const randomBtn = mount.querySelector('[data-action="randomize-groups"]');
+  if (randomBtn) {
+    randomBtn.addEventListener('click', async () => {
+      // Lock-Check vorne (UX, nicht Sicherheit): das Backend lehnt sowieso
+      // mit 409 ab. Aber so bekommt der User sofort Feedback statt eines
+      // stummen Fehlers nach dem Confirm.
+      const lockState = (typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor)
+        ? window.tournamentLocks.lockStateFor({ status: t.status, startedAt: t.startedAt }, finishedCount)
+        : null;
+      if (lockState && lockState.canEditGroups && !lockState.canEditGroups.allowed) {
+        toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
+        return;
+      }
+      const ok = await openConfirmDialog({
+        title: 'Zufällig verteilen',
+        message:
+          'Die Teams werden zwischen den vorhandenen Gruppen neu gemischt. ' +
+          'Gruppengrößen bleiben gleich — es werden nur die Zuordnungen getauscht.',
+        confirmLabel: 'Neu mischen',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await balanceShuffleGroups(t.id);
+    });
+  }
+
+  // Speichern (Gruppen-DnD-Ergebnis) — PATCH /:id/groups. Etappe B.8:
+  // DnD ist im Einstellungen-Tab jetzt read-only (User-Spec: Swaps statt
+  // Moves, Größen konstant). Der Save-Button wird nicht mehr gerendert —
+  // dieser Handler bleibt nur als Fallback, falls ein Renderer-Update
+  // ihn versehentlich wieder rendert.
   const saveGroupsBtn = mount.querySelector('[data-action="save-groups"]');
   if (saveGroupsBtn) {
     saveGroupsBtn.addEventListener('click', async () => {
@@ -3455,6 +3667,17 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       await saveGroupsAssignment(t.id, out.groups);
     });
   }
+
+  // Touch-Picker: Klick auf Team-Karte → Modal „In welche Gruppe?"
+  // Etappe B.8: Ebenfalls obsolet, da DnD im Einstellungen-Tab jetzt
+  // read-only ist. Bleibt als Fallback für Renderer-Änderungen.
+  mount.querySelectorAll('[data-action="pick-team-for-group"]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const teamId = card.getAttribute('data-team-id');
+      const teamName = card.getAttribute('data-team-name') ?? 'Team';
+      openPickTeamForGroupModal(mount, t, teamId, teamName);
+    });
+  });
 
   // ─── Spielfelder ──────────────────────────────────────────────────
   // Speichern (Spielfelder-Editor) — PATCH /:id/fields.
@@ -3509,9 +3732,188 @@ function wireEinstellungen(mount, t, { finishedCount }) {
 
   // ─── Groups-Board DnD (Admin, nicht locked) ───────────────────────
   const board = mount.querySelector('[data-role="groups-board"]');
-  if (board && t.isAdmin === true && finishedCount === 0) {
-    attachGroupsDnD(board);
+  if (board && t.isAdmin === true) {
+    // Etappe B.8: Lock prüfen via window.tournamentLocks.
+    const startedAt = t.startedAt ?? null;
+    const canEditGroups = window.tournamentLocks
+      ? window.tournamentLocks.canEdit({ status: t.status, startedAt }, finishedCount, 'groups')
+      : { allowed: finishedCount === 0 };
+    if (canEditGroups.allowed) {
+      attachGroupsDnD(board);
+    }
   }
+}
+
+// ─── Etappe B.8 Action-Backend-Anbindungen (start / revert / shift / reschedule) ──────
+
+async function startTournament(tournamentId) {
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/start`,
+      'POST',
+      {}
+    );
+    const at = res?.startedAt
+      ? new Date(res.startedAt).toLocaleString('de-DE')
+      : 'jetzt';
+    toast(`Turnier ist gestartet (${at}) — Sperren für Team-Anzahl, Modus und Reihenfolge greifen jetzt.`, 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    toast(e?.serverMessage || 'Turnier konnte nicht gestartet werden', 'error');
+  }
+}
+
+async function revertToDraft(tournamentId, confirmName) {
+  try {
+    const body = confirmName ? { confirmTournamentName: confirmName } : {};
+    await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/revert-to-draft`,
+      'POST',
+      body
+    );
+    toast('Turnier ist wieder im Entwurf — Spielplan ist erhalten geblieben.', 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    toast(e?.serverMessage || 'Zurücksetzen fehlgeschlagen', 'error');
+  }
+}
+
+async function shiftOpenMatches(tournamentId, mount) {
+  const input = mount?.querySelector?.('[data-shift-minutes]');
+  const minutes = parseInt(input?.value ?? '0', 10);
+  if (!Number.isFinite(minutes) || minutes === 0) {
+    toast('Bitte eine Zahl ungleich 0 eingeben (positiv oder negativ).', 'error');
+    return;
+  }
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/shift-open-matches`,
+      'POST',
+      { minutes }
+    );
+    const n = res?.shiftedCount ?? 0;
+    toast(
+      `${n} offene${n === 1 ? 's' : ''} Spiel${n === 1 ? '' : 'e'} verschoben (${minutes > 0 ? '+' : ''}${minutes} min).`,
+      'success'
+    );
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    toast(e?.serverMessage || 'Verschieben fehlgeschlagen', 'error');
+  }
+}
+
+async function rescheduleAuto(tournamentId, mount) {
+  const durEl = mount?.querySelector?.('[data-reschedule-duration]');
+  const fieldsEl = mount?.querySelector?.('[data-reschedule-fields]');
+  const duration = parseInt(durEl?.value ?? '30', 10);
+  const parallelFields = parseInt(fieldsEl?.value ?? '4', 10);
+  if (!Number.isFinite(duration) || duration < 5 || duration > 240) {
+    toast('Spieldauer muss zwischen 5 und 240 Minuten liegen.', 'error');
+    return;
+  }
+  if (!Number.isFinite(parallelFields) || parallelFields < 1 || parallelFields > 12) {
+    toast('Plattenzahl muss zwischen 1 und 12 liegen.', 'error');
+    return;
+  }
+  try {
+    // 1) Config schreiben.
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
+      config: { schedule: { matchDurationMinutes: duration, parallelFields } },
+    });
+    // 2) Reschedule triggern.
+    const ok = await rescheduleTournament(tournamentId, 'AUTO');
+    if (ok) {
+      toast(`Zeitplan neu berechnet (${duration} min, ${parallelFields} Platten).`, 'success');
+      await openTournamentInstance(tournamentId);
+    }
+  } catch (e) {
+    toast(e?.serverMessage || 'Reschedule fehlgeschlagen', 'error');
+  }
+}
+
+/**
+ * Touch-Picker: Modal „In welche Gruppe?" für Klick auf Team-Karte.
+ * Etappe B.8 (D7): An der Platte mit einer Hand ist DnD unpraktisch —
+ * der User tippt das Team an und wählt die Zielgruppe per Radio.
+ */
+function openPickTeamForGroupModal(mount, t, teamId, teamName) {
+  const board = mount.querySelector('[data-role="groups-board"]');
+  if (!board) return;
+  const groupColumns = Array.from(board.querySelectorAll('.t-groups-column'));
+  if (groupColumns.length === 0) return;
+  // Aktuelle Gruppe des Teams ermitteln.
+  const currentCard = board.querySelector(`.t-group-team-card[data-team-id="${cssEscape(teamId)}"]`);
+  const currentGroupKey = currentCard
+    ? currentCard.closest('.t-groups-column')?.getAttribute('data-group-key') ?? null
+    : null;
+
+  const radios = groupColumns.map((col) => {
+    const key = col.getAttribute('data-group-key') ?? '?';
+    const name = col.querySelector('.t-groups-column-header span')?.textContent ?? key;
+    const checked = key === currentGroupKey ? 'checked' : '';
+    return `
+      <label class="t-pick-team-radio">
+        <input type="radio" name="t-pick-team-target" value="${esc(key)}" ${checked}>
+        <span>${esc(name)}</span>
+      </label>
+    `;
+  }).join('');
+
+  // Mini-Modal in den Mount einhängen (kein neues Framework).
+  const overlay = document.createElement('div');
+  overlay.className = 't-pick-team-modal';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.innerHTML = `
+    <div class="t-pick-team-modal-card">
+      <h3>${esc(teamName)} verschieben</h3>
+      <div class="t-pick-team-radios">${radios}</div>
+      <div class="t-pick-team-actions">
+        <button class="t-btn t-btn--ghost" data-pick-cancel type="button">Abbrechen</button>
+        <button class="t-btn t-btn--primary" data-pick-ok type="button">Verschieben</button>
+      </div>
+    </div>
+  `;
+  // An body anhängen, damit es nicht vom Mount-Scroll-Container beschnitten wird.
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    document.body.removeChild(overlay);
+  };
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) close();
+  });
+  overlay.querySelector('[data-pick-cancel]').addEventListener('click', close);
+  overlay.querySelector('[data-pick-ok]').addEventListener('click', () => {
+    const chosen = overlay.querySelector('input[name="t-pick-team-target"]:checked');
+    if (!chosen) {
+      toast('Bitte eine Gruppe auswählen.', 'error');
+      return;
+    }
+    const targetKey = chosen.value;
+    if (targetKey === currentGroupKey) {
+      close();
+      return;
+    }
+    // Karte verschieben.
+    const targetCol = board.querySelector(`.t-groups-column[data-group-key="${cssEscape(targetKey)}"] .t-groups-column-list`);
+    if (currentCard && targetCol) {
+      targetCol.appendChild(currentCard);
+    }
+    close();
+    toast(`Team in Gruppe ${targetKey} verschoben — bitte „Speichern" klicken.`, 'success');
+  });
+}
+
+/**
+ * CSS.escape-Polyfill (für data-team-id-Selektoren). Native in modernen
+ * Browsern, Polyfill für Vitest/Node.
+ */
+function cssEscape(s) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(s);
+  }
+  return String(s ?? '').replace(/[^\w-]/g, (c) => '\\' + c);
 }
 
 // ─── Etappe B.7 Action-Backend-Anbindungen ───────────────────────
@@ -3529,6 +3931,37 @@ async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
     await openTournamentInstance(tournamentId);
   } catch (e) {
     toast(e.serverMessage || 'Setzreihenfolge konnte nicht neu ausgelost werden', 'error');
+  }
+}
+
+/**
+ * Etappe B.8: Balancierter Zufallsmix der Teams zwischen den vorhandenen
+ * Gruppen. **Größen bleiben gleich** (User-Spec 2026-08-20).
+ *
+ * `POST /api/tournaments/:id/balance-shuffle-groups` — server-seitige
+ * Implementierung (siehe routes.js). Diese Funktion ist nur der
+ * Fetch-Wrapper.
+ *
+ * @param {string} tournamentId
+ */
+async function balanceShuffleGroups(tournamentId) {
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/balance-shuffle-groups`,
+      'POST',
+      {}
+    );
+    toast(
+      `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, Größe pro Gruppe gleich`,
+      'success'
+    );
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
+      toast('Gruppeneinteilung ist gesperrt — Turnier läuft schon.', 'error');
+    } else {
+      toast(e.serverMessage || 'Gruppen konnten nicht neu gemischt werden', 'error');
+    }
   }
 }
 
@@ -15256,6 +15689,7 @@ Object.assign(window, {
   openTournamentStandings,
   loadEinstellungenTab,
   redrawSeeding,
+  balanceShuffleGroups,
   saveGroupsAssignment,
   saveFieldsConfig,
   finishTournament,

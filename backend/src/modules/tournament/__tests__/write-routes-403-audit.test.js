@@ -273,6 +273,10 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
       req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/shift-open-matches`, { minutes: 20 }),
     },
     {
+      label: 'POST /:id/balance-shuffle-groups (Zufällig verteilen, Größen-Konstanz)',
+      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/balance-shuffle-groups`, {}),
+    },
+    {
       label: 'POST /:id/logo (Logo-Upload)',
       req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/logo`, {}),
     },

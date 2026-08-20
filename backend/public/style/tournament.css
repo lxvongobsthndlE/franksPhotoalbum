@@ -2790,6 +2790,135 @@ textarea.t-input {
   flex-wrap: wrap;
 }
 
+/* === Etappe B.8 — Klappbar (Einstellungen-Tab) ==================== */
+.t-settings-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3, 12px);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line, #e5e2da);
+  padding: var(--s3, 12px) 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--r-card, 8px) var(--r-card, 8px) 0 0;
+}
+.t-settings-section-header:hover,
+.t-settings-section-header:focus-visible {
+  background: var(--surface-alt, #fafaf7);
+  outline: none;
+}
+.t-settings-section-header .t-settings-section-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft, #5a5a55);
+  font-weight: 600;
+  margin: 0;
+}
+.t-settings-section-toggle {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--ink-soft, #5a5a55);
+  transition: transform 0.15s ease;
+}
+.t-settings-section[data-collapsed="true"] .t-settings-section-body { display: none; }
+.t-settings-section[data-collapsed="true"] .t-settings-section-toggle { transform: rotate(-90deg); }
+.t-settings-section:first-child .t-settings-section-header {
+  border-top: 1px solid var(--line, #e5e2da);
+}
+
+/* === Etappe B.8 — Banner (Revert-Hinweis) ============================ */
+.t-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2, 8px);
+  padding: var(--s3, 12px);
+  border-radius: var(--r-card, 8px);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+.t-banner--warning {
+  background: var(--warn-soft, #fef3cd);
+  border-left: 3px solid var(--warn, #b58410);
+  color: var(--ink, #1a1a17);
+}
+
+/* === Etappe B.8 — Shift + Reschedule Forms =========================== */
+.t-shift-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2, 8px);
+  padding: var(--s3, 12px);
+  background: var(--surface-alt, #fafaf7);
+  border-radius: var(--r-card, 8px);
+}
+.t-shift-form-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+  flex: 1 1 200px;
+}
+.t-shift-minutes { width: 90px; }
+.t-reschedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3, 12px);
+  padding: var(--s3, 12px);
+  background: var(--surface-alt, #fafaf7);
+  border-radius: var(--r-card, 8px);
+}
+.t-reschedule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+}
+
+/* === Etappe B.8 — Error-Hint (für try/catch-Fallback in loadEinstellungenTab) */
+.t-hint--error {
+  border-left: 3px solid var(--danger, #b3261e);
+  background: rgba(179, 38, 30, 0.06);
+  color: var(--danger, #b3261e);
+  padding: var(--s3, 12px);
+  border-radius: var(--r-card, 8px);
+}
+
+/* === Etappe B.8 — DnD-Hover + Touch-Picker-Modal ===================== */
+.t-group-team-card {
+  cursor: grab;
+}
+.t-group-team-card:hover {
+  box-shadow: 0 0 0 2px var(--accent, #1d6fdb);
+}
+.t-pick-team-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.t-pick-team-modal-card {
+  background: var(--surface, #fff);
+  border-radius: var(--r-card, 8px);
+  padding: var(--s4, 16px);
+  width: min(420px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3, 12px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+}
+.t-pick-team-modal-card h3 { margin: 0; font-size: 14px; }
+.t-pick-team-radios { display: flex; flex-direction: column; gap: var(--s2, 8px); }
+.t-pick-team-actions { display: flex; gap: var(--s2, 8px); justify-content: flex-end; }
+
 /* === Groups-Board (DnD) ========================================== */
 .t-groups-board {
   display: grid;

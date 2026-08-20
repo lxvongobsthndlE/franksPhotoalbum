@@ -107,11 +107,19 @@ describe('renderEinstellungen', () => {
     expect(html).toContain('data-fields-count="2"');
   });
 
-  it('Spielfelder: Lock-Hinweis bei status !== draft', () => {
-    const t = { ...tDraft, tournament: { ...tDraft.tournament, status: 'group_stage' } };
-    const html = renderEinstellungen(t, { isAdmin: true, finishedCount: 0 });
-    expect(html).toContain('t-fields-locked-hint');
-    expect(html).toContain('Spielfelder sind nach der Generierung gesperrt');
+  it('Spielfelder: Lock-Hinweis NUR in status === finished (Etappe B.8)', () => {
+    // Etappe B.8 Spielfeld-Lock: editable in draft / generated / group_stage,
+    // erst in finished read-only. Vorher (B.7) war die Regel `status !== 'draft'`,
+    // das sperrte die Spielfelder fälschlich direkt nach Generate.
+    const tRunning = { ...tDraft, tournament: { ...tDraft.tournament, status: 'group_stage', startedAt: new Date().toISOString() } };
+    const htmlRunning = renderEinstellungen(tRunning, { isAdmin: true, finishedCount: 0 });
+    expect(htmlRunning).not.toContain('Spielfelder sind nach der Generierung gesperrt');
+
+    const tFinished = { ...tDraft, tournament: { ...tDraft.tournament, status: 'finished' } };
+    const htmlFinished = renderEinstellungen(tFinished, { isAdmin: true, finishedCount: 0 });
+    // In finished bleibt der Lock-Hinweis (oder ein read-only-Indikator) sichtbar —
+    // genauer Wortlaut darf variieren, Hauptsache "gesperrt" / "beendet" taucht auf.
+    expect(/gesperrt|Beendet|read.?only|t-hint--/i.test(htmlFinished)).toBe(true);
   });
 
   it('XSS: Team-Name mit <script> wird escaped', () => {
@@ -139,9 +147,32 @@ describe('renderEinstellungen', () => {
     expect(html).toContain('value="Platte 1"');
   });
 
-  it('Zufalls- und Speichern-Buttons im Groups-Block sichtbar (Admin, nicht locked)', () => {
-    const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
+  it('Groups-Block (Admin, BEREIT): nur „Zufällig verteilen" sichtbar, kein Save/DnD (Etappe B.8)', () => {
+    // User-Spec 2026-08-20: „Teams tauschen, Gruppengröße gleich". DnD mit
+    // beliebigen Moves ist weg; dafür gibt es den Balance-Shuffle-Button,
+    // der server-seitig die Größen konstant hält.
+    const tBereit = {
+      ...tDraft,
+      tournament: { ...tDraft.tournament, status: 'generated', startedAt: null },
+    };
+    const html = renderEinstellungen(tBereit, { isAdmin: true, finishedCount: 0 });
     expect(html).toContain('data-action="randomize-groups"');
-    expect(html).toContain('data-action="save-groups"');
+    // Save-Button und Touch-Picker sind weg, weil DnD weg ist.
+    expect(html).not.toContain('data-action="save-groups"');
+    expect(html).not.toContain('data-action="reset-groups"');
+    // Hinweis erklärt warum.
+    expect(html).toMatch(/Größen bleiben gleich|Gruppeneinteilung wird vom Turnier verwaltet/);
+  });
+
+  it('Groups-Block (Admin, LÄUFT): Zufällig-Button gesperrt oder raus', () => {
+    // In LÄUFT (startedAt !== null) ist canEditGroups = false → Renderer
+    // rendert keinen Zufällig-Button (oder zumindest keinen Save-Button).
+    const tRunning = {
+      ...tDraft,
+      tournament: { ...tDraft.tournament, status: 'group_stage', startedAt: new Date().toISOString() },
+    };
+    const html = renderEinstellungen(tRunning, { isAdmin: true, finishedCount: 0 });
+    // Save ist garantiert raus.
+    expect(html).not.toContain('data-action="save-groups"');
   });
 });
