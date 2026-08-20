@@ -2487,7 +2487,7 @@ function restoreTournamentViewState(state) {
  * ganze Detail-View neu rendert und dabei die `data-loaded`-Marker +
  * Mount-Inhalte verliert.
  *
- * @param {string} view  Einer von: 'spielplan', 'uebersicht', 'gruppen',
+ * @param {string} view  Einer von: 'spielplan', 'gruppen',
  *   'baum', 'teams', 'regeln', 'drucken', 'einstellungen'.
  * @param {Object|null} t  Tournament-View-Context.
  * @param {HTMLElement} detail  `#tournament-detail`-Container.
@@ -2756,7 +2756,6 @@ function renderTournamentInstanceDetailV3(t) {
         </header>
         <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
           <button type="button" class="is-active" data-view="spielplan">Spielplan</button>
-          <button type="button" data-view="uebersicht">Übersicht</button>
           <button type="button" data-view="gruppen">Gruppen</button>
           <button type="button" data-view="baum">Turnierbaum</button>
           <button type="button" data-view="teams">Teams</button>
@@ -2767,7 +2766,6 @@ function renderTournamentInstanceDetailV3(t) {
         <div class="t-shell">
           <nav class="t-mod-nav" id="t-nav" aria-label="Turnier-Ansichten">
             <button type="button" class="is-active" data-view="spielplan">Spielplan <span class="count" id="cnt-matches"></span></button>
-            <button type="button" data-view="uebersicht">Übersicht</button>
             <button type="button" data-view="gruppen">Gruppen</button>
             <button type="button" data-view="baum">Turnierbaum</button>
             <button type="button" data-view="teams">Teams</button>
@@ -2785,10 +2783,6 @@ function renderTournamentInstanceDetailV3(t) {
               </div>
               <div class="t-toolbar" id="t-filters"></div>
               <div class="t-card"><div class="t-card-body" id="t-schedule-list"></div></div>
-            </section>
-            <section class="t-view" data-view="uebersicht">
-              <div class="t-view-head"><div class="t-view-title">Übersicht</div></div>
-              ${placeholder('Die Übersicht', 'Kommt in Etappe B.2.')}
             </section>
             <section class="t-view" data-view="gruppen">
               <div class="t-view-head"><div class="t-view-title">Gruppen</div></div>
