@@ -257,10 +257,15 @@ describe('renderMatchCard', () => {
     expect(html).toContain('t-match--done');
     expect(html).toContain('14:30 · Platte 2');
     expect(html).toContain('VF 1');
-    expect(html).toContain('3 : 1');
+    // Anzeigetafel-Layout (Redesign A2): zwei separate Score-Felder.
+    expect(html).toContain('data-area="home-score">3<');
+    expect(html).toContain('data-area="away-score">1<');
+    expect(html).not.toContain('3 : 1');
     // Heim hat gewonnen (3 > 1)
     expect(html).toMatch(/<div class="t-match-team is-winner">[^<]*<i class="t-dot"[^>]*><\/i><span class="name">Heim<\/span><\/div>/);
-    expect(html).toMatch(/<div class="t-match-team right"><span class="name">Gast<\/span>/);
+    // A2 Redesign: beide Teams haben jetzt den Dot LINKS (Indikator),
+    // einheitlich — auch Away, kein nachgestellter Dot mehr.
+    expect(html).toMatch(/<div class="t-match-team right"><i class="t-dot"[^>]*><\/i><span class="name">Gast<\/span><\/div>/);
   });
 
   it('Auswärts-Sieger wird rechts hervorgehoben', () => {
@@ -274,11 +279,13 @@ describe('renderMatchCard', () => {
     expect(html).toContain('<div class="t-match-team right is-winner">');
   });
 
-  it('Score fehlt → "– : –" mit .empty-Klasse', () => {
+  it('Score fehlt → "–" in BEIDEN Feldern mit .empty-Klasse', () => {
     const m = makeMatch({ scoreHome: null, scoreAway: null, isFinished: false });
     const html = renderMatchCard(m, false);
-    expect(html).toContain('– : –');
+    expect(html).not.toContain('– : –');
     expect(html).toContain('t-match-score empty');
+    // Zwei leere Felder — eines pro Team
+    expect(html.match(/t-match-score empty/g)?.length).toBe(2);
     expect(html).not.toContain('t-match--done');
     expect(html).not.toContain('is-winner');
   });
@@ -338,20 +345,23 @@ describe('renderMatchCard', () => {
 });
 
 describe('renderMatchCardCompact', () => {
-  it('rendert Teams + Score in 3-Spalten-Layout', () => {
+  it('rendert Teams + zwei Score-Felder (Anzeigetafel-Layout)', () => {
     const m = makeMatch({ scoreHome: 2, scoreAway: 1, isFinished: true });
     const html = renderMatchCardCompact(m);
     expect(html).toContain('t-match--compact');
     expect(html).toContain('t-match--done');
-    expect(html).toContain('2 : 1');
+    expect(html).not.toContain('2 : 1');
+    expect(html).toContain('data-area="home-score">2<');
+    expect(html).toContain('data-area="away-score">1<');
     expect(html).toContain('Heim');
     expect(html).toContain('Gast');
   });
 
-  it('leeres Score → "– : –" + .empty', () => {
+  it('leeres Score → "–" in beiden Feldern + .empty', () => {
     const html = renderMatchCardCompact(makeMatch({ scoreHome: null, scoreAway: null }));
-    expect(html).toContain('– : –');
+    expect(html).not.toContain('– : –');
     expect(html).toContain('empty');
+    expect(html.match(/t-match-score empty/g)?.length).toBe(2);
   });
 
   it('kein Meta, keine Action-Spalte (Aside-Variante)', () => {

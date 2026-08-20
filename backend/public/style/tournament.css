@@ -944,33 +944,40 @@
 /* ----------------------------------------------------------------
    MATCH-KOMPONENTE — drei Größen, identische Klasse
    ----------------------------------------------------------------
-   Verwendung:
-     <div class="t-match" data-size="normal">  ← Standard
-       <span class="t-match-bar"></span>
+   Verwendung (vertikal-stacked, Anzeigetafel-Layout):
+     <div class="t-match">                              ← Standard
+       <div class="t-match-bar"></div>
        <div class="t-match-meta">
-         <div>10:30 · Platte 3</div>   ← Zeile 1: Zeit · Tisch
-         <div>VF 1</div>                ← Zeile 2: Bezeichnung (VF/HF/Gruppenspiel …)
+         <div class="t-match-meta-line t-match-meta-time">10:30 · Platte 3</div>
+         <div class="t-match-meta-line t-match-meta-label">VF 1</div>
        </div>
-       <div class="t-match-team">…</div>
-       <div class="t-match-score">…</div>
-       <div class="t-match-team right">…</div>
+       <div class="t-match-team">${homeName}</div>
+       <div class="t-match-score" data-area="home-score">${homeScore}</div>
+       <div class="t-match-team right">${awayName}</div>
+       <div class="t-match-score" data-area="away-score">${awayScore}</div>
        <div class="t-match-action">…</div>
      </div>
 
-   oder per Modifier-Klasse:
-     .t-match--compact    (Kontextspalte, Liste)
-     .t-match--large      (Detail-Panel, Beamer)
+   Modifier-Klassen:
+     .t-match--compact    Kontextspalte (kein Meta, kein Action)
+     .t-match--large      Detail-Panel + Beamer (mehr Atem)
+     .t-match--bracket    Turnierbaum (eigene Grid-Geometrie, siehe unten)
 
-   Spalten-Layout (Prototyp, Zeile 128): 6 Grid-Spalten
-     bar | meta | heim | score | gast | aktion
-
-   Meta ist 120 px breit (NICHT 96 px wie im Prototyp), weil bei uns
-   auch die Bezeichnung mit druntersteht. Sonst nichts frei erfunden.
+   Layout: 4 Spalten × 3 Zeilen — Teams UNTEREINANDER, Score rechts
+   daneben, Action als rechte Spalte über alle Zeilen. Die Score-Felder
+   sind die Anzeigetafel: dunkler --board-Hintergrund, helle --board-
+   ink-Ziffern, scharfer --r-board (4px). Das ist die Handschrift.
    ---------------------------------------------------------------- */
 .t-match {
   display: grid;
-  grid-template-columns: 3px 120px minmax(0, 1fr) auto minmax(0, 1fr) 108px;
-  gap: var(--s3);
+  grid-template-columns: 3px minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "bar meta  meta     act"
+    "bar home  home-s   act"
+    "bar away  away-s   act";
+  column-gap: var(--s3);
+  row-gap: 6px;
   align-items: center;
   padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--line);
@@ -979,6 +986,7 @@
 .t-match:last-child { border-bottom: none; }
 
 .t-match-bar {
+  grid-area: bar;
   align-self: stretch;
   border-radius: 2px;
   background: var(--open);
@@ -987,10 +995,11 @@
 .t-match--done .t-match-team { color: var(--ink-soft); }
 .t-match--live .t-match-bar { background: var(--live, var(--accent)); }
 
-/* Meta-Spalte — ZWEI Zeilen, OHNE nowrap/ellipsis.
+/* Meta-Spalte — ZWEI Zeilen oben links.
      Zeile 1: Zeit · Tisch — 14 px, tabular-nums, --ink
-     Zeile 2: Bezeichnung — 11 px, --ink-soft, darf umbrechen */
+     Zeile 2: Bezeichnung — 11 px, UPPERCASE, --ink-soft, darf umbrechen */
 .t-match-meta {
+  grid-area: meta;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1007,19 +1016,29 @@
   font-weight: 600;
   font-size: 14px;
   color: var(--ink);
+  letter-spacing: 0.01em;
 }
 .t-match-meta-label {
   font-size: 11px;
   color: var(--ink-soft);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
+/* Teams — vertikal gestapelt, jede Zeile bekommt ihren Score rechts. */
 .t-match-team {
+  grid-area: home;
   display: flex; align-items: center; gap: var(--s2);
   font-weight: 500;
-  min-width: 0; /* verhindert, dass das Flex-Item über die 1fr-Spalte hinausgeht */
+  font-size: 15px;
+  min-width: 0;
 }
-.t-match-team.right { justify-content: flex-end; text-align: right; }
+.t-match-team.right {
+  grid-area: away;
+  justify-content: flex-start; /* Override Default — Name linksbündig wie Heim */
+  text-align: left;
+}
 .t-match-team .name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1039,25 +1058,40 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+/* ANZEIGETAFEL — Score-Felder.
+   Dunkles Board, helle Ziffern, scharfe 4px-Ecken. Das ist die
+   Signature des Moduls: ein "echtes" Anzeigetafel-Gefühl statt
+   Plastik-Pille. Zwei Felder pro Karte — eines pro Team — statt
+   "3 : 2" als kombinierter Text. */
 .t-match-score {
   font-variant-numeric: tabular-nums;
-  font-weight: 600; font-size: 16px;
-  background: var(--surface-alt);
-  border-radius: 8px;
-  padding: 3px 10px;
-  min-width: 64px;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  background: var(--board);
+  color: var(--board-ink);
+  border-radius: var(--r-board, 4px);
+  padding: 6px 10px;
+  min-width: 40px;
   text-align: center;
 }
+.t-match-score[data-area="home-score"] { grid-area: home-s; }
+.t-match-score[data-area="away-score"] { grid-area: away-s; }
 .t-match-score.empty {
-  color: var(--ink-soft);
+  color: var(--board-dim);
   background: transparent;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--board-dim);
+  font-weight: 400;
 }
 
 /* Action-Spalte — Admin-Button ODER Member-Text. NIE leer: der Member
    sieht entweder die Bezeichnung oder „Beendet", der Admin sieht den
-   Button (oder „Erneut" bei schon eingetragenem Ergebnis). */
+   Button (oder „Erneut" bei schon eingetragenem Ergebnis). Spannt
+   über alle 3 Zeilen rechts. */
 .t-match-action {
+  grid-area: act;
+  align-self: center;
   text-align: right;
   display: flex;
   align-items: center;
@@ -1070,65 +1104,65 @@
   text-align: right;
 }
 
-/* Kompakte Variante — nur Score + Namen + Bar, komprimiert.
-   Verwendet in Kontextspalte und schnellen Listen. */
+/* Kompakte Variante — Kontextspalte / Listen.
+   Kein Meta, kein Action. Zwei Zeilen (Home/Away), Score rechts.
+   Atemräume und Schrift verkleinert. */
 .t-match.t-match--compact {
-  grid-template-columns: 3px 1fr auto;
-  grid-template-areas: "bar teams score";
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "bar home  home-s"
+    "bar away  away-s";
   padding: var(--s2) var(--s3);
-  gap: var(--s2);
-}
-.t-match.t-match--compact .t-match-bar    { grid-area: bar; }
-.t-match.t-match--compact .t-match-teams  {
-  grid-area: teams;
-  display: flex; flex-direction: column;
-  gap: 2px;
+  gap: 4px var(--s2);
   font-size: 13px;
 }
-.t-match.t-match--compact .t-match-score  { grid-area: score; font-size: 14px; padding: 2px 8px; min-width: 48px; }
+.t-match.t-match--compact .t-match-team       { font-size: 13px; }
+.t-match.t-match--compact .t-match-score      {
+  font-size: 13px;
+  padding: 3px 7px;
+  min-width: 28px;
+}
 
 /* Große Variante — Detail-Panel + Beamer, eigene Karte pro Match.
-   Spalten-Basis gleich wie Standard, aber breiter (etwas mehr Atem). */
+   Gleiche Geometrie wie Standard, nur mehr Atem. */
 .t-match.t-match--large {
-  grid-template-columns: 4px 144px minmax(0, 1fr) auto minmax(0, 1fr) 140px;
+  grid-template-columns: 4px minmax(0, 1fr) auto auto;
   padding: var(--s4) var(--s6);
   border: 1px solid var(--line);
   border-bottom: 1px solid var(--line); /* Override "last-child"-Reset */
   border-radius: var(--r-card);
   margin-bottom: var(--s3);
-  gap: var(--s4);
+  gap: 6px var(--s4);
 }
 .t-match.t-match--large:last-child { margin-bottom: 0; }
 .t-match.t-match--large .t-match-meta-time  { font-size: 16px; }
-.t-match.t-match--large .t-match-meta-label { font-size: 13px; }
+.t-match.t-match--large .t-match-meta-label { font-size: 12px; }
 .t-match.t-match--large .t-match-team       { font-size: 17px; }
-.t-match.t-match--large .t-match-score      { font-size: 22px; padding: 6px 14px; min-width: 80px; }
+.t-match.t-match--large .t-match-score      { font-size: 22px; padding: 8px 12px; min-width: 56px; }
 
-/* Auf <768px Modul-Breite: Match wird zur Karte (Stack) statt zur Zeile.
-   Meta-Zelle bleibt zweizeilig oben, dann Heim + Score/Gast in der
-   zweiten Zeile, Action-Spalte spannt über alle 3 Zeilen am rechten
-   Rand. */
+/* Auf <768px Modul-Breite: Action wandert in die oberste Zeile,
+   Score-Spalte bleibt rechts. Layout bleibt vertikal-stacked. */
 @container (max-width: 767px) {
   .t-match,
   .t-match.t-match--large {
     grid-template-columns: 3px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
       "bar meta  act"
-      "bar home  act"
-      "bar score away";
-    row-gap: var(--s2);
-    column-gap: var(--s3);
+      "bar home  home-s"
+      "bar away  away-s";
+    row-gap: 4px;
+    column-gap: var(--s2);
   }
   .t-match-bar     { grid-area: bar; }
   .t-match-meta    { grid-area: meta; }
   .t-match-team    { grid-area: home; }
-  .t-match-team.right {
-    grid-area: away;
-    justify-content: flex-start;
-    text-align: left;
-  }
-  .t-match-score   { grid-area: score; align-self: center; justify-self: center; }
+  .t-match-team.right { grid-area: away; }
+  .t-match-score[data-area="home-score"] { grid-area: home-s; }
+  .t-match-score[data-area="away-score"] { grid-area: away-s; }
   .t-match-action  { grid-area: act; align-self: start; }
+  .t-match-score   { font-size: 16px; padding: 5px 8px; }
 }
 
 /* ----------------------------------------------------------------
@@ -1295,19 +1329,18 @@
   min-width: 36px;
   padding: 2px 6px;
   font-size: 14px;
-  background: var(--surface-alt);
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  background: var(--board);
+  color: var(--board-ink);
+  border-radius: var(--r-board, 4px);
   line-height: 1.2;
   align-self: center;
 }
 .t-match--bracket [data-area="home-score"].empty,
 .t-match--bracket [data-area="away-score"].empty {
-  color: var(--muted, #8A8077);
+  color: var(--board-dim);
   font-weight: 400;
   background: transparent;
-  border-color: var(--line);
-  border-style: dashed;
+  border: 1px dashed var(--board-dim);
 }
 .t-match--bracket.t-match--placeholder .name {
   font-style: italic;

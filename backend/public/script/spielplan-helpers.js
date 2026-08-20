@@ -189,7 +189,8 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   const homeIsWinner = !!m?.isFinished && hasScore && m.scoreHome > m.scoreAway;
   const awayIsWinner = !!m?.isFinished && hasScore && m.scoreAway > m.scoreHome;
   const scoreEmpty = !hasScore;
-  const scoreText = scoreEmpty ? '– : –' : `${m.scoreHome} : ${m.scoreAway}`;
+  const homeScoreText = hasScore ? String(m.scoreHome) : '–';
+  const awayScoreText = hasScore ? String(m.scoreAway) : '–';
 
   const timeStr = m?.scheduledTime || '–';
   const tableStr = m?.field != null
@@ -246,13 +247,19 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
     actionHtml = '<div class="t-match-action"><span class="t-match-action-text">–</span></div>';
   }
 
+  // Anzeigetafel-Layout (Redesign Teil 1, A2): Teams UNTEREINANDER,
+  // jedes Team bekommt sein eigenes Score-Feld rechts — zwei separate
+  // .t-match-score-Elemente mit data-area zur Grid-Positionierung.
+  // Der dunkle Hintergrund + helle Ziffern ist die Handschrift des
+  // Moduls; "X : Y" als Text war zu generisch.
   return `
     <div class="t-match${m?.isFinished ? ' t-match--done' : ''}${m?.isLive ? ' t-match--live' : ''}" data-match-id="${esc(m?.id)}">
       <div class="t-match-bar"></div>
       ${metaHtml}
       <div class="t-match-team${homeIsWinner ? ' is-winner' : ''}">${homeDot}<span class="name">${esc(homeName)}</span></div>
-      <div class="t-match-score${scoreEmpty ? ' empty' : ''}">${esc(scoreText)}</div>
-      <div class="t-match-team right${awayIsWinner ? ' is-winner' : ''}"><span class="name">${esc(awayName)}</span>${awayDot}</div>
+      <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="home-score">${esc(homeScoreText)}</div>
+      <div class="t-match-team right${awayIsWinner ? ' is-winner' : ''}">${awayDot}<span class="name">${esc(awayName)}</span></div>
+      <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="away-score">${esc(awayScoreText)}</div>
       ${actionHtml}
     </div>
   `;
@@ -323,7 +330,8 @@ function cssEscape(s) {
 
 /**
  * Kompakte Match-Karte für die Kontextspalte ("Als Nächstes").
- * Anderes Markup: 3-spaltig (bar · teams · score), ohne Meta und Action.
+ * Wie die Standard-Karte, aber ohne Meta und Action. Zwei Score-Felder
+ * (eines pro Team) im selben Anzeigetafel-Look — kleiner.
  */
 export function renderMatchCardCompact(m) {
   const homeName = m?.home?.name || 'offen';
@@ -331,7 +339,8 @@ export function renderMatchCardCompact(m) {
   const homeColor = m?.home?.color || null;
   const awayColor = m?.away?.color || null;
   const hasScore = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
-  const scoreText = hasScore ? `${m.scoreHome} : ${m.scoreAway}` : '– : –';
+  const homeScoreText = hasScore ? String(m.scoreHome) : '–';
+  const awayScoreText = hasScore ? String(m.scoreAway) : '–';
   const scoreClass = hasScore ? 't-match-score' : 't-match-score empty';
   const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
   const homeDot = `<i class="t-dot" style="${dotStyle(homeColor)}" aria-hidden="true"></i>`;
@@ -339,11 +348,10 @@ export function renderMatchCardCompact(m) {
   return `
     <div class="t-match t-match--compact${m?.isFinished ? ' t-match--done' : ''}">
       <div class="t-match-bar"></div>
-      <div class="t-match-teams">
-        <div class="t-match-team">${homeDot}<span class="name">${esc(homeName)}</span></div>
-        <div class="t-match-team right"><span class="name">${esc(awayName)}</span>${awayDot}</div>
-      </div>
-      <div class="${scoreClass}">${esc(scoreText)}</div>
+      <div class="t-match-team">${homeDot}<span class="name">${esc(homeName)}</span></div>
+      <div class="${scoreClass}" data-area="home-score">${esc(homeScoreText)}</div>
+      <div class="t-match-team right">${awayDot}<span class="name">${esc(awayName)}</span></div>
+      <div class="${scoreClass}" data-area="away-score">${esc(awayScoreText)}</div>
     </div>
   `;
 }
