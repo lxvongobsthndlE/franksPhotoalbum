@@ -2728,3 +2728,272 @@ textarea.t-input {
   .t-team-edit-hint { display: none; }   /* Hint ist Mobile zu viel */
   .t-team-marker { width: 24px; height: 24px; font-size: 12px; }
 }
+
+/* === Etappe B.7 — Einstellungen-Tab ============================== */
+.t-settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5, 20px);
+}
+.t-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.t-settings-section-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin: 0;
+}
+.t-settings-section-body { display: flex; flex-direction: column; gap: var(--s3); }
+.t-settings-actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.t-settings-lock-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--warn-soft, #fef3cd);
+  border-left: 3px solid var(--warn, #b58410);
+  border-radius: var(--r-card);
+  font-size: 12px;
+}
+
+/* === Gefahrenzone ================================================ */
+.t-danger-zone {
+  border: 2px solid var(--danger, #b3261e);
+  border-radius: var(--r-card);
+  padding: var(--s4);
+  background: rgba(179, 38, 30, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.t-danger-zone-title {
+  color: var(--danger, #b3261e);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.t-danger-zone-body { display: flex; flex-direction: column; gap: var(--s2); }
+.t-danger-zone-actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+/* === Groups-Board (DnD) ========================================== */
+.t-groups-board {
+  display: grid;
+  grid-template-columns: repeat(var(--group-count, 3), minmax(160px, 1fr));
+  gap: var(--s3);
+}
+.t-groups-column {
+  background: var(--surface-alt, #fafaf7);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--s3);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.t-groups-column-header {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.t-group-count {
+  background: var(--accent-soft, #e8edf3);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.t-groups-column-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-height: 60px;
+}
+.t-group-team-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  cursor: grab;
+  font-size: 13px;
+  user-select: none;
+  touch-action: none;
+}
+.t-group-team-card.is-dragging {
+  position: fixed;
+  z-index: 100;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  cursor: grabbing;
+  pointer-events: none;
+  width: var(--card-width, 180px);
+}
+.t-group-team-card.is-placeholder {
+  visibility: hidden;
+  border: 1px dashed var(--line);
+  background: transparent;
+  cursor: default;
+}
+.t-group-team-card-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.t-group-team-card-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* === Spielplan-Edit-Mode ======================================== */
+.t-match-edit-time,
+.t-match-edit-field {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  width: auto;
+}
+.t-match-edit-field { width: 56px; text-align: center; }
+.t-match-edit-time:disabled,
+.t-match-edit-field:disabled { opacity: 0.5; cursor: not-allowed; }
+.t-schedule-edit-bar {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s3);
+  background: var(--accent-soft, #e8edf3);
+  border-radius: var(--r-card);
+  margin-bottom: var(--s4);
+  flex-wrap: wrap;
+}
+.t-schedule-edit-config {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 13px;
+}
+.t-schedule-edit-config input {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-family: inherit;
+  text-align: center;
+}
+.t-schedule-edit-actions {
+  display: flex;
+  gap: var(--s2);
+}
+
+/* === Spielfelder-Editor ========================================= */
+.t-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.t-fields-editor-row label {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 13px;
+}
+.t-fields-count {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: inherit;
+  text-align: center;
+}
+.t-fields-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--s2);
+}
+.t-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+.t-field-order {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  min-width: 24px;
+}
+.t-field-name {
+  flex: 1;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+}
+.t-field-name:disabled { opacity: 0.5; cursor: not-allowed; }
+.t-fields-editor-actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.t-fields-locked-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--warn-soft, #fef3cd);
+  border-left: 3px solid var(--warn, #b58410);
+  border-radius: var(--r-card);
+  font-size: 12px;
+}
+
+/* === Etappe B.7 — Mobile ========================================= */
+@media (max-width: 600px) {
+  .t-groups-board { grid-template-columns: 1fr; }
+  .t-schedule-edit-bar { flex-direction: column; align-items: stretch; }
+  .t-schedule-edit-config { flex-wrap: wrap; }
+  .t-fields-list { grid-template-columns: 1fr; }
+  .t-settings-actions { flex-direction: column; align-items: stretch; }
+  .t-danger-zone-actions { flex-direction: column; align-items: stretch; }
+}

@@ -2651,7 +2651,7 @@ function renderTournamentInstanceDetailV3(t) {
               <div class="t-view-head">
                 <div class="t-view-title">Spielplan</div>
                 <div class="spacer"></div>
-                ${showReschedule ? '<button type="button" class="t-btn t-btn--ghost" data-action="reschedule" title="Zeitplan neu terminieren (Block-Ordering R32 < R16 < QF < SF < 3RD < F)">Zeitplan neu</button>' : ''}
+                ${isAdmin ? '<button type="button" class="t-btn t-btn--ghost" data-action="toggle-schedule-edit" title="Zeit und Platte pro Spiel ändern — Achtung: bei laufenden Spielen gesperrt">Bearbeiten</button>' : ''}
                 ${isAdmin ? '<button type="button" class="t-btn t-btn--primary" data-action="enter-result-pick">Ergebnis eintragen</button>' : ''}
               </div>
               <div class="t-toolbar" id="t-filters"></div>
@@ -2690,7 +2690,7 @@ function renderTournamentInstanceDetailV3(t) {
             </section>
             <section class="t-view" data-view="einstellungen">
               <div class="t-view-head"><div class="t-view-title">Einstellungen</div></div>
-              ${placeholder('Die Einstellungen', 'Kommt in Etappe B.7.')}
+              <div data-tab-body="einstellungen-mount"></div>
             </section>
           </main>
           <aside class="t-mod-aside">
@@ -2764,6 +2764,18 @@ function renderTournamentInstanceDetailV3(t) {
           mount.dataset.loaded = '1';
           loadTeamsTab(t).catch(() => {
             mount.innerHTML = placeholder('Teams konnten nicht geladen werden.', '');
+          });
+        }
+      }
+      // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
+      // Spielfelder / Gefahrenzone. Immer re-rendern, damit Status-
+      // Änderungen sichtbar werden.
+      if (view === 'einstellungen') {
+        const mount = detail.querySelector('[data-tab-body="einstellungen-mount"]');
+        if (mount) {
+          mount.innerHTML = '';
+          loadEinstellungenTab(t, mount).catch(() => {
+            mount.innerHTML = placeholder('Einstellungen konnten nicht geladen werden.', '');
           });
         }
       }
@@ -2942,7 +2954,180 @@ function bindSpielplanInteractions(t) {
       openResultEntryModal(t.id, null, t.matches || []);
       return;
     }
+    // Etappe B.7: Edit-Toggle für den Spielplan.
+    const editToggle = e.target.closest('[data-action="toggle-schedule-edit"]');
+    if (editToggle && section.contains(editToggle)) {
+      toggleScheduleEditMode(section, t);
+      return;
+    }
+    const saveEdit = e.target.closest('[data-action="save-schedule-edits"]');
+    if (saveEdit && section.contains(saveEdit)) {
+      saveScheduleEdits(t, section);
+      return;
+    }
+    const cancelEdit = e.target.closest('[data-action="cancel-schedule-edits"]');
+    if (cancelEdit && section.contains(cancelEdit)) {
+      // Verwerfen + neu rendern (DOM-State weg, Renderer liefert wieder Read-View).
+      section.dataset.editMode = '0';
+      renderSpielplan(t);
+      return;
+    }
   });
+}
+
+/**
+ * Etappe B.7: Spielplan-Edit-Toggle.
+ *
+ * Wir setzen einen `data-edit-mode="1"`-Flag auf der Section und
+ * re-rendern die Match-Liste mit `renderMatchCard(..., isEdit=true)`.
+ * KO- und finished-Matches bleiben mit disabled-Inputs.
+ */
+function toggleScheduleEditMode(section, t) {
+  const isEditing = section.dataset.editMode === '1';
+  section.dataset.editMode = isEditing ? '0' : '1';
+
+  const finishedCount = (t.matches || []).filter((m) => m && m.isFinished).length;
+  const locked = finishedCount > 0;
+  const isAdmin = t.isAdmin === true;
+
+  // Renderer liefert bei isAdmin immer die Edit-View; wir tauschen nur
+  // die Karten. Damit auch nicht-editierbare Matches in der Liste
+  // bleiben, filtern wir nicht.
+  const listEl = section.querySelector('[data-tab-body="spielplan-mount"]');
+  if (!listEl) return;
+
+  if (!isAdmin) {
+    toast('Nur Admins können den Spielplan bearbeiten', 'error');
+    section.dataset.editMode = '0';
+    return;
+  }
+  if (locked) {
+    toast(`${finishedCount} Spiele bereits beendet — Spielplan gesperrt`, 'error');
+    section.dataset.editMode = '0';
+    return;
+  }
+
+  // Re-render mit isEdit-Flag.
+  const matches = (t.matches || []);
+  const filtered = applySpielplanFilter(matches, currentSpielplanFilter);
+  const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderMatchList);
+  if (typeof renderer !== 'function') {
+    listEl.innerHTML = '<div class="t-hint">Renderer nicht verfügbar</div>';
+    return;
+  }
+  // Edit-Bar oben + Liste darunter.
+  const fieldsConfig = t.config?.fields || [];
+  listEl.innerHTML =
+    renderScheduleEditBar(t) +
+    renderer(filtered, isAdmin, true, fieldsConfig) // 3. Param: isEdit, 4.: fieldsConfig (falls Renderer es nutzt)
+      .replace(/data-action="enter-result"/g, ''); // Edit-Modus: kein Ergebnis-Button
+
+  // Toggle-Button-Label aktualisieren
+  const toggleBtn = section.querySelector('[data-action="toggle-schedule-edit"]');
+  if (toggleBtn) {
+    toggleBtn.textContent = section.dataset.editMode === '1' ? 'Bearbeiten beenden' : 'Bearbeiten';
+    toggleBtn.classList.toggle('is-active', section.dataset.editMode === '1');
+  }
+}
+
+function renderScheduleEditBar(t) {
+  const duration = t.config?.schedule?.matchDurationMinutes ?? 30;
+  const fieldsCount = (t.config?.fields || []).length;
+  return `
+    <div class="t-schedule-edit-bar">
+      <div class="t-schedule-edit-config">
+        <label>Dauer pro Spiel
+          <input class="t-schedule-edit-duration" type="number" min="5" max="180" step="5" value="${duration}"> min
+        </label>
+        <span class="t-hint">Platten: ${fieldsCount}</span>
+      </div>
+      <div class="t-schedule-edit-actions">
+        <button type="button" class="t-btn t-btn--primary" data-action="save-schedule-edits">Speichern &amp; neu terminieren</button>
+        <button type="button" class="t-btn t-btn--ghost" data-action="cancel-schedule-edits">Abbrechen</button>
+      </div>
+      <div class="t-hint">Änderung der Dauer wird per Reschedule neu berechnet. Pro-Karte-Änderungen werden direkt übernommen.</div>
+    </div>
+  `;
+}
+
+/**
+ * Etappe B.7: Speichert die Schedule-Edits.
+ *
+ * Zwei Schritte (Spec A2):
+ *   1. Wenn sich matchDurationMinutes geändert hat → PATCH /:id { config } + POST /:id/reschedule.
+ *   2. Wenn Pro-Karte-Edits (Zeit/Platte) gemacht wurden → PATCH /:id/schedule.
+ *
+ * Bei 409 (Lock durch ≥1 finished) brechen wir ab und melden dem User.
+ */
+async function saveScheduleEdits(t, section) {
+  if (!t || !t.id || !section) return;
+  const finishedCount = (t.matches || []).filter((m) => m && m.isFinished).length;
+  if (finishedCount > 0) {
+    toast(`${finishedCount} Spiele bereits beendet — Spielplan gesperrt`, 'error');
+    return;
+  }
+
+  const durationInput = section.querySelector('.t-schedule-edit-duration');
+  const baseDuration = t.config?.schedule?.matchDurationMinutes ?? 30;
+  const newDuration = durationInput ? parseInt(durationInput.value, 10) : baseDuration;
+  const durationChanged = Number.isFinite(newDuration) && newDuration !== baseDuration;
+
+  // Pro-Karte-Edits sammeln
+  const updates = [];
+  const cards = section.querySelectorAll('[data-role="match-card"]');
+  cards.forEach((card) => {
+    const matchId = card.dataset.matchId;
+    const timeInput = card.querySelector('.t-match-edit-time');
+    const fieldInput = card.querySelector('.t-match-edit-field');
+    if (!matchId) return;
+    const orig = (t.matches || []).find((m) => m.id === matchId);
+    if (!orig) return;
+    const timeVal = timeInput?.value || null;
+    const fieldVal = fieldInput?.value ? parseInt(fieldInput.value, 10) : null;
+    const baseDate = orig.scheduledAt ? orig.scheduledAt.slice(0, 10) : (t.config?.schedule?.baseDate || null);
+    const newScheduledAt = timeVal && baseDate
+      ? `${baseDate}T${timeVal}:00.000Z`
+      : (timeVal ? null : null);
+    const origField = orig.field ?? null;
+    const changedTime = timeVal !== (orig.scheduledTime || '');
+    const changedField = fieldVal !== origField;
+    if (changedTime || changedField) {
+      updates.push({ matchId, scheduledAt: newScheduledAt, field: Number.isFinite(fieldVal) ? fieldVal : null });
+    }
+  });
+
+  try {
+    if (updates.length > 0) {
+      const out = window.spielplanHelpers?.serializeScheduleInput?.(updates, t.config?.schedule?.baseDate || null);
+      if (!out || !out.ok) {
+        toast(out?.error || 'Spielplan-Eingabe ungültig', 'error');
+        return;
+      }
+      await apiCall(`/tournaments/${encodeURIComponent(t.id)}/schedule`, 'PATCH', { updates: out.updates });
+    }
+    if (durationChanged) {
+      const newConfig = {
+        ...(t.config || {}),
+        schedule: {
+          ...(t.config?.schedule || {}),
+          matchDurationMinutes: newDuration,
+        },
+      };
+      await apiCall(`/tournaments/${encodeURIComponent(t.id)}`, 'PATCH', { config: newConfig });
+      await rescheduleTournament(t.id, t.name);
+    }
+    toast('Spielplan gespeichert', 'success');
+    section.dataset.editMode = '0';
+    await openTournamentInstance(t.id);
+  } catch (e) {
+    if (e.status === 409 && /match_locked/.test(e.serverMessage || '')) {
+      toast('Mindestens ein Match ist bereits beendet — Spielplan gesperrt', 'error');
+    } else if (e.status === 409 && /schedule_conflict/.test(e.serverMessage || '')) {
+      toast('Zeit-/Platten-Konflikt — bitte Eingaben prüfen', 'error');
+    } else {
+      toast(e.serverMessage || 'Spielplan konnte nicht gespeichert werden', 'error');
+    }
+  }
 }
 
 /**
@@ -3160,6 +3345,361 @@ function wireTeamsList(mount, t, { isAdmin, reorderable }) {
   if (reorderable) {
     attachTeamsDnD(list, t);
   }
+}
+
+/**
+ * Etappe B.7: Lädt den Einstellungen-Tab.
+ *
+ * Reine Render-Funktion — keine Daten-Fetch. Wir nutzen den
+ * `t`-View-Kontext, den openTournamentInstance bereits in `currentTournament`
+ * (bzw. der lokalen `t`-Variable) ablegt.
+ *
+ * @param {Object} t  Vollständiger Turnier-View-Kontext (id, name, status, groups, teams, matches, config, isAdmin).
+ * @param {HTMLElement} mount  Container-Element [data-tab-body="einstellungen-mount"].
+ */
+async function loadEinstellungenTab(t, mount) {
+  if (!t || !t.id || !mount) return;
+  const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderEinstellungen);
+  if (typeof renderer !== 'function') {
+    mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Einstellungen-Renderer nicht verfügbar.</p></div></div>';
+    return;
+  }
+  const finishedCount = Array.isArray(t.matches)
+    ? t.matches.filter((m) => m && m.isFinished === true).length
+    : 0;
+  const html = renderer(
+    {
+      tournament: {
+        id: t.id,
+        name: t.name,
+        status: t.status,
+        config: t.config || {},
+      },
+      teams: Array.isArray(t.teams) ? t.teams : [],
+      groups: Array.isArray(t.groups) ? t.groups : [],
+    },
+    { isAdmin: t.isAdmin === true, finishedCount }
+  );
+  mount.innerHTML = html;
+  wireEinstellungen(mount, t, { finishedCount });
+}
+
+/**
+ * Verdrahtet alle Action-Buttons im Einstellungen-Tab.
+ * Event-Delegation am Mount — wir reagieren auf data-action-Attribute.
+ */
+function wireEinstellungen(mount, t, { finishedCount }) {
+  if (!mount) return;
+
+  // ─── Aktionen ─────────────────────────────────────────────────────
+  // Turnier abschließen — simple Confirm ohne Namenseingabe.
+  const finishBtn = mount.querySelector('[data-action="finish-tournament"]');
+  if (finishBtn) {
+    finishBtn.addEventListener('click', async () => {
+      const ok = await showConfirmDlg(
+        'Turnier abschließen',
+        `Turnier "${t.name}" wirklich abschließen? Statuswechsel ist reversibel — alle Ergebnisse bleiben erhalten.`,
+        'Abschließen',
+        'Abbrechen',
+        false
+      );
+      if (!ok) return;
+      await finishTournament(t.id);
+    });
+  }
+
+  // Zeitplan neu terminieren — existierender Flow (mit Confirm-Handshake wenn ≥1 finished).
+  const rescheduleBtn = mount.querySelector('[data-action="reschedule"]');
+  if (rescheduleBtn) {
+    rescheduleBtn.addEventListener('click', async () => {
+      const ok = await rescheduleTournament(t.id, t.name);
+      if (ok) await openTournamentInstance(t.id);
+    });
+  }
+
+  // ─── Gruppeneinteilung ────────────────────────────────────────────
+  // Zufällig verteilen — POST /:id/redraw (Fisher-Yates auf seed-Spalte).
+  const randomBtn = mount.querySelector('[data-action="randomize-groups"]');
+  if (randomBtn) {
+    randomBtn.addEventListener('click', async () => {
+      if (finishedCount > 0) {
+        toast('Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.', 'error');
+        return;
+      }
+      const ok = await openConfirmDialog({
+        title: 'Setzreihenfolge neu auslosen',
+        message:
+          'Die Setzreihenfolge der Teams wird per Zufall neu verteilt. ' +
+          (t.status === 'draft'
+            ? 'Das Turnier ist noch nicht generiert — die neue Reihenfolge fließt beim nächsten Generieren ein.'
+            : 'Achtung: bereits generierte Spielpläne werden neu berechnet.'),
+        confirmLabel: 'Neu auslosen',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await redrawSeeding(t.id, t.name, finishedCount);
+    });
+  }
+
+  // Speichern (Gruppen-DnD-Ergebnis) — PATCH /:id/groups.
+  const saveGroupsBtn = mount.querySelector('[data-action="save-groups"]');
+  if (saveGroupsBtn) {
+    saveGroupsBtn.addEventListener('click', async () => {
+      const board = mount.querySelector('[data-role="groups-board"]');
+      if (!board) return;
+      const out = window.spielplanHelpers?.serializeGroupsInput?.(board);
+      if (!out || !out.ok) {
+        toast(out?.error || 'Gruppen-Eingabe ungültig', 'error');
+        return;
+      }
+      await saveGroupsAssignment(t.id, out.groups);
+    });
+  }
+
+  // ─── Spielfelder ──────────────────────────────────────────────────
+  // Speichern (Spielfelder-Editor) — PATCH /:id/fields.
+  const saveFieldsBtn = mount.querySelector('[data-action="save-fields"]');
+  if (saveFieldsBtn) {
+    saveFieldsBtn.addEventListener('click', async () => {
+      const editor = mount.querySelector('.t-fields-editor');
+      if (!editor) return;
+      const out = window.spielplanHelpers?.serializeFieldsInput?.(editor);
+      if (!out || !out.ok) {
+        toast(out?.error || 'Spielfeld-Eingabe ungültig', 'error');
+        return;
+      }
+      await saveFieldsConfig(t.id, out.fields);
+    });
+  }
+
+  // ─── Gefahrenzone ─────────────────────────────────────────────────
+  // Alle Ergebnisse löschen — POST /:id/reset-results mit confirmTournamentName.
+  const resetBtn = mount.querySelector('[data-action="reset-results"]');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      const dlg = await openConfirmDialog({
+        title: 'Alle Ergebnisse löschen',
+        message:
+          'Alle Spielergebnisse werden zurückgesetzt — Scores, Status und KO-Sieger verschwinden. ' +
+          'Dieser Schritt ist nicht umkehrbar.\n\nTippe zur Bestätigung den Turniernamen:',
+        expectedName: t.name,
+        confirmLabel: 'Ergebnisse löschen',
+      });
+      if (dlg.cancelled) return;
+      await resetResults(t.id, dlg.typedName);
+    });
+  }
+
+  // Turnier löschen — DELETE /:id mit confirmTournamentName.
+  const deleteBtn = mount.querySelector('[data-action="delete-tournament"]');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async () => {
+      const dlg = await openConfirmDialog({
+        title: 'Turnier löschen',
+        message:
+          `Turnier "${t.name}" wird vollständig gelöscht — inklusive aller Teams, Gruppen, Spiele und Logos. ` +
+          'Dieser Schritt ist nicht umkehrbar.\n\nTippe zur Bestätigung den Turniernamen:',
+        expectedName: t.name,
+        confirmLabel: 'Turnier löschen',
+      });
+      if (dlg.cancelled) return;
+      await deleteTournamentWithConfirm(t.id, t.name, dlg.typedName);
+    });
+  }
+
+  // ─── Groups-Board DnD (Admin, nicht locked) ───────────────────────
+  const board = mount.querySelector('[data-role="groups-board"]');
+  if (board && t.isAdmin === true && finishedCount === 0) {
+    attachGroupsDnD(board);
+  }
+}
+
+// ─── Etappe B.7 Action-Backend-Anbindungen ───────────────────────
+
+async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
+  try {
+    const body = {};
+    if (finishedCount > 0) {
+      // Confirm-Handshake wäre redundant — wir haben es schon im Frontend geprüft.
+      // Backend lehnt ohne Confirm ab, deshalb geben wir den Turniernamen mit.
+      body.confirmTournamentName = tournamentName;
+    }
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/redraw`, 'POST', body);
+    toast(`Setzreihenfolge neu ausgelost (${res?.teams?.length ?? 0} Teams)`, 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    toast(e.serverMessage || 'Setzreihenfolge konnte nicht neu ausgelost werden', 'error');
+  }
+}
+
+async function saveGroupsAssignment(tournamentId, groupsPayload) {
+  try {
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/groups`, 'PATCH', { groups: groupsPayload });
+    toast('Gruppeneinteilung gespeichert', 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    if (e.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
+      toast('Bereits Spiele beendet — Gruppenzuordnung gesperrt', 'error');
+    } else {
+      toast(e.serverMessage || 'Gruppeneinteilung konnte nicht gespeichert werden', 'error');
+    }
+  }
+}
+
+async function saveFieldsConfig(tournamentId, fieldsPayload) {
+  try {
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fields`, 'PATCH', { fields: fieldsPayload });
+    if (res?.warnings?.length > 0) {
+      const dropped = res.warnings.find((w) => w.type === 'fields_dropped');
+      if (dropped) {
+        toast(
+          `${dropped.droppedIds.length} Spielfeld(er) entfernt — Spielplan-Einträge wurden auf null gesetzt`,
+          'info'
+        );
+      }
+    } else {
+      toast(`Spielfelder gespeichert (${res?.fields?.length ?? fieldsPayload.length})`, 'success');
+    }
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    if (e.status === 409 && /fields_locked/.test(e.serverMessage || '')) {
+      toast('Spielfelder sind nach der Generierung gesperrt', 'error');
+    } else {
+      toast(e.serverMessage || 'Spielfelder konnten nicht gespeichert werden', 'error');
+    }
+  }
+}
+
+async function finishTournament(tournamentId) {
+  try {
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/finish`, 'POST', {});
+    toast(`Turnier abgeschlossen${res?.alreadyFinished ? ' (war schon abgeschlossen)' : ''}`, 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    toast(e.serverMessage || 'Turnier konnte nicht abgeschlossen werden', 'error');
+  }
+}
+
+async function resetResults(tournamentId, confirmName) {
+  try {
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/reset-results`, 'POST', {
+      confirmTournamentName: confirmName,
+    });
+    toast(`${res?.resetCount ?? 0} Ergebnisse zurückgesetzt`, 'success');
+    await openTournamentInstance(tournamentId);
+  } catch (e) {
+    if (e.status === 409 && /reset_results_locked/.test(e.serverMessage || '')) {
+      toast('Turniername stimmt nicht', 'error');
+    } else if (e.status === 400 && /no_results_to_reset/.test(e.serverMessage || '')) {
+      toast('Keine Ergebnisse zum Zurücksetzen', 'info');
+    } else {
+      toast(e.serverMessage || 'Ergebnisse konnten nicht zurückgesetzt werden', 'error');
+    }
+  }
+}
+
+/**
+ * Variante der existierenden deleteTournamentInstance mit echtem
+ * confirmTournamentName-Handshake (Spec §13.10). Wir wrappen den
+ * existierenden showConfirmDlg-Call, damit wir dem Server den
+ * typedName mitgeben können — der DELETE-Handler verlangt ihn
+ * bei einem bereits abgeschlossenen Turnier.
+ */
+async function deleteTournamentWithConfirm(instanceId, instanceName, confirmName) {
+  try {
+    const res = await fetch(`/api/tournaments/${encodeURIComponent(instanceId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ confirmTournamentName: confirmName }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 409 && /confirm_tournament_name/.test(body?.error || '')) {
+        toast('Turniername stimmt nicht', 'error');
+        return;
+      }
+      throw new Error(body?.message || `HTTP ${res.status}`);
+    }
+    if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
+    toast('Turnier gelöscht', 'success');
+    await loadTournamentInstances(true);
+  } catch (e) {
+    toast(e.message || 'Turnier konnte nicht gelöscht werden', 'error');
+  }
+}
+
+/**
+ * Etappe B.7: Pointer-DnD für das Groups-Board (Admin).
+ *
+ * Teams-Karten können zwischen den Spalten verschoben werden. Nach
+ * DnD muss der User „Speichern" klicken — wir schicken das Ergebnis
+ * NICHT automatisch, damit er noch abbrechen kann.
+ *
+ * Basiert auf demselben Pattern wie attachTeamsDnD (main.js:3272):
+ * Pointer-Events, kein HTML5-DnD-Set (für Touch-Support), Drag-Image
+ * wird geklont, Placeholder behält die Höhe.
+ */
+function attachGroupsDnD(board) {
+  if (!board) return;
+  const cards = board.querySelectorAll('.t-group-team-card');
+
+  cards.forEach((card) => {
+    card.addEventListener('pointerdown', (e) => {
+      // Klick auf Inline-Edit-Inputs (falls vorhanden) nicht als DnD werten.
+      if (e.target.closest('input, button, textarea, select')) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+      const startCard = card;
+      const startList = card.parentElement;
+      const rect = card.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+
+      // Ghost = bewegliches Karten-Klon
+      const ghost = card.cloneNode(true);
+      ghost.classList.add('is-dragging');
+      ghost.style.position = 'fixed';
+      ghost.style.left = `${rect.left}px`;
+      ghost.style.top = `${rect.top}px`;
+      ghost.style.width = `${rect.width}px`;
+      document.body.appendChild(ghost);
+
+      // Original-Karte wird unsichtbar (placeholder pattern)
+      card.classList.add('is-placeholder');
+      card.style.height = `${rect.height}px`;
+
+      function onPointerMove(ev) {
+        ghost.style.left = `${ev.clientX - offsetX}px`;
+        ghost.style.top = `${ev.clientY - offsetY}px`;
+
+        // Welche Liste ist unter dem Cursor?
+        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+        const targetList = target?.closest('.t-groups-column-list');
+        if (targetList && targetList !== card.parentElement) {
+          // Vor dem ersten Kind einfügen
+          if (!targetList.contains(card)) {
+            targetList.appendChild(card);
+          }
+        }
+      }
+
+      function onPointerUp() {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        ghost.remove();
+        card.classList.remove('is-placeholder');
+        card.style.height = '';
+        // Wenn die Karte immer noch in der gleichen Liste ist (kein Move),
+        // war das ein Tap — kein Placeholder-Restyle nötig.
+        void startList;
+      }
+
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+      e.preventDefault();
+    });
+  });
 }
 
 /**
@@ -14714,6 +15254,15 @@ Object.assign(window, {
   loadTournamentInstances,
   openTournamentInstance,
   openTournamentStandings,
+  loadEinstellungenTab,
+  redrawSeeding,
+  saveGroupsAssignment,
+  saveFieldsConfig,
+  finishTournament,
+  resetResults,
+  deleteTournamentWithConfirm,
+  toggleScheduleEditMode,
+  saveScheduleEdits,
   deleteTournamentInstance,
   openResultEntryModal,
   loadStandingsTab,

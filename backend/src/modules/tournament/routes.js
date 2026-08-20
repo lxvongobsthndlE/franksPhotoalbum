@@ -663,6 +663,618 @@ export default async function tournamentRoutes(fastify) {
   });
 
   // ─────────────────────────────────────────────────────────
+  // 2b. Einstellungen-Tab Aktionen (Etappe B.7)
+  // ─────────────────────────────────────────────────────────
+
+  // PATCH /api/tournaments/:id/groups — Manuelle Gruppenzuordnung (Admin)
+  //
+  // Etappe B.7: Im Einstellungen-Tab kann der Admin Teams per Drag&Drop
+  // zwischen Gruppen verschieben. Diese Route schreibt atomar die
+  // GroupMembership.position neu. Match-Paarungen bleiben UNVERÄNDERT
+  // (Spec §5.1: Round-Robin wurde bei der Generierung festgelegt) — das
+  // wird im Frontend per Warn-Banner kommuniziert.
+  //
+  // Body: { groups: [{ key: string, teamIds: string[] }, …] }
+  //   - groups.length muss exakt der aktuellen Gruppen-Anzahl entsprechen
+  //   - Summe aller teamIds muss exakt der Team-Anzahl entsprechen
+  //   - Jede Gruppe muss ≥ 1 Team enthalten
+  //   - Alle teamIds müssen zu Teams dieses Turniers gehören
+  //
+  // Lock: ≥1 beendetes Match → 409 (Spec §13.7 + §5.4: Konsistenz).
+  // Auth: requireTournamentWrite (Admin-only per §1.2).
+  // Atomar: $transaction. Bei Fehler in einer Gruppe bleibt der State
+  //         unverändert (alle Memberships entweder neu oder alt).
+  fastify.patch('/:id/groups', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const body = request.body ?? {};
+      const incoming = body.groups;
+
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        return reply.code(400).send({
+          error: 'groups_invalid',
+          message: 'groups[] ist erforderlich.',
+        });
+      }
+
+      // Lock: ≥1 finished match → 409.
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      if (finishedCount > 0) {
+        return reply.code(409).send({
+          error: 'groups_locked_results_present',
+          message: `Gruppeneinteilung kann nicht geändert werden — ${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.`,
+          finishedMatches: finishedCount,
+        });
+      }
+
+      // Aktuelle Gruppen + Teams laden.
+      const [currentGroups, currentTeams] = await Promise.all([
+        fastify.prisma.group_.findMany({
+          where: { stage: { tournamentId: ctx.tournament.id } },
+          orderBy: { key: 'asc' },
+          select: { id: true, key: true },
+        }),
+        fastify.prisma.tournamentTeam.findMany({
+          where: { tournamentId: ctx.tournament.id },
+          select: { id: true },
+        }),
+      ]);
+
+      if (incoming.length !== currentGroups.length) {
+        return reply.code(400).send({
+          error: 'groups_count_mismatch',
+          message: `Erwartet ${currentGroups.length} Gruppen, erhalten ${incoming.length}.`,
+          expected: currentGroups.length,
+          received: incoming.length,
+        });
+      }
+
+      const groupKeyToId = new Map(currentGroups.map((g) => [g.key, g.id]));
+      const teamIds = new Set(currentTeams.map((t) => t.id));
+
+      // Validierung pro Eintrag.
+      const seenTeamIds = new Set();
+      for (const entry of incoming) {
+        if (!entry || typeof entry.key !== 'string' || !groupKeyToId.has(entry.key)) {
+          return reply.code(400).send({
+            error: 'groups_invalid_key',
+            message: `Unbekannte Gruppe "${entry?.key ?? '(undefiniert)'}".`,
+          });
+        }
+        if (!Array.isArray(entry.teamIds) || entry.teamIds.length === 0) {
+          return reply.code(400).send({
+            error: 'group_must_have_team',
+            message: `Gruppe "${entry.key}" braucht mindestens ein Team.`,
+          });
+        }
+        for (const tid of entry.teamIds) {
+          if (!teamIds.has(tid)) {
+            return reply.code(400).send({
+              error: 'team_not_in_tournament',
+              message: `Team "${tid}" gehört nicht zu diesem Turnier.`,
+            });
+          }
+          if (seenTeamIds.has(tid)) {
+            return reply.code(400).send({
+              error: 'team_in_multiple_groups',
+              message: `Team "${tid}" ist in mehreren Gruppen.`,
+            });
+          }
+          seenTeamIds.add(tid);
+        }
+      }
+
+      if (seenTeamIds.size !== currentTeams.length) {
+        return reply.code(400).send({
+          error: 'teams_group_count_mismatch',
+          message: `Summe der teamIds (${seenTeamIds.size}) ≠ Anzahl Teams (${currentTeams.length}).`,
+        });
+      }
+
+      // Atomar: alte Memberships löschen, neue anlegen.
+      await fastify.prisma.$transaction(async (tx) => {
+        for (const entry of incoming) {
+          const groupId = groupKeyToId.get(entry.key);
+          await tx.groupMembership.deleteMany({ where: { groupId } });
+          await tx.groupMembership.createMany({
+            data: entry.teamIds.map((teamId, idx) => ({
+              groupId,
+              teamId,
+              position: idx,
+            })),
+          });
+        }
+      });
+
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return {
+        ok: true,
+        groups: view.groups,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Gruppenzuordnung fehlgeschlagen');
+    }
+  });
+
+  // POST /api/tournaments/:id/redraw — Setzreihenfolge neu auslosen (Admin)
+  //
+  // Etappe B.7: Im Einstellungen-Tab kann der Admin die Setzreihenfolge
+  // (seed-Spalte) neu würfeln. Wird die KO-Phase mit einbezogen?
+  //   - Wenn KEIN beendetes Match existiert: direkter Shuffle, kein
+  //     Confirm. KO-Phase wird nicht angefasst — die Paarungen wurden
+  //     aus dem ursprünglichen seed berechnet, das bleibt.
+  //   - Wenn ≥1 beendetes Match existiert: confirmTournamentName
+  //     erforderlich (§13.10). KO-Bracket wird NICHT regeneriert — wir
+  //     teilen dem Frontend via `requiresKoRegeneration: true` mit, dass
+  //     der User es manuell über „Zeitplan neu terminieren" anstoßen
+  //     sollte. Hintergrund: ein Seed-Shuffle ohne Bracket-Reset würde
+  //     inkonsistente Slot-Belegung erzeugen (Bug 6-Lektion).
+  fastify.post('/:id/redraw', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+
+      // Wenn ≥1 finished, Confirm-Handshake (Spec §13.10).
+      if (finishedCount > 0) {
+        const provided = normalizeConfirmName(request.body?.confirmTournamentName);
+        const expected = normalizeConfirmName(ctx.tournament.name);
+        if (provided !== expected) {
+          return reply.code(409).send({
+            error: 'redraw_locked_results_present',
+            message: `Setzreihenfolge kann nicht geändert werden — ${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet. Tippe zur Bestätigung den Turniernamen.`,
+            finishedMatches: finishedCount,
+            needsConfirmation: true,
+            requiresKoRegeneration: true,
+          });
+        }
+      }
+
+      // Teams laden, Fisher-Yates shuffeln, Seeds neu setzen.
+      const teams = await fastify.prisma.tournamentTeam.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        select: { id: true },
+      });
+      const shuffled = [...teams];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      await fastify.prisma.$transaction(
+        shuffled.map((team, idx) =>
+          fastify.prisma.tournamentTeam.update({
+            where: { id: team.id },
+            data: { seed: idx },
+          })
+        )
+      );
+
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return {
+        ok: true,
+        teams: view.teams,
+        requiresKoRegeneration: finishedCount > 0,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Setzreihenfolge-Auslosung fehlgeschlagen');
+    }
+  });
+
+  // PATCH /api/tournaments/:id/schedule — Einzel-Match-Zeit/Platte ändern (Admin)
+  //
+  // Etappe B.7: Im Spielplan-Tab mit „Bearbeiten"-Toggle kann der Admin
+  // pro Match die Zeit (scheduledAt) und/oder die Platte (field) anpassen.
+  //
+  // Body: { updates: [{ matchId, scheduledAt, field }, …] }
+  //   - scheduledAt: ISO-8601 string oder null (leer = ungeplant)
+  //   - field: integer 1..N oder null
+  //
+  // Lock: nur `status='scheduled'`-Matches editierbar. Auch gemischt
+  //       (scheduled + live) → 409 für gesamten Batch. KO-Matches
+  //       (bracket-Slots) sind NICHT editierbar — sie hängen an
+  //       `bracketPos` und werden über /generate neu aufgebaut.
+  // Atomar: $transaction. detectScheduleConflicts aus engine/schedule.js.
+  fastify.patch('/:id/schedule', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const body = request.body ?? {};
+      const updates = body.updates;
+
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return reply.code(400).send({
+          error: 'schedule_invalid',
+          message: 'updates[] ist erforderlich.',
+        });
+      }
+
+      // Aktuelle Matches laden (für Konflikt-Detection und Validation).
+      const currentMatches = await fastify.prisma.match.findMany({
+        where: { tournamentId: ctx.tournament.id },
+        select: {
+          id: true,
+          status: true,
+          scheduledAt: true,
+          field: true,
+          stage: { select: { type: true } },
+        },
+      });
+      const matchById = new Map(currentMatches.map((m) => [m.id, m]));
+
+      // Pro Update validieren.
+      const nextMatches = [...currentMatches];
+      for (const u of updates) {
+        if (!u || typeof u.matchId !== 'string') {
+          return reply.code(400).send({
+            error: 'schedule_match_id_missing',
+            message: 'Jedes Update braucht eine matchId.',
+          });
+        }
+        const m = matchById.get(u.matchId);
+        if (!m) {
+          return reply.code(404).send({
+            error: 'match_not_found',
+            message: `Match "${u.matchId}" gehört nicht zu diesem Turnier.`,
+          });
+        }
+        if (m.status !== 'scheduled') {
+          return reply.code(409).send({
+            error: 'match_locked',
+            message: `Match "${u.matchId}" ist ${m.status} und kann nicht verschoben werden.`,
+            matchId: u.matchId,
+          });
+        }
+        if (m.stage?.type && m.stage.type !== 'group') {
+          return reply.code(409).send({
+            error: 'ko_match_not_editable',
+            message: 'KO-Matches werden über die Generierung verwaltet — bitte Turnier neu generieren.',
+            matchId: u.matchId,
+          });
+        }
+        // scheduledAt validieren (ISO-8601 oder null).
+        let nextScheduled = m.scheduledAt;
+        if (u.scheduledAt !== undefined) {
+          if (u.scheduledAt === null) {
+            nextScheduled = null;
+          } else if (typeof u.scheduledAt === 'string') {
+            const ts = Date.parse(u.scheduledAt);
+            if (Number.isNaN(ts)) {
+              return reply.code(400).send({
+                error: 'schedule_iso_invalid',
+                message: `scheduledAt "${u.scheduledAt}" ist kein gültiges ISO-8601.`,
+                matchId: u.matchId,
+              });
+            }
+            nextScheduled = new Date(ts);
+          } else {
+            return reply.code(400).send({
+              error: 'schedule_iso_invalid',
+              message: 'scheduledAt muss string oder null sein.',
+              matchId: u.matchId,
+            });
+          }
+        }
+        // field validieren.
+        let nextField = m.field;
+        if (u.field !== undefined) {
+          if (u.field === null) {
+            nextField = null;
+          } else if (typeof u.field === 'number' && Number.isInteger(u.field) && u.field >= 1) {
+            nextField = u.field;
+          } else {
+            return reply.code(400).send({
+              error: 'schedule_field_invalid',
+              message: 'field muss integer ≥ 1 oder null sein.',
+              matchId: u.matchId,
+            });
+          }
+        }
+        // Für Konflikt-Check: virtuell aktualisieren.
+        const idx = nextMatches.findIndex((nm) => nm.id === u.matchId);
+        nextMatches[idx] = { ...m, scheduledAt: nextScheduled, field: nextField };
+      }
+
+      // Konflikt-Detection: zwei scheduled Matches mit gleichem
+      // (scheduledAt, field) → Konflikt.
+      const conflicts = [];
+      const map = new Map();
+      for (const m of nextMatches) {
+        if (m.status !== 'scheduled') continue;
+        if (!m.scheduledAt) continue;
+        const key = `${m.scheduledAt.toISOString()}|${m.field ?? ''}`;
+        if (map.has(key)) {
+          conflicts.push([map.get(key), m.id]);
+        } else {
+          map.set(key, m.id);
+        }
+      }
+      if (conflicts.length > 0) {
+        return reply.code(409).send({
+          error: 'schedule_conflict',
+          message: 'Mehrere Matches auf demselben Zeitslot und derselben Platte.',
+          conflicts,
+        });
+      }
+
+      // Atomar anwenden.
+      await fastify.prisma.$transaction(
+        updates.map((u) => {
+          const data = {};
+          if (u.scheduledAt !== undefined) {
+            data.scheduledAt =
+              u.scheduledAt === null
+                ? null
+                : new Date(Date.parse(u.scheduledAt));
+          }
+          if (u.field !== undefined) {
+            data.field = u.field;
+          }
+          return fastify.prisma.match.update({
+            where: { id: u.matchId },
+            data,
+          });
+        })
+      );
+
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return { ok: true, matches: view.matches };
+    } catch (err) {
+      return handleError(reply, err, 'Spielplan-Edit fehlgeschlagen');
+    }
+  });
+
+  // POST /api/tournaments/:id/finish — Turnier abschließen (Admin)
+  //
+  // Etappe B.7: Regulärer Abschluss eines Turniers. KEIN
+  // confirmTournamentName — das ist eine alltägliche Aktion, nicht
+  // destruktiv. Scores und Matches bleiben unverändert.
+  //
+  // Idempotent: bereits finished → 409 (Frontend kann das abfangen
+  // und als „schon abgeschlossen" anzeigen).
+  fastify.post('/:id/finish', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      if (ctx.tournament.status === 'finished') {
+        return reply.code(409).send({
+          error: 'tournament_already_finished',
+          message: 'Turnier ist bereits abgeschlossen.',
+        });
+      }
+      await fastify.prisma.tournament.update({
+        where: { id: ctx.tournament.id },
+        data: { status: 'finished' },
+      });
+      return { ok: true, status: 'finished' };
+    } catch (err) {
+      return handleError(reply, err, 'Turnier-Abschluss fehlgeschlagen');
+    }
+  });
+
+  // POST /api/tournaments/:id/reset-results — Alle Ergebnisse löschen (Admin)
+  //
+  // Etappe B.7: Destruktive Aktion in der Gefahrenzone. Spec §13.10:
+  // confirmTournamentName ist Pflicht. Setzt alle Match-Scores + Status
+  // zurück und resettet die KO-Slots (Teams auf null, Placeholders neu
+  // berechnet). Hintergrund: nach dem Reset soll der User die
+  // Ergebnisse erneut eingeben können, ohne das Turnier neu zu
+  // generieren.
+  fastify.post('/:id/reset-results', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      if (finishedCount === 0) {
+        return reply.code(400).send({
+          error: 'no_results_to_reset',
+          message: 'Es gibt keine beendeten Spiele zum Zurücksetzen.',
+        });
+      }
+      // Confirm-Handshake (Spec §13.10).
+      const provided = normalizeConfirmName(request.body?.confirmTournamentName);
+      const expected = normalizeConfirmName(ctx.tournament.name);
+      if (provided !== expected) {
+        return reply.code(409).send({
+          error: 'reset_results_locked',
+          message: `${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} beendet. Tippe zur Bestätigung den Turniernamen.`,
+          finishedMatches: finishedCount,
+          needsConfirmation: true,
+        });
+      }
+
+      await fastify.prisma.$transaction(async (tx) => {
+        // Scores + Status für alle Matches zurücksetzen.
+        await tx.match.updateMany({
+          where: { tournamentId: ctx.tournament.id },
+          data: { scoreHome: null, scoreAway: null, status: 'scheduled' },
+        });
+        // KO-Slots: Teams + Winner-Felder zurücksetzen.
+        await tx.match.updateMany({
+          where: {
+            tournamentId: ctx.tournament.id,
+            stage: { type: { not: 'group' } },
+          },
+          data: {
+            teamHome: null,
+            teamAway: null,
+          },
+        });
+      });
+
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return {
+        ok: true,
+        resetCount: finishedCount,
+        matches: view.matches,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Ergebnisse-Reset fehlgeschlagen');
+    }
+  });
+
+  // PATCH /api/tournaments/:id/fields — Spielfelder konfigurieren (Admin)
+  //
+  // Etappe B.7 (Anmerkung 4): Anzahl UND Namen der Spielfelder sind
+  // konfigurierbar. Die Namen erscheinen auf dem Ausdruck und im
+  // Spielplan (statt nur einer Nummer). Lock: nach Generierung
+  // gesperrt — sonst zeigen Ausdruck + Spielplan auf ungültige
+  // Feld-IDs.
+  //
+  // Body: { fields: [{ name: string, order: number }, …] }
+  // Antwort: { ok, fields: [{ id, name, order }], warnings: [] }
+  //
+  // Stable IDs: bei wiederholtem PATCH behalten wir IDs für Felder
+  // mit gleichem Index — Match.field referenziert diese IDs. Wird die
+  // Anzahl verringert, werden match.field für wegfallende Felder auf
+  // null gesetzt (Warning).
+  fastify.patch('/:id/fields', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const body = request.body ?? {};
+      const incoming = body.fields;
+
+      if (!Array.isArray(incoming) || incoming.length === 0 || incoming.length > 12) {
+        return reply.code(400).send({
+          error: 'fields_count_out_of_range',
+          message: 'fields[] muss 1–12 Einträge haben.',
+          received: Array.isArray(incoming) ? incoming.length : 0,
+        });
+      }
+
+      // Lock: nur im draft editierbar.
+      if (ctx.tournament.status !== 'draft') {
+        return reply.code(409).send({
+          error: 'fields_locked_after_generate',
+          message: 'Spielfelder können nach der Generierung nicht mehr geändert werden — der Ausdruck zeigt die aktuelle Konfiguration.',
+          status: ctx.tournament.status,
+        });
+      }
+
+      // Pro Feld validieren.
+      const seenNames = new Set();
+      const seenOrders = new Set();
+      for (let i = 0; i < incoming.length; i++) {
+        const f = incoming[i];
+        if (!f || typeof f.name !== 'string' || f.name.trim().length === 0) {
+          return reply.code(400).send({
+            error: 'fields_name_empty',
+            message: `Feld #${i + 1} hat keinen Namen.`,
+          });
+        }
+        const name = f.name.trim();
+        if (name.length > 32) {
+          return reply.code(400).send({
+            error: 'fields_name_too_long',
+            message: `Feld "${name}" hat mehr als 32 Zeichen.`,
+          });
+        }
+        if (seenNames.has(name)) {
+          return reply.code(400).send({
+            error: 'fields_name_duplicate',
+            message: `Feld-Name "${name}" ist doppelt.`,
+          });
+        }
+        seenNames.add(name);
+        if (typeof f.order !== 'number' || !Number.isInteger(f.order) || f.order < 0 || f.order >= incoming.length) {
+          return reply.code(400).send({
+            error: 'fields_order_invalid',
+            message: `Feld "${name}" hat eine ungültige order (0..${incoming.length - 1}).`,
+          });
+        }
+        if (seenOrders.has(f.order)) {
+          return reply.code(400).send({
+            error: 'fields_order_duplicate',
+            message: `Feld "${name}" hat eine doppelte order.`,
+          });
+        }
+        seenOrders.add(f.order);
+      }
+
+      // Stable IDs: bestehende IDs (gleicher Index) erhalten, neue
+      // ergänzen, überzählige verwerfen.
+      const existing = ctx.tournament.config?.fields ?? [];
+      const next = incoming.map((f, idx) => {
+        const old = existing[idx];
+        return {
+          id: old?.id ?? `f_${idx + 1}_${Math.random().toString(36).slice(2, 8)}`,
+          name: f.name.trim(),
+          order: f.order,
+        };
+      });
+      // Nach order sortieren, damit Render immer stabil ist.
+      next.sort((a, b) => a.order - b.order);
+
+      const nextConfig = {
+        ...(ctx.tournament.config ?? {}),
+        fields: next,
+      };
+      await fastify.prisma.tournament.update({
+        where: { id: ctx.tournament.id },
+        data: { config: nextConfig },
+      });
+
+      const warnings = [];
+      if (existing.length > next.length) {
+        // match.field für wegfallende IDs auf null setzen.
+        const droppedIds = existing.slice(next.length).map((f) => f.id);
+        await fastify.prisma.match.updateMany({
+          where: { tournamentId: ctx.tournament.id, field: { in: droppedIds } },
+          data: { field: null },
+        });
+        warnings.push({
+          type: 'fields_dropped',
+          message: `${droppedIds.length} Feld${droppedIds.length === 1 ? '' : 'er'} entfernt — referenzierende Spiele haben jetzt keine Platten-Zuordnung.`,
+          droppedIds,
+        });
+      }
+
+      return { ok: true, fields: next, warnings };
+    } catch (err) {
+      return handleError(reply, err, 'Spielfelder-Update fehlgeschlagen');
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────
   // 3. Generate — Round-Robin-Schedule erstellen (Admin)
   // ─────────────────────────────────────────────────────────
 

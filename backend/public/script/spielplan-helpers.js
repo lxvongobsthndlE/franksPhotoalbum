@@ -34,6 +34,39 @@ export function esc(s) {
 }
 
 /**
+ * Reine Deskriptor-Logik für `openConfirmDialog` (Etappe B.7, Anmerkung 1).
+ *
+ * Kapselt die Backward-Compat-Logik: 5 bestehende Aufrufer (Wizard x3,
+ * Wizard-Regenerate, Reschedule) verhalten sich unverändert. Der neue
+ * `confirmText`-Parameter ist ein optionaler Hint-Override.
+ *
+ * @param {{ expectedName?: string, confirmText?: string }} opts
+ * @returns {{
+ *   needsInput: boolean,
+ *   expected: string|null,
+ *   hint: string|null,
+ *   okInitiallyDisabled: boolean
+ * }}
+ */
+export function resolveConfirmDescriptor({ expectedName, confirmText } = {}) {
+  const hasExpected = typeof expectedName === 'string' && expectedName.length > 0;
+  const customHint = typeof confirmText === 'string' && confirmText.length > 0;
+
+  if (!hasExpected) {
+    // Kein Input, OK sofort aktiv. (confirmText ohne expectedName ist
+    // aktuell kein Use-Case — wird ignoriert.)
+    return { needsInput: false, expected: null, hint: null, okInitiallyDisabled: false };
+  }
+
+  return {
+    needsInput: true,
+    expected: expectedName,
+    hint: customHint ? confirmText : `Erwartet: „${expectedName}"`,
+    okInitiallyDisabled: true,
+  };
+}
+
+/**
  * Sortiert Matches nach Zeitplan. Strikt scheduledAt asc, Tie field
  * asc, nulls last. Spec §5.3: "Was um 14:00 lief, steht über dem, was
  * um 14:20 kommt." Der Spielplan ist ein Plan.
@@ -146,7 +179,7 @@ export function renderFilterChips(matches, groups, currentFilter) {
  * für KO-Matches gesetzt. In der Gruppenphase muss der Vergleich
  * über scoreHome > scoreAway laufen.
  */
-export function renderMatchCard(m, isAdmin) {
+export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null) {
   const homeName = m?.home?.name || 'offen';
   const awayName = m?.away?.name || 'offen';
   const homeColor = m?.home?.color || null;
@@ -159,15 +192,36 @@ export function renderMatchCard(m, isAdmin) {
   const scoreText = scoreEmpty ? '– : –' : `${m.scoreHome} : ${m.scoreAway}`;
 
   const timeStr = m?.scheduledTime || '–';
-  const tableStr = typeof m?.field === 'number' ? `Platte ${m.field}` : '–';
+  const tableStr = m?.field != null
+    ? resolveFieldName(m.field, fieldsConfig)
+    : '–';
   const metaLine1 = `${timeStr} · ${tableStr}`;
   const metaLine2 = m?.label || '';
-  const metaHtml = `
-    <div class="t-match-meta">
-      <div class="t-match-meta-line t-match-meta-time">${esc(metaLine1)}</div>
-      ${metaLine2 ? `<div class="t-match-meta-line t-match-meta-label">${esc(metaLine2)}</div>` : ''}
-    </div>
-  `;
+
+  // Etappe B.7: Im Edit-Modus Inputs für Zeit (HH:MM) und Platte rendern.
+  // KO-Matches bleiben disabled (Slot-Position nicht isoliert editierbar).
+  const isKo = !!m?.isKo || m?.stageType === 'ko';
+  const editDisabled = !!(isEdit && (isKo || !!m?.isFinished));
+  let metaHtml;
+  if (isEdit) {
+    const hh = m?.scheduledTime && /^\d{2}:\d{2}$/.test(m.scheduledTime)
+      ? m.scheduledTime
+      : (m?.scheduledAt ? new Date(m.scheduledAt).toISOString().slice(11, 16) : '');
+    const fieldVal = m?.field != null ? String(m.field) : '';
+    metaHtml = `
+      <div class="t-match-meta t-match-meta--edit">
+        <input class="t-match-edit-time" type="time" value="${esc(hh)}" ${editDisabled ? 'disabled' : ''} data-role="edit-time">
+        <input class="t-match-edit-field" type="number" min="1" max="12" value="${esc(fieldVal)}" ${editDisabled ? 'disabled' : ''} data-role="edit-field">
+      </div>
+    `;
+  } else {
+    metaHtml = `
+      <div class="t-match-meta">
+        <div class="t-match-meta-line t-match-meta-time">${esc(metaLine1)}</div>
+        ${metaLine2 ? `<div class="t-match-meta-line t-match-meta-label">${esc(metaLine2)}</div>` : ''}
+      </div>
+    `;
+  }
 
   const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
   const homeDot = `<i class="t-dot" style="${dotStyle(homeColor)}" aria-hidden="true"></i>`;
@@ -853,5 +907,357 @@ if (typeof window !== 'undefined') {
     },
     serializeTeamsList,
     renderTeamsList,
+    resolveConfirmDescriptor,
+    renderEinstellungen,
+    renderGroupsBoard,
+    serializeGroupsInput,
+    renderFieldsEditor,
+    serializeFieldsInput,
+    resolveFieldName,
+    serializeScheduleInput,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Etappe B.7 — Einstellungen-Tab Renderer
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Etappe B.7 Block 1+5+Refactor: Settings-Tab-Layout. Liefert fünf
+ * getrennte Layout-Blöcke (Aktionen / Gruppeneinteilung /
+ * Setzreihenfolge / Spielfelder / Gefahrenzone) gemäß Plan D6 + A4.
+ *
+ * @param {Object} t  Tournament-View-Context (aus /api/tournaments/:id)
+ * @param {Object} opts
+ *   - isAdmin: boolean
+ *   - finishedCount: number (für Lock-Hints)
+ *   - isReschedulePending: boolean
+ * @returns {string} HTML
+ */
+export function renderEinstellungen(t, opts = {}) {
+  const { isAdmin = false, finishedCount = 0 } = opts;
+  const status = t?.tournament?.status ?? 'draft';
+  const isLocked = finishedCount > 0;
+  const isFinished = status === 'finished';
+  const groups = t?.groups ?? [];
+  const teams = t?.teams ?? [];
+  const fields = t?.tournament?.config?.fields ?? [];
+
+  // Block 1 — Aktionen (oben, normal)
+  const actions = `
+    <section class="t-settings-section" data-section="actions">
+      <div class="t-settings-section-title">Aktionen</div>
+      <div class="t-settings-actions">
+        ${!isFinished && isAdmin
+          ? '<button class="t-btn t-btn--primary" data-action="finish-tournament" type="button">Turnier abschließen</button>'
+          : ''}
+        ${isAdmin
+          ? '<button class="t-btn t-btn--ghost" data-action="reschedule" type="button">Zeitplan neu terminieren</button>'
+          : ''}
+      </div>
+      ${finishedCount > 0
+        ? `<div class="t-hint t-hint--info">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet — Gruppen, Setzreihenfolge und Spielplan sind gesperrt.</div>`
+        : ''}
+    </section>
+  `;
+
+  // Block 2 — Gruppeneinteilung
+  const groupsBoard = isAdmin && !isLocked
+    ? renderGroupsBoard(groups, teams, { isAdmin, reorderable: !isLocked })
+    : renderGroupsBoard(groups, teams, { isAdmin, reorderable: false });
+
+  // Block 3 — Setzreihenfolge
+  const teamsList = renderTeamsList(teams, {
+    isAdmin,
+    reorderable: isAdmin && !isLocked,
+  });
+  const redrawButton = isAdmin && !isLocked
+    ? '<button class="t-btn t-btn--ghost" data-action="redraw-seeding" type="button">Neu auslosen</button>'
+    : '';
+
+  // Block 4 — Spielfelder (A4)
+  const fieldsLocked = status !== 'draft';
+  const fieldsEditor = isAdmin
+    ? renderFieldsEditor(fields, { locked: fieldsLocked, isAdmin })
+    : renderFieldsEditor(fields, { locked: true, isAdmin: false });
+
+  // Block 5 — Gefahrenzone (unten, abgesetzt)
+  const dangerZone = isAdmin
+    ? `
+      <section class="t-danger-zone" data-section="danger-zone">
+        <div class="t-danger-zone-title">Gefahrenzone</div>
+        <div class="t-danger-zone-actions">
+          <button class="t-btn t-btn--danger" data-action="reset-results" type="button">Alle Ergebnisse löschen</button>
+          <button class="t-btn t-btn--danger" data-action="delete-tournament" type="button">Turnier löschen</button>
+        </div>
+        <div class="t-hint t-hint--info">Diese Aktionen verlangen die Eingabe des Turniernamens zur Bestätigung.</div>
+      </section>
+    `
+    : '';
+
+  return `
+    <div class="t-settings-grid">
+      ${actions}
+      <section class="t-settings-section" data-section="groups">
+        <div class="t-settings-section-title">Gruppeneinteilung</div>
+        ${groupsBoard}
+        ${isAdmin && !isLocked
+          ? '<div class="t-hint t-hint--info">Achtung: Die Match-Paarungen wurden bei der Generierung festgelegt. DnD ändert nur die Anzeige der Gruppentabellen — die Spielpaarungen bleiben gleich.</div>'
+          : ''}
+      </section>
+      <section class="t-settings-section" data-section="seeding">
+        <div class="t-settings-section-title">Setzreihenfolge</div>
+        ${teamsList}
+        ${redrawButton ? `<div class="t-settings-actions">${redrawButton}</div>` : ''}
+      </section>
+      <section class="t-settings-section" data-section="fields">
+        <div class="t-settings-section-title">Spielfelder</div>
+        ${fieldsEditor}
+        <div class="t-hint t-hint--info">Auf dem Ausdruck erscheint der Feldname (z.B. „Platte 1") an der Stelle, wo das Feld tatsächlich aufgebaut ist. Daher sind die Namen nach der Generierung gesperrt.</div>
+      </section>
+      ${dangerZone}
+    </div>
+  `;
+}
+
+/**
+ * Etappe B.7 Block 2: Groups-Board (DnD zwischen Spalten).
+ * @param {Array} groups - [{ id, key, name, members: [{ teamId, name, color }] }]
+ * @param {Array} teams - flat Team-Liste (Fallback)
+ * @param {Object} opts
+ * @returns {string} HTML
+ */
+export function renderGroupsBoard(groups, teams, opts = {}) {
+  const { isAdmin = false, reorderable = false } = opts;
+  const groupCount = Array.isArray(groups) ? groups.length : 0;
+  if (groupCount === 0) {
+    return '<div class="t-hint">Noch keine Gruppen — Turnier muss generiert sein.</div>';
+  }
+  const columns = groups
+    .map((g) => {
+      const members = (g?.members ?? []).map((m, idx) => {
+        const dotColor = m.color || '#999';
+        return `
+          <li class="t-group-team-card" data-team-id="${esc(m.teamId)}" data-team-name="${esc(m.name ?? '')}" data-team-color="${esc(dotColor)}" draggable="${reorderable}">
+            <span class="t-group-team-card-dot" style="background:${esc(dotColor)};"></span>
+            <span class="t-group-team-card-name">${esc(m.name ?? 'Team')}</span>
+          </li>
+        `;
+      }).join('');
+      return `
+        <div class="t-groups-column" data-group-key="${esc(g.key)}" data-group-id="${esc(g.id)}">
+          <div class="t-groups-column-header">
+            <span>${esc(g.name ?? g.key ?? 'Gruppe')}</span>
+            <span class="t-group-count">${g.members?.length ?? 0}</span>
+          </div>
+          <ul class="t-groups-column-list" data-role="groups-column-list">${members}</ul>
+        </div>
+      `;
+    })
+    .join('');
+
+  return `
+    <div class="t-groups-board" data-role="groups-board" data-group-count="${groupCount}" style="--group-count:${groupCount};">
+      ${columns}
+    </div>
+    ${reorderable
+      ? '<div class="t-settings-actions"><button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button><button class="t-btn t-btn--ghost" data-action="reset-groups" type="button">Zurücksetzen</button><button class="t-btn t-btn--primary" data-action="save-groups" type="button">Speichern</button></div>'
+      : ''}
+  `;
+}
+
+/**
+ * Etappe B.7: Liest den DOM-State des Groups-Boards und baut den
+ * PATCH /:id/groups-Body. Sanitize: leere Gruppen + fehlende Teams +
+ * doppelte Teams werden abgelehnt (Pre-Validation, damit das Frontend
+ * nicht in einen 400er läuft).
+ *
+ * @param {HTMLElement} boardEl
+ * @returns {{ ok: true, groups: [{ key, teamIds: string[] }] } | { ok: false, error: string }}
+ */
+export function serializeGroupsInput(boardEl) {
+  if (!boardEl) return { ok: false, error: 'board fehlt' };
+  const columns = Array.from(boardEl.querySelectorAll('[data-group-key]'));
+  if (columns.length === 0) return { ok: false, error: 'keine Spalten' };
+  const seen = new Set();
+  const out = [];
+  for (const col of columns) {
+    const key = col.getAttribute('data-group-key');
+    const teamIds = Array.from(col.querySelectorAll('.t-group-team-card')).map(
+      (card) => card.getAttribute('data-team-id')
+    );
+    if (teamIds.length === 0) {
+      return { ok: false, error: `Gruppe "${key}" hat keine Teams` };
+    }
+    for (const id of teamIds) {
+      if (seen.has(id)) {
+        return { ok: false, error: `Team "${id}" ist in mehreren Gruppen` };
+      }
+      seen.add(id);
+    }
+    out.push({ key, teamIds });
+  }
+  return { ok: true, groups: out };
+}
+
+/**
+ * Etappe B.7 (A4) Block 4: Spielfelder-Editor.
+ * @param {Array} fields - [{ id, name, order }]
+ * @param {Object} opts
+ *   - locked: boolean (status !== 'draft')
+ *   - isAdmin: boolean
+ * @returns {string} HTML
+ */
+export function renderFieldsEditor(fields, opts = {}) {
+  const { locked = false, isAdmin = false } = opts;
+  const arr = Array.isArray(fields) && fields.length > 0
+    ? [...fields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : Array.from({ length: 4 }, (_, i) => ({ name: `Platte ${i + 1}`, order: i }));
+
+  const count = arr.length;
+  const rows = arr
+    .map(
+      (f, idx) => `
+        <li class="t-field-row" data-field-idx="${idx}">
+          <span class="t-field-order">#${idx + 1}</span>
+          <input class="t-field-name" type="text" maxlength="32" value="${esc(f.name)}" ${locked || !isAdmin ? 'disabled' : ''}>
+        </li>
+      `
+    )
+    .join('');
+
+  const actions = isAdmin && !locked
+    ? '<div class="t-fields-editor-actions"><button class="t-btn t-btn--primary" data-action="save-fields" type="button">Speichern</button><button class="t-btn t-btn--ghost" data-action="reset-fields" type="button">Abbrechen</button></div>'
+    : '';
+
+  const lockHint = locked
+    ? '<div class="t-fields-locked-hint">Spielfelder sind nach der Generierung gesperrt — der Ausdruck zeigt die aktuelle Konfiguration.</div>'
+    : '';
+
+  return `
+    <div class="t-fields-editor" data-fields-count="${count}">
+      <div class="t-fields-editor-row">
+        <label>
+          Anzahl Spielfelder
+          <input class="t-fields-count" type="number" min="1" max="12" value="${count}" ${locked || !isAdmin ? 'disabled' : ''}>
+        </label>
+      </div>
+      <ul class="t-fields-list">${rows}</ul>
+      ${actions}
+      ${lockHint}
+    </div>
+  `;
+}
+
+/**
+ * Etappe B.7 (A4): Liest den DOM-State des Spielfelder-Editors und
+ * baut den PATCH /:id/fields-Body.
+ *
+ * @param {HTMLElement} editorEl
+ * @returns {{ ok: true, fields: [{ name, order }] } | { ok: false, error: string }}
+ */
+export function serializeFieldsInput(editorEl) {
+  if (!editorEl) return { ok: false, error: 'editor fehlt' };
+  const countInput = editorEl.querySelector('.t-fields-count');
+  const count = countInput ? parseInt(countInput.value, 10) : 0;
+  if (!Number.isInteger(count) || count < 1 || count > 12) {
+    return { ok: false, error: 'Anzahl muss zwischen 1 und 12 sein' };
+  }
+  const nameInputs = Array.from(editorEl.querySelectorAll('.t-field-name'));
+  if (nameInputs.length !== count) {
+    return { ok: false, error: 'Anzahl-Feld und Zeilen passen nicht zusammen' };
+  }
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < nameInputs.length; i++) {
+    const name = (nameInputs[i].value ?? '').trim();
+    if (name.length === 0) {
+      return { ok: false, error: `Feld #${i + 1} hat keinen Namen` };
+    }
+    if (name.length > 32) {
+      return { ok: false, error: `Feld "${name}" hat mehr als 32 Zeichen` };
+    }
+    if (seen.has(name)) {
+      return { ok: false, error: `Feld-Name "${name}" ist doppelt` };
+    }
+    seen.add(name);
+    out.push({ name, order: i });
+  }
+  return { ok: true, fields: out };
+}
+
+/**
+ * Etappe B.7 (A4) Block 4-Print: Mappt eine field-ID auf den
+ * benutzerdefinierten Feld-Namen. Fallback „Platte N" für unbekannte
+ * IDs (Migrationsschutz).
+ *
+ * @param {string|null|number} fieldId
+ * @param {Array} fieldsConfig - [{ id, name, order }]
+ * @returns {string}
+ */
+export function resolveFieldName(fieldId, fieldsConfig) {
+  if (fieldId == null) return '';
+  const cfg = Array.isArray(fieldsConfig) ? fieldsConfig : [];
+  const hit = cfg.find((f) => f.id === fieldId);
+  if (hit) return hit.name;
+  // Numeric fallback: z.B. altes field=1 → „Platte 1"
+  if (typeof fieldId === 'number') {
+    return `Platte ${fieldId}`;
+  }
+  return String(fieldId);
+}
+
+/**
+ * Etappe B.7: Pure-Funktion — konvertiert einen State-Array (vom DOM
+ * in main.js gesammelt) in den PATCH /:id/schedule-Body.
+ *
+ * @param {Array<{ matchId: string, scheduledAt?: string, field?: number|null }>} state
+ * @param {string|null} baseDate - ISO-Date des Turniers (für HH:MM → ISO Konvertierung)
+ * @returns {{ ok: true, updates: [{ matchId, scheduledAt?, field? }] } | { ok: false, error: string }}
+ */
+export function serializeScheduleInput(state, baseDate = null) {
+  if (!Array.isArray(state) || state.length === 0) {
+    return { ok: false, error: 'State-Array fehlt' };
+  }
+  const updates = [];
+  for (const item of state) {
+    if (!item || typeof item.matchId !== 'string') {
+      return { ok: false, error: 'matchId fehlt' };
+    }
+    const update = { matchId: item.matchId };
+    if (item.scheduledAt !== undefined) {
+      const v = item.scheduledAt;
+      if (v === null || v === '') {
+        update.scheduledAt = null;
+      } else if (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) && baseDate) {
+        // HH:MM → ISO mit baseDate
+        const iso = `${baseDate.slice(0, 10)}T${v}:00Z`;
+        const ts = Date.parse(iso);
+        if (Number.isNaN(ts)) {
+          return { ok: false, error: `Ungültige Zeit "${v}"` };
+        }
+        update.scheduledAt = new Date(ts).toISOString();
+      } else if (typeof v === 'string') {
+        const ts = Date.parse(v);
+        if (Number.isNaN(ts)) {
+          return { ok: false, error: `Ungültiges ISO "${v}"` };
+        }
+        update.scheduledAt = new Date(ts).toISOString();
+      } else {
+        return { ok: false, error: 'scheduledAt muss string oder null sein' };
+      }
+    }
+    if (item.field !== undefined) {
+      const f = item.field;
+      if (f === null) {
+        update.field = null;
+      } else if (typeof f === 'number' && Number.isInteger(f) && f >= 1) {
+        update.field = f;
+      } else {
+        return { ok: false, error: 'field muss integer ≥ 1 oder null sein' };
+      }
+    }
+    updates.push(update);
+  }
+  return { ok: true, updates };
 }

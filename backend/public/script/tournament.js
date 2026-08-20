@@ -4032,11 +4032,43 @@ function errorMessageFromResult(result) {
  * (Spec §13.10).
  *
  * Der "Bestätigen"-Button ist erst aktiv, wenn das Eingabefeld exakt
- * === expectedName entspricht (case-sensitive).
+ * === expectedName entspricht (case-insensitive via normalizeConfirmName).
+ *
+ * Parameter:
+ *   - expectedName (optional, legacy): wenn gesetzt, wird ein Input-Feld
+ *     angezeigt und der OK-Button erst aktiv, wenn die Eingabe dem Namen
+ *     entspricht. Hint: "Erwartet: <name>".
+ *   - confirmText (optional, neu): überschreibt den Hint-Text unter dem
+ *     Input. Nützlich wenn die Eingabe kein Turniername ist, sondern z.B.
+ *     ein kurzer Bestätigungs-Satz ("zurücksetzen", "ja, endgültig"). Wenn
+ *     nur confirmText gesetzt ist (ohne expectedName), wird KEIN Input
+ *     angezeigt — das ist NICHT der Use-Case. Für Etappe B.7: Eingabe +
+ *     Bestätigung kommt weiterhin über expectedName. confirmText ist nur
+ *     ein optionales Hint-Override.
+ *   - Wird keiner der beiden gesetzt, erscheint kein Input und OK ist
+ *     sofort aktiv (3 Wizard-Aufrufer, 1 member-flow).
  *
  * @returns Promise<{ cancelled: true } | { cancelled: false, typedName: string }>
  */
-export function openConfirmDialog({ title, message, expectedName, confirmLabel, danger = true }) {
+export function openConfirmDialog({
+  title,
+  message,
+  expectedName,
+  confirmText,
+  confirmLabel,
+  danger = true,
+}) {
+  // Pure-Descriptor zentralisiert die Backward-Compat-Logik
+  // (Etappe B.7, Anmerkung 1). Getestet in spielplan-helpers.js.
+  const descriptor = window.spielplanHelpers?.resolveConfirmDescriptor
+    ? window.spielplanHelpers.resolveConfirmDescriptor({ expectedName, confirmText })
+    : {
+        needsInput: !!expectedName,
+        expected: expectedName || null,
+        hint: expectedName ? (confirmText || `Erwartet: „${expectedName}"`) : null,
+        okInitiallyDisabled: !!expectedName,
+      };
+
   return new Promise((resolve) => {
     const backdrop = document.createElement('div');
     backdrop.className = 't-confirm-backdrop';
@@ -4056,13 +4088,11 @@ export function openConfirmDialog({ title, message, expectedName, confirmLabel, 
     p.textContent = message;
     dialog.appendChild(p);
 
-    // Optionales Eingabefeld: nur wenn expectedName gesetzt ist
-    // (§13.10 Zerstörerische Aktionen). Sonst reicht ein Klick.
     let input = null;
-    if (expectedName) {
+    if (descriptor.needsInput) {
       const expected = document.createElement('p');
       expected.className = 't-confirm-expected';
-      expected.textContent = 'Erwartet: „' + expectedName + '"';
+      expected.textContent = descriptor.hint;
       dialog.appendChild(expected);
 
       input = document.createElement('input');
@@ -4070,7 +4100,7 @@ export function openConfirmDialog({ title, message, expectedName, confirmLabel, 
       input.className = 't-confirm-input';
       input.autocomplete = 'off';
       input.spellcheck = false;
-      input.setAttribute('aria-label', 'Turniername zur Bestätigung');
+      input.setAttribute('aria-label', 'Bestätigungstext');
       dialog.appendChild(input);
     }
 
@@ -4090,7 +4120,7 @@ export function openConfirmDialog({ title, message, expectedName, confirmLabel, 
     okBtn.type = 'button';
     okBtn.className = 't-btn ' + (danger ? 't-btn--danger' : 't-btn--primary');
     okBtn.textContent = confirmLabel;
-    okBtn.disabled = !!expectedName;
+    okBtn.disabled = descriptor.okInitiallyDisabled;
     okBtn.addEventListener('click', () => {
       close();
       resolve({ cancelled: false, typedName: input ? input.value : '' });
@@ -4101,7 +4131,7 @@ export function openConfirmDialog({ title, message, expectedName, confirmLabel, 
         // Geteilter Vergleich mit Server + Mock (Spec §13.10).
         okBtn.disabled =
           normalizeConfirmName(input.value) !==
-          normalizeConfirmName(expectedName);
+          normalizeConfirmName(descriptor.expected);
       });
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !okBtn.disabled) okBtn.click();
