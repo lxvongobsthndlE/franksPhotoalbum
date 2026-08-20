@@ -1206,24 +1206,36 @@ function renderActionsBlock(ctx) {
 }
 
 /**
- * Etappe B.7 Block 2: Groups-Board (DnD zwischen Spalten).
+ * Etappe B.7 Block 2: Groups-Board.
+ *
+ * Etappe B.8.1 (2026-08-20): User-Forderung „Ich will nur einen Teamtausch
+ * ermöglichen. Wenn drag and drop dafür nicht gut ist, schlag mir eine
+ * andere Option vor." — Paar-Klick-Tausch. Teams sind KEINE Drag-Source
+ * mehr, sondern Klick-Targets. Erstes Klick → blau markiert, zweites
+ * Klick (zwingend aus anderer Gruppe) → Tausch-Bar mit „X ↔ Y tauschen".
+ * DnD ist entfernt. `reorderable` bleibt für Abwärtskompatibilität im
+ * Parameter, wird aber ignoriert.
+ *
  * @param {Array} groups - [{ id, key, name, members: [{ teamId, name, color }] }]
  * @param {Array} teams - flat Team-Liste (Fallback)
  * @param {Object} opts
  * @returns {string} HTML
  */
 export function renderGroupsBoard(groups, teams, opts = {}) {
-  const { isAdmin = false, reorderable = false } = opts;
+  const { isAdmin = false } = opts;
   const groupCount = Array.isArray(groups) ? groups.length : 0;
   if (groupCount === 0) {
     return '<div class="t-hint">Noch keine Gruppen — Turnier muss generiert sein.</div>';
   }
   const columns = groups
     .map((g) => {
-      const members = (g?.members ?? []).map((m, idx) => {
+      const members = (g?.members ?? []).map((m) => {
         const dotColor = m.color || '#999';
+        // Etappe B.8.1: data-action="select-for-swap" nur für Admin.
+        // Member sehen das Board read-only (kein Action-Attribut).
+        const actionAttr = isAdmin ? 'data-action="select-for-swap"' : '';
         return `
-          <li class="t-group-team-card" data-team-id="${esc(m.teamId)}" data-team-name="${esc(m.name ?? '')}" data-team-color="${esc(dotColor)}" draggable="${reorderable}">
+          <li class="t-group-team-card" data-team-id="${esc(m.teamId)}" data-team-name="${esc(m.name ?? '')}" data-team-color="${esc(dotColor)}" data-group-key="${esc(g.key)}" ${actionAttr}>
             <span class="t-group-team-card-dot" style="background:${esc(dotColor)};"></span>
             <span class="t-group-team-card-name">${esc(m.name ?? 'Team')}</span>
           </li>
@@ -1245,18 +1257,19 @@ export function renderGroupsBoard(groups, teams, opts = {}) {
     <div class="t-groups-board" data-role="groups-board" data-group-count="${groupCount}" style="--group-count:${groupCount};">
       ${columns}
     </div>
-    ${reorderable
-      ? `<div class="t-hint t-hint--info">Ziehe Teams zwischen die Gruppen — oder klicke auf ein Team, um es per Auswahl zu verschieben.</div>
-         <div class="t-settings-actions">
-           <button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button>
-           <button class="t-btn t-btn--ghost" data-action="reset-groups" type="button">Zurücksetzen</button>
-           <button class="t-btn t-btn--primary" data-action="save-groups" type="button">Speichern</button>
-         </div>`
-      : `<div class="t-hint t-hint--info">Die Gruppeneinteilung wird vom Turnier verwaltet. Für eine neue Auslosung: „Zufällig verteilen" mischt die Teams neu — Gruppengrößen bleiben gleich. DnD ist hier deaktiviert.</div>
-         ${isAdmin ? `<div class="t-settings-actions">
-           <button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button>
-         </div>` : ''}`
-    }
+    ${isAdmin ? `<div class="t-swap-bar" data-role="swap-bar" hidden>
+      <span class="t-swap-bar-label" data-role="swap-bar-label">Tausch:</span>
+      <button class="t-btn t-btn--primary" data-action="confirm-swap" type="button" disabled>Tauschen</button>
+      <button class="t-btn t-btn--ghost" data-action="cancel-swap" type="button">Abbrechen</button>
+    </div>` : ''}
+    <div class="t-hint t-hint--info">
+      ${isAdmin
+        ? 'Klicke auf zwei Teams aus verschiedenen Gruppen, um sie zu tauschen — Gruppengrößen bleiben gleich. „Zufällig verteilen" mischt alle neu.'
+        : 'Die Gruppeneinteilung wird vom Turnier verwaltet. „Zufällig verteilen" mischt die Teams neu — Gruppengrößen bleiben gleich.'}
+    </div>
+    ${isAdmin ? `<div class="t-settings-actions">
+      <button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button>
+    </div>` : ''}
   `;
 }
 

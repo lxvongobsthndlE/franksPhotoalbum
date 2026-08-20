@@ -2970,10 +2970,17 @@ textarea.t-input {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  cursor: grab;
+  /* Etappe B.8.1: Paar-Klick-Tausch statt DnD. Cursor ist pointer,
+     nicht mehr grab. */
+  cursor: pointer;
   font-size: 13px;
   user-select: none;
-  touch-action: none;
+  touch-action: manipulation;
+}
+.t-group-team-card.is-selected {
+  background: var(--accent-tint, var(--surface-2));
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 .t-group-team-card.is-dragging {
   position: fixed;
@@ -3000,6 +3007,27 @@ textarea.t-input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* === Paar-Klick-Tausch-Bar (Etappe B.8.1) ========================= */
+.t-swap-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  margin-top: var(--s3);
+  background: var(--accent-tint, var(--surface-2));
+  border: 1px solid var(--accent);
+  border-radius: var(--r-card);
+}
+.t-swap-bar[hidden] {
+  display: none;
+}
+.t-swap-bar-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* === Spielplan-Edit-Mode ======================================== */

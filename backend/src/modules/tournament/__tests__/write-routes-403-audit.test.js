@@ -158,7 +158,7 @@ function createLocalMockPrisma() {
     tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn(), create: fn() },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
-    groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
+    groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn(), update: fn() },
     match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
     $transaction: vi.fn(async (cb) => {
       return typeof cb === 'function' ? cb(prisma) : cb;
@@ -275,6 +275,12 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     {
       label: 'POST /:id/balance-shuffle-groups (Zufällig verteilen, Größen-Konstanz)',
       req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/balance-shuffle-groups`, {}),
+    },
+    {
+      label: 'POST /:id/groups/swaps (Paar-Tausch, Etappe B.8.1)',
+      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/groups/swaps`, {
+        swaps: [['team-a', 'team-b']],
+      }),
     },
     {
       label: 'POST /:id/logo (Logo-Upload)',

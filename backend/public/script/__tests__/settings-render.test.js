@@ -91,8 +91,11 @@ describe('renderEinstellungen', () => {
 
   it('Groups-Board: N Spalten mit korrekter Anzahl Cards', () => {
     const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
-    const cols = html.match(/data-group-key=/g);
-    expect(cols).toHaveLength(2);
+    // Etappe B.8.1: data-group-key gibt es jetzt AUCH in den Team-Karten
+    // (Same-Group-Schutz beim Paar-Klick-Tausch). Wir zählen daher die
+    // Spalten-DIVs direkt.
+    const colDivs = html.match(/<div class="t-groups-column"/g);
+    expect(colDivs).toHaveLength(2);
     // Cards sind <li>-Tags mit class "t-group-team-card". Wir zählen
     // über das data-team-id-Attribut statt die CSS-Klasse, weil die
     // Klasse auch im Dot/Namen-Span auftaucht.
@@ -160,8 +163,8 @@ describe('renderEinstellungen', () => {
     // Save-Button und Touch-Picker sind weg, weil DnD weg ist.
     expect(html).not.toContain('data-action="save-groups"');
     expect(html).not.toContain('data-action="reset-groups"');
-    // Hinweis erklärt warum.
-    expect(html).toMatch(/Größen bleiben gleich|Gruppeneinteilung wird vom Turnier verwaltet/);
+    // Hinweis erklärt warum (Admin-Variante: explizit zum Tausch auffordern).
+    expect(html).toMatch(/Klicke auf zwei Teams|Größen bleiben gleich/);
   });
 
   it('Groups-Block (Admin, LÄUFT): Zufällig-Button gesperrt oder raus', () => {
@@ -174,5 +177,47 @@ describe('renderEinstellungen', () => {
     const html = renderEinstellungen(tRunning, { isAdmin: true, finishedCount: 0 });
     // Save ist garantiert raus.
     expect(html).not.toContain('data-action="save-groups"');
+  });
+
+  // Etappe B.8.1 ─ Paar-Klick-Tausch-UI
+  it('Groups-Block (BEREIT, Admin): Paar-Klick-Tausch-UI sichtbar, kein DnD', () => {
+    const tBereit = {
+      ...tDraft,
+      tournament: { ...tDraft.tournament, status: 'generated', startedAt: null },
+    };
+    const html = renderEinstellungen(tBereit, { isAdmin: true, finishedCount: 0 });
+    // Paar-Klick-Tausch-Bar mit deaktiviertem Tauschen-Button + Abbrechen.
+    expect(html).toContain('data-role="swap-bar"');
+    expect(html).toContain('data-action="confirm-swap"');
+    expect(html).toContain('data-action="cancel-swap"');
+    expect(html).toContain('data-action="select-for-swap"');
+    // DnD ist weg: Board hat kein draggable="true".
+    expect(html).not.toContain('draggable="true"');
+    expect(html).not.toContain('draggable="false"');
+  });
+
+  it('Groups-Block (BEREIT, Non-Admin): keine Swap-Bar, aber Board mit select-for-swap-Action', () => {
+    const tBereit = {
+      ...tDraft,
+      tournament: { ...tDraft.tournament, status: 'generated', startedAt: null },
+    };
+    const html = renderEinstellungen(tBereit, { isAdmin: false, finishedCount: 0 });
+    // Member sieht die Tausch-UI nicht (kann nur lesen).
+    expect(html).not.toContain('data-action="confirm-swap"');
+    expect(html).not.toContain('data-action="randomize-groups"');
+    // ABER teams haben auch kein Action-Attribute mehr (weil non-Admin).
+    expect(html).not.toContain('data-action="select-for-swap"');
+  });
+
+  it('Groups-Block: jede Team-Karte hat data-group-key für Same-Group-Schutz', () => {
+    const tBereit = {
+      ...tDraft,
+      tournament: { ...tDraft.tournament, status: 'generated', startedAt: null },
+    };
+    const html = renderEinstellungen(tBereit, { isAdmin: true, finishedCount: 0 });
+    // Etappe B.8.1: data-group-key gibt es in den Spalten-DIVs UND in
+    // den Team-Karten (für Same-Group-Schutz). 2 Spalten + 2 Teams = 4.
+    const occurrences = (html.match(/data-group-key=/g) || []).length;
+    expect(occurrences).toBe(4);
   });
 });

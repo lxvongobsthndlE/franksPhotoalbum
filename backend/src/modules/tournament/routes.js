@@ -1072,6 +1072,147 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
+  // POST /api/tournaments/:id/groups/swaps — Paar-Tausch (Admin, Etappe B.8.1)
+  //
+  // User-Forderung (2026-08-20): „Ich will nur einen Teamtausch ermöglichen.
+  // Wenn drag and drop dafür nicht gut ist, schlag mir eine andere Option
+  // vor." — Pair-Swap statt DnD. Garantie: keine Gruppe verliert/gewinnt
+  // ein Team, weil beide Teams gemeinsam die Plätze tauschen.
+  //
+  // Body: { swaps: [[teamAId, teamBId], ...] }
+  //   - Genau ZWEI verschiedene teamIds pro Swap.
+  //   - Beide Teams müssen in VERSCHIEDENEN Gruppen sein, sonst 400.
+  //   - Idempotent: zweimal hintereinander denselben Swap aufrufen
+  //     macht nichts kaputt (Network-Retry-Sicherheit).
+  //
+  // Lock: gleicher Lock wie PATCH /:id/groups und /balance-shuffle-groups.
+  // In LÄUFT eingefroren, in BEENDET read-only. Kein Confirm-Handshake —
+  // Swap ist destruktionsfrei (kein Team verschwindet, kein Spiel verliert
+  // Daten).
+  fastify.post('/:id/groups/swaps', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      const body = request.body ?? {};
+      const swaps = Array.isArray(body.swaps) ? body.swaps : null;
+      if (!swaps || swaps.length === 0) {
+        return reply.code(400).send({
+          error: 'invalid_swaps',
+          message: 'Body muss ein Array `swaps: [[teamAId, teamBId], ...]` enthalten.',
+        });
+      }
+
+      // Lock (Etappe B.8).
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      const lock = canEdit(ctx.tournament, finishedCount, 'groups');
+      if (!lock.allowed) {
+        return reply.code(409).send({
+          error: 'groups_locked',
+          message: lock.reason,
+          finishedMatches: finishedCount,
+          status: ctx.tournament.status,
+        });
+      }
+
+      // 1) Alle betroffenen GroupMemberships lesen.
+      //    Pro Team genau eine Membership (per Schema).
+      const allTeamIds = new Set();
+      for (const pair of swaps) {
+        if (!Array.isArray(pair) || pair.length !== 2) {
+          return reply.code(400).send({
+            error: 'invalid_swap_pair',
+            message: 'Jeder Swap muss ein Array mit genau zwei Team-IDs sein.',
+          });
+        }
+        const [a, b] = pair;
+        if (typeof a !== 'string' || typeof b !== 'string') {
+          return reply.code(400).send({
+            error: 'invalid_swap_team_id',
+            message: 'Team-IDs müssen Strings sein.',
+          });
+        }
+        if (a === b) {
+          return reply.code(400).send({
+            error: 'swap_same_team',
+            message: 'Die zwei Teams eines Swaps müssen verschieden sein.',
+          });
+        }
+        allTeamIds.add(a);
+        allTeamIds.add(b);
+      }
+
+      const memberships = await fastify.prisma.groupMembership.findMany({
+        where: {
+          teamId: { in: [...allTeamIds] },
+          group: { stage: { tournamentId: ctx.tournament.id } },
+        },
+        select: { id: true, groupId: true, teamId: true, position: true },
+      });
+      const byTeam = new Map(memberships.map((m) => [m.teamId, m]));
+
+      // 2) Für jedes Swap-Paar: validierung + Prepare.
+      //    Wir bauen eine Map `MembershipId → newGroupId` auf und apply
+      //    alle Updates in einer einzigen Transaction.
+      const updates = []; // { membershipId, newGroupId }
+      for (const pair of swaps) {
+        const [a, b] = pair;
+        const mA = byTeam.get(a);
+        const mB = byTeam.get(b);
+        if (!mA || !mB) {
+          return reply.code(400).send({
+            error: 'swap_team_not_found',
+            message: 'Mindestens ein Team ist nicht in diesem Turnier eingeteilt.',
+          });
+        }
+        if (mA.groupId === mB.groupId) {
+          return reply.code(400).send({
+            error: 'swap_same_group',
+            message:
+              'Die zwei Teams sind bereits in derselben Gruppe — ein Tausch ' +
+              'bringt nichts. Wähle Teams aus zwei verschiedenen Gruppen.',
+          });
+        }
+        // Kein Duplikat-Update: gleiches Team kann in mehreren Swaps
+        // auftauchen (z.B. A↔B und B↔C), dann gewinnt der letzte.
+        updates.push({ membershipId: mA.id, newGroupId: mB.groupId });
+        updates.push({ membershipId: mB.id, newGroupId: mA.groupId });
+      }
+
+      if (updates.length === 0) {
+        return { ok: true, swapCount: 0 };
+      }
+
+      // 3) Atomar updaten.
+      await fastify.prisma.$transaction(
+        updates.map((u) =>
+          fastify.prisma.groupMembership.update({
+            where: { id: u.membershipId },
+            data: { groupId: u.newGroupId },
+          })
+        )
+      );
+
+      // Antwort: frische View.
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return {
+        ok: true,
+        swapCount: swaps.length,
+        groups: view.groups,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Team-Tausch fehlgeschlagen');
+    }
+  });
+
   // PATCH /api/tournaments/:id/schedule — Einzel-Match-Zeit/Platte ändern (Admin)
   //
   // Etappe B.7: Im Spielplan-Tab mit „Bearbeiten"-Toggle kann der Admin
@@ -1769,7 +1910,27 @@ export default async function tournamentRoutes(fastify) {
       });
 
       const baseDateStr = request.body?.baseDate ?? config.baseDate ?? null;
-      const baseDate = baseDateStr ? new Date(baseDateStr) : new Date();
+      let baseDate = baseDateStr ? new Date(baseDateStr) : new Date();
+
+      // Etappe B.8.1: Wenn der User vorher schon `shift-open-matches`
+      // benutzt hat, soll der Versatz den Reschedule überleben. Sonst
+      // wäre der Bug: User schiebt um +10 Min (z.B. weil das Turnier
+      // sich um 10 Min verspätet), ändert dann die Spieldauer → alle
+      // Zeiten werden neu ab Turnier-Start berechnet → der +10-Versatz
+      // ist futsch. Lösung: wenn `baseDate` nicht explizit gesetzt ist
+      // UND es bereits scheduledAt-Werte gibt, nehmen wir die früheste
+      // bestehende scheduledAt als Bezugspunkt.
+      if (!baseDateStr) {
+        const earliest = rawMatches
+          .filter((m) => m.scheduledAt != null)
+          .reduce((acc, m) => {
+            const t = new Date(m.scheduledAt).getTime();
+            return acc === null || t < acc ? t : acc;
+          }, null);
+        if (earliest !== null) {
+          baseDate = new Date(earliest);
+        }
+      }
 
       const scheduled = generateSchedule(engineInput, config, baseDate);
 

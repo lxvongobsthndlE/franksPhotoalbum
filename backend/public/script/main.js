@@ -2617,6 +2617,20 @@ async function openTournamentInstance(instanceId) {
       instance.isAdmin = res?.isAdmin === true;
     }
     activeTournamentInstance = instance;
+    // Bug-Fix Etappe B.8.1 (User-Feedback 2026-08-20): die Top-Level-Listen
+    // (teams/groups/matches/stages) auf den globalen `activeTournamentInstance`
+    // patchen, damit `handleTournamentTabSideEffects` über `restoreTournamentViewState`
+    // — das mit `activeTournamentInstance` arbeitet, nicht mit dem lokalen
+    // Spread-T — diese Listen auch sieht. Vorher waren sie nur im lokalen
+    // Argument von `renderTournamentInstanceDetailV3` verfügbar. Symptom:
+    // Nach Balance-Shuffle / Save zeigte `renderGroupsBoard` fälschlich
+    // "Noch keine Gruppen — Turnier muss generiert sein.", obwohl die
+    // Gruppen in der DB vorhanden waren.
+    activeTournamentInstance.teams = Array.isArray(res?.teams) ? res.teams : (instance.teams ?? []);
+    activeTournamentInstance.stages = Array.isArray(res?.stages) ? res.stages : (instance.stages ?? []);
+    activeTournamentInstance.groups = Array.isArray(res?.groups) ? res.groups : (instance.groups ?? []);
+    activeTournamentInstance.matches = Array.isArray(res?.matches) ? res.matches : (instance.matches ?? []);
+    activeTournamentInstance.stats = res?.stats ?? instance.stats ?? null;
     curTournamentView = 'instances';
     saveLastModuleState();
     renderSidebar();
@@ -2627,11 +2641,11 @@ async function openTournamentInstance(instanceId) {
     // t.isAdmin immer undefined → Renderer hat Member-View angezeigt
     // → kein "Ergebnis eintragen"-Button.
     renderTournamentInstanceDetailV3({ ...instance,
-      teams: Array.isArray(res?.teams) ? res.teams : (instance.teams ?? []),
-      stages: Array.isArray(res?.stages) ? res.stages : (instance.stages ?? []),
-      groups: Array.isArray(res?.groups) ? res.groups : (instance.groups ?? []),
-      matches: Array.isArray(res?.matches) ? res.matches : (instance.matches ?? []),
-      stats: res?.stats ?? instance.stats ?? null,
+      teams: activeTournamentInstance.teams,
+      stages: activeTournamentInstance.stages,
+      groups: activeTournamentInstance.groups,
+      matches: activeTournamentInstance.matches,
+      stats: activeTournamentInstance.stats,
       isAdmin: res?.isAdmin === true,
     });
     // UI-State nach dem Render wiederherstellen. `restoreTournamentViewState`
@@ -3474,6 +3488,9 @@ async function loadEinstellungenTab(t, mount) {
 function wireEinstellungen(mount, t, { finishedCount }) {
   if (!mount) return;
 
+  // Etappe B.8.1 — board ist Shared-Resource für saveGroupsFallback + Pair-Swap.
+  const board = mount.querySelector('[data-role="groups-board"]');
+
   // ─── Klappbare Blöcke (D6) ───────────────────────────────────────
   // Auf jeden Section-Header klicken → data-collapsed toggeln.
   mount.querySelectorAll('[data-action="toggle-section"]').forEach((btn) => {
@@ -3655,16 +3672,104 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // dieser Handler bleibt nur als Fallback, falls ein Renderer-Update
   // ihn versehentlich wieder rendert.
   const saveGroupsBtn = mount.querySelector('[data-action="save-groups"]');
-  if (saveGroupsBtn) {
+  if (saveGroupsBtn && board) {
     saveGroupsBtn.addEventListener('click', async () => {
-      const board = mount.querySelector('[data-role="groups-board"]');
-      if (!board) return;
       const out = window.spielplanHelpers?.serializeGroupsInput?.(board);
       if (!out || !out.ok) {
         toast(out?.error || 'Gruppen-Eingabe ungültig', 'error');
         return;
       }
       await saveGroupsAssignment(t.id, out.groups);
+    });
+  }
+
+  // Etappe B.8.1: Paar-Klick-Tausch (User-Forderung „nur Tausch,
+  // Größe bleibt gleich"). Zwei Team-Klicks aus verschiedenen Gruppen
+  // → Tausch-Bar mit „X ↔ Y tauschen"-Button.
+  const swapBar = mount.querySelector('[data-role="swap-bar"]');
+  const swapBarLabel = mount.querySelector('[data-role="swap-bar-label"]');
+  const swapConfirmBtn = mount.querySelector('[data-action="confirm-swap"]');
+  const swapCancelBtn = mount.querySelector('[data-action="cancel-swap"]');
+  if (board && swapBar && swapConfirmBtn && swapCancelBtn) {
+    // State nur modul-lokal — beim Re-Render wird die Auswahl sowieso
+    // weg sein, weil der Renderer durch `openTournamentInstance` neu
+    // gemountet wird.
+    const selected = []; // [{ teamId, name, groupKey, el }]
+    const updateBar = () => {
+      if (selected.length === 0) {
+        swapBar.hidden = true;
+        board.querySelectorAll('.t-group-team-card.is-selected').forEach((c) =>
+          c.classList.remove('is-selected')
+        );
+      } else {
+        swapBar.hidden = false;
+        const names = selected.map((s) => s.name).join(' ↔ ');
+        swapBarLabel.textContent = `Tausch: ${names}`;
+        swapConfirmBtn.disabled = !(selected.length === 2 && selected[0].groupKey !== selected[1].groupKey);
+      }
+    };
+    // Klick auf Team-Karte → Auswahl toggeln.
+    board.querySelectorAll('[data-action="select-for-swap"]').forEach((card) => {
+      card.addEventListener('click', () => {
+        if (card.classList.contains('is-disabled')) return;
+        const teamId = card.getAttribute('data-team-id');
+        const teamName = card.getAttribute('data-team-name') ?? 'Team';
+        const groupKey = card.getAttribute('data-group-key') ?? '';
+        const idx = selected.findIndex((s) => s.teamId === teamId);
+        if (idx >= 0) {
+          // Bereits ausgewählt → abwählen.
+          selected.splice(idx, 1);
+          card.classList.remove('is-selected');
+        } else {
+          // Max 2. Wenn schon 2 gewählt, ersetze das erste.
+          if (selected.length >= 2) {
+            const first = selected.shift();
+            first.el.classList.remove('is-selected');
+          }
+          selected.push({ teamId, name: teamName, groupKey, el: card });
+          card.classList.add('is-selected');
+        }
+        updateBar();
+      });
+    });
+    swapCancelBtn.addEventListener('click', () => {
+      while (selected.length) {
+        const s = selected.pop();
+        s.el.classList.remove('is-selected');
+      }
+      updateBar();
+    });
+    swapConfirmBtn.addEventListener('click', async () => {
+      if (selected.length !== 2) return;
+      if (selected[0].groupKey === selected[1].groupKey) {
+        toast('Wähle zwei Teams aus verschiedenen Gruppen.', 'error');
+        return;
+      }
+      // Lock-Check vor UX.
+      const lockState = (typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor)
+        ? window.tournamentLocks.lockStateFor({ status: t.status, startedAt: t.startedAt }, finishedCount)
+        : null;
+      if (lockState && lockState.canEditGroups && !lockState.canEditGroups.allowed) {
+        toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
+        return;
+      }
+      swapConfirmBtn.disabled = true;
+      try {
+        await apiCall(
+          `/tournaments/${encodeURIComponent(t.id)}/groups/swaps`,
+          'POST',
+          { swaps: [[selected[0].teamId, selected[1].teamId]] }
+        );
+        toast(`${selected[0].name} ↔ ${selected[1].name} getauscht`, 'success');
+        await openTournamentInstance(t.id);
+      } catch (e) {
+        if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
+          toast('Gruppeneinteilung ist gesperrt — Turnier läuft schon.', 'error');
+        } else {
+          toast(e.serverMessage || 'Tausch fehlgeschlagen', 'error');
+        }
+        swapConfirmBtn.disabled = false;
+      }
     });
   }
 
@@ -3730,18 +3835,8 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     });
   }
 
-  // ─── Groups-Board DnD (Admin, nicht locked) ───────────────────────
-  const board = mount.querySelector('[data-role="groups-board"]');
-  if (board && t.isAdmin === true) {
-    // Etappe B.8: Lock prüfen via window.tournamentLocks.
-    const startedAt = t.startedAt ?? null;
-    const canEditGroups = window.tournamentLocks
-      ? window.tournamentLocks.canEdit({ status: t.status, startedAt }, finishedCount, 'groups')
-      : { allowed: finishedCount === 0 };
-    if (canEditGroups.allowed) {
-      attachGroupsDnD(board);
-    }
-  }
+  // Etappe B.8.1: DnD wurde komplett durch Paar-Klick-Tausch ersetzt
+  // (siehe Selection-Block weiter oben). Kein DnD-Init mehr nötig.
 }
 
 // ─── Etappe B.8 Action-Backend-Anbindungen (start / revert / shift / reschedule) ──────
