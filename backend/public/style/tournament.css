@@ -680,6 +680,92 @@
 .t-chip.is-active .count { opacity: 0.9; }
 
 /* ----------------------------------------------------------------
+   FILTER-DROPDOWN (Etappe A2.6, 2026-08-20)
+   ----------------------------------------------------------------
+   Ein Filter-Trigger-Button + Dropdown. Aktive Auswahl wird als
+   zusätzlicher Chip NEBEN dem Trigger angezeigt, damit der User
+   auf einen Blick sieht, was gefiltert ist. Klick auf Trigger
+   toggelt das Dropdown (durch main.js wireFilterDropdown).
+*/
+.t-filter-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  position: relative;
+}
+.t-filter-trigger {
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.3;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.t-filter-trigger:hover { background: var(--paper); }
+.t-filter-trigger[aria-expanded="true"] {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.t-filter-trigger-caret {
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+.t-filter-trigger[aria-expanded="true"] .t-filter-trigger-caret {
+  transform: rotate(180deg);
+}
+.t-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r2, 8px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+}
+.t-filter-dropdown[hidden] { display: none; }
+.t-filter-dropdown-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.t-filter-item {
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-align: left;
+}
+.t-filter-item:hover { background: var(--paper); }
+.t-filter-item.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+.t-filter-item .count {
+  font-size: 12px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------
    HINWEIS-TEXT (Platzhalter, Ablauf, leere Filter-Treffer)
    ---------------------------------------------------------------- */
 .t-hint {
@@ -947,14 +1033,13 @@
    Verwendung (vertikal-stacked, Anzeigetafel-Layout):
      <div class="t-match">                              ← Standard
        <div class="t-match-bar"></div>
-       <div class="t-match-meta">
-         <div class="t-match-meta-line t-match-meta-time">10:30 · Platte 3</div>
-         <div class="t-match-meta-line t-match-meta-label">VF 1</div>
+       <div class="t-match-meta">…</div>
+       <div class="t-match-rows">                       ← Wrapper: max 560px,
+         <div class="t-match-team">${homeName}</div>       damit Name + Score
+         <div class="t-match-score" data-area="home-score">${homeScore}</div>  zusammenrücken
+         <div class="t-match-team right">${awayName}</div>  (User-Forderung:
+         <div class="t-match-score" data-area="away-score">${awayScore}</div>  Desktop-Leere weg).
        </div>
-       <div class="t-match-team">${homeName}</div>
-       <div class="t-match-score" data-area="home-score">${homeScore}</div>
-       <div class="t-match-team right">${awayName}</div>
-       <div class="t-match-score" data-area="away-score">${awayScore}</div>
        <div class="t-match-action">…</div>
      </div>
 
@@ -963,19 +1048,17 @@
      .t-match--large      Detail-Panel + Beamer (mehr Atem)
      .t-match--bracket    Turnierbaum (eigene Grid-Geometrie, siehe unten)
 
-   Layout: 4 Spalten × 3 Zeilen — Teams UNTEREINANDER, Score rechts
-   daneben, Action als rechte Spalte über alle Zeilen. Die Score-Felder
-   sind die Anzeigetafel: dunkler --board-Hintergrund, helle --board-
-   ink-Ziffern, scharfer --r-board (4px). Das ist die Handschrift.
+   Layout: 4 Spalten × 3 Zeilen — bar (links) | meta (oben) |
+   rows (Team-Score-Paare, max 560px) | action (rechts, optional).
    ---------------------------------------------------------------- */
 .t-match {
   display: grid;
-  grid-template-columns: 3px minmax(0, 1fr) auto auto;
+  grid-template-columns: 3px 120px minmax(0, 560px) auto;
   grid-template-rows: auto auto auto;
   grid-template-areas:
-    "bar meta  meta     act"
-    "bar home  home-s   act"
-    "bar away  away-s   act";
+    "bar meta  rows   act"
+    "bar meta  rows   act"
+    "bar meta  rows   act";
   column-gap: var(--s3);
   row-gap: 6px;
   align-items: center;
@@ -1026,16 +1109,37 @@
   font-weight: 600;
 }
 
+/* Team+Score-Wrapper (Redesign A2.1) — hält die beiden Zeilen zusammen
+   und begrenzt die Breite auf 560 px, damit der Team-Name und sein
+   Score-Feld auf Desktop nah beieinander stehen. Bei sehr breiten
+   Viewports (1920 px) bleibt die Action rechts daneben sichtbar, ohne
+   dass 800 px Leere zwischen Name und Zahl entstehen. */
+.t-match-rows {
+  grid-area: rows;
+  max-width: 560px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "home  home-s"
+    "away  away-s";
+  column-gap: var(--s3);
+  row-gap: 6px;
+  align-items: center;
+}
+.t-match-rows .t-match-team         { grid-area: home; }
+.t-match-rows .t-match-team.right   { grid-area: away; }
+.t-match-rows .t-match-score[data-area="home-score"] { grid-area: home-s; }
+.t-match-rows .t-match-score[data-area="away-score"] { grid-area: away-s; }
+
 /* Teams — vertikal gestapelt, jede Zeile bekommt ihren Score rechts. */
 .t-match-team {
-  grid-area: home;
   display: flex; align-items: center; gap: var(--s2);
   font-weight: 500;
   font-size: 15px;
   min-width: 0;
 }
 .t-match-team.right {
-  grid-area: away;
   justify-content: flex-start; /* Override Default — Name linksbündig wie Heim */
   text-align: left;
 }
@@ -1058,37 +1162,43 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-/* ANZEIGETAFEL — Score-Felder.
-   Dunkles Board, helle Ziffern, scharfe 4px-Ecken. Das ist die
-   Signature des Moduls: ein "echtes" Anzeigetafel-Gefühl statt
-   Plastik-Pille. Zwei Felder pro Karte — eines pro Team — statt
-   "3 : 2" als kombinierter Text. */
+/* ANZEIGETAFEL — Score-Felder (Redesign A2.1).
+   Dunkles Board, helle Ziffern, scharfe 4px-Ecken, FESTE HÖHE 32 px
+   (sonst springen gefüllte und leere Felder). padding:0 + grid+
+   place-items:center zentriert die Ziffer in beiden Zuständen
+   identisch. Das ist die Signatur des Moduls: ein "echtes"
+   Anzeigetafel-Gefühl statt Plastik-Pille.
+   Zwei Felder pro Karte — eines pro Team — statt "3 : 2" als
+   kombinierter Text. */
 .t-match-score {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1;
   letter-spacing: 0.02em;
   background: var(--board);
   color: var(--board-ink);
   border-radius: var(--r-board, 4px);
-  padding: 6px 10px;
-  min-width: 40px;
+  height: 32px;
+  min-width: 46px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   text-align: center;
 }
-.t-match-score[data-area="home-score"] { grid-area: home-s; }
-.t-match-score[data-area="away-score"] { grid-area: away-s; }
 .t-match-score.empty {
   color: var(--board-dim);
   background: transparent;
   border: 1px dashed var(--board-dim);
   font-weight: 400;
+  padding: 0;
 }
 
 /* Action-Spalte — Admin-Button ODER Member-Text. NIE leer: der Member
    sieht entweder die Bezeichnung oder „Beendet", der Admin sieht den
    Button (oder „Erneut" bei schon eingetragenem Ergebnis). Spannt
-   über alle 3 Zeilen rechts. */
+   über alle 3 Zeilen rechts, sitzt dank .t-match-rows direkt neben
+   dem Score-Bereich — wirkt nicht mehr "am Bildschirmrand verloren". */
 .t-match-action {
   grid-area: act;
   align-self: center;
@@ -1106,28 +1216,37 @@
 
 /* Kompakte Variante — Kontextspalte / Listen.
    Kein Meta, kein Action. Zwei Zeilen (Home/Away), Score rechts.
-   Atemräume und Schrift verkleinert. */
+   Atemräume und Schrift verkleinert; Wrapper ohne max-width. */
 .t-match.t-match--compact {
-  grid-template-columns: 3px minmax(0, 1fr) auto;
+  grid-template-columns: 3px minmax(0, 1fr);
   grid-template-rows: auto auto;
   grid-template-areas:
-    "bar home  home-s"
-    "bar away  away-s";
+    "bar rows"
+    "bar rows";
   padding: var(--s2) var(--s3);
   gap: 4px var(--s2);
   font-size: 13px;
 }
-.t-match.t-match--compact .t-match-team       { font-size: 13px; }
-.t-match.t-match--compact .t-match-score      {
+.t-match.t-match--compact .t-match-rows {
+  max-width: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "home  home-s"
+    "away  away-s";
+  column-gap: var(--s2);
+}
+.t-match.t-match--compact .t-match-team  { font-size: 13px; }
+.t-match.t-match--compact .t-match-score {
   font-size: 13px;
-  padding: 3px 7px;
-  min-width: 28px;
+  height: 24px;
+  min-width: 32px;
 }
 
 /* Große Variante — Detail-Panel + Beamer, eigene Karte pro Match.
    Gleiche Geometrie wie Standard, nur mehr Atem. */
 .t-match.t-match--large {
-  grid-template-columns: 4px minmax(0, 1fr) auto auto;
+  grid-template-columns: 4px 144px minmax(0, 560px) auto;
   padding: var(--s4) var(--s6);
   border: 1px solid var(--line);
   border-bottom: 1px solid var(--line); /* Override "last-child"-Reset */
@@ -1139,30 +1258,32 @@
 .t-match.t-match--large .t-match-meta-time  { font-size: 16px; }
 .t-match.t-match--large .t-match-meta-label { font-size: 12px; }
 .t-match.t-match--large .t-match-team       { font-size: 17px; }
-.t-match.t-match--large .t-match-score      { font-size: 22px; padding: 8px 12px; min-width: 56px; }
+.t-match.t-match--large .t-match-score      { font-size: 22px; height: 40px; min-width: 60px; }
 
 /* Auf <768px Modul-Breite: Action wandert in die oberste Zeile,
-   Score-Spalte bleibt rechts. Layout bleibt vertikal-stacked. */
+   Team+Score-Bereich darunter in voller Breite (max-width weg). */
 @container (max-width: 767px) {
   .t-match,
   .t-match.t-match--large {
     grid-template-columns: 3px minmax(0, 1fr) auto;
-    grid-template-rows: auto auto auto auto;
+    grid-template-rows: auto auto auto;
     grid-template-areas:
       "bar meta  act"
-      "bar home  home-s"
-      "bar away  away-s";
+      "bar rows  rows"
+      "bar rows  rows";
     row-gap: 4px;
     column-gap: var(--s2);
   }
-  .t-match-bar     { grid-area: bar; }
-  .t-match-meta    { grid-area: meta; }
-  .t-match-team    { grid-area: home; }
-  .t-match-team.right { grid-area: away; }
-  .t-match-score[data-area="home-score"] { grid-area: home-s; }
-  .t-match-score[data-area="away-score"] { grid-area: away-s; }
-  .t-match-action  { grid-area: act; align-self: start; }
-  .t-match-score   { font-size: 16px; padding: 5px 8px; }
+  .t-match-rows {
+    max-width: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "home  home-s"
+      "away  away-s";
+    column-gap: var(--s2);
+  }
+  .t-match-score  { font-size: 17px; height: 30px; min-width: 42px; }
 }
 
 /* ----------------------------------------------------------------

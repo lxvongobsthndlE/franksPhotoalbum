@@ -183,20 +183,25 @@ describe('renderFilterChips', () => {
   const offenesKO = makeMatch({ isKoMatch: true, isFinished: false });
   const matches = [offenesGruppenspiel, beendetesGruppenspiel, offenesKO];
 
-  it('rendert immer die drei Basis-Chips', () => {
+  it('rendert EINEN Trigger + Dropdown mit allen Filtern', () => {
+    // A2.6 (2026-08-20): Statt alle Chips direkt zu rendern, gibt es
+    // einen Button + Dropdown. Die Filter-IDs sind weiterhin im HTML
+    // (im Dropdown als menuitems).
     const html = renderFilterChips(matches, [], 'alle');
+    expect(html).toContain('data-action="toggle-filter-dropdown"');
+    expect(html).toContain('data-filter-dropdown');
+    // Dropdown enthält alle 3 Basis-Filter als menuitems
     expect(html).toContain('data-filter="alle"');
     expect(html).toContain('data-filter="offen"');
     expect(html).toContain('data-filter="beendet"');
   });
 
   it('zeigt Counts aus UNGefilterter Liste (auch wenn "offen" aktiv)', () => {
+    // Counts sind im Dropdown sichtbar — "Alle 3" auch wenn Filter offen.
     const html = renderFilterChips(matches, [], 'offen');
-    // "Alle" zeigt 3, auch wenn der aktive Filter "offen" ist
-    expect(html).toContain('Alle <span class="count">3</span>');
-    // "Offen" zeigt 2, "Beendet" zeigt 1
-    expect(html).toContain('Nur offene <span class="count">2</span>');
-    expect(html).toContain('Beendet <span class="count">1</span>');
+    expect(html).toContain('<span class="count">3</span>');
+    expect(html).toContain('<span class="count">2</span>');
+    expect(html).toContain('<span class="count">1</span>');
   });
 
   it('Phasen-Filter nur, wenn in dieser Kategorie Spiele existieren', () => {
@@ -226,14 +231,28 @@ describe('renderFilterChips', () => {
 
   it('aktiver Filter bekommt is-active Klasse + aria-pressed=true', () => {
     const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toMatch(/<button[^>]*class="t-chip is-active"[^>]*data-filter="offen"/);
+    // Im Dropdown: aktives menuitem mit is-active.
+    expect(html).toMatch(/class="t-filter-item is-active"[^>]*data-filter="offen"/);
     expect(html).toContain('data-filter="offen" aria-pressed="true"');
   });
 
   it('inaktiver Filter bekommt KEIN is-active', () => {
     const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toContain('data-filter="alle" aria-pressed="false"');
-    expect(html).not.toContain('data-filter="alle" class="t-chip is-active"');
+    // "Alle" menuitem ist NICHT is-active
+    expect(html).toMatch(/data-filter="alle"[^>]*aria-pressed="false"/);
+    expect(html).not.toContain('class="t-filter-item is-active" data-filter="alle"');
+  });
+
+  it('aktiver Filter erscheint auch als sichtbarer Chip neben dem Trigger', () => {
+    // A2.6: Damit der User die aktive Auswahl auf einen Blick sieht,
+    // wird der aktive Filter als zweiter Chip neben dem Trigger gezeigt.
+    const html = renderFilterChips(matches, [], 'offen');
+    expect(html).toMatch(/<button[^>]*class="t-chip is-active"[^>]*data-filter="offen"/);
+  });
+
+  it('Trigger zeigt das Label des aktiven Filters', () => {
+    const html = renderFilterChips(matches, [], 'beendet');
+    expect(html).toContain('Filter: Beendet');
   });
 
   it('null/undefined Matches rendert ohne Crash', () => {
@@ -294,6 +313,30 @@ describe('renderMatchCard', () => {
     const m = makeMatch({ isLive: true });
     const html = renderMatchCard(m, false);
     expect(html).toContain('t-match--live');
+  });
+
+  it('A2.2: t-match-rows umschließt die 4 Team+Score-Elemente (Anzeigetafel-Layout)', () => {
+    // Etappe A2 (2026-08-20): Wir wrappen Team+Score-Paare in einem
+    // .t-match-rows-Container. So bleibt das CSS-Grid stabil und
+    // Meta/Action-Zeilen liegen oben/unten auf voller Breite, statt
+    // von den Grid-Spalten zerquetscht zu werden.
+    const m = makeMatch({});
+    const html = renderMatchCard(m, false);
+    // 1) Der Wrapper existiert genau einmal.
+    expect(html.match(/class="t-match-rows"/g)?.length).toBe(1);
+    // 2) Innerhalb des Wrappers kommen die 4 inneren Elemente in der
+    //    korrekten Reihenfolge: Team-home → Score-home → Team-away → Score-away.
+    const rowsMatch = html.match(/<div class="t-match-rows">([\s\S]*?)<\/div>\s*<\/div>/);
+    expect(rowsMatch).not.toBeNull();
+    const inner = rowsMatch[1];
+    const homeTeamIdx = inner.indexOf('t-match-team');
+    const homeScoreIdx = inner.indexOf('data-area="home-score"');
+    const awayTeamIdx = inner.indexOf('t-match-team right');
+    const awayScoreIdx = inner.indexOf('data-area="away-score"');
+    expect(homeTeamIdx).toBeGreaterThanOrEqual(0);
+    expect(homeScoreIdx).toBeGreaterThan(homeTeamIdx);
+    expect(awayTeamIdx).toBeGreaterThan(homeScoreIdx);
+    expect(awayScoreIdx).toBeGreaterThan(awayTeamIdx);
   });
 
   it('Admin + !beendet → "Ergebnis"-Button', () => {
@@ -369,6 +412,11 @@ describe('renderMatchCardCompact', () => {
     expect(html).not.toContain('t-match-meta');
     expect(html).not.toContain('t-match-action');
     expect(html).not.toContain('data-action="enter-result"');
+  });
+
+  it('A2.2: t-match-rows umschließt die 4 Team+Score-Elemente (Compact)', () => {
+    const html = renderMatchCardCompact(makeMatch());
+    expect(html.match(/class="t-match-rows"/g)?.length).toBe(1);
   });
 });
 

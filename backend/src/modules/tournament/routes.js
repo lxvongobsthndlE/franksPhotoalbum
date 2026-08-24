@@ -28,6 +28,8 @@ import {
   generateTournament,
   computeStandings,
   applyTiebreaker,
+  qualifyAndSeed,
+  buildBracket,
   resetCascade,
   propagateWinner,
   mergeConfig,
@@ -2522,6 +2524,27 @@ export default async function tournamentRoutes(fastify) {
           log('cascade:skip not-ko');
         }
 
+        // BUG-FIX 2026-08-20 (KO-Bracket-Auto-Fill): Wenn dieses Match
+        // ein Gruppen-Match ist und nach dem Save ALLE Gruppen-Matches
+        // beendet sind → maybeFillKoFromGroupFinish() aufrufen. Füllt
+        // teamHome/teamAway der KO-Matches mit den jetzt bekannten
+        // Qualifikanten. Passiert im SELBEN Transaction wie der
+        // Score-Save — entweder beides oder keins.
+        //
+        // Wir übergeben `stage.type` statt `match.stageType` (Schema hat
+        // keine stageType-Spalte auf Match). `stage` ist bereits oben
+        // geladen (für isKo-Check) — Type-String ist dieselbe Wahrheit.
+        const koFillResult = await maybeFillKoFromGroupFinish(tx, ctx, {
+          matchId: match.id,
+          stageType: stage?.type ?? null,
+        });
+        if (koFillResult?.filled) {
+          log('ko-fill:done', {
+            updatedCount: koFillResult.updatedCount,
+            qualifiers: koFillResult.qualifiers,
+          });
+        }
+
         // DTO-Antwort statt Roh-Row. propagatedMatches enthält die
         // DTO-Repräsentation der durch die Propagation aktualisierten
         // Folgespiele — damit das Frontend den Spielplan in-place
@@ -2684,4 +2707,148 @@ function handleError(reply, err, fallback) {
   const body = { error: err.message ?? fallback };
   if (status < 500 && err.code) body.code = err.code;
   return reply.code(status).send(body);
+}
+
+/**
+ * Wrapper um fillKoFromQualifiers mit der Bedingung "gerade eingetragenes
+ * Match war das letzte offene Gruppen-Match". Reduziert die Logik im
+ * /result-Handler auf EINEN Call.
+ *
+ * @param {object} justSavedMatch - { matchId, stageType }
+ *   stageType kommt aus dem Stage-Record (nicht aus Match — Schema hat
+ *   keine stageType-Spalte auf Match).
+ * @returns {Promise<{filled: boolean, updatedCount?: number, qualifiers?: number, reason?: string}>}
+ */
+async function maybeFillKoFromGroupFinish(tx, ctx, justSavedMatch) {
+  // Nur Gruppen-Matches lösen Auto-Fill aus.
+  if (justSavedMatch?.stageType !== 'group') {
+    return { filled: false, reason: 'not_group_match' };
+  }
+  // Modus-Check ist redundant (fillKoFromQualifiers prüft selbst), aber
+  // spart einen DB-Read wenn klar ist, dass wir nicht in groups_ko sind.
+  const config = mergeConfig(ctx.tournament.config ?? {});
+  if (config.mode !== 'groups_ko') {
+    return { filled: false, reason: 'mode_not_groups_ko' };
+  }
+
+  // Alle Gruppen-Matches dieses Turniers lesen — wenn auch nur eines
+  // noch nicht finished ist, ist die Gruppenphase noch nicht durch.
+  const groupMatches = await tx.match.findMany({
+    where: { tournamentId: ctx.tournament.id, stageType: 'group' },
+    select: { id: true, status: true },
+  });
+  if (groupMatches.length === 0) {
+    return { filled: false, reason: 'no_group_matches' };
+  }
+  const allDone = groupMatches.every((m) => m.status === 'finished');
+  if (!allDone) {
+    return { filled: false, reason: 'group_phase_not_complete' };
+  }
+
+  return fillKoFromQualifiers(tx, ctx);
+}
+
+/**
+ * BUG-FIX 2026-08-20: Wenn die letzte Gruppen-Match-Result eingetragen
+ * wird, füllt die Engine die KO-Bracket-Slots mit den jetzt bekannten
+ * Qualifikanten. Vorher war das KO-Bracket bis zum manuellen
+ * "Neu generieren" ein Skelett — selbst nachdem alle 18 Gruppenspiele
+ * gespielt waren, standen weiterhin Platzhalter "Sieger VF 1" etc. im
+ * Bracket. User konnte das Turnier nicht zu Ende spielen.
+ *
+ * Aufgerufen NUR:
+ *   - wenn der gerade gespeicherte Match ein Gruppen-Match ist
+ *   - wenn NACH diesem Save ALLE Gruppen-Matches beendet sind
+ *   - im selben Prisma-Transaction wie der Score-Save (Atomarität)
+ *
+ * Tut:
+ *   1. computeStandings + applyTiebreaker pro Gruppe (aus DB-Matches)
+ *   2. qualifyAndSeed → qualifiers
+ *   3. buildBracket → KO-Match-DTOs mit teamHome/teamAway gefüllt
+ *   4. update der existierenden KO-Matches in der DB (matched by id)
+ *
+ * Was NICHT passiert:
+ *   - KEIN Cascade-Reset: Wenn das Bracket schon mal gefüllt wurde und
+ *     ein earlier-Gruppen-Match nachträglich editiert wird (was eigentlich
+ *     durch Locks gesperrt ist), wird NICHT automatisch neu qualifiziert.
+ *     Der User muss in dem Fall das Turnier zurücksetzen.
+ */
+async function fillKoFromQualifiers(tx, ctx) {
+  const tournament = ctx.tournament;
+  const config = mergeConfig(tournament.config ?? {});
+  const mode = config.mode;
+
+  if (mode !== 'groups_ko') return { filled: false, reason: 'mode_not_groups_ko' };
+
+  const teams = await tx.team.findMany({ where: { tournamentId: tournament.id } });
+  if (teams.length < 2) return { filled: false, reason: 'no_teams' };
+
+  const groupsRaw = await tx.group.findMany({
+    where: { tournamentId: tournament.id },
+    include: { members: true },
+  });
+  if (groupsRaw.length < 1) return { filled: false, reason: 'no_groups' };
+
+  const sortedGroups = groupsRaw.slice().sort((a, b) =>
+    String(a.key || '').localeCompare(String(b.key || ''))
+  );
+  const groupKeys = sortedGroups.map((g) => g.key);
+
+  const allMatches = await tx.match.findMany({ where: { tournamentId: tournament.id } });
+
+  const groupStandings = sortedGroups.map((g) => {
+    const memberTeamIds = g.members.map((m) => m.teamId);
+    const rawGroupRows = allMatches.filter(
+      (m) => m.groupId === g.id && m.stageType === 'group'
+    );
+    const standings = computeStandings(memberTeamIds, rawGroupRows, config);
+    const { sortedRows } = applyTiebreaker(
+      standings.map((r) => ({ ...r, name: teams.find((t) => t.id === r.teamId)?.name })),
+      rawGroupRows,
+      config,
+    );
+    return sortedRows;
+  });
+
+  const qualify = qualifyAndSeed({ groupStandings, groupKeys }, config);
+  if (qualify.qualifiers.length < 2) {
+    return { filled: false, reason: 'not_enough_qualifiers' };
+  }
+
+  const newBracket = buildBracket(qualify.qualifiers, {
+    hasThirdPlacePlayoff: config.hasThirdPlacePlayoff,
+    maxTiebreakerDepth: config.maxTiebreakerDepth,
+  });
+
+  const existingKo = allMatches.filter((m) => m.stageType === 'ko');
+  let updatedCount = 0;
+  for (const fresh of newBracket.matches) {
+    const dbMatch = existingKo.find((m) => m.id === fresh.id);
+    if (!dbMatch) continue;
+    if (
+      dbMatch.teamHome !== fresh.teamHome ||
+      dbMatch.teamAway !== fresh.teamAway ||
+      dbMatch.homeSeed !== fresh.homeSeed ||
+      dbMatch.awaySeed !== fresh.awaySeed ||
+      dbMatch.homeGroup !== fresh.homeGroup ||
+      dbMatch.awayGroup !== fresh.awayGroup
+    ) {
+      await tx.match.update({
+        where: { id: fresh.id },
+        data: {
+          teamHome: fresh.teamHome,
+          teamAway: fresh.teamAway,
+          homeSeed: fresh.homeSeed,
+          awaySeed: fresh.awaySeed,
+          homeGroup: fresh.homeGroup,
+          awayGroup: fresh.awayGroup,
+          placeholderHome: null,
+          placeholderAway: null,
+        },
+      });
+      updatedCount += 1;
+    }
+  }
+
+  return { filled: true, updatedCount, qualifiers: qualify.qualifiers.length };
 }

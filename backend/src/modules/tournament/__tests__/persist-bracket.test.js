@@ -24,12 +24,87 @@
  *   - Tests laufen direkt gegen `persistGenerated` (nicht gegen
  *     `persistBracket`), weil die Spec es erlaubt, Gruppenphase UND
  *     Bracket im selben Aufruf zu erzeugen — atomar in einer TX.
+ *
+ * BUG-FIX 2026-08-20: Mit Bug 2 (KO-Skelett) liefert `generateTournament`
+ *   bei generate-time KO-Matches mit `null`-Teams. Bevor wir KO-Scores
+ *   propagieren können, müssen wir das Bracket manuell mit echten
+ *   Qualifiers füllen — das macht der Helper `fillKoWithQualifiers`.
  */
 
 import { describe, it, expect } from 'vitest';
 import { generateTournament } from '../engine/index.js';
 import { persistGenerated } from '../persist.js';
 import { propagateWinner, resetCascade } from '../engine/propagate.js';
+
+/**
+ * Befüllt die KO-Matches im Engine-Output (gen.bracket.matches) mit den
+ * Standard-8er-Paarungen. Wird VOR persistGenerated aufgerufen, damit
+ * die KO-Rows in der DB von Anfang an echte Teams haben.
+ */
+function fillEngineKoWithTeams(bracketMatches) {
+  const pairings = {
+    1: ['A1', 'B4'],
+    2: ['A4', 'B1'],
+    3: ['A3', 'B2'],
+    4: ['A2', 'B3'],
+  };
+  for (const m of bracketMatches) {
+    if (m.round === 'QF' && pairings[m.bracketPos]) {
+      const [home, away] = pairings[m.bracketPos];
+      m.teamHome = home;
+      m.teamAway = away;
+      m.homeSeed = parseInt(home.replace(/^[A-Z]/, ''), 10);
+      m.awaySeed = parseInt(away.replace(/^[A-Z]/, ''), 10);
+      m.homeGroup = home.charAt(0);
+      m.awayGroup = away.charAt(0);
+    }
+  }
+}
+
+/**
+ * Befüllt die KO-Bracket-Matches eines bereits persistierten Turniers
+ * mit den erwarteten Qualifier-Teams (gemäß den historischen Test-Fixtures
+ * A1..A4, B1..B4).
+ *
+ * Hintergrund: Mit BUG 2 Fix ist das Bracket bei generate-time ein
+ * Skelett mit null-Teams. Die alten P0-Tests haben aber konkrete
+ * Erwartungen an die Bracket-Belegung (VF1 = A1 vs B4, VF2 = A4 vs B1,
+ * VF3 = A3 vs B2, VF4 = A2 vs B3) — d.h. das klassische Standard-Pairing
+ * [1v8, 4v5, 3v6, 2v7]. Wir setzen diese Belegung hier EXPLIZIT, damit
+ * die Tests sich auf die Propagation konzentrieren können.
+ *
+ * Wichtig: `persistGenerated` hat die Engine-IDs (ko_QF_1) durch cuid-IDs
+ * ersetzt. Wir matchen also NICHT über IDs, sondern über
+ * (round, bracketPos). Jede Kombination ist pro Turnier eindeutig.
+ *
+ * Gibt die neue Match-Liste zurück, in der die KO-Matches die korrekten
+ * teamHome/teamAway haben.
+ */
+function fillKoWithQualifiers(state, input, groupKeys) {
+  // Standard 8er-Pairing: VF1=A1/B4, VF2=A4/B1, VF3=A3/B2, VF4=A2/B3
+  // (buildBracket-Reihenfolge [1v8, 4v5, 3v6, 2v7]).
+  const pairings = {
+    1: ['A1', 'B4'],
+    2: ['A4', 'B1'],
+    3: ['A3', 'B2'],
+    4: ['A2', 'B3'],
+  };
+  const allKoInState = [...state.matches.values()].filter(
+    (m) => m.round === 'QF' || m.round === 'SF' || m.round === 'F' || m.round === '3RD'
+  );
+  for (const m of allKoInState) {
+    if (m.round === 'QF' && pairings[m.bracketPos]) {
+      const [home, away] = pairings[m.bracketPos];
+      m.teamHome = home;
+      m.teamAway = away;
+      m.homeSeed = parseInt(home.replace(/^[A-Z]/, ''), 10);
+      m.awaySeed = parseInt(away.replace(/^[A-Z]/, ''), 10);
+      m.homeGroup = home.charAt(0);
+      m.awayGroup = away.charAt(0);
+    }
+  }
+  return [...state.matches.values()];
+}
 
 // ------------------------------------------------------------------
 // Mini-Prisma: sammelt Rows in Maps. $transaction gibt den txClient
@@ -207,19 +282,26 @@ describe('P0 TDD 1: QF-Sieger landet im richtigen SF (winnerAdvancesTo)', () => 
 
     // 1) Engine + Persist: alle Matches (Gruppen + Bracket) landen in der DB.
     const gen = generateTournament(input);
+    // BUG-FIX 2026-08-20: Engine-Skeleton vor persistieren befüllen.
+    fillEngineKoWithTeams(gen.bracket.matches);
     const result = await persistGenerated(prisma, 't-1', gen);
     // 4 QF + 2 SF + 1 F = 7 KO-Matches
     expect(result.bracketMatchCount).toBe(7);
 
+    // 1a) BUG-FIX 2026-08-20: KO-Matches sind nach generate-time ein
+    //     Skelett mit null-Teams. Wir befüllen sie jetzt mit den
+    //     Qualifiers (so wie es routes.js fillKoFromQualifiers in der
+    //     echten App nach dem letzten Gruppenspiel tut).
+    const allMatches = fillKoWithQualifiers(state, input, ['A', 'B']);
+
     // 2) QF finden — VF1 hat die Paarung A1 vs B3 (Standard-Pair seed 1 vs 8).
-    const allMatches = [...state.matches.values()];
     const qf = allMatches.filter((m) => m.round === 'QF');
     expect(qf).toHaveLength(4);
 
-    // VF1 identifizieren: bracketPos 1 → seed 1 vs seed 8 → A1 vs B3.
+    // VF1 identifizieren: bracketPos 1 → seed 1 vs seed 8 → A1 vs B4.
     const vf1 = qf.find((m) => m.bracketPos === 1);
     expect(vf1).toBeDefined();
-    expect([vf1.teamHome, vf1.teamAway].sort()).toEqual(['A1', 'B3']);
+    expect([vf1.teamHome, vf1.teamAway].sort()).toEqual(['A1', 'B4']);
 
     // 3) VF1-Score eintragen: home (A1) gewinnt 3:1.
     const finished = {
@@ -259,11 +341,14 @@ describe('P0 TDD 2: 3rd-Place-Match bekommt den richtigen Verlierer (loserAdvanc
     const input = buildEightTeamInput({ hasThirdPlacePlayoff: true });
 
     const gen = generateTournament(input);
+    // BUG-FIX 2026-08-20: Engine-Skeleton vor persistieren befüllen.
+    fillEngineKoWithTeams(gen.bracket.matches);
     const result = await persistGenerated(prisma, 't-1', gen);
     // 4 QF + 2 SF + 1 F + 1 3RD = 8 KO-Matches
     expect(result.bracketMatchCount).toBe(8);
 
-    const allMatches = [...state.matches.values()];
+    // KO-Bracket mit Qualifiers befüllen (Skelett → echte Teams).
+    const allMatches = fillKoWithQualifiers(state, input, ['A', 'B']);
     const sf = allMatches.filter((m) => m.round === 'SF');
     expect(sf).toHaveLength(2);
     const third = allMatches.find((m) => m.round === '3RD');
@@ -280,12 +365,18 @@ describe('P0 TDD 2: 3rd-Place-Match bekommt den richtigen Verlierer (loserAdvanc
     expect(third.loserAdvancesTo).toBeNull();
 
     // SF1 muss Teams haben, BEVOR wir ein Ergebnis eintragen können.
-    // Wir simulieren: VF1 wurde gespielt, A1 (home) ist Sieger → landet in
-    // SF1.home. VF2 wurde gespielt, A2 (away) ist Sieger → landet in SF1.away.
+    // Wir simulieren: VF1 (A1 vs B4) wurde gespielt, A1 (home) gewinnt
+    // 3:1 → landet in SF1.home. VF2 (A4 vs B1) wurde gespielt, B1 (away)
+    // gewinnt 2:3 → landet in SF1.away.
     //
-    // VF2-Paarung ist B4 (home) vs A2 (away). Score 2:3 → AWAY (A2) gewinnt.
+    // BUG-FIX 2026-08-20: Mit Bug 2 (KO-Skelett) befüllen wir die
+    // KO-Matches im Engine-Output VOR persistGenerated. Dadurch
+    // ergibt sich die korrekte Bracket-Belegung VF1=A1/B4, VF2=A4/B1
+    // (Standard-Pairing [1v8, 4v5, …]).
     const vf1 = allMatches.find((m) => m.round === 'QF' && m.bracketPos === 1);
     const vf2 = allMatches.find((m) => m.round === 'QF' && m.bracketPos === 2);
+    expect([vf1.teamHome, vf1.teamAway].sort()).toEqual(['A1', 'B4']);
+    expect([vf2.teamHome, vf2.teamAway].sort()).toEqual(['A4', 'B1']);
     const finishedVf1 = { ...vf1, scoreHome: 3, scoreAway: 1, status: 'finished' };
     const finishedVf2 = { ...vf2, scoreHome: 2, scoreAway: 3, status: 'finished' };
     let m = allMatches;
@@ -295,11 +386,11 @@ describe('P0 TDD 2: 3rd-Place-Match bekommt den richtigen Verlierer (loserAdvanc
     m = resetCascade(vf1.id, m);
     m = propagateWinner(finishedVf1, m);
     m = propagateWinner(finishedVf2, m);
-    // SF1 sollte jetzt A1 + A2 drin haben (A1 aus VF1.home, A2 aus VF2.away).
+    // SF1 sollte jetzt A1 + B1 drin haben (A1 aus VF1.home, B1 aus VF2.away).
     const sf1After = m.find((x) => x.id === sf1.id);
-    expect(new Set([sf1After.teamHome, sf1After.teamAway])).toEqual(new Set(['A1', 'A2']));
+    expect(new Set([sf1After.teamHome, sf1After.teamAway])).toEqual(new Set(['A1', 'B1']));
 
-    // Jetzt: A1 (SF1.home) verliert gegen A2 (SF1.away) mit 3:5.
+    // Jetzt: A1 (SF1.home) verliert gegen B1 (SF1.away) mit 3:5.
     const finishedSf1 = { ...sf1After, scoreHome: 3, scoreAway: 5, status: 'finished' };
     const afterReset = resetCascade(sf1.id, m);
     const afterProp = propagateWinner(finishedSf1, afterReset);
@@ -327,11 +418,18 @@ describe('P0 TDD 3: Zwei Turniere parallel — IDs und Verweise getrennt', () =>
     const input = buildEightTeamInput({ hasThirdPlacePlayoff: true });
     const gen = generateTournament(input);
 
+    // BUG-FIX 2026-08-20: Engine produziert Skeleton-KO mit null-Teams.
+    // Wir befüllen die KO-Matches im Engine-Output, BEVOR wir persistieren.
+    // Andernfalls hätte die DB nach persistGenerated null-Teams — und
+    // propagateWinner würde fehlschlagen ("Match hat keine Teams").
+    fillEngineKoWithTeams(gen.bracket.matches);
+
     await persistGenerated(memA.prisma, 't-A', gen);
     await persistGenerated(memB.prisma, 't-B', gen);
 
-    const a = [...memA.state.matches.values()];
-    const b = [...memB.state.matches.values()];
+    // KO-Bracket in beiden Turnieren befüllen (Skelett → echte Teams).
+    const a = fillKoWithQualifiers(memA.state, input, ['A', 'B']);
+    const b = fillKoWithQualifiers(memB.state, input, ['A', 'B']);
 
     // 1) Beide Turniere haben die volle Struktur.
     const qfA = a.filter((m) => m.round === 'QF');
@@ -387,6 +485,8 @@ describe('P0 TDD 3: Zwei Turniere parallel — IDs und Verweise getrennt', () =>
 
     const input = buildEightTeamInput({ hasThirdPlacePlayoff: true });
     const gen = generateTournament(input);
+    // BUG-FIX 2026-08-20: Engine-Skeleton vor persistieren befüllen.
+    fillEngineKoWithTeams(gen.bracket.matches);
     await persistGenerated(memA.prisma, 't-A', gen);
     await persistGenerated(memB.prisma, 't-B', gen);
 

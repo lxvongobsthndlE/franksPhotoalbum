@@ -90,17 +90,34 @@ export function generateTournament(input) {
     });
 
     // Phase 2: Round-Robin + Standings + Tiebreaker pro Gruppe
+    // Optional: Wenn input.matches mitgesendet wird (z.B. wenn die
+    // Route mit schon existierenden DB-Matches re-qualifiziert), wird
+    // der `status` der generierten RR-Matches aus input.matches
+    // übernommen (per ID gemappt). So funktioniert der Pfad
+    // "alle Gruppen-Matches finished → re-qualify": die Engine sieht
+    // alle als 'finished' und baut das Bracket mit echten Teams.
+    const externalMatchesById = new Map(
+      (input.matches ?? []).map((m) => [String(m.id), m])
+    );
     for (let g = 0; g < rawGroups.length; g++) {
       const grpTeams = rawGroups[g];
       const grpTeamIds = grpTeams.map((t) => t.id);
-      const matches = buildRoundRobinMatches(grpTeamIds).map((m, idx) => ({
-        ...m,
-        id: `g_${groupKeys[g]}_${idx + 1}`,
-        stageType: 'group',
-        groupKey: groupKeys[g],
-        groupIndex: g,
-        status: 'scheduled',
-      }));
+      const matches = buildRoundRobinMatches(grpTeamIds).map((m, idx) => {
+        const id = `g_${groupKeys[g]}_${idx + 1}`;
+        const external = externalMatchesById.get(id);
+        return {
+          ...m,
+          id,
+          stageType: 'group',
+          groupKey: groupKeys[g],
+          groupIndex: g,
+          // Wenn ein external Match für diese ID existiert, übernehme
+          // den Status (sonst 'scheduled'). scores werden NICHT
+          // übernommen — computeStandings liest sie direkt aus
+          // input.matches, was hier die externe Quelle ist.
+          status: external?.status ?? 'scheduled',
+        };
+      });
 
       const standingsRows = computeStandings(grpTeamIds, input.matches ?? [], config);
       const { sortedRows, unresolved } = applyTiebreaker(
@@ -121,8 +138,55 @@ export function generateTournament(input) {
   }
 
   // Phase 3: Qualifikation
-  //   - Gruppenphase: aus Standings die Top-N + beste Dritte
   //   - ko_only / double_elim: alle Teams sind Qualifikanten (seed-sortiert)
+  //   - groups_ko + Gruppenphase: NUR wenn ALLE Gruppen-Matches beendet
+  //     sind. Sonst: qualifiers = [].
+  //
+  // BUG-FIX 2026-08-20: Vorher wurden Qualifikanten schon bei GENERATE
+  //   berechnet — zu einem Zeitpunkt, an dem die Standings alle 0 sind
+  //   (es wurde ja noch kein Match gespielt). Der Tiebreaker-Fallback
+  //   "alphabetisch" hat dann die alphabetisch ersten Teams jeder Gruppe
+  //   als "qualifiziert" markiert, und buildBracket hat diese Phantomeams
+  //   in die VF-Slots geschrieben. User-Erlebnis: direkt nach dem
+  //   Generate standen Teams im VF, obwohl noch KEIN Gruppenspiel
+  //   gespielt war. Sobald dann das erste Ergebnis eingetragen wurde,
+  //   blieben die Phantomeams stehen — die KO-Phase wirkte statisch
+  //   und falsch.
+  //
+  //   Fix: Bei groups_ko + Gruppenphase NUR qualifizieren, wenn alle
+  //   Gruppen-Matches beendet sind. Wenn nicht → qualifiers = []. Das
+  //   Bracket wird dann als Skelett mit Platzhaltern gebaut (siehe
+  //   buildBracket). Das automatische Befüllen passiert in routes.js
+  //   /result: sobald das letzte Gruppen-Match gespeichert wird, ruft
+  //   die Route fillKoFromQualifiers() auf und schreibt die jetzt
+  //   bekannten Teams in die Slots.
+  // Phase 3: Qualifikation
+  //   - ko_only / double_elim: alle Teams sind Qualifikanten (seed-sortiert)
+  //   - groups_ko + Gruppenphase: NUR wenn ALLE Gruppen-Matches beendet
+  //     sind. Sonst: qualifiers = [].
+  //
+  // BUG-FIX 2026-08-20: Vorher wurden Qualifikanten schon bei GENERATE
+  //   berechnet — zu einem Zeitpunkt, an dem die Standings alle 0 sind
+  //   (es wurde ja noch kein Match gespielt). Der Tiebreaker-Fallback
+  //   "alphabetisch" hat dann die alphabetisch ersten Teams jeder Gruppe
+  //   als "qualifiziert" markiert, und buildBracket hat diese Phantomeams
+  //   in die VF-Slots geschrieben. User-Erlebnis: direkt nach dem
+  //   Generate standen Teams im VF, obwohl noch KEIN Gruppenspiel
+  //   gespielt war. Sobald dann das erste Ergebnis eingetragen wurde,
+  //   blieben die Phantomeams stehen — die KO-Phase wirkte statisch
+  //   und falsch.
+  //
+  //   Fix: Bei groups_ko + Gruppenphase NUR qualifizieren, wenn alle
+  //   Gruppen-Matches beendet sind. Wenn nicht → qualifiers = []. Das
+  //   Bracket wird dann als Skelett mit Platzhaltern gebaut (siehe
+  //   buildBracket). Das automatische Befüllen passiert in routes.js
+  //   /result: sobald das letzte Gruppen-Match gespeichert wird, ruft
+  //   die Route fillKoFromQualifiers() auf und schreibt die jetzt
+  //   bekannten Teams in die Slots.
+  const allGroupMatchesFinished = !skipGroups && groupStage.every((g) =>
+    (g.matches ?? []).length > 0 && g.matches.every((m) => m?.status === 'finished')
+  );
+
   let qualify;
   if (skipGroups) {
     // Direkt-Qualifikation: jedes Team kommt ins Bracket. Seeds 1..N nach
@@ -143,21 +207,36 @@ export function generateTournament(input) {
       bestThirdsUsed: 0,
     };
   } else {
-    qualify = qualifyAndSeed(
-      {
-        groupStandings: groupStage.map((g) => g.standings),
-        groupKeys,
-      },
-      config,
-    );
+    if (allGroupMatchesFinished) {
+      qualify = qualifyAndSeed(
+        {
+          groupStandings: groupStage.map((g) => g.standings),
+          groupKeys,
+        },
+        config,
+      );
+    } else {
+      // KO-Bracket bleibt Skelett bis alle Gruppen-Matches beendet sind.
+      // buildBracket versteht leere Qualifier und baut die Runden 1..N
+      // ohne Teams, mit Platzhaltern "Sieger VF X" für Folgerunden.
+      qualify = { qualifiers: [], bestThirdsUsed: [] };
+    }
   }
 
   // Phase 4: Bracket (nur wenn Modus KO beinhaltet)
   let bracket = { matches: [], bracketSize: 0, byeSeeds: [], unresolvedConflicts: [] };
   if (config.mode === 'groups_ko' || config.mode === 'ko_only' || config.mode === 'double_elim') {
+    // Wenn die Gruppenphase noch nicht durch ist, übergeben wir einen
+    // bracketSizeHint (= erwartete Qualifikantenzahl), damit buildBracket
+    // ein Skelett mit Platzhaltern bauen kann, statt zu werfen.
+    const expectedQualifiers = skipGroups
+      ? teams.length
+      : config.qualifyPerGroup * numGroups + (config.bestThirds ?? 0);
+    const wantsSkeleton = !skipGroups && !allGroupMatchesFinished;
     bracket = buildBracket(qualify.qualifiers, {
       hasThirdPlacePlayoff: config.hasThirdPlacePlayoff,
       maxTiebreakerDepth: config.maxTiebreakerDepth,
+      bracketSizeHint: wantsSkeleton ? expectedQualifiers : null,
     });
   }
 

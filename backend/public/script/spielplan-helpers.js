@@ -160,10 +160,35 @@ export function renderFilterChips(matches, groups, currentFilter) {
     }
   }
 
-  return chips.map((c) => {
+  // Etappe A2.6 (2026-08-20): Statt alle Chips direkt sichtbar zu
+  // rendern, bauen wir EINEN Filter-Button + Dropdown. Aktive Filter
+  // werden als Chips neben dem Button angezeigt, damit der User die
+  // aktuelle Auswahl auf einen Blick sieht. Das Dropdown selbst enthält
+  // die volle Liste inkl. Counts.
+  const activeChip = chips.find((c) => c.id === currentFilter);
+  const activeLabel = activeChip ? activeChip.label : 'Alle';
+
+  const dropdownItems = chips.map((c) => {
     const active = c.id === currentFilter ? ' is-active' : '';
-    return `<button type="button" class="t-chip${active}" data-filter="${esc(c.id)}" aria-pressed="${active ? 'true' : 'false'}">${esc(c.label)} <span class="count">${c.count}</span></button>`;
+    return `<button type="button" role="menuitem" class="t-filter-item${active}" data-filter="${esc(c.id)}" aria-pressed="${active ? 'true' : 'false'}"><span class="t-filter-item-label">${esc(c.label)}</span><span class="count">${c.count}</span></button>`;
   }).join('');
+
+  const dropdownHtml = `<div class="t-filter-dropdown" data-filter-dropdown hidden>
+    <div class="t-filter-dropdown-inner" role="menu">${dropdownItems}</div>
+  </div>`;
+
+  const activeChipHtml = activeChip
+    ? `<button type="button" class="t-chip is-active" data-filter="${esc(activeChip.id)}" aria-pressed="true">${esc(activeChip.label)} <span class="count">${activeChip.count}</span></button>`
+    : '';
+
+  return `<div class="t-filter-wrap">
+    <button type="button" class="t-filter-trigger" data-action="toggle-filter-dropdown" aria-haspopup="menu" aria-expanded="false">
+      <span class="t-filter-trigger-label">Filter: ${esc(activeLabel)}</span>
+      <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
+    </button>
+    ${dropdownHtml}
+    ${activeChipHtml}
+  </div>`;
 }
 
 /**
@@ -252,14 +277,23 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   // .t-match-score-Elemente mit data-area zur Grid-Positionierung.
   // Der dunkle Hintergrund + helle Ziffern ist die Handschrift des
   // Moduls; "X : Y" als Text war zu generisch.
+  //
+  // Etappe A2 (2026-08-20): Team+Score-Paare sind in .t-match-rows
+  // gewrappt. So bleiben sie im CSS-Grid nebeneinander, während die
+  // Meta-Zeile oben und Action unten auf der vollen Karten-Breite
+  // liegen. Ohne diesen Wrapper wären die Spalten vom Grid gequetscht
+  // worden, weil t-match-team + t-match-score zusammen eine Zeile
+  // bilden sollen (Anzeigetafel-Layout: Name — Score).
   return `
     <div class="t-match${m?.isFinished ? ' t-match--done' : ''}${m?.isLive ? ' t-match--live' : ''}" data-match-id="${esc(m?.id)}">
       <div class="t-match-bar"></div>
       ${metaHtml}
-      <div class="t-match-team${homeIsWinner ? ' is-winner' : ''}">${homeDot}<span class="name">${esc(homeName)}</span></div>
-      <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="home-score">${esc(homeScoreText)}</div>
-      <div class="t-match-team right${awayIsWinner ? ' is-winner' : ''}">${awayDot}<span class="name">${esc(awayName)}</span></div>
-      <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="away-score">${esc(awayScoreText)}</div>
+      <div class="t-match-rows">
+        <div class="t-match-team${homeIsWinner ? ' is-winner' : ''}">${homeDot}<span class="name">${esc(homeName)}</span></div>
+        <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="home-score">${esc(homeScoreText)}</div>
+        <div class="t-match-team right${awayIsWinner ? ' is-winner' : ''}">${awayDot}<span class="name">${esc(awayName)}</span></div>
+        <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="away-score">${esc(awayScoreText)}</div>
+      </div>
       ${actionHtml}
     </div>
   `;
@@ -348,10 +382,12 @@ export function renderMatchCardCompact(m) {
   return `
     <div class="t-match t-match--compact${m?.isFinished ? ' t-match--done' : ''}">
       <div class="t-match-bar"></div>
-      <div class="t-match-team">${homeDot}<span class="name">${esc(homeName)}</span></div>
-      <div class="${scoreClass}" data-area="home-score">${esc(homeScoreText)}</div>
-      <div class="t-match-team right">${awayDot}<span class="name">${esc(awayName)}</span></div>
-      <div class="${scoreClass}" data-area="away-score">${esc(awayScoreText)}</div>
+      <div class="t-match-rows">
+        <div class="t-match-team">${homeDot}<span class="name">${esc(homeName)}</span></div>
+        <div class="${scoreClass}" data-area="home-score">${esc(homeScoreText)}</div>
+        <div class="t-match-team right">${awayDot}<span class="name">${esc(awayName)}</span></div>
+        <div class="${scoreClass}" data-area="away-score">${esc(awayScoreText)}</div>
+      </div>
     </div>
   `;
 }

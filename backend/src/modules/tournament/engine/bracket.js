@@ -86,6 +86,14 @@ function nearestPowerOfTwo(n) {
  * @param {object} [opts]
  * @param {boolean} [opts.hasThirdPlacePlayoff]
  * @param {number}  [opts.maxIter=16]      §13 Constraint #4
+ * @param {number|null} [opts.bracketSizeHint]
+ *   Erwartete Qualifikantenzahl, wenn `qualifiers` leer ist (Skelett-Modus).
+ *   Wenn gesetzt und `qualifiers.length < 2`, wird ein Skelett-Bracket der
+ *   Größe `nearestPowerOfTwo(bracketSizeHint)` gebaut — alle Runden mit
+ *   null-Teams und Platzhaltern ("Sieger VF X"). Das KO-Bracket ist
+ *   dann sichtbar, aber leer, bis die Gruppenphase durch ist und
+ *   `routes.js` /result die Qualifikanten nachpflegt.
+ *
  * @returns {{
  *   matches: Array<{ id, round, bracketPos, teamHome, teamAway, winnerAdvancesTo, loserAdvancesTo,
  *                    homeGroup, awayGroup, source: { pairIndex } }>,
@@ -98,12 +106,17 @@ export function buildBracket(qualifiers, opts = {}) {
   const config = mergeConfig(opts);
   const maxIter = config.maxTiebreakerDepth ?? 16;
   const hasThird = !!config.hasThirdPlacePlayoff;
+  const bracketSizeHint = opts.bracketSizeHint ?? null;
 
-  if (!Array.isArray(qualifiers) || qualifiers.length < 2) {
-    throw new Error('buildBracket: brauche mindestens 2 Qualifikanten');
+  // Bracket-Größe ableiten: aus Qualifier-Anzahl ODER aus Hint (Skelett).
+  const hasQualifiers = Array.isArray(qualifiers) && qualifiers.length >= 2;
+  const useSkeleton = !hasQualifiers && Number.isInteger(bracketSizeHint) && bracketSizeHint >= 2;
+
+  if (!hasQualifiers && !useSkeleton) {
+    throw new Error('buildBracket: brauche mindestens 2 Qualifikanten oder bracketSizeHint >= 2');
   }
 
-  const n = qualifiers.length;
+  const n = hasQualifiers ? qualifiers.length : bracketSizeHint;
   const bracketSize = nearestPowerOfTwo(n);
   const byeCount = bracketSize - n;
 
@@ -114,16 +127,24 @@ export function buildBracket(qualifiers, opts = {}) {
 
   // Setzliste: index = seed - 1
   const seed = Array.from({ length: bracketSize + 1 }, () => null);
-  for (const q of qualifiers) {
-    seed[q.seed] = { ...q };
+  if (hasQualifiers) {
+    for (const q of qualifiers) {
+      seed[q.seed] = { ...q };
+    }
   }
+  // Im Skelett-Modus bleiben alle seed[] = null. buildBracket nutzt
+  // dann die `seed`-Liste als reine Struktur (Runden, Paarungen) — die
+  // Teams in den QF-Matches bleiben null. Folgerunden bekommen ihre
+  // Slots eh erst durch propagation gefüllt.
   for (const s of byeSeeds) {
     seed[s] = { seed: s, teamId: null, name: 'BYE', source: { groupKey: null }, isBye: true };
   }
 
   // Runde-1-Paarungen: erst Standard, dann Konfliktauflösung per Tausch.
   const basePairs = standardPairs(bracketSize);
-  const finalPairs = resolveSameGroupConflicts(basePairs, seed, maxIter);
+  const finalPairs = hasQualifiers
+    ? resolveSameGroupConflicts(basePairs, seed, maxIter)
+    : basePairs; // Skelett: keine Konfliktauflösung nötig (alle null)
 
   // Wenn unresolvedConflicts zurückkommt → wir liefern trotzdem ein Bracket,
   // markieren aber die problematischen Stellen.
@@ -148,6 +169,7 @@ export function buildBracket(qualifiers, opts = {}) {
       homeGroup: a?.source?.groupKey ?? null,
       awayGroup: b?.source?.groupKey ?? null,
       isByeMatch: a?.isBye || b?.isBye,
+      isSkeleton: !hasQualifiers && !a?.isBye && !b?.isBye,
       status: 'scheduled',
       source: { pairIndex: i, original: basePairs[i] },
     }));
@@ -156,16 +178,18 @@ export function buildBracket(qualifiers, opts = {}) {
   // Folge-Match-Verknüpfungen aufbauen
   const linked = linkFollowers(matches, bracketSize, hasThird);
 
-  // unresolvedConflicts: Paare mit gleichem groupKey in nicht-aufgelöstem Zustand
+  // unresolvedConflicts: nur im Nicht-Skelett-Modus relevant.
   const unresolvedConflicts = [];
-  for (const m of linked) {
-    if (m.homeGroup != null && m.homeGroup === m.awayGroup) {
-      unresolvedConflicts.push({
-        matchId: m.id,
-        teamA: m.teamHome,
-        teamB: m.teamAway,
-        group: m.homeGroup,
-      });
+  if (hasQualifiers) {
+    for (const m of linked) {
+      if (m.homeGroup != null && m.homeGroup === m.awayGroup) {
+        unresolvedConflicts.push({
+          matchId: m.id,
+          teamA: m.teamHome,
+          teamB: m.teamAway,
+          group: m.homeGroup,
+        });
+      }
     }
   }
 
@@ -175,6 +199,7 @@ export function buildBracket(qualifiers, opts = {}) {
     byeSeeds,
     unresolvedConflicts,
     hasThirdPlacePlayoff: hasThird,
+    isSkeleton: useSkeleton && byeSeeds.length === 0, // komplettes Skelett ohne BYE
   };
 }
 

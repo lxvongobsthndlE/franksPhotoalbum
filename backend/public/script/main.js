@@ -3010,7 +3010,31 @@ function bindSpielplanInteractions(t) {
   section.dataset.bound = '1';
 
   section.addEventListener('click', (e) => {
-    // Filter-Chip
+    // Filter-Trigger (Etappe A2.6, 2026-08-20): öffnet/schließt das
+    // Dropdown, in dem alle Filter zur Auswahl stehen.
+    const trigger = e.target.closest('[data-action="toggle-filter-dropdown"]');
+    if (trigger && section.contains(trigger)) {
+      const dropdown = trigger.parentElement.querySelector('[data-filter-dropdown]');
+      if (!dropdown) return;
+      const isOpen = !dropdown.hasAttribute('hidden');
+      if (isOpen) {
+        dropdown.setAttribute('hidden', '');
+        trigger.setAttribute('aria-expanded', 'false');
+      } else {
+        dropdown.removeAttribute('hidden');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+      return;
+    }
+    // Filter-Item im Dropdown: setzt den aktiven Filter + schließt das
+    // Dropdown + re-rendert.
+    const item = e.target.closest('.t-filter-item[data-filter]');
+    if (item && section.contains(item)) {
+      currentSpielplanFilter = item.dataset.filter;
+      renderSpielplan(t);
+      return;
+    }
+    // Aktiver Filter-Chip neben dem Trigger: gleicher Eff wie Dropdown-Item.
     const chip = e.target.closest('.t-chip[data-filter]');
     if (chip && section.contains(chip)) {
       currentSpielplanFilter = chip.dataset.filter;
@@ -3049,6 +3073,24 @@ function bindSpielplanInteractions(t) {
       return;
     }
   });
+
+  // Click-Outside schließt das Filter-Dropdown (Etappe A2.6, 2026-08-20).
+  // Wir binden genau EINEN document-Listener, der alle offenen
+  // Dropdowns schließt, wenn der Klick nicht innerhalb eines
+  // .t-filter-wrap landet. Idempotent über `data-bound`-Flag.
+  if (!section.dataset.clickOutsideBound) {
+    section.dataset.clickOutsideBound = '1';
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.t-filter-wrap')) {
+        section.querySelectorAll('[data-filter-dropdown]').forEach((dd) => {
+          dd.setAttribute('hidden', '');
+        });
+        section.querySelectorAll('[data-action="toggle-filter-dropdown"]').forEach((tr) => {
+          tr.setAttribute('aria-expanded', 'false');
+        });
+      }
+    });
+  }
 }
 
 /**

@@ -292,14 +292,38 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
   it('advancePerGroup=1 + bestThirds=2 (12 Teams / 3 Gruppen) → 5 Qualifikanten', () => {
     // 3 Gruppen × 1 + 2 beste Dritte = 5 Qualifikanten
     // 12 Teams / 3 Gruppen = 4 pro Gruppe
+    //
+    // BUG-FIX 2026-08-20: Mit Bug 2 (KO-Skelett) qualifiziert die Engine
+    // NUR, wenn alle Gruppen-Matches als 'finished' übergeben werden.
+    // Wir simulieren das, indem wir zuerst die RR-Match-IDs aus einem
+    // Skeleton-Aufruf lesen und dann alle als finished mit Top-Score (2:1)
+    // zurückgeben.
     const cfg = defaultConfig12({
       numGroups: 3,
       qualifyPerGroup: 1,
       bestThirds: 2,
     });
+    const skeleton = generateTournament({
+      teams: teams12,
+      config: cfg,
+      baseDate: '2026-09-05',
+    });
+    const allGroupMatches = skeleton.groups.flatMap((g) =>
+      g.matches.map((m, idx) => ({
+        id: m.id,
+        stageType: 'group',
+        groupKey: g.groupKey,
+        teamHome: m.teamHome,
+        teamAway: m.teamAway,
+        scoreHome: 2,
+        scoreAway: 1,
+        status: 'finished',
+      }))
+    );
     const out = generateTournament({
       teams: teams12,
       config: cfg,
+      matches: allGroupMatches,
       baseDate: '2026-09-05',
     });
     expect(out.qualifiers).toHaveLength(5);
