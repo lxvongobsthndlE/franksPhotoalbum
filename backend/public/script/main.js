@@ -5283,24 +5283,23 @@ async function openTournamentStandings(instanceId) {
 }
 
 async function deleteTournamentInstance(instanceId, instanceName) {
-  const ok = await showConfirmDlg(
-    'Turnier löschen',
-    `${instanceName || 'Dieses Turnier'} wirklich löschen?`,
-    'Löschen',
-    'Abbrechen',
-    true
-  );
-  if (!ok) return;
+  // P2 (2026-08-24): Vorheriger showConfirmDlg hatte kein Texteingabe-
+  // Feld — bei bereits abgeschlossenen Turnieren antwortet der Server
+  // 409 `delete_locked_results_present` (Spec §13.10). Wir verwenden
+  // jetzt openConfirmDialog mit expectedName, das denselben Handshake
+  // wie deleteTournamentWithConfirm macht.
+  const dlg = await openConfirmDialog({
+    title: 'Turnier löschen',
+    message:
+      `Turnier "${instanceName || 'ohne Namen'}" wird vollständig gelöscht — ` +
+      'inklusive aller Teams, Gruppen, Spiele und Ergebnisse. ' +
+      'Dieser Schritt ist nicht umkehrbar.\n\nTippe zur Bestätigung den Turniernamen:',
+    expectedName: instanceName || '',
+    confirmLabel: 'Turnier löschen',
+  });
+  if (dlg.cancelled) return;
 
-  try {
-    // v3: flache Route
-    await apiCall(`/tournaments/${encodeURIComponent(instanceId)}`, 'DELETE');
-    if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
-    toast('Turnier gelöscht', 'success');
-    await loadTournamentInstances(true);
-  } catch (e) {
-    toast(e.serverMessage || 'Turnier konnte nicht gelöscht werden', 'error');
-  }
+  await deleteTournamentWithConfirm(instanceId, instanceName, dlg.typedName);
 }
 
 // ──────────────────────────────────────────────────────────────────────
