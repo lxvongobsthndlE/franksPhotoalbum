@@ -52,6 +52,11 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   'reschedule',
   'reset-results',
   'delete-tournament',
+  // P3 (2026-08-24): Fallback aus dem Baum-Tab für „K.-o.-Phase
+  // starten". Wird per openConfirmDialog / direkter API-Call gehandhabt
+  // und ist isAdmin-gegated (loadBracketTab prüft tournament.isAdmin
+  // BEVOR der Button gerendert wird).
+  'start-ko-phase',
 ]);
 
 // Safe-Actions, die auch für isAdmin=false sichtbar bleiben dürfen.

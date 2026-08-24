@@ -3442,10 +3442,66 @@ async function loadBracketTab(tournamentId) {
     }
     mount.innerHTML = renderer(matches);
     wireBracketTabs(mount);  // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
+
+    // P3 (2026-08-24): Fallback-Button „K.-o.-Phase starten". Wenn der
+    // Bracket-View leer ist, alle Gruppenspiele finished sind UND der
+    // Modus groups_ko ist, kann der Admin den Auto-Fill manuell triggern.
+    // Sichtbar nur für Admins — Mitglieder sehen den leeren Bracket
+    // weiterhin still.
+    const tournament = activeTournamentInstance;
+    if (
+      matches.length === 0
+      && tournament?.isAdmin === true
+      && tournament?.config?.mode === 'groups_ko'
+    ) {
+      wireFillKoButton(mount, tournament);
+    }
   } catch (e) {
     mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
     toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
   }
+}
+
+/**
+ * P3 (2026-08-24): Hängt einen Fallback-Button „K.-o.-Phase starten" an
+ * die Bracket-Mount, wenn der automatische maybeFillKoFromGroupFinish-
+ * Trigger nicht gegriffen hat (z.B. weil die Gruppenphase schon vor
+ * diesem Fix abgeschlossen wurde). Click → POST /:id/fill-ko →
+ * Re-Render des Brackets.
+ */
+function wireFillKoButton(mount, tournament) {
+  if (!mount || !tournament) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 't-btn t-btn--primary';
+  btn.dataset.action = 'start-ko-phase';
+  btn.textContent = 'K.-o.-Phase starten';
+  const wrap = document.createElement('div');
+  wrap.className = 't-fill-ko-cta';
+  wrap.appendChild(btn);
+  mount.prepend(wrap);
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Fülle K.-o.-Phase…';
+    try {
+      await apiCall(
+        `/tournaments/${encodeURIComponent(tournament.id)}/fill-ko`,
+        'POST'
+      );
+      toast('K.-o.-Phase gefüllt', 'success');
+      await openTournamentInstance(tournament.id);
+    } catch (e) {
+      toast(
+        e?.serverMessage
+          || (e?.status === 409 && /group_phase_not_complete/.test(e.message))
+            ? 'Gruppenphase ist noch nicht abgeschlossen.'
+            : 'K.-o.-Phase konnte nicht gefüllt werden',
+        'error',
+      );
+      btn.disabled = false;
+      btn.textContent = 'K.-o.-Phase starten';
+    }
+  });
 }
 
 /**

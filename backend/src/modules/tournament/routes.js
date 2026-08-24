@@ -1484,6 +1484,69 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
+  // POST /api/tournaments/:id/fill-ko — K.-o.-Phase manuell aus Gruppen-
+  // ergebnissen füllen (P3, User-Liste 2026-08-24). Fallback für den
+  // Fall, dass maybeFillKoFromGroupFinish nicht greift (z.B. weil die
+  // Gruppenphase schon vor diesem Fix abgeschlossen wurde). Auth: Admin.
+  // Lock: nur sinnvoll, wenn alle Gruppen-Matches finished sind UND die
+  // KO-Matches noch leer sind.
+  fastify.post('/:id/fill-ko', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+      const config = mergeConfig(ctx.tournament.config ?? {});
+      if (config.mode !== 'groups_ko') {
+        return reply.code(400).send({
+          error: 'mode_not_groups_ko',
+          message: 'Diese Aktion ist nur im groups_ko-Modus sinnvoll.',
+        });
+      }
+      const groupMatches = await fastify.prisma.match.findMany({
+        where: { tournamentId: ctx.tournament.id, stageType: 'group' },
+        select: { id: true, status: true },
+      });
+      if (groupMatches.length === 0) {
+        return reply.code(400).send({
+          error: 'no_group_matches',
+          message: 'Es gibt keine Gruppenspiele in diesem Turnier.',
+        });
+      }
+      const allDone = groupMatches.every((m) => m.status === 'finished');
+      if (!allDone) {
+        return reply.code(409).send({
+          error: 'group_phase_not_complete',
+          message: 'Gruppenphase ist noch nicht abgeschlossen.',
+        });
+      }
+
+      const result = await fastify.prisma.$transaction(async (tx) =>
+        fillKoFromQualifiers(tx, ctx)
+      );
+      if (!result.filled) {
+        return reply.code(409).send({
+          error: 'fill_ko_failed',
+          message: 'KO-Bracket konnte nicht gefüllt werden.',
+          reason: result.reason ?? 'unknown',
+        });
+      }
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+      return {
+        ok: true,
+        updatedCount: result.updatedCount,
+        qualifiers: result.qualifiers,
+        matches: view.matches,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'KO-Phase konnte nicht gestartet werden');
+    }
+  });
+
   // PATCH /api/tournaments/:id/fields — Spielfelder konfigurieren (Admin)
   //
   // Etappe B.7 (Anmerkung 4): Anzahl UND Namen der Spielfelder sind
@@ -2733,8 +2796,13 @@ async function maybeFillKoFromGroupFinish(tx, ctx, justSavedMatch) {
 
   // Alle Gruppen-Matches dieses Turniers lesen — wenn auch nur eines
   // noch nicht finished ist, ist die Gruppenphase noch nicht durch.
+  // P3 (2026-08-24): Match hat KEIN stageType-Feld; die Klassifikation
+  // lebt auf Stage.type. Wir laden die Stage-Relation mit.
   const groupMatches = await tx.match.findMany({
-    where: { tournamentId: ctx.tournament.id, stageType: 'group' },
+    where: {
+      tournamentId: ctx.tournament.id,
+      stage: { type: 'group' },
+    },
     select: { id: true, status: true },
   });
   if (groupMatches.length === 0) {
@@ -2780,12 +2848,19 @@ async function fillKoFromQualifiers(tx, ctx) {
 
   if (mode !== 'groups_ko') return { filled: false, reason: 'mode_not_groups_ko' };
 
-  const teams = await tx.team.findMany({ where: { tournamentId: tournament.id } });
+  // P3 (2026-08-24): Wir brauchen die echten Team-Namen für die
+  // Qualifikanten-Auflösung. Prisma-Modell heißt TournamentTeam
+  // (Tabellen-Name tournament_teams), NICHT team.
+  const teams = await tx.tournamentTeam.findMany({
+    where: { tournamentId: tournament.id },
+  });
   if (teams.length < 2) return { filled: false, reason: 'no_teams' };
 
-  const groupsRaw = await tx.group.findMany({
+  // Gruppen-Modell heißt Group_ (Tabellen-Name groups_, weil Group mit
+  // Prisma-Multi-Schema kollidiert) — Zugriff via prisma.group_.
+  const groupsRaw = await tx.group_.findMany({
     where: { tournamentId: tournament.id },
-    include: { members: true },
+    include: { memberships: { include: { team: true } } },
   });
   if (groupsRaw.length < 1) return { filled: false, reason: 'no_groups' };
 
@@ -2794,12 +2869,21 @@ async function fillKoFromQualifiers(tx, ctx) {
   );
   const groupKeys = sortedGroups.map((g) => g.key);
 
-  const allMatches = await tx.match.findMany({ where: { tournamentId: tournament.id } });
+  // P3 (2026-08-24): Wir laden Matches MIT der Stage-Relation, damit wir
+  // group-vs-ko unterscheiden können. Match hat selbst KEIN stageType-
+  // Feld — die Klassifikation lebt auf Stage.type ('group' | 'ko' | …).
+  const allMatches = await tx.match.findMany({
+    where: { tournamentId: tournament.id },
+    include: { stage: { select: { type: true } } },
+  });
 
   const groupStandings = sortedGroups.map((g) => {
-    const memberTeamIds = g.members.map((m) => m.teamId);
+    // Prisma liefert uns die GroupMemberships unter dem Feldnamen
+    // `memberships` (Schema-Mapping: group_memberships). Jede Membership
+    // hält eine teamId und (per include) das aufgelöste Team-Objekt.
+    const memberTeamIds = g.memberships.map((m) => m.teamId);
     const rawGroupRows = allMatches.filter(
-      (m) => m.groupId === g.id && m.stageType === 'group'
+      (m) => m.groupId === g.id && m.stage?.type === 'group'
     );
     const standings = computeStandings(memberTeamIds, rawGroupRows, config);
     const { sortedRows } = applyTiebreaker(
@@ -2820,10 +2904,17 @@ async function fillKoFromQualifiers(tx, ctx) {
     maxTiebreakerDepth: config.maxTiebreakerDepth,
   });
 
-  const existingKo = allMatches.filter((m) => m.stageType === 'ko');
+  const existingKo = allMatches.filter((m) => m.stage?.type === 'ko');
   let updatedCount = 0;
   for (const fresh of newBracket.matches) {
-    const dbMatch = existingKo.find((m) => m.id === fresh.id);
+    // Wir matchen NICHT über fresh.id (das ist die Engine-ID aus
+    // buildBracket, z.B. "ko_QF_1"), sondern über (round, bracketPos)
+    // — das sind die stabilen Identifier, die persist.js beim ersten
+    // Schreiben in die DB schreibt. Ohne diesen Fix war die Suche
+    // immer leer und updatedCount blieb 0.
+    const dbMatch = existingKo.find(
+      (m) => m.round === fresh.round && m.bracketPos === fresh.bracketPos,
+    );
     if (!dbMatch) continue;
     if (
       dbMatch.teamHome !== fresh.teamHome ||
@@ -2834,7 +2925,7 @@ async function fillKoFromQualifiers(tx, ctx) {
       dbMatch.awayGroup !== fresh.awayGroup
     ) {
       await tx.match.update({
-        where: { id: fresh.id },
+        where: { id: dbMatch.id },
         data: {
           teamHome: fresh.teamHome,
           teamAway: fresh.teamAway,
