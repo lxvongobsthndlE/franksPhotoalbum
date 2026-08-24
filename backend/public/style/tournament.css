@@ -339,9 +339,16 @@
 
   /* Sidebar aus, Bottom-Bar an — keine zwei parallelen Leisten. */
   .t-mod-nav { display: none; }
+}
 
-  /* Hauptbereich: Padding-Bottom, damit der letzte Inhalt nicht unter
-     der fixierten Bar verschwindet. */
+/* Hauptbereich: Padding-Bottom für die fixierte Bottom-Bar.
+   WICHTIG: Diese Regel MUSS nach dem @media-Block weiter unten kommen,
+   weil .t-mod-main dort als Shorthand `padding: var(--s4) var(--s3)`
+   gesetzt wird — bei gleicher Spezifität gewinnt Source-Order, und
+   ohne diese Position würde der mobile Shorthand das padding-bottom
+   wieder auf var(--s4) zurücksetzen und die letzte Zeile unter der
+   Bar verschwinden. (Bug-Fix 2026-08-24 nach Browser-Screenshot.) */
+@container (max-width: 600px) {
   .t-mod-main {
     padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--s4));
   }
@@ -432,6 +439,8 @@
 }
 .t-mod-more-list svg {
   flex: none;
+  width: 22px;
+  height: 22px;
   color: var(--ink-soft);
 }
 .t-mod-more-list button.is-active svg { color: var(--accent); }

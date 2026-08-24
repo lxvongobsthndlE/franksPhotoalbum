@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bottom-Bar Lucide-Test</title>
+  <link rel="stylesheet" href="./style/main.css" />
+  <link rel="stylesheet" href="./style/tournament.css" />
+  <style>
+    body { margin: 0; background: var(--paper, #FAF7F1); font-family: inherit; }
+    .viewport-frame { width: 390px; height: 200px; border: 1px solid red; margin: 16px; }
+    .viewport-frame h3 { margin: 0 8px; font-size: 11px; color: #888; }
+    /* No-overflow Variante: passt genau in den Viewport */
+    .t-mod-direct { width: 390px; height: 250px; border: 1px solid blue; margin: 16px 0; }
+  </style>
+</head>
+<body>
+
+<div class="viewport-frame">
+  <h3>390 × 200 — Bottom-Bar mit 4 Lucide-Icons</h3>
+  <div class="t-mod" style="height: 100%;">
+    <header class="t-mod-header">
+      <div class="t-logo">🏆</div>
+      <div class="t-mod-header-info">
+        <div class="t-mod-header-text"><div class="t-title">Sommer-Cup 2026</div></div>
+      </div>
+    </header>
+    <div class="t-mod-tabs" id="t-tabs" role="tablist">
+      <button type="button" class="t-mod-tab is-active" data-view="spielplan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg>
+        <span>Spiele</span>
+      </button>
+      <button type="button" class="t-mod-tab" data-view="gruppen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+        <span>Gruppen</span>
+      </button>
+      <button type="button" class="t-mod-tab" data-view="baum">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>
+        <span>Baum</span>
+      </button>
+      <button type="button" class="t-mod-tab" data-action="open-more-menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+        <span>Mehr</span>
+      </button>
+    </div>
+    <div class="t-shell"><main class="t-mod-main">
+      <section class="t-view is-active" data-view="spielplan">
+        <div class="t-card"><div class="t-card-body" style="padding: 12px;">
+          Inhalt über der Bar — muss komplett sichtbar sein.
+        </div></div>
+      </section>
+    </main></div>
+  </div>
+</div>
+
+</body>
+</html>
