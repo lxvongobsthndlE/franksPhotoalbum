@@ -31,6 +31,13 @@ import {
   renderBestThirdsTable,
 } from './spielplan-helpers.js';
 import { renderRulesParagraphs } from './rules-helpers.js';
+import {
+  renderSpielplanSectionHead,
+  renderRegelnSectionHead,
+  renderEinstellungenSection,
+  renderDetailSidebar,
+  filterMemberViews,
+} from './tournament-render.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -118,6 +125,7 @@ let feedPosts = [];
 let feedSkip = 0;
 let feedHasMore = false;
 let tournamentInstances = [];
+let currentTournamentListIsAdmin = false;
 let activeTournamentInstance = null;
 let curTournamentView = 'instances';
 let curTournamentTab = 'overview';
@@ -2325,6 +2333,9 @@ async function loadTournamentInstances(reset = false) {
     tournamentInstances = Array.isArray(instanceData?.tournaments)
       ? instanceData.tournaments
       : [];
+    // P1 (2026-08-24, User-Liste): server-derived isAdmin pro Turnier
+    // cachen — renderTournamentInstancesPage braucht es für die Müll-Buttons.
+    currentTournamentListIsAdmin = instanceData?.isAdmin === true;
     // Module ist aktiv — Cache-Flag setzen
     if (typeof window !== 'undefined') window.__tournamentModuleEnabled = true;
 
@@ -2380,7 +2391,12 @@ function renderTournamentInstancesPage() {
   if (!grid) return;
 
   grid.className = 'grid tournaments-grid';
-  const canManageInstances = canManageTournamentPresetsInCurrentGroup();
+  // P1 (2026-08-24, User-Liste): server-derived isAdmin statt
+  // canManageTournamentPresetsInCurrentGroup(). Beide decken sich
+  // inhaltlich, aber isAdmin ist die maßgebliche Quelle für die
+  // Render-Gates — und matcht mit dem serverseitigen
+  // requireTournamentWrite-Check 1:1.
+  const canManageInstances = currentTournamentListIsAdmin;
   // v3-Phasen-Buckets in fester Reihenfolge (TOURNAMENT_PHASE_ORDER
   // aus tournament.js). Unbekannte Status landen in 'other'
   // ("Sonstige") — siehe Spec §13.5 "Keine stillen Annahmen".
@@ -2733,7 +2749,11 @@ function renderTournamentInstanceDetailV3(t) {
       barPrimary = ['spielplan', 'gruppen', 'baum'];
     }
     const allViews = Object.keys(tabIcons);
-    const sheetViews = allViews.filter((v) => !barPrimary.includes(v));
+    // P1 (2026-08-24, User-Liste): Mitglieder sehen kein Einstellungen-Tab.
+    // Sidebar / Bottom-Bar / Sheet filtern die View raus, sobald !isAdmin.
+    // Logik liegt in tournament-render.js, damit sie testbar ist.
+    const memberViews = filterMemberViews({ allViews, isAdmin });
+    const sheetViews = memberViews.filter((v) => !barPrimary.includes(v));
 
     const barButtonsHtml = barPrimary.map((v, i) => {
       const cfg = tabIcons[v];
@@ -2834,25 +2854,10 @@ function renderTournamentInstanceDetailV3(t) {
           </div>
         </div>
         <div class="t-shell">
-          <nav class="t-mod-nav" id="t-nav" aria-label="Turnier-Ansichten">
-            <button type="button" class="is-active" data-view="spielplan">Spielplan <span class="count" id="cnt-matches"></span></button>
-            <button type="button" data-view="gruppen">Gruppen</button>
-            <button type="button" data-view="baum">Turnierbaum</button>
-            <button type="button" data-view="teams">Teams</button>
-            <button type="button" data-view="regeln">Regeln</button>
-            <button type="button" data-view="drucken">Drucken</button>
-            <button type="button" data-view="einstellungen">Einstellungen</button>
-          </nav>
+          ${renderDetailSidebar({ isAdmin })}
           <main class="t-mod-main">
             <section class="t-view is-active" data-view="spielplan" data-tournament-id="${esc(t.id)}">
-              <div class="t-view-head">
-                <div class="t-view-title">Spielplan</div>
-                <div class="spacer"></div>
-                ${isAdmin ? '<button type="button" class="t-btn t-btn--ghost" data-action="toggle-schedule-edit" title="Zeit und Platte pro Spiel ändern — Achtung: bei laufenden Spielen gesperrt">Bearbeiten</button>' : ''}
-                ${isAdmin ? '<button type="button" class="t-btn t-btn--primary" data-action="enter-result-pick">Ergebnis eintragen</button>' : ''}
-              </div>
-              <div class="t-toolbar" id="t-filters"></div>
-              <div class="t-card"><div class="t-card-body" id="t-schedule-list"></div></div>
+              ${renderSpielplanSectionHead({ isAdmin, t })}
             </section>
             <section class="t-view" data-view="gruppen">
               <div class="t-view-head"><div class="t-view-title">Gruppen</div></div>
@@ -2870,21 +2875,15 @@ function renderTournamentInstanceDetailV3(t) {
               <div data-tab-body="teams-mount"></div>
             </section>
             <section class="t-view" data-view="regeln">
-              <div class="t-view-head">
-                <div class="t-view-title">Regeln</div>
-                <div class="spacer"></div>
-                ${isAdmin ? '<button type="button" class="t-btn t-btn--ghost" data-action="edit-rules">Bearbeiten</button>' : ''}
-              </div>
+              ${renderRegelnSectionHead({ isAdmin })}
+            </section>
               <div data-tab-body="regeln-mount"></div>
             </section>
             <section class="t-view" data-view="drucken">
               <div class="t-view-head"><div class="t-view-title">Drucken</div></div>
               ${placeholder('Die Druckansicht', 'Kommt in Etappe B.6.')}
             </section>
-            <section class="t-view" data-view="einstellungen">
-              <div class="t-view-head"><div class="t-view-title">Einstellungen</div></div>
-              <div data-tab-body="einstellungen-mount"></div>
-            </section>
+            ${renderEinstellungenSection({ isAdmin })}
           </main>
           <aside class="t-mod-aside">
             <div class="t-aside-block">
