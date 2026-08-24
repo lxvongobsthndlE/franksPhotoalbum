@@ -60,10 +60,12 @@ describe('renderBestThirdsTable', () => {
     // die separate Mark-Spalte ist weg — der Quali-Haken hängt jetzt
     // per ::after an der Rank-Zelle, damit alle Tabellen (Gruppe +
     // Dritte) dieselbe Spaltenaufteilung haben.
+    // P2 (2026-08-24): TH haben jetzt zusätzlich data-col-Attribute
+    // für Container-Query-Hide auf Mobile.
     const headerMatch = html.match(/<thead>[\s\S]*?<\/thead>/);
     expect(headerMatch).toBeTruthy();
     expect(headerMatch[0]).toMatch(
-      /<th class="is-rank">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-group">Gruppe<\/th>[\s\S]*<th class="is-num">Sp\.<\/th>[\s\S]*<th class="is-num">S<\/th>[\s\S]*<th class="is-num">U<\/th>[\s\S]*<th class="is-num">N<\/th>[\s\S]*<th class="is-num">Becher<\/th>[\s\S]*<th class="is-num">Diff<\/th>[\s\S]*<th class="is-num">Pkt\.<\/th>/,
+      /<th class="is-rank"\s+data-col="pl">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-group"\s+data-col="group">Gruppe<\/th>[\s\S]*<th class="is-num"\s+data-col="played">Sp\.<\/th>[\s\S]*<th class="is-num"\s+data-col="won">S<\/th>[\s\S]*<th class="is-num"\s+data-col="drawn">U<\/th>[\s\S]*<th class="is-num"\s+data-col="lost">N<\/th>[\s\S]*<th class="is-num"\s+data-col="score">Becher<\/th>[\s\S]*<th class="is-num"\s+data-col="diff">Diff<\/th>[\s\S]*<th class="is-num"\s+data-col="points">Pkt\.<\/th>/,
     );
   });
 
@@ -96,9 +98,10 @@ describe('renderBestThirdsTable', () => {
   it('zeigt Gruppenzugehörigkeit (groupKey)', () => {
     const html = renderBestThirdsTable(sample);
     // Bug 13: User-Vorschlag — „plus Gruppenzugehörigkeit"
-    expect(html).toMatch(/<td class="t-thirds-group">A<\/td>/);
-    expect(html).toMatch(/<td class="t-thirds-group">B<\/td>/);
-    expect(html).toMatch(/<td class="t-thirds-group">C<\/td>/);
+    // P2 (2026-08-24): data-col="group" hinzugefügt für CSS-Hide.
+    expect(html).toMatch(/<td class="t-thirds-group"\s+data-col="group">A<\/td>/);
+    expect(html).toMatch(/<td class="t-thirds-group"\s+data-col="group">B<\/td>/);
+    expect(html).toMatch(/<td class="t-thirds-group"\s+data-col="group">C<\/td>/);
   });
 
   it('Top-N bekommen is-qualified, Rest is-out', () => {
@@ -147,9 +150,10 @@ describe('renderBestThirdsTable', () => {
 
   it('zeigt die Rank-Spalte mit Position 1, 2, 3, … (auch bei 0-basierten Rows)', () => {
     const html = renderBestThirdsTable(sample);
-    expect(html).toMatch(/<td class="t-thirds-rank">1\./);
-    expect(html).toMatch(/<td class="t-thirds-rank">2\./);
-    expect(html).toMatch(/<td class="t-thirds-rank">3\./);
+    // P2 (2026-08-24): data-col="pl" hinzugefügt für CSS-Hide.
+    expect(html).toMatch(/<td class="t-thirds-rank"\s+data-col="pl">1\./);
+    expect(html).toMatch(/<td class="t-thirds-rank"\s+data-col="pl">2\./);
+    expect(html).toMatch(/<td class="t-thirds-rank"\s+data-col="pl">3\./);
   });
 
   it('HTML-Escape für Teamnamen', () => {
@@ -189,7 +193,8 @@ describe('renderBestThirdsTable', () => {
       ],
     });
     expect(html).toContain('+4');
-    expect(html).toMatch(/<td class="t-thirds-num">0<\/td>/); // zero diff: kein +
+    // P2 (2026-08-24): data-col="diff" hinzugefügt für CSS-Hide.
+    expect(html).toMatch(/<td class="t-thirds-num"\s+data-col="diff">0<\/td>/); // zero diff: kein +
     expect(html).toContain('-4');
   });
 });

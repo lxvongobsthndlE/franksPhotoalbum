@@ -570,22 +570,22 @@ export function renderBestThirdsTable(bestThirds) {
       const ga = r.goalsAgainst ?? 0;
       const gd = r.goalDiff ?? (gf - ga);
       return `<tr class="t-thirds-row${qualifies ? ' is-qualified' : ' is-out'}">
-        <td class="t-thirds-rank">${i + 1}.</td>
+        <td class="t-thirds-rank"  data-col="pl">${i + 1}.</td>
         <td class="t-thirds-team">${esc(r.name || r.teamId || '—')}</td>
-        <td class="t-thirds-group">${esc(r.groupKey || '—')}</td>
-        <td class="t-thirds-num">${r.played ?? 0}</td>
-        <td class="t-thirds-num">${r.won ?? 0}</td>
-        <td class="t-thirds-num">${r.drawn ?? 0}</td>
-        <td class="t-thirds-num">${r.lost ?? 0}</td>
-        <td class="t-thirds-num">${gf}:${ga}</td>
-        <td class="t-thirds-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}">${fmtDiff(gd)}</td>
-        <td class="t-thirds-num is-points">${r.points ?? 0}</td>
+        <td class="t-thirds-group" data-col="group">${esc(r.groupKey || '—')}</td>
+        <td class="t-thirds-num"   data-col="played">${r.played ?? 0}</td>
+        <td class="t-thirds-num"   data-col="won">${r.won ?? 0}</td>
+        <td class="t-thirds-num"   data-col="drawn">${r.drawn ?? 0}</td>
+        <td class="t-thirds-num"   data-col="lost">${r.lost ?? 0}</td>
+        <td class="t-thirds-num"   data-col="score">${gf}:${ga}</td>
+        <td class="t-thirds-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}" data-col="diff">${fmtDiff(gd)}</td>
+        <td class="t-thirds-num is-points" data-col="points">${r.points ?? 0}</td>
       </tr>`;
     })
     .join('');
 
   const mixedNote = mixedGroupSizes
-    ? `<p class="t-hint">Rangfolge nach Punkten pro Spiel (Spec §10.4) — die Gruppen sind unterschiedlich groß, daher sind die absoluten Zahlen nicht direkt vergleichbar.</p>`
+    ? `<p class="t-hint t-hint--compact">Gruppen unterschiedlich groß — gewertet wird pro Spiel.</p>`
     : '';
 
   return `<div class="t-card t-thirds-card">
@@ -596,16 +596,16 @@ export function renderBestThirdsTable(bestThirds) {
         ${renderColgroup(THIRDS_COL_WIDTHS)}
         <thead>
           <tr>
-            <th class="is-rank">Pl.</th>
+            <th class="is-rank"  data-col="pl">Pl.</th>
             <th class="is-team">Team</th>
-            <th class="is-group">Gruppe</th>
-            <th class="is-num">Sp.</th>
-            <th class="is-num">S</th>
-            <th class="is-num">U</th>
-            <th class="is-num">N</th>
-            <th class="is-num">Becher</th>
-            <th class="is-num">Diff</th>
-            <th class="is-num">Pkt.</th>
+            <th class="is-group" data-col="group">Gruppe</th>
+            <th class="is-num"   data-col="played">Sp.</th>
+            <th class="is-num"   data-col="won">S</th>
+            <th class="is-num"   data-col="drawn">U</th>
+            <th class="is-num"   data-col="lost">N</th>
+            <th class="is-num"   data-col="score">Becher</th>
+            <th class="is-num"   data-col="diff">Diff</th>
+            <th class="is-num"   data-col="points">Pkt.</th>
           </tr>
         </thead>
         <tbody>${body}</tbody>

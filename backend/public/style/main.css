@@ -5781,6 +5781,11 @@ button.tournament-header-btn {
   padding: 6px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;            /* P2 (2026-08-24): kein Wort-Umbruch in
+                                     schmalen %-Spalten — sonst laufen die
+                                     Überschriften GRUPPE/SP. zu GRUSPE ineinander. */
+  overflow: hidden;
+  text-overflow: ellipsis;        /* lange Werte als … kürzen statt umbrechen */
 }
 .t-standings-table th,
 .t-thirds-table th {
@@ -5834,6 +5839,28 @@ button.tournament-header-btn {
 .t-standings-table .t-standings-num,
 .t-thirds-table .t-thirds-num { width: 8%; }
 .t-thirds-table .t-thirds-mark { width: 32px; }
+
+/* P2 (2026-08-24) — Schmale Modul-Breite (Mobile): 5 unkritische
+   Spalten der Dritten-Tabelle ausblenden, damit die wichtigen Werte
+   (Pl. · Team · Gruppe · Diff · Pkt.) Platz haben. User-Forderung
+   nach Browser-Test: GRUPPE/SP. und BECHER/DIFF überlappten bei
+   360–430 px Modulbreite. Spalten haben data-col-Attribute (siehe
+   spielplan-helpers.js renderBestThirdsTable), dieser Query blendet
+   sie vollständig aus. */
+@container (max-width: 430px) {
+  .t-thirds-table th[data-col="played"],
+  .t-thirds-table th[data-col="won"],
+  .t-thirds-table th[data-col="drawn"],
+  .t-thirds-table th[data-col="lost"],
+  .t-thirds-table th[data-col="score"],
+  .t-thirds-table td[data-col="played"],
+  .t-thirds-table td[data-col="won"],
+  .t-thirds-table td[data-col="drawn"],
+  .t-thirds-table td[data-col="lost"],
+  .t-thirds-table td[data-col="score"] { display: none; }
+
+  .t-thirds-table .t-thirds-team { font-size: 13px; }
+}
 /* Qualifikations-Marker:
    Bug 14: vorher gab es pro Reihe bis zu 3 Symbole (Stern/Pfeil + Zahl +
    Häkchen-::after). Reduziert auf: Rank-Zahl + Häkchen daneben. Die

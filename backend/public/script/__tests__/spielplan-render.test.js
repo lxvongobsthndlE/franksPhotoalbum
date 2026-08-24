@@ -37,6 +37,7 @@ import {
   renderMatchList,
   renderAsideNext,
   renderAsideTables,
+  renderBestThirdsTable,
 } from '../spielplan-helpers.js';
 
 // ── Hilfsfabrik: minimaler Match-Stub, der zu den Feldern passt,
@@ -520,5 +521,88 @@ describe('renderAsideTables', () => {
 
   it('null → "Keine Platten verplant" (defensiv)', () => {
     expect(renderAsideTables(null)).toContain('Keine Platten verplant');
+  });
+});
+
+// ── P1 + P2 (2026-08-24) — Browser-Feedback-Runde ────────────────────
+//
+// User-Forderungen:
+//   P1: Spec-Verweis aus User-Output, Hint nur bei mixedGroupSizes.
+//   P2: Spalten-Overlap GRUPPE/SP. und BECHER/DIFF bei 360–430 px.
+//       data-col-Attribute auf TH/TD, damit Container-Query
+//       schmale Spalten ausblenden kann.
+
+describe('renderBestThirdsTable — Hint-Text (P1)', () => {
+  // P1 (Browser-Feedback 2026-08-24): "Spec §10.4" darf nicht mehr im
+  // User-sichtbaren Text auftauchen. Statt dessen kompakter Hint nur
+  // bei tatsächlich gemischten Gruppengrößen.
+
+  const mixedRows = [
+    { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
+    { name: 'B1', groupKey: 'B', played: 2, won: 1, drawn: 1, lost: 0, goalsFor: 4, goalsAgainst: 2, points: 4, qualifies: true },
+  ];
+  const equalRows = [
+    { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
+    { name: 'B1', groupKey: 'B', played: 3, won: 1, drawn: 1, lost: 1, goalsFor: 5, goalsAgainst: 4, points: 4, qualifies: false },
+    { name: 'C1', groupKey: 'C', played: 3, won: 0, drawn: 2, lost: 1, goalsFor: 3, goalsAgainst: 5, points: 2, qualifies: false },
+  ];
+
+  it('mixedGroupSizes (3er + 4er Mix) zeigt kompakten Hint ohne Spec-Verweis', () => {
+    const html = renderBestThirdsTable({ qualifyCount: 1, rows: mixedRows });
+    expect(html).toContain('Gruppen unterschiedlich groß');
+    expect(html).toContain('gewertet wird pro Spiel');
+    // KEIN Spec-Verweis mehr
+    expect(html).not.toContain('Spec §10.4');
+    expect(html).not.toContain('Rangfolge nach Punkten');
+    // Neue CSS-Modifierklasse
+    expect(html).toContain('t-hint--compact');
+  });
+
+  it('gleich große Gruppen (3×4) zeigt KEINEN Hinweis (kein visueller Lärm)', () => {
+    const html = renderBestThirdsTable({ qualifyCount: 1, rows: equalRows });
+    expect(html).not.toContain('t-hint');
+    expect(html).not.toContain('Gruppen unterschiedlich groß');
+  });
+});
+
+describe('renderBestThirdsTable — Spalten-Markup (P2)', () => {
+  // P2 (Browser-Feedback 2026-08-24): GRUPPE/SP. und BECHER/DIFF
+  // überlappen bei 360–430 px Modulbreite. Fix: data-col-Attribute
+  // + CSS-Container-Query, die unkritische Spalten ausblendet.
+
+  const rows = [
+    { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
+  ];
+
+  it('jedes TH (außer Team) hat data-col-Attribut', () => {
+    const html = renderBestThirdsTable({ qualifyCount: 1, rows });
+    // 9 data-col-THs (Pl., Gruppe, Sp., S, U, N, Becher, Diff, Pkt.)
+    const dataColThs = html.match(/<th[^>]*data-col="[^"]+"/g) || [];
+    expect(dataColThs.length).toBe(9);
+    // Team-TH hat KEIN data-col
+    const teamTh = html.match(/<th[^>]*class="is-team"[^>]*>([^<]*)<\/th>/);
+    expect(teamTh).not.toBeNull();
+    expect(teamTh[0]).not.toContain('data-col=');
+  });
+
+  it('jedes TD (außer Team) hat data-col-Attribut', () => {
+    const html = renderBestThirdsTable({ qualifyCount: 1, rows });
+    const dataColTds = html.match(/<td[^>]*data-col="[^"]+"/g) || [];
+    // Bei 1 Reihe: 9 data-col-TDs (alle außer Team-TD)
+    expect(dataColTds.length).toBe(9);
+    // Team-TD hat KEIN data-col
+    const teamTd = html.match(/<td[^>]*class="t-thirds-team"[^>]*>([^<]*)<\/td>/);
+    expect(teamTd).not.toBeNull();
+    expect(teamTd[0]).not.toContain('data-col=');
+  });
+
+  it('THIRDS_COL_WIDTHS-Layout hat 10 Spalten (5 ausgeblendet bei @container ≤430px)', () => {
+    const html = renderBestThirdsTable({ qualifyCount: 1, rows });
+    const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
+    expect(cols.length).toBe(10);
+    // Ausblendbare Spalten (CSS-seitig): played, won, drawn, lost, score
+    // Sichtbare: pl, group, points (+ Team als auto)
+    const thCols = (html.match(/<th[^>]*data-col="([^"]+)"/g) || []).map((s) => s.match(/data-col="([^"]+)"/)[1]);
+    expect(thCols).toEqual(['pl', 'group', 'played', 'won', 'drawn', 'lost', 'score', 'diff', 'points']);
   });
 });

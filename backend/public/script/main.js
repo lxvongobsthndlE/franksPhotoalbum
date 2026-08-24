@@ -605,6 +605,23 @@ const ICON_HAMBURGER = `<svg width="20" height="20" viewBox="0 0 24 24" fill="no
 const ICON_FULLSCREEN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 const ICON_SHRINK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
+// ── Tab-Bar-Icons (P3, 2026-08-24) ─────────────────────────────────
+// Bottom-Bar auf ≤600 px Modulbreite. Stil identisch zu den vorhandenen
+// Icons oben: viewBox 0 0 24 24, fill="none", stroke="currentColor",
+// stroke-width="2", stroke-linecap/linejoin="round", 22 px. Farbe über
+// currentColor → Nachtmodus-kompatibel.
+const ICON_TAB_GAMES   = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="4" cy="6"  r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><line x1="8" y1="6"  x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg>`;
+const ICON_TAB_GROUPS  = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3"  width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="5" rx="1"/></svg>`;
+const ICON_TAB_BRACKET = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3"  y="4"  width="6" height="5" rx="1"/><rect x="3"  y="15" width="6" height="5" rx="1"/><rect x="15" y="10" width="6" height="5" rx="1"/><path d="M9 6.5h3a2 2 0 0 1 2 2v7a2 2 0 0 0 2 2"/></svg>`;
+const ICON_TAB_MORE    = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5"  cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`;
+
+// Sheet-Item-Icons (Bottom-Sheet "Mehr"). Selbe Größe/Stil wie Tab-Icons.
+const ICON_SHEET_TEAMS      = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+const ICON_SHEET_THIRDS     = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`;
+const ICON_SHEET_RULES      = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>`;
+const ICON_SHEET_PRINT      = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 3 9 3 2 18 2 18 9"/><path d="M3 9h18v6a2 2 0 0 1-2 2h-3v4H7v-4H5a2 2 0 0 1-2-2V9z"/><rect x="7" y="2" width="10" height="6"/></svg>`;
+const ICON_SHEET_SETTINGS   = ICON_GEAR;  // Gear existiert bereits, wiederverwendet
+
 // ── TOAST NOTIFICATIONS ─────────────────────────────────
 function toast(msg, type = 'info') {
   const c = $('toast-container');
@@ -2681,6 +2698,44 @@ function renderTournamentInstanceDetailV3(t) {
     const modeLabel = tournamentModeLabel(t.mode);
     const isAdmin = t.isAdmin === true;
 
+    // P3 (2026-08-24): Mobile Bottom-Bar-Komposition je nach Modus.
+    // ko_only hat keine Gruppen → Teams wandert in Position 2 der Bar.
+    // groups_only hat kein KO → Teams wandert in Position 3 der Bar.
+    // groups_ko (Default): Standard-Reihenfolge.
+    // Ergebnis: IMMER genau 3 View-Buttons + "Mehr" in der Bottom-Bar.
+    const tabIcons = {
+      spielplan:     { icon: ICON_TAB_GAMES,    label: 'Spiele' },
+      gruppen:       { icon: ICON_TAB_GROUPS,   label: 'Gruppen' },
+      baum:          { icon: ICON_TAB_BRACKET,  label: 'Baum' },
+      teams:         { icon: ICON_SHEET_TEAMS,  label: 'Teams' },
+      regeln:        { icon: ICON_SHEET_RULES,  label: 'Regeln' },
+      drucken:       { icon: ICON_SHEET_PRINT,  label: 'Drucken' },
+      einstellungen: { icon: ICON_SHEET_SETTINGS, label: 'Einstellungen' },
+    };
+    const isKoOnly = t.mode === 'ko_only';
+    const isGroupsOnly = t.mode === 'groups_only';
+    let barPrimary;
+    if (isKoOnly) {
+      barPrimary = ['spielplan', 'teams', 'baum'];
+    } else if (isGroupsOnly) {
+      barPrimary = ['spielplan', 'gruppen', 'teams'];
+    } else {
+      barPrimary = ['spielplan', 'gruppen', 'baum'];
+    }
+    const allViews = Object.keys(tabIcons);
+    const sheetViews = allViews.filter((v) => !barPrimary.includes(v));
+
+    const barButtonsHtml = barPrimary.map((v, i) => {
+      const cfg = tabIcons[v];
+      const activeCls = i === 0 ? ' is-active' : '';
+      return `<button type="button" class="t-mod-tab${activeCls}" data-view="${v}" aria-label="${cfg.label}">${cfg.icon}<span>${cfg.label}</span></button>`;
+    }).join('\n            ');
+
+    const sheetButtonsHtml = sheetViews.map((v) => {
+      const cfg = tabIcons[v];
+      return `<button type="button" data-view="${v}">${cfg.icon}<span>${cfg.label}</span></button>`;
+    }).join('\n            ');
+
     const logoHtml = t.logoUrl
       ? `<img class="t-logo" src="${esc(t.logoUrl)}" alt="Logo">`
       : '<span class="t-logo t-logo--placeholder" aria-hidden="true"></span>';
@@ -2755,13 +2810,18 @@ function renderTournamentInstanceDetailV3(t) {
           ${headerActionsHtml}
         </header>
         <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
-          <button type="button" class="is-active" data-view="spielplan">Spielplan</button>
-          <button type="button" data-view="gruppen">Gruppen</button>
-          <button type="button" data-view="baum">Turnierbaum</button>
-          <button type="button" data-view="teams">Teams</button>
-          <button type="button" data-view="regeln">Regeln</button>
-          <button type="button" data-view="drucken">Drucken</button>
-          <button type="button" data-view="einstellungen">Einstellungen</button>
+            ${barButtonsHtml}
+            <button type="button" class="t-mod-tab" data-action="open-more-menu" aria-haspopup="dialog" aria-label="Weitere Ansichten">${ICON_TAB_MORE}<span>Mehr</span></button>
+        </div>
+        <div class="t-mod-more-sheet" id="t-more-sheet" data-open="false" role="dialog" aria-label="Weitere Ansichten" aria-modal="true">
+          <button type="button" class="t-mod-more-overlay" data-action="close-more" aria-label="Schließen"></button>
+          <div class="t-mod-more-panel" role="document">
+            <button type="button" class="t-mod-more-close" data-action="close-more" aria-label="Schließen">✕</button>
+            <h2 class="t-mod-more-title">Mehr</h2>
+            <nav class="t-mod-more-list">
+              ${sheetButtonsHtml}
+            </nav>
+          </div>
         </div>
         <div class="t-shell">
           <nav class="t-mod-nav" id="t-nav" aria-label="Turnier-Ansichten">
@@ -2864,6 +2924,39 @@ function renderTournamentInstanceDetailV3(t) {
         handleTournamentTabSideEffects(view, t, detail);
       });
     });
+
+    // P3 (2026-08-24): Bottom-Sheet „Mehr" — Toggle + Item-Klicks.
+    // Sheet-Items haben data-view, werden also über dieselbe
+    // switchToView/Side-Effects-Logik verarbeitet wie die Bar-Buttons.
+    const sheet = detail.querySelector('.t-mod-more-sheet');
+    const moreBtn = detail.querySelector('[data-action="open-more-menu"]');
+    if (sheet && moreBtn) {
+      const openSheet = () => {
+        sheet.dataset.open = 'true';
+        sheet.querySelector('.t-mod-more-list button')?.focus();
+      };
+      const closeSheet = () => {
+        sheet.dataset.open = 'false';
+        moreBtn.focus();
+      };
+      moreBtn.addEventListener('click', openSheet);
+      detail.querySelectorAll('[data-action="close-more"]').forEach((btn) => {
+        btn.addEventListener('click', closeSheet);
+      });
+      // Sheet-Items: schließen + Tab-Wechsel + Side-Effects
+      detail.querySelectorAll('.t-mod-more-list button[data-view]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const view = btn.dataset.view;
+          closeSheet();
+          switchToView(view, btn);
+          handleTournamentTabSideEffects(view, t, detail);
+        });
+      });
+      // Escape-Taste schließt das Sheet
+      detail.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sheet.dataset.open === 'true') closeSheet();
+      });
+    }
 
     // Header-Aktionen: Zurück + Drucken. Bug 15 Politur
     // (2026-08-18): beide Aktionen gibt es jetzt zweimal im DOM — einmal

@@ -283,7 +283,11 @@
    Inhalte). Ein weicher Fade von transparent zu var(--surface) am
    rechten Rand zeigt: „Da geht's weiter, scroll nach links". 32px
    Breite reicht für einen sanften Übergang ohne den ersten Tab
-   dahinter zu verstecken. */
+   dahinter zu verstecken.
+   P3 (2026-08-24): Auf Mobile wird .t-mod-tabs jetzt als Bottom-Bar
+   gefixed (siehe unten). Der Fade-Hinweis wird in dem Container-Query
+   per display:none ausgeblendet, weil wir 4 fixe Items haben statt
+   horizontalem Scroll. */
 .t-mod-tabs::after {
   content: '';
   position: absolute;
@@ -299,35 +303,179 @@
                                             unterbricht. */
 }
 
-.t-mod-tab {
-  flex: 0 0 auto;          /* Tab schrumpft NICHT, behält seinen Inhalt */
-  height: 44px;            /* FIXE Höhe, gleich wie die Leiste */
-  line-height: 1;          /* keine zusätzliche Vertikalleitung */
-  white-space: nowrap;     /* kein Umbruch, auch bei langen Namen */
-  padding: 0 var(--s3);     /* Bug 15 Politur: 12px statt 16px Padding
-                               (User-Wunsch: "Tabs schmaler" als
-                               Alternative zum Scroll-Hint). */
-  display: inline-flex;
+/* .t-mod-tab-Definitionen sind jetzt im P3-Block weiter unten
+   (flex-direction: column für Bottom-Bar-Buttons). Die frühere
+   horizontale Variante (flex: 0 0 auto, height 44 px, border-bottom)
+   ist obsolet. */
+
+/* P3 (2026-08-24): Mobile Bottom-Navigation.
+   Auf ≤600 px Modulbreite wird .t-mod-tabs fixed am unteren Bildrand
+   positioniert (war vorher horizontal scrollbar oben). User-Klärung:
+   auf Mobile KEINE Top-Tabs mehr — die Leiste sitzt entweder unten
+   (≤600 px) oder sie ist ausgeblendet (>600 px, Sidebar übernimmt).
+   Das verhindert doppelte Navigation.
+
+   Breakpoint 600 px statt 767 px: bei 768 px reicht der Platz für die
+   Sidebar, bei 600 px nicht mehr. Konsistent mit dem Bottom-Bar-Konzept. */
+@container (max-width: 600px) {
+  .t-mod-tabs {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    border-bottom: none;
+    overflow-x: hidden;
+    z-index: 50;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  }
+  /* Fade-Hinweis am rechten Rand ist auf der Bottom-Bar sinnlos —
+     wir haben 4 fixe Items, kein Scroll. */
+  .t-mod-tabs::after { display: none; }
+
+  /* Sidebar aus, Bottom-Bar an — keine zwei parallelen Leisten. */
+  .t-mod-nav { display: none; }
+
+  /* Hauptbereich: Padding-Bottom, damit der letzte Inhalt nicht unter
+     der fixierten Bar verschwindet. */
+  .t-mod-main {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--s4));
+  }
+}
+
+/* Bottom-Sheet für „Mehr" (P3, 2026-08-24).
+   Slide-up von unten, halbtransparenter Overlay, safe-area-inset-
+   bottom für iOS-Notch-Geräte. */
+.t-mod-more-sheet { display: none; }
+.t-mod-more-sheet[data-open="true"] { display: block; }
+
+.t-mod-more-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 998;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+.t-mod-more-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  background: var(--surface);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  padding: 16px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  animation: t-sheet-slide-up 220ms ease-out;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+@keyframes t-sheet-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.t-mod-more-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+.t-mod-more-close:hover { color: var(--ink); }
+.t-mod-more-title {
+  margin: 0 24px 12px 16px;
+  padding-right: 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.t-mod-more-list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.t-mod-more-list button {
+  display: flex;
   align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.t-mod-more-list button:hover { background: var(--surface-alt, rgba(0, 0, 0, 0.04)); }
+.t-mod-more-list button.is-active {
+  color: var(--accent);
+  font-weight: 600;
+}
+.t-mod-more-list svg {
+  flex: none;
+  color: var(--ink-soft);
+}
+.t-mod-more-list button.is-active svg { color: var(--accent); }
+
+/* P3: Bottom-Bar-Buttons zeigen Icon + Label vertikal.
+   Layout kompakt, damit 4 Items auf 360 px passen. */
+.t-mod-tab {
+  flex: 1 1 0;             /* gleichmäßig verteilt, schrumpfbar */
+  min-width: 0;
+  height: 56px;            /* FIXE Höhe der Bottom-Bar */
+  padding: 0 var(--s1);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   border: none;
   background: transparent;
   color: var(--ink-soft);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
-  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;     /* P3: statt border-bottom */
   cursor: pointer;
+  font-family: inherit;
 }
 .t-mod-tab:hover { color: var(--ink); }
 .t-mod-tab.is-active {
   color: var(--accent);
-  border-bottom-color: var(--accent);
+  border-top-color: var(--accent);
   font-weight: 600;
 }
-
-/* Auf Mobile zeigt die Tab-Leiste, die vertikale Nav klappt ein. */
-@container (max-width: 767px) {
-  .t-mod-tabs { display: flex; }
-  .t-mod-nav  { display: none; }
+.t-mod-tab svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.t-mod-tab > span {
+  font-size: 11px;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* Hauptbereich (mittlere Spalte) */
@@ -775,6 +923,29 @@
   margin: 0;
 }
 .t-hint strong { color: var(--ink); font-style: normal; font-weight: 600; }
+
+/* P1 (2026-08-24): Kompakter Hinweis für Beste-Dritte-Tabelle bei
+   mixedGroupSizes. Vorher war der Hint 3 Zeilen kursiv mit Spec-Verweis,
+   jetzt EINE Zeile + Info-Icon als Pseudo-Element. */
+.t-hint--compact {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-style: normal;
+  margin: 0 0 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.t-hint--compact::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a7e74' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
 
 /* ----------------------------------------------------------------
    ASIDE-LISTE (Plattenbelegung u. ä. Kompaktlisten in der Kontextspalte)
