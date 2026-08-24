@@ -2346,6 +2346,27 @@ async function loadTournamentInstances(reset = false) {
       if (!stillExists) activeTournamentInstance = null;
     }
 
+    // P4 (2026-08-24, User-Liste): Wenn in der Gruppe genau EIN Turnier
+    // existiert und wir gerade auf der Liste sind (kein aktives
+    // Detail), direkt ins Detail springen. Gilt für Admins UND
+    // Mitglieder — User-Begründung: „Wenn es nur eins gibt, ist die
+    // Liste überflüssig." Draft-Turniere sind für Mitglieder unsichtbar
+    // (Server filtert sie schon raus), Admin mit nur-1-Draft sieht die
+    // Liste weiterhin — Drafts brauchen expliziten Klick zum Bearbeiten.
+    const visibleInstances = tournamentInstances.filter((t) => {
+      // Admins sehen alle Statusse in der Liste (auch Drafts).
+      // Mitglieder kriegen vom Server nur Nicht-Drafts.
+      return currentTournamentListIsAdmin || t.status !== 'draft';
+    });
+    if (
+      visibleInstances.length === 1
+      && !activeTournamentInstance?.id
+      && curTournamentView === 'instances'
+    ) {
+      await openTournamentInstance(visibleInstances[0].id);
+      return;
+    }
+
     renderTournamentInstancesPage();
   } catch (e) {
     const icon = $('empty-icon');
