@@ -5938,15 +5938,67 @@ button.tournament-header-btn {
    Padding, damit alles in einer Zeile passt. */
 @container (max-width: 600px) {
   /* Tabelle kompakter, kleinere Schrift, weniger Padding. */
-  .t-standings-table,
-  .t-thirds-table {
+  .t-mod .t-standings-table,
+  .t-mod .t-thirds-table {
     font-size: 12px;
   }
-  .t-standings-table th,
-  .t-standings-table td,
-  .t-thirds-table th,
-  .t-thirds-table td {
-    padding: 6px 4px;
+  /* ----------------------------------------------------------------
+     WARUM HIER `.t-mod ` DAVORSTEHT — VIERTE KASKADENKOLLISION
+     ----------------------------------------------------------------
+     `.t-standings-table` ist ZWEIMAL definiert:
+        tournament.css:1210-1228  (Etappe B.3, Modul-Palette)
+        main.css:5808 ff.         (Bug 14, Layout-Maschinerie)
+     tournament.css wird NACH main.css geladen und setzt dort
+     unbedingt `padding: 8px 10px` und `th { font-size: 11px }`.
+     Beide Selektoren sind (0,0,2,0) — und ein @container-Block erhoeht
+     die Spezifitaet NICHT. Bei Gleichstand gewinnt die Quell-Reihen-
+     folge ueber Stylesheet-Grenzen hinweg: die spaetere Datei.
+     Ergebnis: dieser ganze Mobile-Block war fuer die Gruppentabelle
+     wirkungslos — sie behielt 11px-Ueberschriften und 10px-Polster und
+     kuerzte "BECHER" zu "BEC…", waehrend die Dritten-Tabelle daneben
+     sauber lief.
+
+     Der Beweis, dass es genau das ist: die Ausblend-Regeln weiter unten
+     tragen einen Attribut-Selektor (`th[data-col="played"]`), sind damit
+     (0,0,3,0) und haben immer funktioniert. Nur die Regeln mit (0,0,2,0)
+     fielen aus. Dieselbe Zahl entscheidet, dieselbe Falle wie beim
+     Bodenleisten-Bug in tournament.css.
+
+     `.t-mod ` ist nicht nur ein Spezifitaets-Trick, es ist auch wahr:
+     diese Tabellen existieren ausschliesslich im Turniermodul.
+
+     WER HIER ETWAS AENDERT: wer eine neue Eigenschaft in diesen Block
+     schreibt, muss pruefen, ob tournament.css sie unbedingt setzt —
+     sonst ist die neue Regel still tot. Suchbefehl:
+        grep -n "t-standings-table\|t-thirds-table" tournament.css
+     ---------------------------------------------------------------- */
+  .t-mod .t-standings-table th,
+  .t-mod .t-standings-table td,
+  .t-mod .t-thirds-table th,
+  .t-mod .t-thirds-table td {
+    /* 3px statt 4px horizontal (2026-08-25, im Browser durchgemessen).
+       Bei sechs Spalten sind das 12px, die der Inhalt zurueckbekommt —
+       genau die Spanne, in der die Ueberschriften bei 360px Viewport
+       vom Kuerzen ins Passen kippen. Vertikal bleibt 6px. */
+    padding: 6px 3px;
+  }
+
+  /* Kopfzeilen-Typografie auf Mobile knapper (2026-08-25, gemessen).
+     Der Grund ist eine Eigenart dieser Tabellen: der Platzbedarf der
+     UEBERSCHRIFTEN ist in Pixeln fix, der der Werte nicht. "GRUPPE" und
+     "BECHER" verlangen bei 11px + 0.04em Laufweite je 57px — bei 390px
+     Viewport ist die Tabelle aber nur 288px breit (Kette: 390 - 2x14
+     #content - 2x8 .t-shell - 2x12 .t-mod-main - 2x16 .t-card-body).
+     Sechs Spalten mit vollen Ueberschriften brauchen dort 77% der
+     Breite, es blieben 23% fuer die Teamnamen.
+     10px ohne Laufweite bringt die beiden auf ~47px und macht die
+     Rechnung auf. Die Ueberschriften sind Beiwerk (uppercase, --ink-soft),
+     die WERTE sind der Inhalt — an ihnen darf nicht gespart werden.
+     Gilt nur <= 600px; ab 601px ist die Tabelle breit genug fuer 11px. */
+  .t-mod .t-standings-table th,
+  .t-mod .t-thirds-table th {
+    font-size: 10px;
+    letter-spacing: 0;
   }
 
   /* Standings: Sp · S · U · N ausblenden.

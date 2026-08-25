@@ -488,26 +488,39 @@ const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9
  * exakt so viele Eintraege wie sichtbare Spalten, feste Prozente, kein
  * 'auto', Summe genau 100%. Reihenfolge = DOM-Reihenfolge der sichtbaren
  * Spalten:
- *   Pl. 14% · Team 32% · Gruppe 16% · Becher 16% · Diff 11% · Pkt. 11%
+ *   Pl. 12% · Team 28% · Gruppe 19% · Becher 19% · Diff 11% · Pkt. 11%
  *
- * Bemessung bei 374px Tabellenbreite (derselbe Bezug wie bei Standings),
- * Zellen-Padding auf Mobile 6px/4px = 8px horizontal, Werte 12px
- * tabular-nums, Ueberschriften 11px uppercase:
- *   Pl.     14% = 52px  — "10." + "Pl."; 14% ist der bei Standings am
- *                         25.08. gemessene Mindestwert, darunter kuerzt es
- *   Gruppe  16% = 60px  — bindend ist die Ueberschrift "GRUPPE", nicht "A"
- *   Becher  16% = 60px  — "12:10" ~44px, Ueberschrift "BECHER" ~53px
- *   Diff    11% = 41px  — "+12" ~30px, Ueberschrift "DIFF" ~38px
- *   Pkt.    11% = 41px  — Ueberschrift "PKT." ~38px
- *   Team    32% = 120px — Rest; darf als einzige Spalte kuerzen
- * Summe 14+32+16+16+11+11 = 100.
+ * BEMESSUNG — im Browser gemessen, nicht geschaetzt (Edge, 2026-08-25).
+ * Die erste Fassung dieses Sets rechnete gegen "374px Tabellenbreite" (die
+ * Zahl stammt aus dem Standings-Kommentar). Der Messlauf hat sie widerlegt:
+ * bei 390px Viewport ist die Tabelle 288px breit. Die Kette dorthin:
+ *   390 - 2x14 (#content) - 2x8 (.t-shell) - 2x12 (.t-mod-main)
+ *       - 2x16 (.t-card-body) = 288
+ * Bei 360px Viewport sind es 258px, bei 430px 328px.
+ *
+ * Die Eigenart dieser Tabelle: der Platzbedarf der UEBERSCHRIFTEN ist in
+ * Pixeln fix, der der Werte nicht. Gemessen (scrollWidth, mobil 10px
+ * uppercase ohne Laufweite, Zellpolster 3px):
+ *   "GRUPPE" / "BECHER"  je 48px      <- die beiden binden das Layout
+ *   "DIFF" / "PKT."      je 28px
+ *   "Pl." / "10."            34px
+ *   "12:10"                  44px     <- der Wert, um den es im Bug ging
+ * Prozente skalieren mit der Tabelle, dieser Bedarf nicht — deshalb ist
+ * das Set gegen die SCHMALSTE Breite bemessen (258px @ 360px Viewport),
+ * nicht gegen die bequemste.
+ *
+ * Fuenf Kandidatensets wurden bei 360/390/430px durchgemessen; dieses ist
+ * das einzige, das bei allen dreien ohne Kuerzung auskommt UND der
+ * Team-Spalte dabei die meiste Breite laesst (72 / 81 / 92px).
+ * Team ist die einzige Spalte, die kuerzen DARF — sie traegt Fliesstext,
+ * alle anderen tragen Werte, die vollstaendig lesbar sein muessen.
  *
  * WER HIER ETWAS AENDERT: die Anzahl der Eintraege haengt an den
  * display:none-Regeln in main.css (@container max-width: 600px,
  * .t-thirds-table th/td[data-col=...]). Spalte versteckt oder wieder
  * eingeblendet -> diese Liste MUSS mitgezogen werden, sonst rutschen
  * alle Breiten erneut. */
-const THIRDS_COL_WIDTHS_MOBILE = ['14%', '32%', '16%', '16%', '11%', '11%'];
+const THIRDS_COL_WIDTHS_MOBILE = ['12%', '28%', '19%', '19%', '11%', '11%'];
 
 function renderColgroup(widths) {
   return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
