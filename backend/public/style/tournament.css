@@ -89,6 +89,21 @@
      sich unabhaengig voneinander aendern duerfen. */
   --live:         #C0453A;
   --danger:       #C0453A;
+  /* --warn / --warn-soft nachgetragen 2026-08-25.
+     ENTSCHEID: definieren, nicht auf einen bestehenden Token umbiegen.
+     Die Zustands-Skala (open/qualified/done/out/live/danger) hatte keinen
+     Eintrag fuer "Hinweis / Achtung"; --open ist zwar derselbe Bernstein,
+     bedeutet aber "Spiel noch offen" und darf sich unabhaengig aendern
+     (dieselbe Begruendung wie oben bei --live vs --danger). Das Suffix
+     -soft folgt --accent-soft, ist also kein zweites Namensschema.
+     Die HELLEN Werte sind exakt die bisherigen Literal-Fallbacks
+     (#b58410 / #fef3cd) -- im Hellmodus aendert sich nichts.
+     Gemessen: Rand #B58410 auf --surface 3.35:1 und auf --warn-soft
+     3.02:1 (Nicht-Text, Schwelle 3:1 -- bestanden); --ink auf
+     --warn-soft 15.42:1. */
+  --warn:         #B58410;
+  --warn-soft:    #FEF3CD;
+
 
   /* ---- Radien ----
      4px für Score-Felder: bewusst kantiger als der Rest. Der kleine
@@ -152,6 +167,17 @@
      damit der Streifen auf dunklem Grund nicht absaeuft. */
   --live:         #D66B60;
   --danger:       #D66B60;
+  /* DER EIGENTLICHE AUSFALL LAG HIER: --warn-soft war nirgends definiert,
+     also griff im Dunkelmodus derselbe Literal-Fallback #fef3cd wie im
+     Hellmodus -- die drei Hinweisboxen (.t-settings-lock-hint,
+     .t-banner--warning, .t-fields-locked-hint) leuchteten als helle
+     gelbe Kaesten mit hellem --ink-Text darauf, praktisch unlesbar.
+     Belegt im Screenshot shots/vorher-dark.png.
+     Gemessen mit den neuen Werten: --ink #F2EDE4 auf #33291A 12.23:1,
+     Rand #D9A445 auf #33291A 6.35:1, die Flaeche hebt sich mit 1.14:1
+     sanft von --surface #23201B ab (Flaeche, kein Text). */
+  --warn:         #D9A445;
+  --warn-soft:    #33291A;
 }
 
 /* ----------------------------------------------------------------
@@ -3061,7 +3087,11 @@ textarea.t-input {
   color: var(--ink-soft);
 }
 .t-wizard-logo-status.is-ok {
-  color: var(--ok, #2c8a4f);
+  /* --ok gab es nie; ENTSCHEID: bestehenden Token benutzen statt einen
+     zweiten Gruen-Namen einzufuehren. --done/--qualified ist der
+     Erfolgs-Gruenton des Sets (hell #4F7A4A, dunkel #6B9A66) und deckt
+     "Upload geglueckt" mit ab. (2026-08-25) */
+  color: var(--done);
 }
 .t-wizard-logo-status.is-error {
   color: var(--danger, #c0392b);
@@ -3081,7 +3111,13 @@ textarea.t-input {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: var(--r-sm, 4px);
+  /* Stand hier als var(--r-sm, 4px). --r-sm gab es nie -- und es wird
+     auch nicht nachgetragen: die Radien-Skala des Moduls ist SEMANTISCH
+     (--r-card / --r-btn / --r-board), keine Groessenskala sm/md/lg. Ein
+     --r-sm waere ein zweites Namensschema; --r-board (zufaellig auch 4px)
+     waere fuer ein Logo-Vorschaubild schlicht gelogen. Bleibt darum ein
+     Literal, bis es einen zweiten Nutzer gibt. (2026-08-25) */
+  border-radius: 4px;
   background: var(--surface);
 }
 .t-wizard-logo-picker {
@@ -3466,8 +3502,8 @@ textarea.t-input {
   align-items: center;
   gap: var(--s2);
   padding: var(--s2) var(--s3);
-  background: var(--warn-soft, #fef3cd);
-  border-left: 3px solid var(--warn, #b58410);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
   border-radius: var(--r-card);
   font-size: 12px;
 }
@@ -3562,8 +3598,8 @@ textarea.t-input {
   margin: 0;
 }
 .t-banner--warning {
-  background: var(--warn-soft, #fef3cd);
-  border-left: 3px solid var(--warn, #b58410);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
   color: var(--ink, #1a1a17);
 }
 
@@ -3862,8 +3898,8 @@ textarea.t-input {
   align-items: center;
   gap: var(--s2);
   padding: var(--s2) var(--s3);
-  background: var(--warn-soft, #fef3cd);
-  border-left: 3px solid var(--warn, #b58410);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
   border-radius: var(--r-card);
   font-size: 12px;
 }

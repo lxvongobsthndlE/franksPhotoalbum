@@ -5996,7 +5996,16 @@ button.tournament-header-btn {
   font-weight: 700;
 }
 .t-standings-row.is-first .t-standings-rank::after { color: var(--good, #2e7d32); }
-.t-standings-row.is-second .t-standings-rank::after { color: var(--warn, #ff9800); }
+/* 2026-08-25: der Fallback war #ff9800 -- ein drittes Orange, das mit dem
+   Bernstein des Modul-Sets nichts zu tun hatte. Seit --warn in
+   tournament.css definiert ist (hell #B58410, dunkel #D9A445) greift der
+   Fallback hier ohnehin nicht mehr, weil .t-standings-row nur innerhalb
+   von .t-mod vorkommt; er wird trotzdem nachgezogen, damit er nicht als
+   zweite Wahrheit stehenbleibt.
+   --good eine Zeile darueber bleibt bewusst unangetastet: --good/--bad
+   ist ein eigenes, in sich konsistentes Paar (positive/negative Zahl)
+   und braucht einen eigenen Entscheid, nicht diesen. */
+.t-standings-row.is-second .t-standings-rank::after { color: var(--warn, #B58410); }
 /* Dritte-Wertung: der Haken wanderte aus einer eigenen <td class="t-thirds-mark">
    in die Rank-Zelle, damit die Tabelle dieselbe Spalten-Aufteilung
    wie die Gruppen-Tabelle hat (Bug 14: konsistente Spaltenanzahl). */
