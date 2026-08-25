@@ -3426,13 +3426,50 @@ async function loadStandingsTab(tournamentId) {
     // ist — also unbedenklich, hier zu konkatenieren.
     const bestThirdsHtml = renderBestThirdsTable(data.bestThirds);
     mount.innerHTML = groupsHtml + bestThirdsHtml;
+    // P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" UNTER
+    // den Gruppentabellen anhängen — User-Feedback:
+    // „mach den ko phase starten button lieber bei den gruppen hin
+    // ganz ganz unten". Admin-only (isAdmin-Gate).
+    // Voraussetzungen:
+    //   - Modus groups_ko
+    //   - alle Gruppenspiele finished sind
+    //   - das Bracket noch nicht gefüllt ist (= Slots haben Platzhalter)
+    // Mitglieder sehen den Button NICHT — weder Hinweistext noch CTA.
+    const tournament = activeTournamentInstance;
+    const allGroupsFinished = data?.allGroupsFinished === true;
+    const bracketHasPlaceholders = data?.bracketHasPlaceholders === true;
+    if (
+      tournament?.isAdmin === true
+      && tournament?.mode === 'groups_ko'
+      && allGroupsFinished
+      && bracketHasPlaceholders
+    ) {
+      wireFillKoButton(mount, tournament);
+    }
     // P5-Truncation 2026-08-25: ResizeObserver auf .t-mod, der beim
     // Crossen der 600-px-Grenze die Tabellen mit der passenden
     // Colgroup neu rendert. Refresh-Callback re-fetched nicht (zu
     // teuer), sondern greift auf die zuletzt geladenen groups zurück.
     // Da loadStandingsTab ohnehin die Quelle der Wahrheit ist, rufen
     // wir sie rekursionsfrei via refreshStandingsTab() auf.
-    ensureTModResizeObserver(() => refreshStandingsTab(tournamentId, groups, data.bestThirds, scoreLabel));
+    ensureTModResizeObserver(() => refreshStandingsTab(
+      tournamentId,
+      groups,
+      data.bestThirds,
+      scoreLabel,
+      // P5-Re-Fix-3 (2026-08-25): Args für den Re-Render des Buttons
+      // nach Resize — Bedingungen bleiben über Crossen der 600-px-Grenze
+      // identisch, also reicht die Referenz auf das aktive Turnier. Wir
+      // übergeben nur ein Args-Objekt, wenn die Bedingungen erfüllt sind,
+      // damit refreshStandingsTab nicht versehentlich einen Button für
+      // Member oder nicht-groups_ko-Modi rendert.
+      (
+        tournament?.isAdmin === true
+        && tournament?.mode === 'groups_ko'
+        && allGroupsFinished
+        && bracketHasPlaceholders
+      ) ? { tournament } : null
+    ));
   } catch (e) {
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
@@ -3445,14 +3482,22 @@ async function loadStandingsTab(tournamentId) {
  * — beim Crossen der 600-px-Grenze will der User keinen Loading-Spinner,
  * nur eine andere Spaltenbreite. Scroll-Position wird im Observer
  * gesichert und nach dem Paint wiederhergestellt.
+ *
+ * P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" wird nach
+ * dem Re-Render wieder angehängt, weil innerHTML ihn sonst wegfegt.
+ * Bedingungen (isAdmin, mode, Flags) bleiben über Resize identisch —
+ * kein Re-Fetch nötig.
  */
-function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel) {
+function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillKoButtonArgs) {
   const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
   if (!mount) return;
   if (!groups) return; // kein Vorlauf → still ignorieren
   const groupsHtml = renderStandingsGroups(groups, scoreLabel);
   const bestThirdsHtml = renderBestThirdsTable(bestThirds);
   mount.innerHTML = groupsHtml + bestThirdsHtml;
+  if (fillKoButtonArgs) {
+    wireFillKoButton(mount, fillKoButtonArgs.tournament);
+  }
 }
 
 /**
@@ -3492,28 +3537,13 @@ async function loadBracketTab(tournamentId) {
     mount.innerHTML = renderer(matches);
     wireBracketTabs(mount);  // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
 
-    // P3 (2026-08-24) + P5-Re-Fix (2026-08-25): Fallback-Button
-    // „K.-o.-Phase starten". Erscheint NUR wenn
-    //   - Admin (isAdmin)
-    //   - Modus groups_ko
-    //   - alle Gruppenspiele finished sind
-    //   - das Bracket noch nicht gefüllt ist (= Slots haben Platzhalter)
-    // Mitglieder sehen den leeren Bracket weiterhin still.
-    //
-    // Bug-Fix (2026-08-25): Vorher `tournament?.config?.mode === 'groups_ko'`
-    // — `config` wird vom DTO NICHT befüllt (nur `mode` ist Top-Level auf
-    // prepareTournamentView). Folge: Bedingung war permanent false und
-    // der Button tauchte nie auf, obwohl der Server die richtigen Flags
-    // lieferte. Symptom: User „der button erscheint nicht".
-    const tournament = activeTournamentInstance;
-    if (
-      tournament?.isAdmin === true
-      && tournament?.mode === 'groups_ko'
-      && allGroupsFinished
-      && bracketHasPlaceholders
-    ) {
-      wireFillKoButton(mount, tournament);
-    }
+    // P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" wurde vom
+    // Bracket-Tab HIERHER zum Gruppen-Tab verschoben (User-Feedback:
+    // „mach den ko phase starten button lieber bei den gruppen hin
+    // ganz ganz unten"). Im Bracket-Tab ist er nicht mehr nötig, der
+    // User sucht ihn nicht dort — die Gruppentabellen sind der
+    // natürliche Anker, weil sie direkt zeigen, was fertig ist.
+    // Mitglieder sehen weiterhin keinen Button (isAdmin-Gate).
   } catch (e) {
     mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
     toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');

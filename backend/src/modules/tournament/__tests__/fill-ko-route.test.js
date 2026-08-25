@@ -72,7 +72,11 @@ function baseStubs(prisma) {
     if (userId === u.admin.id) return { userId: u.admin.id, groupId: gId };
     return null;
   });
-  // Turnier: groups_ko-Modus (config.mode = 'groups_ko').
+  // Turnier: groups_ko-Modus. Achtung: mode ist Top-Level-Spalte auf
+  // Tournament (Prisma-Schema: `mode String @default("groups_ko")`),
+  // NICHT in config. Bug-Fix 2026-08-25: config.mode wurde vorher
+  // geprüft — config.mode ist immer undefined, weil die Engine-Config
+  // keinen mode-Eintrag hat (siehe engine/config.js DEFAULT_CONFIG).
   prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
     if (where.id === tId) {
       return {
@@ -83,7 +87,8 @@ function baseStubs(prisma) {
         publicToken: null,
         publicRevokedAt: null,
         logoUrl: null,
-        config: { mode: 'groups_ko' },
+        mode: 'groups_ko',
+        config: { qualifyPerGroup: 2 },
         name: 'Mein Turnier',
         group: { id: gId, createdBy: u.admin.id, name: 'G' },
       };

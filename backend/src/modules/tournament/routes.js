@@ -1498,7 +1498,12 @@ export default async function tournamentRoutes(fastify) {
         request.params.id
       );
       const config = mergeConfig(ctx.tournament.config ?? {});
-      if (config.mode !== 'groups_ko') {
+      // Bug-Fix (2026-08-25): Vorher `config.mode` — `config` ist die
+      // Engine-Config-Spalte (JSON, KEIN mode-Feld). mode lebt als
+      // Top-Level-Spalte auf Tournament. Folge: config.mode permanent
+      // undefined → 400 „mode_not_groups_ko" obwohl der Modus stimmt.
+      // Symptom: User klickte Button „K.-o.-Phase starten" → 400.
+      if (ctx.tournament.mode !== 'groups_ko') {
         return reply.code(400).send({
           error: 'mode_not_groups_ko',
           message: 'Diese Aktion ist nur im groups_ko-Modus sinnvoll.',
@@ -2367,12 +2372,29 @@ export default async function tournamentRoutes(fastify) {
       const shortBySport = { becher: 'B', tore: 'T', punkte: 'P' };
       const scoreLabel = labelBySport[sport] ?? 'Punkte';
       const scoreShort = shortBySport[sport] ?? 'P';
+      // P5-Re-Fix-3 (2026-08-25): dieselben Flags wie /bracket —
+      // der Button „K.-o.-Phase starten" hängt jetzt unten an den
+      // Gruppentabellen (User-Feedback: „bei den gruppen hin ganz
+      // ganz unten"). Beide Endpoints liefern identische Werte;
+      // die Berechnung ist die aus /bracket (siehe oben).
+      const allMatches = view.matches;
+      const koMatches = allMatches.filter((m) => m.isKoMatch);
+      const groupMatches = allMatches.filter((m) => m.isGroupMatch);
+      const allGroupsFinished = groupMatches.length > 0
+        && groupMatches.every((m) => m.isFinished);
+      const slotIsEmpty = (slot) =>
+        !slot || slot.kind === 'placeholder' || slot.teamId == null;
+      const bracketHasPlaceholders = koMatches.some(
+        (m) => slotIsEmpty(m.home) || slotIsEmpty(m.away)
+      );
       return {
         groups: groupRows,
         bestThirds,
         sport,
         scoreLabel,
         scoreShort,
+        allGroupsFinished,
+        bracketHasPlaceholders,
       };
     } catch (err) {
       return handleError(reply, err, 'Standings laden fehlgeschlagen');
@@ -2859,8 +2881,11 @@ async function maybeFillKoFromGroupFinish(tx, ctx, justSavedMatch) {
   }
   // Modus-Check ist redundant (fillKoFromQualifiers prüft selbst), aber
   // spart einen DB-Read wenn klar ist, dass wir nicht in groups_ko sind.
+  // Bug-Fix (2026-08-25): Vorher `config.mode` — die Engine-Config hat
+  // keinen mode-Eintrag. mode lebt als Top-Level-Spalte. Siehe
+  // routes.js:1501 für den analogen Fix in der /fill-ko-Route.
   const config = mergeConfig(ctx.tournament.config ?? {});
-  if (config.mode !== 'groups_ko') {
+  if (ctx.tournament.mode !== 'groups_ko') {
     return { filled: false, reason: 'mode_not_groups_ko' };
   }
 
@@ -2943,7 +2968,12 @@ async function maybeFillKoFromGroupFinish(tx, ctx, justSavedMatch) {
 async function fillKoFromQualifiers(tx, ctx) {
   const tournament = ctx.tournament;
   const config = mergeConfig(tournament.config ?? {});
-  const mode = config.mode;
+  // Bug-Fix (2026-08-25): Vorher `config.mode` — die Engine-Config hat
+  // keinen mode-Eintrag. mode lebt als Top-Level-Spalte auf Tournament.
+  // config wird hier nur für die KO-relevanten Werte gebraucht
+  // (qualifyPerGroup, hasThirdPlacePlayoff); mode lesen wir separat.
+  // Siehe routes.js:1501 für den analogen Fix in der /fill-ko-Route.
+  const mode = tournament.mode;
 
   if (mode !== 'groups_ko') return { filled: false, reason: 'mode_not_groups_ko' };
 
