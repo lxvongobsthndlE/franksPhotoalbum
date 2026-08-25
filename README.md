@@ -1,8 +1,8 @@
 ﻿<div align="center">
 
-![Franks Fotoalbum Logo](backend/public/media/icon-128x128.png)
+![kru:nest Logo](backend/public/media/brand/icon-128x128.png)
 
-# 🖼️ Franks Fotoalbum
+# 🖼️ [kru:]nest
 
 **Deine sichere, selbst gehostete Familien-Fotogalerie**
 
@@ -92,7 +92,7 @@ Standard-Eingabe und Ausgabe:
 Eigene Pfade/Format:
 
 ```bash
-node scripts/generate-infocards.mjs --input scripts/meine-karten.json --output generated/infos --size 1080 --app-icon public/media/icon-512x512.png
+node scripts/generate-infocards.mjs --input scripts/meine-karten.json --output generated/infos --size 1080 --app-icon public/media/brand/icon-512x512.png
 ```
 
 Wichtige Felder pro Datensatz:
@@ -117,7 +117,7 @@ Anpassungen:
 
 ---
 
-## 💡 Warum Franks Fotoalbum?
+## 💡 Warum [kru:]nest?
 
 ✅ **Datenschutz** – Keine Spionage, keine zielgerichteten Werbeanzeigen  
 ✅ **Kontrolliert** – Du verwaltest, wer sieht was  

@@ -246,7 +246,7 @@ const start = async () => {
 
     console.log('');
     console.log(sep);
-    console.log('  Franks Fotoalbum Backend');
+    console.log('  [kru:]nest Backend');
     console.log(sep);
     lines.forEach((l) => console.log(l));
     console.log(sep);

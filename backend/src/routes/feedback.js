@@ -877,7 +877,7 @@ async function sendFeedbackEmail(
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
 
-  const fromName = process.env.SMTP_FROM || 'Franks Fotoalbum';
+  const fromName = process.env.SMTP_FROM || '[kru:]nest';
   const fromEmail = process.env.SMTP_USER;
   const anonNote = anonymous ? ' <em style="color:#888">(anonym)</em>' : '';
   const safeBody = String(body).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
