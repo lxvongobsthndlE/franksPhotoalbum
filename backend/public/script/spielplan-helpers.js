@@ -529,11 +529,18 @@ function renderColgroup(widths) {
 //      misst .t-mod-Breite (oder Viewport-Fallback, wenn .t-mod noch
 //      nicht gemounted ist — z. B. in Vitest ohne DOM).
 
+// A5 (2026-08-25): Seit die drei body-Dialoge die Klasse t-mod tragen
+// (Token-Vererbung, siehe dialog-host.js), gibt es mehr als ein .t-mod
+// im Dokument. Gemessen werden darf nur der Modul-Container — ein
+// Dialog ist position:fixed und inset:0 und lieferte hier die
+// Viewport-Breite statt der Modulbreite.
+const TMOD_MEASURE_SELECTOR = '.t-mod:not(.t-dialog-host)';
+
 let tModCompactMode = null;       // null = noch nicht gemessen
 let tModResizeObserver = null;    // ein Observer für die ganze App-Lifetime
 
 function detectCompactModeFromTMod() {
-  const mod = typeof document !== 'undefined' ? document.querySelector('.t-mod') : null;
+  const mod = typeof document !== 'undefined' ? document.querySelector(TMOD_MEASURE_SELECTOR) : null;
   if (mod) return mod.getBoundingClientRect().width <= 600;
   return typeof window !== 'undefined' && window.innerWidth <= 660;
 }
@@ -587,7 +594,7 @@ export function ensureTModResizeObserver(onChange) {
       });
     }
   });
-  const mod = document.querySelector('.t-mod');
+  const mod = document.querySelector(TMOD_MEASURE_SELECTOR);
   if (mod) {
     tModResizeObserver.observe(mod);
     tModCompactMode = mod.getBoundingClientRect().width <= 600;

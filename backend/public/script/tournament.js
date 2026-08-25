@@ -1,6 +1,15 @@
 // Turnier-Bestätigungs-Vergleich (§13.10) — geteilt mit Server/Mock.
 import { normalizeConfirmName } from './normalize-confirm-name.js';
 
+// Dialoge, die an document.body hängen, erben die Turnier-Tokens
+// nicht — sie brauchen die Klassen aus dialog-host.js (A5).
+import {
+  DIALOG_TOKEN_CLASSES,
+  captureDialogTrigger,
+  restoreDialogTrigger,
+  isDialogCloseKey,
+} from './dialog-host.js';
+
 // Auth-Helper: einheitlicher fetch mit Bearer-Header + 401-Auto-Refresh.
 // Vorher hatte jedes fetch() in dieser Datei nur credentials:'include',
 // aber KEINEN Authorization-Header. Der Server lehnt deshalb mit
@@ -4070,8 +4079,15 @@ export function openConfirmDialog({
       };
 
   return new Promise((resolve) => {
+    // A5 (2026-08-25): Dieser Dialog hängt an document.body, also
+    // ausserhalb von .t-mod. Ohne die Klasse t-mod waren --r3, --s3
+    // und --line dort undefiniert: eckige Ecken, gap:0 (Titel, Text
+    // und Knöpfe klebten aneinander) und ein Eingabefeld ohne
+    // Rahmen — ausgerechnet in dem Dialog, in den man den Turnier-
+    // namen tippen MUSS, um zu löschen. Siehe dialog-host.js.
+    const trigger = captureDialogTrigger(document);
     const backdrop = document.createElement('div');
-    backdrop.className = 't-confirm-backdrop';
+    backdrop.className = `t-confirm-backdrop ${DIALOG_TOKEN_CLASSES}`;
     backdrop.setAttribute('role', 'dialog');
     backdrop.setAttribute('aria-modal', 'true');
 
@@ -4135,7 +4151,7 @@ export function openConfirmDialog({
       });
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !okBtn.disabled) okBtn.click();
-        if (e.key === 'Escape') cancelBtn.click();
+        if (isDialogCloseKey(e)) cancelBtn.click();
       });
     }
 
@@ -4145,12 +4161,17 @@ export function openConfirmDialog({
 
     backdrop.appendChild(dialog);
 
+    let confirmClosed = false;
     function close() {
+      if (confirmClosed) return;
+      confirmClosed = true;
       document.removeEventListener('keydown', onKey);
       backdrop.remove();
+      // Fokus zurück auf den Knopf, der den Dialog geöffnet hat.
+      restoreDialogTrigger(trigger);
     }
     function onKey(e) {
-      if (e.key === 'Escape') cancelBtn.click();
+      if (isDialogCloseKey(e)) cancelBtn.click();
     }
     document.addEventListener('keydown', onKey);
 
