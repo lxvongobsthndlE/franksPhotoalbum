@@ -55,12 +55,15 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     // Bug 14 (2026-08-18): <th> bekommen jetzt Ausrichtungs-Klassen
     // (is-rank / is-team / is-num), damit Header-Zellen dieselbe
     // text-align-Eigenschaft haben wie ihre <td>-Gegenstücke.
+    // P5 Re-Fix (2026-08-25): <th>/<td> tragen jetzt zusätzlich
+    // data-col-Attribute für mobile Spalten-Hide (Pl/played/won/...),
+    // Team bleibt ohne Marker (volle Breite).
     const headerMatch = html.match(/<thead>[\s\S]*?<\/thead>/);
     expect(headerMatch).toBeTruthy();
     const header = headerMatch[0];
-    // Reihenfolge der th-Labels (mit Ausrichtungs-Klassen):
+    // Reihenfolge der th-Labels (mit Ausrichtungs-Klassen + data-col):
     expect(header).toMatch(
-      /<th class="is-rank">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-num">Sp\.<\/th>[\s\S]*<th class="is-num">S<\/th>[\s\S]*<th class="is-num">U<\/th>[\s\S]*<th class="is-num">N<\/th>[\s\S]*<th class="is-num">Becher<\/th>[\s\S]*<th class="is-num">Diff<\/th>[\s\S]*<th class="is-num">Pkt\.<\/th>/,
+      /<th class="is-rank"\s+data-col="pl">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-num"\s+data-col="played">Sp\.<\/th>[\s\S]*<th class="is-num"\s+data-col="won">S<\/th>[\s\S]*<th class="is-num"\s+data-col="drawn">U<\/th>[\s\S]*<th class="is-num"\s+data-col="lost">N<\/th>[\s\S]*<th class="is-num"\s+data-col="score">Becher<\/th>[\s\S]*<th class="is-num"\s+data-col="diff">Diff<\/th>[\s\S]*<th class="is-num"\s+data-col="points">Pkt\.<\/th>/,
     );
   });
 
@@ -104,16 +107,16 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
   it('Diff bekommt +/- Vorzeichen + is-positive/is-negative Klasse', () => {
     const html = renderStandingsGroups(fixture, 'Becher');
     // Alpha: +7, is-positive
-    expect(html).toMatch(/class="t-standings-num is-positive">\+7</);
+    expect(html).toMatch(/class="t-standings-num is-positive"\s+data-col="diff">\+7</);
     // Beta: -1, is-negative
-    expect(html).toMatch(/class="t-standings-num is-negative">-1</);
+    expect(html).toMatch(/class="t-standings-num is-negative"\s+data-col="diff">-1</);
   });
 
   it('Pkt. wird mit is-points-Klasse gerendert (fett)', () => {
     const html = renderStandingsGroups(fixture, 'Becher');
-    expect(html).toMatch(/class="t-standings-num is-points">9</);
-    expect(html).toMatch(/class="t-standings-num is-points">3</);
-    expect(html).toMatch(/class="t-standings-num is-points">1</);
+    expect(html).toMatch(/class="t-standings-num is-points"\s+data-col="points">9</);
+    expect(html).toMatch(/class="t-standings-num is-points"\s+data-col="points">3</);
+    expect(html).toMatch(/class="t-standings-num is-points"\s+data-col="points">1</);
   });
 
   it('Top-2 bekommen is-first / is-second Klassen für Qualifikations-Marker', () => {
@@ -121,7 +124,7 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     expect(html).toContain('class="t-standings-row is-first"');
     expect(html).toContain('class="t-standings-row is-second"');
     // Gamma ist nicht qualifiziert:
-    expect(html).not.toContain('class="t-standings-row is-first"><td class="t-standings-rank">3');
+    expect(html).not.toContain('class="t-standings-row is-first"><td class="t-standings-rank" data-col="pl">3');
   });
 
   it('Score-Label wird in Spalte 7 (nicht 3) gerendert', () => {
@@ -129,9 +132,27 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     // Spalten-ÜBERSCHRIFT in Spalte 7 (gf:ga), nicht die Spalten 3
     // (Sp.) oder 9 (Pkt.).
     const html = renderStandingsGroups(fixture, 'Tore');
-    expect(html).toMatch(/<th class="is-num">Tore<\/th>/);
+    expect(html).toMatch(/<th class="is-num"\s+data-col="score">Tore<\/th>/);
     // Sicherstellen: Spalte 3 hat NICHT das Score-Label.
-    expect(html).not.toMatch(/<th class="is-num">Tore<\/th><th class="is-num">S<\/th>/);
+    expect(html).not.toMatch(/<th class="is-num"\s+data-col="score">Tore<\/th><th class="is-num"\s+data-col="won">S<\/th>/);
+  });
+
+  it('P5 Re-Fix: alle TH/TD außer Team tragen data-col (für mobile Spalten-Hide)', () => {
+    // Regression: ohne data-col-Attribute kann das mobile CSS keine
+    // einzelnen Spalten ausblenden. Team bleibt ohne Marker (volle Breite).
+    const html = renderStandingsGroups(fixture, 'Becher');
+    // 8 data-col-THs (Pl, played, won, drawn, lost, score, diff, points —
+    // Team hat keinen Marker)
+    const dataColThs = html.match(/<th[^>]*data-col="[^"]+"/g) || [];
+    expect(dataColThs.length).toBe(8);
+    // 8 data-col-TDs pro Reihe × 3 Reihen = 24 data-col-TDs
+    const dataColTds = html.match(/<td[^>]*data-col="[^"]+"/g) || [];
+    expect(dataColTds.length).toBe(24);
+    // Team-TH/TD haben KEIN data-col
+    expect(html).toMatch(/<th class="is-team">Team<\/th>/);
+    expect(html).toMatch(/<td class="t-standings-team">[^<]+<\/td>/);
+    expect(html).not.toMatch(/<th[^>]*class="is-team"[^>]*data-col=/);
+    expect(html).not.toMatch(/<td[^>]*class="t-standings-team"[^>]*data-col=/);
   });
 });
 
@@ -154,7 +175,7 @@ describe('renderStandingsGroups — Edge cases', () => {
     expect(html).not.toContain('undefined');
     // Genau 0:0 für Becher, 0 (ohne +) für Diff — bei 0 kein Vorzeichen.
     expect(html).toMatch(/<td[^>]*>0:0<\/td>/);
-    expect(html).toMatch(/class="t-standings-num">0</);
+    expect(html).toMatch(/class="t-standings-num"\s+data-col="drawn">0</);
   });
 
   it('Score-Label „Punkte" für sonstige Sportarten', () => {
@@ -162,7 +183,7 @@ describe('renderStandingsGroups — Edge cases', () => {
       [{ groupKey: 'X', standings: [{ teamId: 't1', name: 'A', points: 5 }] }],
       'Punkte',
     );
-    expect(html).toMatch(/<th class="is-num">Punkte<\/th>/);
+    expect(html).toMatch(/<th class="is-num"\s+data-col="score">Punkte<\/th>/);
   });
 
   it('HTML-Escape für Teamnamen mit Sonderzeichen', () => {

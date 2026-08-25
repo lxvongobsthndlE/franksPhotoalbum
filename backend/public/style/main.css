@@ -5885,117 +5885,68 @@ button.tournament-header-btn {
   .t-thirds-table .t-thirds-team { font-size: 13px; }
 }
 
-/* P5 (2026-08-24) — Card-Layout für Standings + Dritte-Tabelle unter
-   600 px Container-Breite. Statt Spalten-Hide („…"-Overload) wird
-   jede Team-Zeile zu einer 2-zeiligen Card:
+/* P5 Re-Fix (2026-08-25, User-Browser-Test): Statt Card-Layout (das
+   zwei Browser-Runden kaputt war) jetzt schlichter Spalten-Hide.
+   Zielzustand auf Mobile (≤600 px Container):
 
      ┌──────────────────────────────────────────┐
-     │ 1  Team 6                          6    │  Reihe 1: Pl · Team · Pkt
-     │    2 Sp · 2-0-0 · 5:2 · +3              │  Reihe 2: Stats mit ·-Sep
+     │ 1  Team Alpha              9:2  +7   9   │   alles in EINER Zeile
+     │ 2  Team Beta               5:6  -1   3   │   leserlich, kein Overlap
      └──────────────────────────────────────────┘
 
-   Wichtig (User-Warnung, Bug-16-Lesson): KEIN display:contents auf
-   tr/td — das würde die Card-Container-Eigenschaft verlieren.
-   Stattdessen display:block auf tr/td + grid/flex für die Zellen.
-   Markup bleibt unverändert; nur CSS formt um. */
+   Verdeckt: Sp · S · U · N (4 mittlere Stats-Spalten). Bleibt sichtbar:
+   Pl · Team · Becher (gf:ga) · Diff · Pkt.
+
+   Markup bleibt unverändert — Renderer setzt data-col-Attribute
+   (spielplan-helpers.js renderStandingsGroups + renderBestThirdsTable),
+   dieser Container-Query blendet gezielt aus und schrumpft Schrift +
+   Padding, damit alles in einer Zeile passt. */
 @container (max-width: 600px) {
+  /* Tabelle kompakter, kleinere Schrift, weniger Padding. */
   .t-standings-table,
   .t-thirds-table {
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 13px;
+    font-size: 12px;
   }
-  .t-standings-table thead,
-  .t-thirds-table thead { display: none; }
+  .t-standings-table th,
+  .t-standings-table td,
+  .t-thirds-table th,
+  .t-thirds-table td {
+    padding: 6px 4px;
+  }
 
-  /* Jede Team-Zeile wird zur Card. display:block (NICHT contents). */
-  .t-standings-table tbody tr,
-  .t-thirds-table tbody tr {
-    display: block;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
+  /* Standings: Sp · S · U · N ausblenden.
+     Bleibt: Pl · Team · Becher · Diff · Pkt (5 Spalten). */
+  .t-standings-table th[data-col="played"],
+  .t-standings-table th[data-col="won"],
+  .t-standings-table th[data-col="drawn"],
+  .t-standings-table th[data-col="lost"],
+  .t-standings-table td[data-col="played"],
+  .t-standings-table td[data-col="won"],
+  .t-standings-table td[data-col="drawn"],
+  .t-standings-table td[data-col="lost"] {
+    display: none;
   }
-  .t-standings-table tbody tr:last-child,
-  .t-thirds-table tbody tr:last-child { border-bottom: 0; }
 
-  /* Reihe 1 (Pl · Team · Pkt): 3-Spalten-Grid. td → grid-Item. */
-  .t-standings-table .t-standings-rank,
-  .t-standings-table .t-standings-team,
-  .t-standings-table .t-standings-num.is-points,
-  .t-thirds-table .t-thirds-rank,
-  .t-thirds-table .t-thirds-team,
-  .t-thirds-table .t-thirds-num.is-points {
-    display: grid;
-    grid-template-columns: 24px 1fr auto;
-    align-items: baseline;
-    gap: 8px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    width: auto;
-    text-align: left;
-    white-space: normal;
+  /* Beste-Dritte: zusätzlich zu Sp/S/U/N auch Gruppe ausblenden,
+     wenn das Modul sehr schmal ist (Konflikt mit dem 430-Block, der
+     schon 5 Spalten versteckt — hier nur Score raus, damit Pkt
+     rechts sichtbar bleibt). */
+  .t-thirds-table th[data-col="played"],
+  .t-thirds-table th[data-col="won"],
+  .t-thirds-table th[data-col="drawn"],
+  .t-thirds-table th[data-col="lost"],
+  .t-thirds-table td[data-col="played"],
+  .t-thirds-table td[data-col="won"],
+  .t-thirds-table td[data-col="drawn"],
+  .t-thirds-table td[data-col="lost"] {
+    display: none;
   }
-  .t-standings-table .t-standings-team,
-  .t-thirds-table .t-thirds-team {
-    font-weight: 500;
-    color: var(--text);
-  }
-  .t-standings-table .t-standings-num.is-points,
-  .t-thirds-table .t-thirds-num.is-points {
+
+  /* Punkte-Spalte rechts ausrichten, mehr Gewicht. */
+  .t-standings-num.is-points,
+  .t-thirds-num.is-points {
     font-weight: 700;
-    color: var(--accent);
-    font-size: 16px;
-  }
-  .t-standings-table .t-standings-rank,
-  .t-thirds-table .t-thirds-rank {
-    color: var(--muted);
-  }
-
-  /* Reihe 2 (Stats): alle Nicht-Punkte-Zahlen nebeneinander. */
-  .t-standings-table tbody tr > .t-standings-num:not(.is-points),
-  .t-thirds-table tbody tr > .t-thirds-num:not(.is-points) {
-    display: inline-block;
-    font-size: 11px;
-    color: var(--muted);
-    padding: 2px 0 0 32px;
-    border: none;
-    text-align: left;
-  }
-  /* Separator-Dots zwischen Stats. */
-  .t-standings-table tbody tr > .t-standings-num:not(.is-points)::after,
-  .t-thirds-table tbody tr > .t-thirds-num:not(.is-points)::after {
-    content: ' · ';
-    color: var(--border);
-    margin: 0 4px 0 2px;
-  }
-  .t-standings-table tbody tr > .t-standings-num:not(.is-points):last-of-type::after,
-  .t-thirds-table tbody tr > .t-thirds-num:not(.is-points):last-of-type::after {
-    content: '';
-    margin: 0;
-  }
-
-  /* Beste-Dritte: Gruppe in Reihe 2 vorne (kommt aus eigener
-     .t-thirds-group-Spalte, renderBestThirdsTable). */
-  .t-thirds-table .t-thirds-group {
-    display: inline-block;
-    font-size: 11px;
-    color: var(--muted);
-    padding: 2px 0 0 32px;
-    border: none;
-    text-align: left;
-  }
-  .t-thirds-table .t-thirds-group::after {
-    content: ' · ';
-    color: var(--border);
-  }
-
-  /* Bestätigungs-Haken aus Reihe 1 (Pl-Zelle) — kleiner. */
-  .t-standings-row.is-first .t-standings-rank::after,
-  .t-standings-row.is-second .t-standings-rank::after,
-  .t-thirds-row.is-qualified .t-thirds-rank::after {
-    margin-left: 2px;
-    font-size: 11px;
+    text-align: right;
   }
 }
 /* Qualifikations-Marker:

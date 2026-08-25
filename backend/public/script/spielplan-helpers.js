@@ -488,15 +488,15 @@ export function renderStandingsGroups(groups, scoreLabel) {
           const isFirst = i === 0;
           const isSecond = i === 1;
           return `<tr class="t-standings-row${isFirst ? ' is-first' : ''}${isSecond ? ' is-second' : ''}">
-            <td class="t-standings-rank">${i + 1}.</td>
+            <td class="t-standings-rank" data-col="pl">${i + 1}.</td>
             <td class="t-standings-team">${esc(s.name || s.teamId || '—')}</td>
-            <td class="t-standings-num">${s.played ?? 0}</td>
-            <td class="t-standings-num">${s.won ?? 0}</td>
-            <td class="t-standings-num">${s.drawn ?? 0}</td>
-            <td class="t-standings-num">${s.lost ?? 0}</td>
-            <td class="t-standings-num">${gf}:${ga}</td>
-            <td class="t-standings-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}">${fmtDiff(gd)}</td>
-            <td class="t-standings-num is-points">${s.points ?? 0}</td>
+            <td class="t-standings-num" data-col="played">${s.played ?? 0}</td>
+            <td class="t-standings-num" data-col="won">${s.won ?? 0}</td>
+            <td class="t-standings-num" data-col="drawn">${s.drawn ?? 0}</td>
+            <td class="t-standings-num" data-col="lost">${s.lost ?? 0}</td>
+            <td class="t-standings-num" data-col="score">${gf}:${ga}</td>
+            <td class="t-standings-num${gd > 0 ? ' is-positive' : gd < 0 ? ' is-negative' : ''}" data-col="diff">${fmtDiff(gd)}</td>
+            <td class="t-standings-num is-points" data-col="points">${s.points ?? 0}</td>
           </tr>`;
         })
         .join('');
@@ -508,15 +508,15 @@ export function renderStandingsGroups(groups, scoreLabel) {
             ${renderColgroup(STANDINGS_COL_WIDTHS)}
             <thead>
               <tr>
-                <th class="is-rank">Pl.</th>
+                <th class="is-rank"  data-col="pl">Pl.</th>
                 <th class="is-team">Team</th>
-                <th class="is-num">Sp.</th>
-                <th class="is-num">S</th>
-                <th class="is-num">U</th>
-                <th class="is-num">N</th>
-                <th class="is-num">${esc(scoreLabel)}</th>
-                <th class="is-num">Diff</th>
-                <th class="is-num">Pkt.</th>
+                <th class="is-num"   data-col="played">Sp.</th>
+                <th class="is-num"   data-col="won">S</th>
+                <th class="is-num"   data-col="drawn">U</th>
+                <th class="is-num"   data-col="lost">N</th>
+                <th class="is-num"   data-col="score">${esc(scoreLabel)}</th>
+                <th class="is-num"   data-col="diff">Diff</th>
+                <th class="is-num"   data-col="points">Pkt.</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
