@@ -621,6 +621,87 @@
   max-width: 100%;
 }
 
+/* ----------------------------------------------------------------
+   NAVIGATIONSLUECKE 601-767px (geschlossen 2026-08-25)
+   ----------------------------------------------------------------
+   .t-mod-nav war ab Containerbreite <=767px ausgeblendet, die
+   Bodenleiste erscheint aber erst ab <=600px. Dazwischen hatte das
+   Modul WEDER Seitenleiste NOCH Leiste — gar keine Navigation.
+
+   Im Browser nachgemessen (Edge, .t-mod als Container in #content):
+       viewport 1500 -> container 1208  Nav sichtbar
+       viewport 1059 -> container  767  Nav WEG, keine Leiste   <- Beginn
+       viewport  900 -> container  872  Nav sichtbar (die App-Seitenleiste
+                                        klappt bei <=900px weg, das Modul
+                                        wird dadurch schlagartig breiter)
+       viewport  795 -> container  767  Nav WEG, keine Leiste
+       viewport  628 -> container  600  Bodenleiste erscheint
+   Das sind ZWEI getrennte Fensterbaender (901-1059 und 629-900), zusammen
+   326px Fensterbreite ohne jede Navigation — nicht 167px, wie die reine
+   Rechnung am Container nahelegt. Die App-Seitenleiste verbiegt die
+   Abbildung viewport->container; lesbar ist die Luecke nur am Container.
+
+   ZWEI NAHELIEGENDE FIXES WURDEN GEBAUT UND VERWORFEN:
+
+   (1) Bodenleiste bis 767px hochziehen. Sie ist `position: fixed;
+       left: 0; right: 0` und spannt damit ueber das GANZE FENSTER, nicht
+       nur ueber das Modul. Im oberen Band (viewport 901-1059) ist die
+       App-Seitenleiste sichtbar — die mobile Leiste laege dann quer
+       darueber. Im Prototyp-Screenshot bestaetigt.
+
+   (2) Modul-Seitenleiste bis 601px herunterziehen (Schwelle 768 -> 601).
+       Kostet 160px Nav + Rasterluft und wurde AM BILD widerlegt: die
+       Gruppentabelle steht im Desktop-Satz mit 9 Spalten, solange der
+       Container > 600px ist (die Compact-Umschaltung in
+       spielplan-helpers.js haengt an genau derselben 600er-Grenze).
+       Gemessene Kopfzeilen-Truncation (scrollWidth > clientWidth):
+           ohne Nav  container 767 -> main 743  abgeschnitten: keine
+           ohne Nav  container 612 -> main 593  abgeschnitten: Becher
+           MIT Nav   container 767 -> main 554  abgeschnitten: Becher
+           MIT Nav   container 612 -> main 420  abgeschnitten: Pl., Sp.,
+                                                S, U, N, Becher, Diff, Pkt.
+       Unterhalb von ~580px Hauptbereich zerfaellt die Tabelle. Mit einer
+       160px-Nav ist das ab Container 767 abwaerts unvermeidlich.
+
+   GEWAEHLT: In diesem Band bekommt .t-mod-tabs wieder ihre URSPRUENGLICHE
+   Form — die horizontale Leiste OBEN, im Fluss des Moduls. Die kostet
+   keine Breite (kein 160px-Abzug), ist kein fensterweit fixiertes
+   Element (kein Uebergriff auf die App-Seitenleiste) und liegt im
+   Container, folgt also der Modulbreite statt der Fensterbreite.
+   Die Basisregel von .t-mod-tabs weiter oben traegt diese Form bereits
+   vollstaendig (position: relative, height: 44px, overflow-x: auto,
+   border-bottom, Fade-::after) — ihr fehlte nur das display.
+
+   ZUR HOEHEN-WAHRHEIT DER BODENLEISTE (siehe Warnung im 767er-Block
+   weiter unten): Dieser Block ist ein BEREICH, min-width 601 UND
+   max-width 767. Er kann bei <=600px gar nicht greifen. Die Geometrie
+   der Bodenleiste bleibt damit unberuehrt und hat weiterhin genau eine
+   Wahrheit — den Block @container (max-width: 600px) weiter oben.
+   ---------------------------------------------------------------- */
+@container (min-width: 601px) and (max-width: 767px) {
+  .t-mod-tabs { display: flex; }
+  /* .t-mod-tab ist seit P3 fuer die Bodenleiste gebaut (Spalte, 56px,
+     Icon ueber Label). Hier zurueck auf die Zeilenform, die in die
+     44px-Leiste passt. Hoehe bewusst NICHT gesetzt — die kommt aus
+     .t-mod-tabs; hier wird nur der Button an die Leiste angepasst. */
+  .t-mod-tab {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: var(--s2);
+    padding: 0 var(--s3);
+    align-self: stretch;
+    font-size: 14px;
+    border-top: none;
+    border-bottom: 2px solid transparent;
+  }
+  .t-mod-tab.is-active {
+    border-top-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+  .t-mod-tab svg { width: 18px; height: 18px; }
+  .t-mod-tab > span { font-size: 14px; }
+}
+
 /* Hauptbereich (mittlere Spalte) */
 .t-mod-main {
   padding: var(--s6);
