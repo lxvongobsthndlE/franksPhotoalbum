@@ -3499,10 +3499,16 @@ async function loadBracketTab(tournamentId) {
     //   - alle Gruppenspiele finished sind
     //   - das Bracket noch nicht gefüllt ist (= Slots haben Platzhalter)
     // Mitglieder sehen den leeren Bracket weiterhin still.
+    //
+    // Bug-Fix (2026-08-25): Vorher `tournament?.config?.mode === 'groups_ko'`
+    // — `config` wird vom DTO NICHT befüllt (nur `mode` ist Top-Level auf
+    // prepareTournamentView). Folge: Bedingung war permanent false und
+    // der Button tauchte nie auf, obwohl der Server die richtigen Flags
+    // lieferte. Symptom: User „der button erscheint nicht".
     const tournament = activeTournamentInstance;
     if (
       tournament?.isAdmin === true
-      && tournament?.config?.mode === 'groups_ko'
+      && tournament?.mode === 'groups_ko'
       && allGroupsFinished
       && bracketHasPlaceholders
     ) {

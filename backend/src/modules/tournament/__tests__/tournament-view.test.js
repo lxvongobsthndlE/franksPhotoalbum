@@ -125,3 +125,31 @@ describe('prepareTournamentView — Sport-Label', () => {
     expect(v.scoreLabel).toBe('Becher');
   });
 });
+
+describe('prepareTournamentView — Mode Top-Level (P5-Re-Fix, 2026-08-25)', () => {
+  // Bug-Fix-Schutz: Das Frontend braucht für den Fallback-Button
+  // „K.-o.-Phase starten" `tournament.mode === 'groups_ko'`. Vorher
+  // stand dort `tournament.config?.mode` — `config` ist aber NICHT
+  // Teil des DTO (Top-Level hat nur `mode`), Folge: Bedingung war
+  // permanent false → Button tauchte nie auf, obwohl Server-Flags
+  // stimmten. Symptom: User „der button erscheint nicht".
+  it('mode ist Top-Level auf dem DTO', () => {
+    const v = prepareTournamentView(rawTournament({ mode: 'groups_ko' }));
+    expect(v.mode).toBe('groups_ko');
+  });
+
+  it('mode fehlt → Fallback "groups_ko"', () => {
+    const raw = rawTournament();
+    delete raw.mode;
+    const v = prepareTournamentView(raw);
+    expect(v.mode).toBe('groups_ko');
+  });
+
+  it('DTO hat KEIN config-Objekt (Frontend verlässt sich auf mode top-level)', () => {
+    const v = prepareTournamentView(rawTournament({ config: { mode: 'groups_ko' } }));
+    // Wichtig: selbst wenn die DB ein config-Objekt liefert, wird es
+    // NICHT durchgereicht — Frontend MUSS `v.mode` lesen, nicht
+    // `v.config?.mode`. (Sonst kippt der Fallback-Button-Bug zurück.)
+    expect(v.config).toBeUndefined();
+  });
+});
