@@ -2729,6 +2729,101 @@ function wireGuardedClick(btn, handler) {
   });
 }
 
+/**
+ * Lazy-Ladung eines Tab-Mounts mit ehrlichem Fehlerzustand
+ * (Betriebsfestigkeit A5, 2026-08-25).
+ *
+ * Vorher stand `mount.dataset.loaded = '1'` VOR dem `await`. Schlug
+ * das Laden fehl, blieb die Markierung stehen: Wegklicken und
+ * Zurueckklicken luden nicht mehr nach — der Tab war fuer den Rest
+ * der Sitzung kaputt, und einen Weg zurueck gab es nicht. Die
+ * Listenseite bietet in derselben Lage seit jeher „Erneut versuchen".
+ *
+ * Jetzt drei Zustaende statt zwei:
+ *
+ *   'pending'  laeuft gerade — blockt eine zweite Ladung
+ *   '1'        geladen — Tab-Wechsel holt nicht neu
+ *   (fehlt)    fehlgeschlagen — der naechste Tab-Klick versucht es
+ *              von selbst erneut, und im Mount steht ein Knopf
+ *
+ * @param {HTMLElement|null} mount
+ * @param {string} label   Klartext fuer das Fehlerbild
+ * @param {() => Promise<any>} loader
+ */
+function startTabLoad(mount, label, loader) {
+  if (!mount || typeof loader !== 'function') return;
+  if (mount.dataset.loaded) return;
+  mount.dataset.loaded = 'pending';
+  Promise.resolve()
+    .then(() => loader())
+    .then(() => {
+      mount.dataset.loaded = '1';
+    })
+    .catch((err) => {
+      // Markierung WEG, nicht auf '1' — sonst bleibt der Tab kaputt.
+      delete mount.dataset.loaded;
+      // eslint-disable-next-line no-console
+      console.warn('[tab] Laden fehlgeschlagen: ' + label, err);
+      renderTabLoadError(mount, label, () => startTabLoad(mount, label, loader));
+    });
+}
+
+/**
+ * Fehlerbild eines Tab-Mounts mit „Erneut versuchen" — dasselbe
+ * Angebot, das die Listenseite macht (dort
+ * `loadTournamentInstances(true)`). Ohne den Knopf bleibt dem Nutzer
+ * nur ein Seiten-Neuladen, und das kostet am Turniertag den
+ * Scrollstand und den offenen Tab.
+ */
+function renderTabLoadError(mount, label, wieder, detail) {
+  if (!mount) return;
+  const detailZeile = detail
+    ? `<p class="t-hint t-hint--error">${esc(String(detail))}</p>`
+    : '';
+  mount.innerHTML = `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p class="t-hint">${esc(label)} konnte nicht geladen werden.</p>${detailZeile}
+          <button type="button" class="t-btn t-btn--primary" data-action="retry-tab-load">Erneut versuchen</button>
+        </div>
+      </div>`;
+  const btn = mount.querySelector('[data-action="retry-tab-load"]');
+  if (btn && typeof wieder === 'function') {
+    btn.addEventListener('click', () => {
+      wieder();
+    });
+  }
+}
+
+/**
+ * Drucken-Tab (Auftrag C, 2026-08-25).
+ *
+ * Ersetzt den frueheren Etappe-B.6-Platzhalter. Das Drucklayout
+ * selbst kommt aus dem @media-print-Stylesheet einer Parallel-Spur —
+ * hier steht nur, WAS auf das Papier geht, und der Ausloeser.
+ *
+ * Der Knopf traegt dasselbe data-action wie die beiden Knoepfe in der
+ * Kopfzeile; der Handler dafuer haengt bereits am Detail-Container
+ * (querySelectorAll ueber alle Treffer, Klick ruft window.print()) und
+ * greift diesen Knopf mit, weil er im selben innerHTML steckt. Kein
+ * zweiter Listener, kein zweiter Weg.
+ *
+ * Die Aktion steht in SAFE_DATA_ACTIONS — Mitglieder duerfen drucken.
+ */
+function renderDruckenView() {
+  return `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p>Gedruckt wird das Turnier, wie es gerade steht: der Spielplan mit Uhrzeit,
+          Platte und eingetragenen Ergebnissen, die Gruppentabellen und der K.-o.-Baum.</p>
+          <p class="t-hint">Bedienelemente, Seitenleiste und Navigation kommen nicht mit aufs
+          Papier. Fuer den Aushang an der Platte reicht eine Seite Spielplan; der Baum wird
+          im Querformat lesbarer.</p>
+          <button type="button" class="t-btn t-btn--primary" data-action="print">Jetzt drucken</button>
+        </div>
+      </div>`;
+}
+
 function handleTournamentTabSideEffects(view, t, detail) {
   if (!detail) return;
   // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
@@ -2739,10 +2834,15 @@ function handleTournamentTabSideEffects(view, t, detail) {
     if (mount) {
       mount.innerHTML = '';
       if (t?.id && typeof loadEinstellungenTab === 'function') {
-        loadEinstellungenTab(t, mount).catch(() => {
-          if (typeof placeholder === 'function') {
-            mount.innerHTML = placeholder('Einstellungen konnten nicht geladen werden.', '');
-          }
+        // loadEinstellungenTab faengt selbst und zeigt sein Fehlerbild
+        // mit „Erneut versuchen". Der catch hier ist nur die Rueckfall-
+        // ebene, falls schon der Aufruf selbst wirft.
+        loadEinstellungenTab(t, mount).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn('[tab:einstellungen] Laden fehlgeschlagen', err);
+          renderTabLoadError(mount, 'Die Einstellungen', () => {
+            handleTournamentTabSideEffects('einstellungen', t, detail);
+          }, err && err.message ? err.message : null);
         });
       }
       return;
@@ -2761,30 +2861,16 @@ function handleTournamentTabSideEffects(view, t, detail) {
   // also wird der Loader erneut getriggert.
   if (view === 'teams') {
     const mount = detail.querySelector('[data-tab-body="teams-mount"]');
-    if (mount && !mount.dataset.loaded) {
-      mount.dataset.loaded = '1';
-      if (t?.id && typeof loadTeamsTab === 'function') {
-        loadTeamsTab(t).catch(() => {
-          if (typeof placeholder === 'function') {
-            mount.innerHTML = placeholder('Teams konnten nicht geladen werden.', '');
-          }
-        });
-      }
+    if (t?.id && typeof loadTeamsTab === 'function') {
+      startTabLoad(mount, 'Die Teamliste', () => loadTeamsTab(t));
     }
     return;
   }
   // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
   if (view === 'gruppen') {
     const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
-    if (mount && !mount.dataset.loaded) {
-      mount.dataset.loaded = '1';
-      if (t?.id && typeof loadStandingsTab === 'function') {
-        loadStandingsTab(t.id).catch(() => {
-          if (typeof placeholder === 'function') {
-            mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
-          }
-        });
-      }
+    if (t?.id && typeof loadStandingsTab === 'function') {
+      startTabLoad(mount, 'Die Gruppen-Tabellen', () => loadStandingsTab(t.id));
     }
     return;
   }
@@ -2792,11 +2878,8 @@ function handleTournamentTabSideEffects(view, t, detail) {
   // nur über expliziten Reload.
   if (view === 'baum') {
     const mount = detail.querySelector('[data-tab-body="baum-mount"]');
-    if (mount && !mount.dataset.loaded) {
-      mount.dataset.loaded = '1';
-      if (t?.id && typeof loadBracketTab === 'function') {
-        loadBracketTab(t.id).catch(() => {});
-      }
+    if (t?.id && typeof loadBracketTab === 'function') {
+      startTabLoad(mount, 'Der Turnierbaum', () => loadBracketTab(t.id));
     }
     return;
   }
@@ -3090,7 +3173,7 @@ function renderTournamentInstanceDetailV3(t) {
             </section>
             <section class="t-view" data-view="drucken">
               <div class="t-view-head"><div class="t-view-title">Drucken</div></div>
-              ${placeholder('Die Druckansicht', 'Kommt in Etappe B.6.')}
+              ${renderDruckenView()}
             </section>
             ${renderEinstellungenSection({ isAdmin })}
           </main>
@@ -3671,6 +3754,11 @@ async function loadStandingsTab(tournamentId) {
     if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
+    // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
+    // es den Tab als geladen und der „Erneut versuchen"-Knopf
+    // erscheint nie. Der Kartentext oben bleibt als Rueckfall fuer
+    // Direktaufrufe (die Funktion steht im Export-Block).
+    throw e;
   }
 }
 
@@ -3757,6 +3845,11 @@ async function loadBracketTab(tournamentId) {
     if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
     toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
+    // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
+    // es den Tab als geladen und der „Erneut versuchen"-Knopf
+    // erscheint nie. Der Kartentext oben bleibt als Rueckfall fuer
+    // Direktaufrufe (die Funktion steht im Export-Block).
+    throw e;
   }
 }
 
@@ -4093,11 +4186,11 @@ async function loadEinstellungenTab(t, mount) {
     wireEinstellungen(mount, t, { finishedCount });
   } catch (err) {
     console.error('[loadEinstellungenTab] failed', err);
-    if (mount) {
-      mount.innerHTML = `<div class="t-card"><div class="t-card-body">
-        <p class="t-hint t-hint--error">Einstellungen konnten nicht aufgebaut werden: ${esc(err && err.message ? err.message : String(err))}</p>
-      </div></div>`;
-    }
+    // Fehlerbild mit „Erneut versuchen" statt einer Sackgasse — der
+    // Wiederholungsweg ist derselbe Aufruf mit demselben Mount.
+    renderTabLoadError(mount, 'Die Einstellungen', () => {
+      loadEinstellungenTab(t, mount);
+    }, err && err.message ? err.message : String(err));
   }
 }
 
