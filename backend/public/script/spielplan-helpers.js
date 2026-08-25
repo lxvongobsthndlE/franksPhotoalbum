@@ -538,11 +538,9 @@ export function renderStandingsGroups(groups, scoreLabel) {
  * · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. — plus ein Haken
  * bei den qualifizierten Top-N.
  *
- * Der Hinweis „pro Spiel" erscheint nur, wenn die zugrundeliegenden
- * Gruppen tatsächlich unterschiedlich groß sind (3er vs. 4er), damit
- * der User versteht, warum die Rangfolge nicht mit den Absolut-Zahlen
- * 1:1 übereinstimmt. Bei gleich großen Gruppen ist die Hinweis-Box
- * unnötig.
+ * P6 (2026-08-24, User-Liste): Hinweis ist IMMER sichtbar
+ * („Gewertet wird nach Punkten pro Spiel."). Vorher conditional bei
+ * mixedGroupSizes — User fand das verwirrend.
  *
  * Top-N aus config.bestThirds bekommen `is-qualified` (grüner Hin-
  * tergrund + Haken). Der Rest bekommt `is-out`.
@@ -557,11 +555,9 @@ export function renderBestThirdsTable(bestThirds) {
   const { qualifyCount, rows } = bestThirds;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
 
-  // Hinweis nur einblenden, wenn die Drittplatzierten aus unter-
-  // schiedlich großen Gruppen kommen. Sonst wäre der Rank mit den
-  // absoluten Zahlen identisch und der Hinweis wäre verwirrend.
-  const playedSet = new Set(rows.map((r) => r.played ?? 0));
-  const mixedGroupSizes = playedSet.size > 1;
+  // P6 (2026-08-24): Hinweis wurde vorher conditional eingeblendet
+  // (mixedGroupSizes). User-Forderung: unconditional. mixedGroupSizes
+  // wird nicht mehr berechnet.
 
   const body = rows
     .map((r, i) => {
@@ -584,14 +580,16 @@ export function renderBestThirdsTable(bestThirds) {
     })
     .join('');
 
-  const mixedNote = mixedGroupSizes
-    ? `<p class="t-hint t-hint--compact">Gruppen unterschiedlich groß — gewertet wird pro Spiel.</p>`
-    : '';
+  // P6 (2026-08-24, User-Liste): Hinweis IMMER anzeigen, nicht nur bei
+  // mixedGroupSizes. Vorher tauchte der Hinweis nur bei unterschiedlich
+  // großen Gruppen auf — der User fand das verwirrend. Jetzt konstanter
+  // Einzeiler, der die Normierung generell erklärt.
+  const hint = `<p class="t-hint t-hint--compact">Gewertet wird nach Punkten pro Spiel.</p>`;
 
   return `<div class="t-card t-thirds-card">
     <div class="t-card-body">
       <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
-      ${mixedNote}
+      ${hint}
       <table class="t-thirds-table">
         ${renderColgroup(THIRDS_COL_WIDTHS)}
         <thead>

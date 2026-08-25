@@ -532,10 +532,12 @@ describe('renderAsideTables', () => {
 //       data-col-Attribute auf TH/TD, damit Container-Query
 //       schmale Spalten ausblenden kann.
 
-describe('renderBestThirdsTable — Hint-Text (P1)', () => {
-  // P1 (Browser-Feedback 2026-08-24): "Spec §10.4" darf nicht mehr im
-  // User-sichtbaren Text auftauchen. Statt dessen kompakter Hint nur
-  // bei tatsächlich gemischten Gruppengrößen.
+describe('renderBestThirdsTable — Hint-Text (P6)', () => {
+  // P6 (2026-08-24, User-Liste): Hinweis ist unconditional.
+  // "Gewertet wird nach Punkten pro Spiel." — gilt IMMER, unabhängig
+  // davon, ob die zugrunde liegenden Gruppen unterschiedlich groß sind.
+  // Ein konstanter Einzehler erklärt die Normierung generell und ist
+  // weniger verwirrend als ein bedingter Text.
 
   const mixedRows = [
     { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
@@ -547,21 +549,20 @@ describe('renderBestThirdsTable — Hint-Text (P1)', () => {
     { name: 'C1', groupKey: 'C', played: 3, won: 0, drawn: 2, lost: 1, goalsFor: 3, goalsAgainst: 5, points: 2, qualifies: false },
   ];
 
-  it('mixedGroupSizes (3er + 4er Mix) zeigt kompakten Hint ohne Spec-Verweis', () => {
+  it('mixedGroupSizes zeigt IMMER den kompakten Hinweis "Gewertet wird nach Punkten pro Spiel."', () => {
     const html = renderBestThirdsTable({ qualifyCount: 1, rows: mixedRows });
-    expect(html).toContain('Gruppen unterschiedlich groß');
-    expect(html).toContain('gewertet wird pro Spiel');
+    expect(html).toContain('Gewertet wird nach Punkten pro Spiel.');
+    expect(html).toContain('t-hint--compact');
     // KEIN Spec-Verweis mehr
     expect(html).not.toContain('Spec §10.4');
     expect(html).not.toContain('Rangfolge nach Punkten');
-    // Neue CSS-Modifierklasse
-    expect(html).toContain('t-hint--compact');
+    // Alter "unterschiedlich groß"-Text ist weg
+    expect(html).not.toContain('unterschiedlich groß');
   });
 
-  it('gleich große Gruppen (3×4) zeigt KEINEN Hinweis (kein visueller Lärm)', () => {
+  it('gleich große Gruppen zeigt GENAUSO den Hinweis (kein bedingter Lärm mehr)', () => {
     const html = renderBestThirdsTable({ qualifyCount: 1, rows: equalRows });
-    expect(html).not.toContain('t-hint');
-    expect(html).not.toContain('Gruppen unterschiedlich groß');
+    expect(html).toContain('Gewertet wird nach Punkten pro Spiel.');
   });
 });
 

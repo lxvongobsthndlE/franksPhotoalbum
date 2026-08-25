@@ -125,17 +125,21 @@ describe('renderBestThirdsTable', () => {
     expect(html).not.toContain('t-thirds-mark');
   });
 
-  it('zeigt Hinweis auf pro-Spiel-Normierung nur bei ungleich großen Gruppen', () => {
-    // Bei Spiel-Anzahl-Mix → Hinweis.
-    const html = renderBestThirdsTable(sample); // 3 Sp. vs 2 Sp. → mixed
-    expect(html).toContain('unter');
-    expect(html).toContain('unterschiedlich groß');
-    // Bei gleichen Spiel-Anzahlen → kein Hinweis.
+  it('zeigt IMMER den Hinweis "Gewertet wird nach Punkten pro Spiel."', () => {
+    // P6 (2026-08-24, User-Liste): Hinweis ist unconditional, nicht
+    // mehr abhängig von mixedGroupSizes. User-Begründung: konstanter
+    // Einzehler erklärt die Normierung generell.
+    const html = renderBestThirdsTable(sample);
+    expect(html).toContain('Gewertet wird nach Punkten pro Spiel.');
+    // Egal ob Gruppen gleich groß oder nicht — Hinweis ist IMMER da.
     const samePlayed = {
       qualifyCount: 2,
       rows: sample.rows.map((r) => ({ ...r, played: 3 })),
     };
     const html2 = renderBestThirdsTable(samePlayed);
+    expect(html2).toContain('Gewertet wird nach Punkten pro Spiel.');
+    // Der alte "unterschiedlich groß"-Text ist weg.
+    expect(html).not.toContain('unterschiedlich groß');
     expect(html2).not.toContain('unterschiedlich groß');
   });
 
