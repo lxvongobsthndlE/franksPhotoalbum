@@ -19,7 +19,11 @@
  *       Namen nicht exportiert waren.
  *
  *   Dieser Test fängt internal-call-Drift ab. Wir nutzen einen echten
- *   JS-Parser (acorn, ist bereits als dev-dep da), damit wir exakt
+ *   JS-Parser (acorn — seit 2026-08-25 explizit in backend/package.json
+ *   unter devDependencies; vorher stand hier „ist bereits als dev-dep
+ *   da", was nicht stimmte: acorn kam nur transitiv über vitest/rollup
+ *   herein. Ein Vitest-Major hätte diese Datei mit „Cannot find module"
+ *   gerissen statt nur den Test), damit wir exakt
  *   bestimmen können, welche Namen in welcher Scope-Ebene definiert
  *   sind — inklusive Funktionsparameter, Arrow-Funktion-Parameter,
  *   Destructuring-Assignments, Catch-Clauses, etc.
