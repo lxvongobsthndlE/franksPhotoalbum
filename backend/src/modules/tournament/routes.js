@@ -1509,8 +1509,16 @@ export default async function tournamentRoutes(fastify) {
           message: 'Diese Aktion ist nur im groups_ko-Modus sinnvoll.',
         });
       }
+      // Bug-Fix (2026-08-25): Vorher `stageType: 'group'` — Match hat
+      // KEIN stageType-Feld, die Klassifikation lebt auf der Stage-
+      // Relation. siehe P3-Fix in maybeFillKoFromGroupFinish (gleicher
+      // Pattern), nur konsequent anwenden. Symptom: User klickte
+      // Button → 500-Prisma-Error „stageType nicht bekannt".
       const groupMatches = await fastify.prisma.match.findMany({
-        where: { tournamentId: ctx.tournament.id, stageType: 'group' },
+        where: {
+          tournamentId: ctx.tournament.id,
+          stage: { type: 'group' },
+        },
         select: { id: true, status: true },
       });
       if (groupMatches.length === 0) {

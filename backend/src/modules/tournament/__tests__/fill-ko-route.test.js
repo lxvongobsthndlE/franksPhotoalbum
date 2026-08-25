@@ -132,8 +132,12 @@ beforeEach(async () => {
   prisma = createLocalMockPrisma();
   baseStubs(prisma);
   // Standard: 3 abgeschlossene Gruppen-Matches → Gruppenphase complete.
+  // Standard: 3 abgeschlossene Gruppen-Matches → Gruppenphase complete.
+  // Match hat keine `stageType`-Spalte (Schema nutzt Stage-Relation) —
+  // wir prüfen auf `where.stage.type === 'group'`, passend zur echten
+  // Prisma-Query aus der /fill-ko-Route.
   prisma.match.findMany.mockImplementation(async ({ where }) => {
-    if (where?.stageType === 'group') {
+    if (where?.stage?.type === 'group') {
       return [
         { id: 'gm-1', status: 'finished' },
         { id: 'gm-2', status: 'finished' },
@@ -197,7 +201,7 @@ describe('POST /api/tournaments/:id/fill-ko (P3 Fallback)', () => {
 
   it('400 wenn keine Gruppen-Matches', async () => {
     prisma.match.findMany.mockImplementation(async ({ where }) => {
-      if (where?.stageType === 'group') return [];
+      if (where?.stage?.type === 'group') return [];
       return [];
     });
     const res = await fillKo(tId, {});
@@ -207,7 +211,7 @@ describe('POST /api/tournaments/:id/fill-ko (P3 Fallback)', () => {
 
   it('409 wenn Gruppenphase noch nicht abgeschlossen', async () => {
     prisma.match.findMany.mockImplementation(async ({ where }) => {
-      if (where?.stageType === 'group') {
+      if (where?.stage?.type === 'group') {
         return [
           { id: 'gm-1', status: 'finished' },
           { id: 'gm-2', status: 'scheduled' },
@@ -248,7 +252,7 @@ describe('POST /api/tournaments/:id/fill-ko (P3 Fallback)', () => {
     //
     // 4 Teams, 1 Gruppe → 2 Qualifikanten → 1 KO-Match (round=1, bracketPos=1).
     prisma.match.findMany.mockImplementation(async ({ where }) => {
-      if (where?.stageType === 'group') {
+      if (where?.stage?.type === 'group') {
         return [
           { id: 'gm-1', status: 'finished' },
           { id: 'gm-2', status: 'finished' },
