@@ -12,7 +12,32 @@
   --green: #3d9e6e;
   --text: #1a1410;
   --text2: #3a2e26;
-  --muted: #8a7e74;
+  /* --muted 2026-08-25 von #8a7e74 auf #70685F abgedunkelt (WCAG 1.4.3).
+     Derselbe Defekt wie --ink-soft im Turniermodul, aber app-weit (Fotos,
+     Alben, Gruppen, Feedback, Turnier-Meta). Gemessen nach WCAG
+     (relative Luminanz, Quotient (L_hell+0.05)/(L_dunkel+0.05)):
+       ALT #8a7e74 (L=0.215859)
+         auf --surface/--card #ffffff (L=1.000000) -> 3.95:1  DURCHGEFALLEN
+         auf --bg              #f8f5f1 (L=0.916121) -> 3.63:1  DURCHGEFALLEN
+         auf --surface-alt     #F5F1E9 (L=0.882063) -> 3.51:1  DURCHGEFALLEN
+       NEU #70685F (L=0.141716)
+         auf --surface/--card  #ffffff              -> 5.48:1  bestanden
+         auf --bg              #f8f5f1              -> 5.04:1  bestanden
+         auf --surface-alt     #F5F1E9              -> 4.86:1  bestanden
+     Der strengste Fall ist --surface-alt: das ist zwar ein Token des
+     Turniermoduls, aber --muted faerbt auch Modul-Klassen aus main.css
+     (z.B. .t-detail-meta), die auf dieser Flaeche liegen koennen.
+     Wert bewusst identisch mit --ink-soft (tournament.css): beide sind
+     "gedaempfter Fliesstext auf hellem Grund", zwei minimal verschiedene
+     Warmgraus dafuer waeren eine Unterscheidung ohne Unterschied.
+     NEBENWIRKUNG GEPRUEFT: 111 Nutzungen, davon 109 als `color` und
+     genau zwei als Flaechenfarbe -- main.css:2121 (.af-status-read
+     border-left) und main.css:2159 (.af-cat-other border-color). Beides
+     sind Raender, kein Hintergrund; fuer Nicht-Text gilt 3:1, und der
+     Wert wird dunkler (3.95 -> 5.48 auf Weiss), der Rand also
+     kontrastreicher. Ein Aufteilen in zwei Tokens ist deshalb nicht
+     noetig -- ein Tausch genuegt. */
+  --muted: #70685F;
   --muted2: #bdb4ac;
   --shadow: 0 1px 8px rgba(40, 25, 15, 0.06), 0 2px 20px rgba(40, 25, 15, 0.04);
   --shadow2: 0 4px 24px rgba(40, 25, 15, 0.1), 0 1px 4px rgba(40, 25, 15, 0.05);
@@ -33,7 +58,20 @@
   --green: #5ec090;
   --text: #ede8e2;
   --text2: #c8c0b8;
-  --muted: #8a8078;
+  /* --muted (dunkel) 2026-08-25 von #8a8078 auf #9C9289 aufgehellt.
+     Der Dunkelmodus war NICHT unauffaellig -- er faellt auf den beiden
+     helleren Flaechen des Sets durch:
+       ALT #8a8078 (L=0.221977)
+         auf --bg      #141210 -> 4.84:1  bestanden
+         auf --surface #1e1c18 -> 4.41:1  DURCHGEFALLEN
+         auf --card    #242220 -> 4.11:1  DURCHGEFALLEN
+       NEU #9C9289 (L=0.294318)
+         auf --bg      #141210 -> 6.13:1
+         auf --surface #1e1c18 -> 5.58:1
+         auf --card    #242220 -> 5.20:1
+     Bemessen ist der Wert am dunklen --card, nicht am --bg -- Karten
+     sind die haeufigste Flaeche unter gedaempftem Text. */
+  --muted: #9C9289;
   --muted2: #5a544e;
   --shadow: 0 1px 8px rgba(0, 0, 0, 0.2), 0 2px 20px rgba(0, 0, 0, 0.15);
   --shadow2: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.15);
