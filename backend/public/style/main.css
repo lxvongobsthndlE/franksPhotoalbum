@@ -6055,7 +6055,6 @@ button.tournament-header-btn {
 }
 .t-thirds-row.is-qualified { background: rgba(46, 125, 50, 0.06); }
 .t-thirds-row.is-out { opacity: 0.55; }
-}
 
 /* Match-Result-Modal: Heim vs Gast Header */
 .t-result-header {
@@ -6868,12 +6867,20 @@ button.tournament-header-btn {
   text-align: left;
 }
 
-  display: block;
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* Hier stand bis 2026-08-25 ein Deklarationsblock OHNE Selektor
+   (display/font-size/white-space/overflow/text-overflow). Der Selektor
+   hiess `.t-schedule-match-teams`; belegt ueber `git log -L` auf diesem
+   Bereich: Commit ee847d8 ("Etappe B Aufraeumen ... Dead-Code-Cleanup")
+   hat den kompletten S3.3-Block (.t-bracket*, .t-schedule-grid,
+   .t-schedule-cell, .t-schedule-match*) geloescht, ist dabei aber eine
+   Zeile zu frueh stehengeblieben: die Selektorzeile
+   `.t-schedule-match-teams {` fiel weg, ihr Rumpf blieb liegen.
+   Der Selektor wird NICHT wiederhergestellt -- er gehoerte zu genau dem
+   toten Spielplan-Raster, das der Cleanup entfernen sollte; die Klasse
+   kommt heute in keinem HTML/JS mehr vor (geprueft ueber public/**).
+   Damit ist der Rumpf ebenfalls tot und faellt weg. Nebeneffekt: die
+   Klammerbilanz der Datei war -2 (eine Klammer hier, eine bei
+   .t-thirds-row.is-out weiter oben) und steht jetzt auf 0. */
 
 /* S4.1 — Drag&Drop-Setzliste im Wizard Step 2 */
 .t-wiz-seed-list {
