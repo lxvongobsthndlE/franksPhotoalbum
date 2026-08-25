@@ -249,7 +249,7 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     setCompactMode(true);
     const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
       .map((c) => c.match(/width:([^"]+)"/)[1]);
-    expect(cols).toEqual(['12%', '28%', '19%', '19%', '11%', '11%']);
+    expect(cols).toEqual(['14%', '28%', '8%', '20%', '15%', '15%']);
   });
 
   it('Mobile: Summe der Breiten ist genau 100% und es gibt kein auto', () => {
@@ -266,22 +266,49 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     // 10% war im kaputten 7er-Set die Breite, die auf "Becher" rutschte;
     // 18% und 13% die verschobenen Nachbarn. Keiner der drei Werte kommt
     // im korrigierten Set vor.
+    //
+    // 8% stand hier urspruenglich mit auf der schwarzen Liste — es war im
+    // 7er-Set die Breite der Pl.-Spalte. Seit der Flucht-Angleichung
+    // (2026-08-25) traegt die Gruppen-Spalte legitim 8%, weil sie einen
+    // einzigen Buchstaben zeigt. Der Wert ist damit kein Geist mehr und
+    // muss aus der Liste raus: ein Test, der einen gueltigen Zustand
+    // verbietet, wird beim naechsten Rot abgeschaltet statt gelesen.
+    // Die eigentliche Absicherung leistet ohnehin der Test darueber, der
+    // das Set als Ganzes gegen die dokumentierte Konstante haelt.
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     expect(html).not.toContain('width:10%');
     expect(html).not.toContain('width:18%');
-    expect(html).not.toContain('width:8%');
     expect(html).not.toContain('width:13%');
   });
 
-  it('Mobile: "12:10" wird gerendert und die Becher-Spalte hat 16%', () => {
-    // 19% der Becher-Spalte: 55px bei 288px Tabellenbreite (390px Viewport),
-    // 49px bei 258px (360px Viewport). "12:10" braucht gemessen 44px, die
+  it('Mobile: "12:10" wird gerendert und die Becher-Spalte hat 20%', () => {
+    // 20% der Becher-Spalte: 58px bei 288px Tabellenbreite (390px Viewport),
+    // 52px bei 258px (360px Viewport). "12:10" braucht gemessen 44px, die
     // Ueberschrift "BECHER" 48px — beides passt in beiden Faellen.
+    // (Vorher 19%; die Spalte hat bei der Flucht-Angleichung einen Punkt
+    // von der ueberdimensionierten Gruppen-Spalte bekommen.)
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     expect(html).toContain('12:10');
-    expect(html).toContain('width:19%');
+    expect(html).toContain('width:20%');
+  });
+
+  it('Mobile: gemeinsame Spalten fluchten mit der Standings-Tabelle', () => {
+    // Die eigentliche Absicht der Flucht-Angleichung, als Test statt als
+    // Kommentar. Beide Tabellen sind gleich breit; wenn die kumulierten
+    // Prozente der gemeinsamen Endspalten uebereinstimmen, stehen ihre
+    // rechten Kanten uebereinander. Standings mobil: Pl 14 · Team 36 ·
+    // Becher 20 · Diff 15 · Pkt 15. Dritte mobil: Pl 14 · Team 28 ·
+    // Gr 8 · Becher 20 · Diff 15 · Pkt 15.
+    setCompactMode(true);
+    const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
+      .map((c) => parseFloat(c.match(/width:([^"]+)%/)[1]));
+    const kanteBecher = cols.slice(0, 4).reduce((a, b) => a + b, 0);
+    const kanteDiff = cols.slice(0, 5).reduce((a, b) => a + b, 0);
+    // Standings: 14+36+20 = 70 bis Becher-Kante, +15 = 85 bis Diff-Kante.
+    expect(kanteBecher).toBe(70);
+    expect(kanteDiff).toBe(85);
   });
 
   it('Mobile-Spaltenzahl passt zur Zahl der nicht versteckten data-col-Spalten', () => {

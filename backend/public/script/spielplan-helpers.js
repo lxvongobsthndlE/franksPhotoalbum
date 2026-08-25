@@ -520,7 +520,23 @@ const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9
  * .t-thirds-table th/td[data-col=...]). Spalte versteckt oder wieder
  * eingeblendet -> diese Liste MUSS mitgezogen werden, sonst rutschen
  * alle Breiten erneut. */
-const THIRDS_COL_WIDTHS_MOBILE = ['12%', '28%', '19%', '19%', '11%', '11%'];
+/* FLUCHT MIT DER STANDINGS-TABELLE (2026-08-25, im Browser gemessen).
+ * Auf Desktop fluchten beide Tabellen laengst — dort ist die Team-Spalte
+ * `auto` und schluckt die Differenz selbst. Auf Mobile wurde `auto`
+ * bewusst entfernt (feste Prozente, damit nichts mehr rutscht), damit
+ * ging die Flucht verloren: gemeinsame Spalten standen bis zu 25 px
+ * auseinander.
+ *
+ * Der Platz kommt aus der einzigen wirklich ueberdimensionierten Spalte:
+ * `Gruppe` hatte 19 % (54,7 px bei 288 px Tabellenbreite) fuer EINEN
+ * Buchstaben. Mit 8 % (23 px) fluchten Pl., Becher, Diff und Pkt. exakt
+ * mit der Standings-Tabelle, und die Team-Spalte verliert dabei nichts
+ * (87 px statt 88 px). Deshalb traegt die Kopfzeile unten "Gr." statt
+ * "Gruppe" — sonst kuerzt sie zu "G…".
+ *
+ * STANDINGS_COL_WIDTHS_MOBILE bleibt unangetastet: das sind die frisch
+ * gemessenen 288-px-Werte, an denen sich diese Tabelle ausrichtet. */
+const THIRDS_COL_WIDTHS_MOBILE = ['14%', '28%', '8%', '20%', '15%', '15%'];
 
 function renderColgroup(widths) {
   return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
@@ -786,7 +802,7 @@ export function renderBestThirdsTable(bestThirds) {
           <tr>
             <th class="is-rank"  data-col="pl">Pl.</th>
             <th class="is-team">Team</th>
-            <th class="is-group" data-col="group">Gruppe</th>
+            <th class="is-group" data-col="group">${tModCompactMode ? 'Gr.' : 'Gruppe'}</th>
             <th class="is-num"   data-col="played">Sp.</th>
             <th class="is-num"   data-col="won">S</th>
             <th class="is-num"   data-col="drawn">U</th>

@@ -651,12 +651,18 @@ describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => 
     const html = renderBestThirdsTable(sample);
     const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(6);
-    expect(html).toContain('width:12%');  // Pl.
+    // Flucht-Angleichung 2026-08-25: Pl./Becher/Diff/Pkt. tragen dieselben
+    // Prozente wie die Standings-Tabelle, damit die rechten Spaltenkanten
+    // beider Tabellen uebereinanderstehen. Der Platz kam aus der Gruppen-
+    // Spalte, die 19% fuer einen einzigen Buchstaben hatte.
+    expect(html).toContain('width:14%');  // Pl.
     expect(html).toContain('width:28%');  // Team
-    expect(html).toContain('width:19%');  // Gruppe + Becher
-    expect(html).toContain('width:11%');  // Diff + Pkt.
-    // Die alten Werte gehörten zum verschobenen 7er-Set.
-    expect(html).not.toContain('width:8%');
+    expect(html).toContain('width:8%');   // Gr. (ein Buchstabe)
+    expect(html).toContain('width:20%');  // Becher
+    expect(html).toContain('width:15%');  // Diff + Pkt.
+    // Die alten Werte gehoerten zum verschobenen 7er-Set. 8% stand hier
+    // frueher mit auf der Liste, ist seit der Angleichung aber die
+    // legitime Breite der Gruppen-Spalte — siehe oben.
     expect(html).not.toContain('width:10%');
     expect(html).not.toContain('width:18%');
   });
