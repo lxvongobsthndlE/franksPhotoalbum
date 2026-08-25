@@ -3065,23 +3065,24 @@ async function fillKoFromQualifiers(tx, ctx) {
       (m) => m.round === fresh.round && m.bracketPos === fresh.bracketPos,
     );
     if (!dbMatch) continue;
-    if (
-      dbMatch.teamHome !== fresh.teamHome ||
-      dbMatch.teamAway !== fresh.teamAway ||
-      dbMatch.homeSeed !== fresh.homeSeed ||
-      dbMatch.awaySeed !== fresh.awaySeed ||
-      dbMatch.homeGroup !== fresh.homeGroup ||
-      dbMatch.awayGroup !== fresh.awayGroup
-    ) {
+    // BUGFIX 2026-08-25: homeSeed, awaySeed, homeGroup und awayGroup sind
+    // ENGINE-Felder aus buildBracket — im Match-Modell gibt es sie nicht
+    // (schema.prisma:206-229 kennt nur teamHome/teamAway/placeholderHome/
+    // placeholderAway als Besetzung). Prisma lehnte das Update deshalb ab
+    // ("Unknown argument `teamHome`" — gemeldet wird das erste Feld, das in
+    // der gewaehlten Input-Variante fehlt, nicht die eigentliche Ursache).
+    //
+    // Der Vergleich darueber war aus demselben Grund wirkungslos: dbMatch
+    // kommt aus der DB und traegt die vier Felder nie, `undefined !== wert`
+    // war also immer wahr und die Bedingung feuerte bei JEDEM Match. Wir
+    // vergleichen jetzt nur noch, was auch gespeichert wird — Seeds und
+    // Gruppen koennen ohne eigene Spalte gar nicht driften.
+    if (dbMatch.teamHome !== fresh.teamHome || dbMatch.teamAway !== fresh.teamAway) {
       await tx.match.update({
         where: { id: dbMatch.id },
         data: {
           teamHome: fresh.teamHome,
           teamAway: fresh.teamAway,
-          homeSeed: fresh.homeSeed,
-          awaySeed: fresh.awaySeed,
-          homeGroup: fresh.homeGroup,
-          awayGroup: fresh.awayGroup,
           placeholderHome: null,
           placeholderAway: null,
         },

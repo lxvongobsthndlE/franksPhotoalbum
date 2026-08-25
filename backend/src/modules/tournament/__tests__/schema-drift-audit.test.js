@@ -124,7 +124,13 @@ function findDrift(schemaModels, filePath) {
   const findings = [];
   // Match: prisma.match.update( … ), prisma.X.create( … ), etc.
   // Wir greifen den nächsten {...}-Block nach dem Aufruf.
-  const callRe = /\bprisma\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
+  // LÜCKE GESCHLOSSEN 2026-08-25: Der Regex kannte nur `prisma.` — jeder
+  // Schreibzugriff INNERHALB einer Transaktion läuft aber über den
+  // Transaktions-Client (`tx.match.update(…)`) und war damit unsichtbar.
+  // Genau dort sass der fill-ko-Bug: `tx.match.update` schrieb homeSeed,
+  // awaySeed, homeGroup und awayGroup — vier Engine-Felder aus buildBracket,
+  // die es als Spalten nie gab. Der Audit lief die ganze Zeit grün.
+  const callRe = /\b(?:prisma|tx|client|db)\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
   let c;
   while ((c = callRe.exec(src)) !== null) {
     const modelName = c[1];
@@ -332,7 +338,13 @@ describe('Schema-Drift-Audit: alle prisma.update/create/upsert-Felder existieren
 // für die Positiv-Tests mit gefakten Snippets.
 function findDriftInString(schemaModels, src, fakePath) {
   const findings = [];
-  const callRe = /\bprisma\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
+  // LÜCKE GESCHLOSSEN 2026-08-25: Der Regex kannte nur `prisma.` — jeder
+  // Schreibzugriff INNERHALB einer Transaktion läuft aber über den
+  // Transaktions-Client (`tx.match.update(…)`) und war damit unsichtbar.
+  // Genau dort sass der fill-ko-Bug: `tx.match.update` schrieb homeSeed,
+  // awaySeed, homeGroup und awayGroup — vier Engine-Felder aus buildBracket,
+  // die es als Spalten nie gab. Der Audit lief die ganze Zeit grün.
+  const callRe = /\b(?:prisma|tx|client|db)\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
   let c;
   while ((c = callRe.exec(src)) !== null) {
     const modelName = c[1];
