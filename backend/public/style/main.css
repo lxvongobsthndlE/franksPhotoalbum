@@ -5899,17 +5899,24 @@ button.tournament-header-btn {
    spielplan-helpers.js renderBestThirdsTable), dieser Query blendet
    sie vollständig aus. */
 @container (max-width: 430px) {
-  .t-thirds-table th[data-col="played"],
-  .t-thirds-table th[data-col="won"],
-  .t-thirds-table th[data-col="drawn"],
-  .t-thirds-table th[data-col="lost"],
-  .t-thirds-table th[data-col="score"],
-  .t-thirds-table td[data-col="played"],
-  .t-thirds-table td[data-col="won"],
-  .t-thirds-table td[data-col="drawn"],
-  .t-thirds-table td[data-col="lost"],
-  .t-thirds-table td[data-col="score"] { display: none; }
+  /* 2026-08-25: der zusaetzliche Hide von data-col="score" (Becher) ist
+     hier RAUS. Er stammte aus P2 (24.08.), also aus der Zeit VOR dem
+     Mobile-Colgroup — damals lief die Tabelle unter allen Breiten mit dem
+     10er-Desktop-Colgroup, und das gemessene "GRUPPE/SP. und BECHER/DIFF
+     ueberlappen" war die Folge der verschobenen Spalten, nicht ein Beleg,
+     dass sechs Spalten nicht passen. Seit P5 (25.08.) hat die Tabelle
+     table-layout: fixed plus nowrap/ellipsis; Spalten koennen gar nicht
+     mehr ueberlappen, sie kuerzen.
 
+     Wichtiger noch: dieser Block hat mit dem 600er-Block unten ZWEI
+     verschiedene Mobile-Formen erzeugt (5 sichtbare Spalten hier,
+     6 dort), waehrend der Renderer nur EINE Mobile-Colgroup kennt.
+     Genau daran ist die Spaltenzuordnung zerbrochen. Es gibt jetzt eine
+     einzige Mobile-Form, definiert im 600er-Block:
+       Pl · Team · Gruppe · Becher · Diff · Pkt   (6 Spalten)
+     Passend dazu THIRDS_COL_WIDTHS_MOBILE in spielplan-helpers.js —
+     wer hier eine Spalte zusaetzlich versteckt oder wieder einblendet,
+     MUSS dort die Breitenliste mitziehen. */
   .t-thirds-table .t-thirds-team { font-size: 13px; }
 }
 
@@ -5955,10 +5962,13 @@ button.tournament-header-btn {
     display: none;
   }
 
-  /* Beste-Dritte: zusätzlich zu Sp/S/U/N auch Gruppe ausblenden,
-     wenn das Modul sehr schmal ist (Konflikt mit dem 430-Block, der
-     schon 5 Spalten versteckt — hier nur Score raus, damit Pkt
-     rechts sichtbar bleibt). */
+  /* Beste-Dritte: Sp · S · U · N ausblenden — dieselben vier wie bei
+     Standings. Bleibt: Pl · Team · Gruppe · Becher · Diff · Pkt
+     (6 Spalten). Das ist die EINZIGE Mobile-Form der Tabelle; der
+     frueher hier beschriebene "Konflikt mit dem 430-Block" ist am
+     25.08. aufgeloest worden (siehe Kommentar im 430er-Block oben).
+     Die Spaltenzahl haengt an THIRDS_COL_WIDTHS_MOBILE in
+     spielplan-helpers.js — beide muessen zusammen geaendert werden. */
   .t-thirds-table th[data-col="played"],
   .t-thirds-table th[data-col="won"],
   .t-thirds-table th[data-col="drawn"],

@@ -13,8 +13,8 @@
  * liegenden Gruppen unterschiedlich groß sind.
  */
 
-import { describe, it, expect } from 'vitest';
-import { renderBestThirdsTable } from '../spielplan-helpers.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import { renderBestThirdsTable, setCompactMode } from '../spielplan-helpers.js';
 
 describe('renderBestThirdsTable', () => {
   // Beispiel: 3 Gruppen, Drittplatzierte mit unterschiedlichen Quoten.
@@ -70,6 +70,7 @@ describe('renderBestThirdsTable', () => {
   });
 
   it('Bug 14: <colgroup> mit festen Spaltenbreiten für Dritte-Tabelle', () => {
+    setCompactMode(false); // Desktop-Pfad explizit, nicht dem Zufall überlassen
     const html = renderBestThirdsTable(sample);
     expect(html).toMatch(/<colgroup>[\s\S]*<\/colgroup>/);
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
@@ -200,5 +201,103 @@ describe('renderBestThirdsTable', () => {
     // P2 (2026-08-24): data-col="diff" hinzugefügt für CSS-Hide.
     expect(html).toMatch(/<td class="t-thirds-num"\s+data-col="diff">0<\/td>/); // zero diff: kein +
     expect(html).toContain('-4');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Colgroup-Spaltenzahl (Korrektur 2026-08-25)
+//
+// Der Defekt, gegen den diese Tests schützen: das Mobile-Colgroup der
+// Dritten-Tabelle hatte SIEBEN <col> für SECHS sichtbare Spalten. <col>
+// wird bei table-layout: fixed positionsweise auf die tatsächlich
+// gerenderten Spalten gelegt — eine per display:none entfernte Spalte
+// verschiebt alle folgenden Breiten um eins. "Becher" bekam dadurch die
+// 10%-Breite, die für die versteckte "Sp."-Spalte gedacht war, und
+// "12:10" wurde zu "12:…".
+//
+// Die Zahl 6 ist KEINE Kosmetik: sie muss der Anzahl der Spalten
+// entsprechen, die main.css im Block @container (max-width: 600px)
+// übrig lässt (versteckt werden played/won/drawn/lost). Wer dort eine
+// Spalte zusätzlich versteckt, muss THIRDS_COL_WIDTHS_MOBILE mitziehen
+// — und dieser Test schlägt dann fehl, was genau der Sinn ist.
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
+  const row = {
+    teamId: 'A3', name: 'Team Alpha-Drei', groupKey: 'A',
+    played: 3, won: 2, drawn: 1, lost: 0,
+    goalsFor: 12, goalsAgainst: 10, goalDiff: 2, points: 7,
+    qualifies: true,
+  };
+  const sample = { qualifyCount: 1, rows: [row] };
+
+  afterEach(() => setCompactMode(false));
+
+  it('Desktop: 10 <col> für 10 sichtbare Spalten', () => {
+    setCompactMode(false);
+    const cols = (renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || []);
+    expect(cols).toHaveLength(10);
+  });
+
+  it('Mobile: 6 <col> für 6 sichtbare Spalten (Sp/S/U/N sind versteckt)', () => {
+    setCompactMode(true);
+    const cols = (renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || []);
+    expect(cols).toHaveLength(6);
+  });
+
+  it('Mobile: exakte Breiten in DOM-Reihenfolge Pl · Team · Gruppe · Becher · Diff · Pkt', () => {
+    setCompactMode(true);
+    const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
+      .map((c) => c.match(/width:([^"]+)"/)[1]);
+    expect(cols).toEqual(['14%', '32%', '16%', '16%', '11%', '11%']);
+  });
+
+  it('Mobile: Summe der Breiten ist genau 100% und es gibt kein auto', () => {
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    const cols = (html.match(/<col style="width:([^"]+)">/g) || [])
+      .map((c) => c.match(/width:([^"]+)"/)[1]);
+    expect(html).not.toMatch(/<col[^>]*width:auto/);
+    const sum = cols.reduce((acc, w) => acc + parseFloat(w), 0);
+    expect(sum).toBe(100);
+  });
+
+  it('Mobile: keine Geister-Breiten der versteckten Zahlenspalten mehr', () => {
+    // 10% war im kaputten 7er-Set die Breite, die auf "Becher" rutschte;
+    // 18% und 13% die verschobenen Nachbarn. Keiner der drei Werte kommt
+    // im korrigierten Set vor.
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    expect(html).not.toContain('width:10%');
+    expect(html).not.toContain('width:18%');
+    expect(html).not.toContain('width:13%');
+  });
+
+  it('Mobile: "12:10" wird gerendert und die Becher-Spalte hat 16%', () => {
+    // 16% von ~374px Tabellenbreite = ~60px; "12:10" braucht bei 12px
+    // tabular-nums plus 8px Zellen-Padding rund 44px.
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    expect(html).toContain('12:10');
+    expect(html).toContain('width:16%');
+  });
+
+  it('Mobile-Spaltenzahl passt zur Zahl der nicht versteckten data-col-Spalten', () => {
+    // Bindet die Colgroup-Länge an das Markup statt an eine Konstante:
+    // main.css versteckt auf ≤600px genau played/won/drawn/lost.
+    const HIDDEN_ON_MOBILE = ['played', 'won', 'drawn', 'lost'];
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    const thead = html.match(/<thead>[\s\S]*?<\/thead>/)[0];
+    const ths = thead.match(/<th\s[^>]*>/g) || [];
+    const visible = ths.filter((th) => {
+      const m = th.match(/data-col="([^"]+)"/);
+      return !m || !HIDDEN_ON_MOBILE.includes(m[1]);
+    });
+    const cols = (html.match(/<col style="width:[^"]+">/g) || []);
+    // Nicht leer-gegen-leer vergleichen: der Test soll fehlschlagen, wenn
+    // die Regex nichts findet, nicht stillschweigend 0 === 0 bestaetigen.
+    expect(visible).toHaveLength(6);
+    expect(cols).toHaveLength(visible.length);
   });
 });

@@ -613,8 +613,17 @@ describe('renderBestThirdsTable — Spalten-Markup (P2)', () => {
 // P5-Truncation 2026-08-25: Compact-Mode-Switch für Beste-Dritte.
 // Mobile (7 Colgroup-Spalten): Pl · Team · Gruppe · Sp · Becher · Diff · Pkt.
 // Gruppe bleibt sichtbar (sonst weiß man nicht, aus welcher Gruppe der
-// Dritte kommt), S/U/N ausgeblendet wie in Standings. Sum: 8+12+10+
-// 18+13+13 = 74% + auto-Team 26%.
+// Dritte kommt), S/U/N ausgeblendet wie in Standings.
+//
+// KORREKTUR 2026-08-25: die beiden Spaltenzahl-Tests hier standen auf 7
+// und haben den Defekt damit ZEMENTIERT statt ihn zu fangen. Die 7 kam
+// aus dem Kommentar am Konstanten-Set, der "Sp" als sichtbar zählte —
+// main.css blendet data-col="played" auf Mobile aber aus. Sichtbar sind
+// SECHS Spalten: Pl · Team · Gruppe · Becher · Diff · Pkt.
+// Ein Test, der eine Zahl aus dem Kommentar neben der Konstante abschreibt
+// statt aus dem gerenderten Markup, prüft nichts — der markup-gebundene
+// Gegentest steht in best-thirds-render.test.js ("Mobile-Spaltenzahl passt
+// zur Zahl der nicht versteckten data-col-Spalten").
 // ─────────────────────────────────────────────────────────────────
 
 describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => {
@@ -637,27 +646,34 @@ describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => 
     expect(cols).toHaveLength(10);
   });
 
-  it('Mobile: 7 Colgroup-Spalten (Pl · Team · Gruppe · Sp · Becher · Diff · Pkt)', () => {
+  it('Mobile: 6 Colgroup-Spalten (Pl · Team · Gruppe · Becher · Diff · Pkt)', () => {
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
-    expect(cols).toHaveLength(7);
-    expect(html).toContain('width:8%');
-    expect(html).toContain('width:12%');
-    expect(html).toContain('width:10%');
-    expect(html).toContain('width:18%');
-    expect(html).toContain('width:13%');
+    expect(cols).toHaveLength(6);
+    expect(html).toContain('width:14%');  // Pl.
+    expect(html).toContain('width:32%');  // Team
+    expect(html).toContain('width:16%');  // Gruppe + Becher
+    expect(html).toContain('width:11%');  // Diff + Pkt.
+    // Die alten Werte gehörten zum verschobenen 7er-Set.
+    expect(html).not.toContain('width:8%');
+    expect(html).not.toContain('width:10%');
+    expect(html).not.toContain('width:18%');
   });
 
-  it('Mobile: keine 7%-Geister-Spalten (S/U/N weg) + Spalten-Anzahl = 7', () => {
+  it('Mobile: keine 7%-Geister-Spalten (S/U/N weg) + Spalten-Anzahl = 6', () => {
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
-    // Vorher waren 3 × width:7% (S/U/N) + 2 × width:8% (Gruppe/Sp) im
-    // Desktop-Colgroup. Im Mobile bleibt width:8% (Pl) und width:12%
-    // (Gruppe) üblich, S/U/N-Spalten mit width:7% sind weg.
+    // width:7% war die Breite der S/U/N-Spalten im 10er-Desktop-Colgroup.
+    // Im Mobile-Set kommt sie nicht mehr vor.
     expect(html).not.toContain('width:7%');
     const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
-    expect(cols).toHaveLength(7);
+    expect(cols).toHaveLength(6);
+    // Summe muss genau 100% sein — kein 'auto', keine Restlücke.
+    const sum = cols
+      .map((c) => parseFloat(c.match(/width:([\d.]+)%/)[1]))
+      .reduce((a, b) => a + b, 0);
+    expect(sum).toBe(100);
   });
 
   it('Mobile: Gruppe-Spalte bleibt sichtbar (data-col=group vorhanden)', () => {
