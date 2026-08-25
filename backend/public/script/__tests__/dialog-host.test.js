@@ -231,12 +231,49 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     );
   });
 
-  it('Knopf-Optik im Dialog kommt gegen den .t-mod-button-Reset an', () => {
-    // `.t-mod button { border: none; background: none }` (Klasse+Typ)
-    // schlägt `.t-btn` (nur Klasse). Im Dialog wäre das ein Rückschritt.
-    expect(tournamentCss).toMatch(/^\.t-dialog-host \.t-btn \{/m);
-    expect(tournamentCss).toMatch(/^\.t-dialog-host \.t-btn--primary \{/m);
-    expect(tournamentCss).toMatch(/^\.t-dialog-host \.t-btn--danger \{/m);
+  it('Knopf-Optik im Dialog kommt aus DERSELBEN Quelle wie im Modul', () => {
+    // Bis 2026-08-25 stand hier ein kompletter Nachbau der Knopf-Optik
+    // unter `.t-dialog-host .t-btn…` (0,2,0), weil der Reset
+    // `.t-mod button` (0,1,1) jede `.t-btn`-Regel (0,1,0) schlug.
+    // Der Reset ist jetzt im Geltungsbereich geschnitten; der Nachbau
+    // ist entfallen und darf NICHT zurückkommen — zwei Wahrheiten für
+    // dieselbe Optik waren genau der Fehler.
+    expect(tournamentCss).not.toMatch(/^\.t-dialog-host \.t-btn/m);
+    // Der Schnitt selbst: der plättende Teil des Resets greift nur noch
+    // bei Knöpfen OHNE t-btn-Klasse.
+    expect(tournamentCss).toMatch(
+      /\.t-mod button:where\(:not\(\[class\*="t-btn"\]\)\)\s*\{/,
+    );
+    // …und `.t-mod button` selbst plättet nichts mehr.
+    const resetBlock = tournamentCss.match(/^\.t-mod button \{[^}]*\}/m);
+    expect(resetBlock).toBeTruthy();
+    expect(resetBlock[0]).not.toMatch(/border|background|color|font-size/);
+  });
+
+  it('jede gefüllte Knopf-Variante setzt im :hover ihre Füllung erneut', () => {
+    // `.t-btn:hover` ist (0,2,0) und schlägt `.t-btn--primary` /
+    // `--danger` (0,1,0). Eine Varianten-Hover-Regel, die nur `filter`
+    // setzt, reicht deshalb nicht: der Knopf verlor beim Überfahren
+    // seine Füllung und behielt seinen hellen Text — „Endgültig
+    // löschen" war ein leeres Kästchen (gemessen 1.13:1).
+    for (const variant of ['primary', 'danger']) {
+      const re = new RegExp(`\.t-btn--${variant}:hover \{[^}]*\}`, 'm');
+      const block = tournamentCss.match(re);
+      expect(block, `.t-btn--${variant}:hover fehlt`).toBeTruthy();
+      expect(block[0], `.t-btn--${variant}:hover setzt kein background`)
+        .toMatch(/background:/);
+    }
+  });
+
+  it('gefüllte Knöpfe holen ihre Textfarbe aus einem Token, nicht aus #fff', () => {
+    // Weiß trägt nur im HELLEN Modus: im Dunkelmodus sind die Füllungen
+    // heller (Weiß auf --accent #B8916A nur 2.88:1, auf --danger
+    // #D66B60 nur 3.43:1). Deshalb --accent-ink / --danger-ink.
+    expect(tournamentCss).toMatch(/\.t-btn--primary \{[^}]*color: var\(--accent-ink\)/);
+    expect(tournamentCss).toMatch(/\.t-btn--danger \{[^}]*color: var\(--danger-ink\)/);
+    // In beiden Themes definiert.
+    expect((tournamentCss.match(/--accent-ink:/g) || []).length).toBe(2);
+    expect((tournamentCss.match(/--danger-ink:/g) || []).length).toBe(2);
   });
 
   it('der Bottom-Sheet gilt nur für den Ergebnis-Dialog, nicht für jede Bestätigung', () => {

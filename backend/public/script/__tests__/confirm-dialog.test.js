@@ -170,7 +170,16 @@ describe('openConfirmDialog — Token-Vererbung, Escape, Fokus-Rückkehr (A5)', 
     );
   });
 
-  it('Der Löschen-Knopf behält sein Rot gegen den .t-mod-button-Reset', () => {
-    expect(tournamentCss).toMatch(/^\.t-dialog-host \.t-btn--danger \{/m);
+  it('Der Löschen-Knopf behält sein Rot — im Ruhe- UND im Hover-Zustand', () => {
+    // Der Sonder-Nachbau `.t-dialog-host .t-btn--danger` ist entfallen
+    // (der Reset `.t-mod button` plättet die Knöpfe nicht mehr). Das Rot
+    // kommt jetzt aus der einen `.t-btn--danger`-Regel — und zwar auch
+    // beim Überfahren: `.t-btn:hover` (0,2,0) schlägt `.t-btn--danger`
+    // (0,1,0), deshalb MUSS die Varianten-Hover-Regel die Füllung
+    // erneut setzen. Ohne sie war der destruktivste Knopf der App beim
+    // Überfahren ein leeres Kästchen (Weiß auf #F5F1E9, 1.13:1).
+    expect(tournamentCss).toMatch(/^\.t-btn--danger \{[^}]*background: var\(--danger\)/m);
+    expect(tournamentCss).toMatch(/^\.t-btn--danger:hover \{[^}]*background: var\(--danger\)/m);
+    expect(tournamentCss).not.toMatch(/^\.t-dialog-host \.t-btn--danger \{/m);
   });
 });

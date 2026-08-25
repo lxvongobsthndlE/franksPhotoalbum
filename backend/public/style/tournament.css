@@ -64,6 +64,23 @@
   --line:         #E7DFD2;
   --accent:       #8B6B4A;
   --accent-soft:  #F0E7DA;
+  /* Text AUF den Akzent-/Danger-Flaechen. Folgt dem Muster, das das Set
+     bei der Anzeigetafel schon fuehrt: --board (Flaeche) / --board-ink
+     (Text darauf). Vorher stand in .t-btn--primary und .t-btn--danger
+     ein hartes `color: #fff`; das traegt im HELLEN Modus (4.88:1 auf
+     --accent, 5.06:1 auf --danger), faellt im DUNKLEN aber durch —
+     dort sind die Fuellungen heller: Weiss auf --accent #B8916A nur
+     2.88:1, auf --danger #D66B60 nur 3.43:1. Solange die Knoepfe wegen
+     `.t-mod button` flach waren, fiel das niemandem auf; mit der
+     Reparatur weiter unten werden die Fuellungen sichtbar und der
+     Fehler waere sichtbar geworden.
+     --accent-soft-ink ist der Akzentton, der auf der WEICHEN Flaeche
+     traegt: --accent auf --accent-soft sind hell nur 3.99:1 (Badge,
+     aktiver Nav-Eintrag, Status "laeuft" in der Listenkarte). */
+  --accent-ink:       #FFFFFF;   /* auf --accent  #8B6B4A -> 4.88:1 */
+  --danger-ink:       #FFFFFF;   /* auf --danger  #C0453A -> 5.06:1 */
+  --accent-soft-ink:  #78593B;   /* auf --accent-soft #F0E7DA -> 5.21:1,
+                                    auf --surface #FFFFFF -> 6.38:1 */
 
   /* ---- Anzeigetafel: die eigene Handschrift des Moduls ----
      Überall dort, wo Ergebnisse oder Zeiten stehen, wird der Grund
@@ -153,6 +170,16 @@
   --line:         #332E27;
   --accent:       #B8916A;
   --accent-soft:  #332A22;
+  /* Dunkelmodus: die Fuellungen sind HELLER als im Hellmodus, also
+     kippt der Text auf dunkel. Gemessen:
+       #1A1714 auf --accent #B8916A -> 6.20:1  (Weiss waere 2.88:1)
+       #1A1714 auf --danger #D66B60 -> 5.21:1  (Weiss waere 3.43:1)
+     Auch nach `filter: brightness(1.06)` im Hover bleibt es bestanden
+     (6.95:1 bzw. 5.80:1). --accent-soft-ink darf hier der normale
+     Akzentton bleiben: #B8916A auf --accent-soft #332A22 -> 4.88:1. */
+  --accent-ink:       #1A1714;
+  --danger-ink:       #1A1714;
+  --accent-soft-ink:  #B8916A;
 
   /* Anzeigetafel umgekehrt */
   --board:        #EDE6DA;
@@ -302,9 +329,50 @@
   background: transparent;
 }
 .t-mod table { border-collapse: collapse; width: 100%; }
+/* ----------------------------------------------------------------
+   KASKADENKOLLISION Nr. 6 in dieser Datei (aufgeloest 2026-08-25)
+   ----------------------------------------------------------------
+   Hier stand EINE Regel:
+       .t-mod button { font-family: inherit; font-size: inherit;
+                       cursor: pointer; border: none; background: none;
+                       color: inherit; }
+   Spezifitaet (0,1,1) — eine Klasse plus ein Typ. Jede .t-btn-Regel ist
+   (0,1,0). Damit hat dieser Reset im ganzen Modul JEDEN Knopf plattgemacht,
+   auch `--primary` und `--danger`: keine Fuellung, kein Rand, geerbte
+   Textfarbe, geerbte Schriftgroesse (16px statt 14px). Im Browser
+   nachgemessen (Edge, .t-btn--primary):
+       background rgba(0,0,0,0)  color rgb(26,20,16)  border 0px none
+       font-size 16px
+   Der A5-Dialog holte die Optik deshalb unter `.t-dialog-host .t-btn`
+   mit hoeherer Gewichtung zurueck — diese Doppelung ist mit dieser
+   Aenderung entfallen.
+
+   DIE AUFLOESUNG: der Reset zerfaellt in zwei Teile.
+   - Was UNSCHAEDLICH ist, weil keine Komponente es anders will
+     (font-family, cursor), bleibt auf `.t-mod button`.
+   - Was GESTALTUNG PLAETTET (border, background, color, font-size),
+     bekommt `:where(:not([class*="t-btn"]))`. `:where()` traegt selbst
+     keine Spezifitaet; der Selektor bleibt (0,1,1) — aber er MATCHT die
+     Komponentenknoepfe nicht mehr. Das ist der Punkt: nicht die
+     Gewichtung senken, sondern den Geltungsbereich schneiden.
+     Attribut-Substring statt `.t-btn`, damit auch ein alleinstehendes
+     `.t-btn--xs` (tournament.js:1000) erfasst ist.
+
+   MUSTER, das diese Datei jetzt sechsmal zeigt: der Selektor einer Regel
+   sagt nicht, wogegen sie gewinnt. Wer eine Basis-/Reset-Regel schreibt,
+   die Komponenten nicht schlagen soll, muss ihren GELTUNGSBEREICH
+   schneiden (`:where(:not(...))`) — eine "allgemeinere" Regel ist nicht
+   automatisch die schwaechere.
+   ---------------------------------------------------------------- */
 .t-mod button {
-  font-family: inherit; font-size: inherit; cursor: pointer;
-  border: none; background: none; color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.t-mod button:where(:not([class*="t-btn"])) {
+  font-size: inherit;
+  border: none;
+  background: none;
+  color: inherit;
 }
 .t-mod input { font-family: inherit; }
 
@@ -355,7 +423,7 @@
 }
 .t-mod-nav button:hover { background: var(--surface-alt); }
 .t-mod-nav button.is-active {
-  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+  background: var(--accent-soft); color: var(--accent-soft-ink); font-weight: 600;
 }
 .t-mod-nav .count {
   margin-left: auto;
@@ -1007,7 +1075,7 @@
   background: var(--surface-alt); color: var(--ink-soft);
   white-space: nowrap;
 }
-.t-badge--phase { background: var(--accent-soft); color: var(--accent); }
+.t-badge--phase { background: var(--accent-soft); color: var(--accent-soft-ink); }
 
 /* ----------------------------------------------------------------
    BUTTONS — eine Größe + drei Modifiers
@@ -1022,19 +1090,46 @@
   color: var(--ink);
   white-space: nowrap;
 }
+/* KASKADENKOLLISION Nr. 5 (aufgeloest 2026-08-25).
+   `.t-btn:hover` ist (0,2,0) — eine Klasse PLUS eine Pseudoklasse — und
+   schlaegt damit jede Varianten-Regel `.t-btn--primary` / `--danger`
+   (0,1,0). Die Varianten-Hover-Regeln setzten nur `filter`, kein
+   `background`. Folge: sobald der Zeiger einen gefuellten Knopf
+   beruehrte, fiel seine Fuellung auf --surface-alt zurueck und der
+   weisse Text stand auf hellem Grund — "Endgueltig loeschen" war beim
+   Ueberfahren ein leeres Kaestchen mit duennem rotem Rand, gemessen
+   1.13:1. Der gefaehrlichste Knopf der App verlor seine Beschriftung
+   genau in dem Moment, in dem man ihn anfasst.
+   REGEL DARAUS: wer eine Variante ueber eine Fuellung definiert, muss
+   ihren :hover die Fuellung ERNEUT setzen — `filter` allein ist kein
+   Ersatz, weil es die Herkunft des `background` nicht aendert.
+   Der Fix steht bewusst bei den Varianten und nicht als
+   `.t-btn:not(...)` an der Basis: die Basis-Hover soll fuer den
+   Standardknopf weiter gelten. */
 .t-btn:hover { background: var(--surface-alt); }
 .t-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   font-weight: 600;
 }
-.t-btn--primary:hover { filter: brightness(1.06); }
+.t-btn--primary:hover {
+  background: var(--accent);          /* Nr. 5: Fuellung erneut setzen */
+  border-color: var(--accent);
+  filter: brightness(1.06);
+}
 .t-btn--sm { padding: 5px 10px; font-size: 13px; }
 .t-btn--ghost {
   border-color: transparent;
   background: transparent;
   color: var(--ink-soft);
+}
+/* Der Ghost-Knopf behaelt bewusst `border-width: 1px` bei
+   `border-color: transparent` — sonst springt das Layout, sobald er
+   neben einem berandeten Knopf steht oder selbst einen Rand bekommt. */
+.t-btn--ghost:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
 }
 .t-btn--onDark {
   background: rgba(255, 255, 255, 0.12);
@@ -1466,7 +1561,7 @@
 }
 .t-list-card-status--draft     { background: #EEEAE3; color: var(--ink-soft); }
 .t-list-card-status--ready     { background: #DCE7F0; color: #2F5F86; }
-.t-list-card-status--running   { background: var(--accent-soft); color: var(--accent); }
+.t-list-card-status--running   { background: var(--accent-soft); color: var(--accent-soft-ink); }
 .t-list-card-status--finished  { background: #DDE8DD; color: var(--qualified); }
 
 /* Kurzinfo — "16 Teams · 4 Gruppen · 12 von 24 Spielen gespielt" */
@@ -2973,9 +3068,18 @@ textarea.t-input {
   gap: var(--s2);
 }
 .t-btn--danger {
-  background: var(--danger, #a33);
-  color: #fff;
-  border: 1px solid var(--danger, #a33);
+  background: var(--danger);
+  color: var(--danger-ink);
+  border: 1px solid var(--danger);
+}
+/* Kaskadenkollision Nr. 5, zweiter Fall: ohne diese Regel schlaegt
+   `.t-btn:hover` (0,2,0) die Fuellung von `.t-btn--danger` (0,1,0), und
+   der Loeschen-Knopf wird beim Ueberfahren zum leeren Kaestchen
+   (gemessen 1.13:1). Fuellung erneut setzen, nicht nur `filter`. */
+.t-btn--danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  filter: brightness(1.06);
 }
 .t-btn--danger:disabled {
   background: var(--surface-alt);
@@ -3351,11 +3455,13 @@ textarea.t-input {
   color: var(--ink-soft);
   cursor: pointer;
 }
-.t-btn--ghost {
-  background: transparent;
-  border-color: transparent;
-}
-.t-btn--ghost:hover { background: rgba(0, 0, 0, 0.04); }
+/* Hier stand eine zweite `.t-btn--ghost`-Definition mitsamt eigener
+   Hover-Farbe `rgba(0, 0, 0, 0.04)`. Sie stand SPAETER in der Quelle und
+   gewann damit bei gleicher Spezifitaet gegen die Definition oben im
+   Knopf-Abschnitt — zwei Wahrheiten fuer denselben Knopf, und die
+   gewinnende war die themafremde: ein Schwarz-Alpha-Hover ist auf
+   dunklem Grund praktisch unsichtbar. Entfernt 2026-08-25; es gilt die
+   Definition im Knopf-Abschnitt mit `--surface-alt`. */
 
 /* Mobile: schmaler Bildschirm, weniger Padding. */
 @media (max-width: 600px) {
@@ -4052,49 +4158,22 @@ textarea.t-input {
   padding: var(--s4);
 }
 
-/* `.t-mod button` (Zeile 217) nimmt jedem Knopf border, background und
-   color — und schlägt dabei `.t-btn` (Klasse+Typ gegen Klasse allein).
-   Im Modul ist dieser flache Look der Bestand; in einem Dialog wäre er
-   ein Rückschritt: „Speichern" verlöre seine Füllung, „Abbrechen"
-   seinen Rahmen und der Löschen-Knopf sein Rot — ausgerechnet dort, wo
-   ein Klick am meisten anrichtet.
+/* Hier stand ein kompletter Nachbau der Knopf-Optik unter
+   `.t-dialog-host .t-btn…` (0,2,0 statt 0,1,0), der den flachmachenden
+   Reset `.t-mod button` nur IM DIALOG ueberstimmte. Sein eigener
+   Kommentar nannte den sauberen Schnitt bereits beim Namen: ein
+   `:where()` um `button`. Der ist jetzt gemacht (siehe Kaskadenkollision
+   Nr. 6 im Reset-Abschnitt), die Doppelung damit erledigt und entfernt.
 
-   Die Werte sind bewusst identisch mit `.t-btn` ff. (Zeile 803) und
-   `.t-btn--danger` (Zeile 2714) — hier steht kein neuer Entwurf, nur
-   dieselbe Optik mit der Gewichtung, die gegen den Reset ankommt.
-   Der saubere Schnitt wäre ein `:where()` um `button` in Zeile 217;
-   das ist eine modulweite Änderung und liegt im Backlog. */
-.t-dialog-host .t-btn {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-}
-.t-dialog-host .t-btn:hover { background: var(--surface-alt); }
-.t-dialog-host .t-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.t-dialog-host .t-btn--primary:hover { filter: brightness(1.06); }
-.t-dialog-host .t-btn--ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-soft);
-}
-.t-dialog-host .t-btn--ghost:hover { background: var(--surface-alt); }
-.t-dialog-host .t-btn--danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-.t-dialog-host .t-btn--danger:hover { filter: brightness(1.06); }
-.t-dialog-host .t-btn--danger:disabled {
-  background: var(--surface-alt);
-  color: var(--ink-soft);
-  border-color: var(--line);
-  cursor: not-allowed;
-  filter: none;
-}
+   Der Nachbau war ausserdem SELBST die Quelle des schlimmsten Falls:
+   seine Zeile `.t-dialog-host .t-btn:hover { background: var(--surface-alt) }`
+   ist (0,3,0) und schlug `.t-dialog-host .t-btn--danger` (0,2,0), waehrend
+   die zugehoerige Hover-Regel nur `filter` setzte — "Endgueltig loeschen"
+   war beim Ueberfahren ein leeres Kaestchen (Weiss auf #F5F1E9, 1.13:1).
+   Zwei Ebenen desselben Fehlers uebereinander; beide sind mit dem
+   Schnitt oben und den Varianten-Hover-Regeln im Knopf-Abschnitt weg.
+   Die Dialoge tragen `t-mod t-dialog-host` (dialog-host.js:49) und
+   erben die Knopf-Optik jetzt aus derselben einen Quelle wie das Modul. */
 
 /* `--r3` gibt es im Modul nicht (es kennt --r-card/--r-btn/--r-board),
    deshalb hatte die Lösch-Bestätigung eckige Ecken. Bis der Token an
