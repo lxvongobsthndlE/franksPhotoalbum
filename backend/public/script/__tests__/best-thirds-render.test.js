@@ -249,7 +249,11 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     setCompactMode(true);
     const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
       .map((c) => c.match(/width:([^"]+)"/)[1]);
-    expect(cols).toEqual(['14%', '28%', '8%', '20%', '15%', '15%']);
+    expect(cols).toEqual(['14%', '26%', '10%', '20%', '15%', '15%']);
+    // Die Invariante, an der die Flucht mit der Standings-Tabelle haengt:
+    // Team + Gruppe muss deren Team-Spalte (36 %) ergeben, sonst beginnen
+    // Becher/Diff/Pkt. in den beiden Tabellen nicht an derselben Stelle.
+    expect(parseFloat(cols[1]) + parseFloat(cols[2])).toBe(36);
   });
 
   it('Mobile: Summe der Breiten ist genau 100% und es gibt kein auto', () => {
@@ -269,7 +273,7 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     //
     // 8% stand hier urspruenglich mit auf der schwarzen Liste — es war im
     // 7er-Set die Breite der Pl.-Spalte. Seit der Flucht-Angleichung
-    // (2026-08-25) traegt die Gruppen-Spalte legitim 8%, weil sie einen
+    // (2026-08-25) traegt die Gruppen-Spalte legitim 10%, weil sie einen
     // einzigen Buchstaben zeigt. Der Wert ist damit kein Geist mehr und
     // muss aus der Liste raus: ein Test, der einen gueltigen Zustand
     // verbietet, wird beim naechsten Rot abgeschaltet statt gelesen.
@@ -277,9 +281,9 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     // das Set als Ganzes gegen die dokumentierte Konstante haelt.
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
-    expect(html).not.toContain('width:10%');
     expect(html).not.toContain('width:18%');
     expect(html).not.toContain('width:13%');
+    expect(html).not.toContain('width:12%');
   });
 
   it('Mobile: "12:10" wird gerendert und die Becher-Spalte hat 20%', () => {

@@ -535,8 +535,22 @@ const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9
  * "Gruppe" — sonst kuerzt sie zu "G…".
  *
  * STANDINGS_COL_WIDTHS_MOBILE bleibt unangetastet: das sind die frisch
- * gemessenen 288-px-Werte, an denen sich diese Tabelle ausrichtet. */
-const THIRDS_COL_WIDTHS_MOBILE = ['14%', '28%', '8%', '20%', '15%', '15%'];
+ * gemessenen 288-px-Werte, an denen sich diese Tabelle ausrichtet.
+ *
+ * NACHTRAG 2026-08-25 (bei 360 px nachgemessen, nicht nur bei 390):
+ * mit 8 % war die Gruppen-Spalte bei 360 px Viewport 21 px breit, die
+ * Kopfzeile "GR." braucht 24 px — sie kuerzte zu "G…". Jetzt 10 %.
+ *
+ * DIE INVARIANTE, an der die Flucht haengt — bitte nicht zerreissen:
+ *     Team + Gruppe  ==  36 %   (= die Team-Spalte der Standings-Tabelle)
+ * Nur weil beide zusammen genau so breit sind wie dort EINE Spalte,
+ * beginnen Becher, Diff und Pkt. in beiden Tabellen an derselben Stelle.
+ * Die 2 %, die die Gruppen-Spalte dazubekommt, sind deshalb der
+ * Team-Spalte entnommen (28 -> 26) und nicht irgendwoher: 26 + 10 = 36.
+ * Wer die Gruppen-Spalte anfasst, muss Team gegenlaeufig mitziehen —
+ * sonst rutschen die gemeinsamen Spalten wieder auseinander, und genau
+ * das war der Befund, den dieser Block behebt. */
+const THIRDS_COL_WIDTHS_MOBILE = ['14%', '26%', '10%', '20%', '15%', '15%'];
 
 function renderColgroup(widths) {
   return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
