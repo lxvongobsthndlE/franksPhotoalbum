@@ -64,6 +64,23 @@
   --line:         #E7DFD2;
   --accent:       #8B6B4A;
   --accent-soft:  #F0E7DA;
+  /* Text AUF den Akzent-/Danger-Flaechen. Folgt dem Muster, das das Set
+     bei der Anzeigetafel schon fuehrt: --board (Flaeche) / --board-ink
+     (Text darauf). Vorher stand in .t-btn--primary und .t-btn--danger
+     ein hartes `color: #fff`; das traegt im HELLEN Modus (4.88:1 auf
+     --accent, 5.06:1 auf --danger), faellt im DUNKLEN aber durch —
+     dort sind die Fuellungen heller: Weiss auf --accent #B8916A nur
+     2.88:1, auf --danger #D66B60 nur 3.43:1. Solange die Knoepfe wegen
+     `.t-mod button` flach waren, fiel das niemandem auf; mit der
+     Reparatur weiter unten werden die Fuellungen sichtbar und der
+     Fehler waere sichtbar geworden.
+     --accent-soft-ink ist der Akzentton, der auf der WEICHEN Flaeche
+     traegt: --accent auf --accent-soft sind hell nur 3.99:1 (Badge,
+     aktiver Nav-Eintrag, Status "laeuft" in der Listenkarte). */
+  --accent-ink:       #FFFFFF;   /* auf --accent  #8B6B4A -> 4.88:1 */
+  --danger-ink:       #FFFFFF;   /* auf --danger  #C0453A -> 5.06:1 */
+  --accent-soft-ink:  #78593B;   /* auf --accent-soft #F0E7DA -> 5.21:1,
+                                    auf --surface #FFFFFF -> 6.38:1 */
 
   /* ---- Anzeigetafel: die eigene Handschrift des Moduls ----
      Überall dort, wo Ergebnisse oder Zeiten stehen, wird der Grund
@@ -89,6 +106,21 @@
      sich unabhaengig voneinander aendern duerfen. */
   --live:         #C0453A;
   --danger:       #C0453A;
+  /* --warn / --warn-soft nachgetragen 2026-08-25.
+     ENTSCHEID: definieren, nicht auf einen bestehenden Token umbiegen.
+     Die Zustands-Skala (open/qualified/done/out/live/danger) hatte keinen
+     Eintrag fuer "Hinweis / Achtung"; --open ist zwar derselbe Bernstein,
+     bedeutet aber "Spiel noch offen" und darf sich unabhaengig aendern
+     (dieselbe Begruendung wie oben bei --live vs --danger). Das Suffix
+     -soft folgt --accent-soft, ist also kein zweites Namensschema.
+     Die HELLEN Werte sind exakt die bisherigen Literal-Fallbacks
+     (#b58410 / #fef3cd) -- im Hellmodus aendert sich nichts.
+     Gemessen: Rand #B58410 auf --surface 3.35:1 und auf --warn-soft
+     3.02:1 (Nicht-Text, Schwelle 3:1 -- bestanden); --ink auf
+     --warn-soft 15.42:1. */
+  --warn:         #B58410;
+  --warn-soft:    #FEF3CD;
+
 
   /* ---- Radien ----
      4px für Score-Felder: bewusst kantiger als der Rest. Der kleine
@@ -138,6 +170,16 @@
   --line:         #332E27;
   --accent:       #B8916A;
   --accent-soft:  #332A22;
+  /* Dunkelmodus: die Fuellungen sind HELLER als im Hellmodus, also
+     kippt der Text auf dunkel. Gemessen:
+       #1A1714 auf --accent #B8916A -> 6.20:1  (Weiss waere 2.88:1)
+       #1A1714 auf --danger #D66B60 -> 5.21:1  (Weiss waere 3.43:1)
+     Auch nach `filter: brightness(1.06)` im Hover bleibt es bestanden
+     (6.95:1 bzw. 5.80:1). --accent-soft-ink darf hier der normale
+     Akzentton bleiben: #B8916A auf --accent-soft #332A22 -> 4.88:1. */
+  --accent-ink:       #1A1714;
+  --danger-ink:       #1A1714;
+  --accent-soft-ink:  #B8916A;
 
   /* Anzeigetafel umgekehrt */
   --board:        #EDE6DA;
@@ -152,6 +194,17 @@
      damit der Streifen auf dunklem Grund nicht absaeuft. */
   --live:         #D66B60;
   --danger:       #D66B60;
+  /* DER EIGENTLICHE AUSFALL LAG HIER: --warn-soft war nirgends definiert,
+     also griff im Dunkelmodus derselbe Literal-Fallback #fef3cd wie im
+     Hellmodus -- die drei Hinweisboxen (.t-settings-lock-hint,
+     .t-banner--warning, .t-fields-locked-hint) leuchteten als helle
+     gelbe Kaesten mit hellem --ink-Text darauf, praktisch unlesbar.
+     Belegt im Screenshot shots/vorher-dark.png.
+     Gemessen mit den neuen Werten: --ink #F2EDE4 auf #33291A 12.23:1,
+     Rand #D9A445 auf #33291A 6.35:1, die Flaeche hebt sich mit 1.14:1
+     sanft von --surface #23201B ab (Flaeche, kein Text). */
+  --warn:         #D9A445;
+  --warn-soft:    #33291A;
 }
 
 /* ----------------------------------------------------------------
@@ -276,9 +329,50 @@
   background: transparent;
 }
 .t-mod table { border-collapse: collapse; width: 100%; }
+/* ----------------------------------------------------------------
+   KASKADENKOLLISION Nr. 6 in dieser Datei (aufgeloest 2026-08-25)
+   ----------------------------------------------------------------
+   Hier stand EINE Regel:
+       .t-mod button { font-family: inherit; font-size: inherit;
+                       cursor: pointer; border: none; background: none;
+                       color: inherit; }
+   Spezifitaet (0,1,1) — eine Klasse plus ein Typ. Jede .t-btn-Regel ist
+   (0,1,0). Damit hat dieser Reset im ganzen Modul JEDEN Knopf plattgemacht,
+   auch `--primary` und `--danger`: keine Fuellung, kein Rand, geerbte
+   Textfarbe, geerbte Schriftgroesse (16px statt 14px). Im Browser
+   nachgemessen (Edge, .t-btn--primary):
+       background rgba(0,0,0,0)  color rgb(26,20,16)  border 0px none
+       font-size 16px
+   Der A5-Dialog holte die Optik deshalb unter `.t-dialog-host .t-btn`
+   mit hoeherer Gewichtung zurueck — diese Doppelung ist mit dieser
+   Aenderung entfallen.
+
+   DIE AUFLOESUNG: der Reset zerfaellt in zwei Teile.
+   - Was UNSCHAEDLICH ist, weil keine Komponente es anders will
+     (font-family, cursor), bleibt auf `.t-mod button`.
+   - Was GESTALTUNG PLAETTET (border, background, color, font-size),
+     bekommt `:where(:not([class*="t-btn"]))`. `:where()` traegt selbst
+     keine Spezifitaet; der Selektor bleibt (0,1,1) — aber er MATCHT die
+     Komponentenknoepfe nicht mehr. Das ist der Punkt: nicht die
+     Gewichtung senken, sondern den Geltungsbereich schneiden.
+     Attribut-Substring statt `.t-btn`, damit auch ein alleinstehendes
+     `.t-btn--xs` (tournament.js:1000) erfasst ist.
+
+   MUSTER, das diese Datei jetzt sechsmal zeigt: der Selektor einer Regel
+   sagt nicht, wogegen sie gewinnt. Wer eine Basis-/Reset-Regel schreibt,
+   die Komponenten nicht schlagen soll, muss ihren GELTUNGSBEREICH
+   schneiden (`:where(:not(...))`) — eine "allgemeinere" Regel ist nicht
+   automatisch die schwaechere.
+   ---------------------------------------------------------------- */
 .t-mod button {
-  font-family: inherit; font-size: inherit; cursor: pointer;
-  border: none; background: none; color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.t-mod button:where(:not([class*="t-btn"])) {
+  font-size: inherit;
+  border: none;
+  background: none;
+  color: inherit;
 }
 .t-mod input { font-family: inherit; }
 
@@ -329,7 +423,7 @@
 }
 .t-mod-nav button:hover { background: var(--surface-alt); }
 .t-mod-nav button.is-active {
-  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+  background: var(--accent-soft); color: var(--accent-soft-ink); font-weight: 600;
 }
 .t-mod-nav .count {
   margin-left: auto;
@@ -593,6 +687,87 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+/* ----------------------------------------------------------------
+   NAVIGATIONSLUECKE 601-767px (geschlossen 2026-08-25)
+   ----------------------------------------------------------------
+   .t-mod-nav war ab Containerbreite <=767px ausgeblendet, die
+   Bodenleiste erscheint aber erst ab <=600px. Dazwischen hatte das
+   Modul WEDER Seitenleiste NOCH Leiste — gar keine Navigation.
+
+   Im Browser nachgemessen (Edge, .t-mod als Container in #content):
+       viewport 1500 -> container 1208  Nav sichtbar
+       viewport 1059 -> container  767  Nav WEG, keine Leiste   <- Beginn
+       viewport  900 -> container  872  Nav sichtbar (die App-Seitenleiste
+                                        klappt bei <=900px weg, das Modul
+                                        wird dadurch schlagartig breiter)
+       viewport  795 -> container  767  Nav WEG, keine Leiste
+       viewport  628 -> container  600  Bodenleiste erscheint
+   Das sind ZWEI getrennte Fensterbaender (901-1059 und 629-900), zusammen
+   326px Fensterbreite ohne jede Navigation — nicht 167px, wie die reine
+   Rechnung am Container nahelegt. Die App-Seitenleiste verbiegt die
+   Abbildung viewport->container; lesbar ist die Luecke nur am Container.
+
+   ZWEI NAHELIEGENDE FIXES WURDEN GEBAUT UND VERWORFEN:
+
+   (1) Bodenleiste bis 767px hochziehen. Sie ist `position: fixed;
+       left: 0; right: 0` und spannt damit ueber das GANZE FENSTER, nicht
+       nur ueber das Modul. Im oberen Band (viewport 901-1059) ist die
+       App-Seitenleiste sichtbar — die mobile Leiste laege dann quer
+       darueber. Im Prototyp-Screenshot bestaetigt.
+
+   (2) Modul-Seitenleiste bis 601px herunterziehen (Schwelle 768 -> 601).
+       Kostet 160px Nav + Rasterluft und wurde AM BILD widerlegt: die
+       Gruppentabelle steht im Desktop-Satz mit 9 Spalten, solange der
+       Container > 600px ist (die Compact-Umschaltung in
+       spielplan-helpers.js haengt an genau derselben 600er-Grenze).
+       Gemessene Kopfzeilen-Truncation (scrollWidth > clientWidth):
+           ohne Nav  container 767 -> main 743  abgeschnitten: keine
+           ohne Nav  container 612 -> main 593  abgeschnitten: Becher
+           MIT Nav   container 767 -> main 554  abgeschnitten: Becher
+           MIT Nav   container 612 -> main 420  abgeschnitten: Pl., Sp.,
+                                                S, U, N, Becher, Diff, Pkt.
+       Unterhalb von ~580px Hauptbereich zerfaellt die Tabelle. Mit einer
+       160px-Nav ist das ab Container 767 abwaerts unvermeidlich.
+
+   GEWAEHLT: In diesem Band bekommt .t-mod-tabs wieder ihre URSPRUENGLICHE
+   Form — die horizontale Leiste OBEN, im Fluss des Moduls. Die kostet
+   keine Breite (kein 160px-Abzug), ist kein fensterweit fixiertes
+   Element (kein Uebergriff auf die App-Seitenleiste) und liegt im
+   Container, folgt also der Modulbreite statt der Fensterbreite.
+   Die Basisregel von .t-mod-tabs weiter oben traegt diese Form bereits
+   vollstaendig (position: relative, height: 44px, overflow-x: auto,
+   border-bottom, Fade-::after) — ihr fehlte nur das display.
+
+   ZUR HOEHEN-WAHRHEIT DER BODENLEISTE (siehe Warnung im 767er-Block
+   weiter unten): Dieser Block ist ein BEREICH, min-width 601 UND
+   max-width 767. Er kann bei <=600px gar nicht greifen. Die Geometrie
+   der Bodenleiste bleibt damit unberuehrt und hat weiterhin genau eine
+   Wahrheit — den Block @container (max-width: 600px) weiter oben.
+   ---------------------------------------------------------------- */
+@container (min-width: 601px) and (max-width: 767px) {
+  .t-mod-tabs { display: flex; }
+  /* .t-mod-tab ist seit P3 fuer die Bodenleiste gebaut (Spalte, 56px,
+     Icon ueber Label). Hier zurueck auf die Zeilenform, die in die
+     44px-Leiste passt. Hoehe bewusst NICHT gesetzt — die kommt aus
+     .t-mod-tabs; hier wird nur der Button an die Leiste angepasst. */
+  .t-mod-tab {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: var(--s2);
+    padding: 0 var(--s3);
+    align-self: stretch;
+    font-size: 14px;
+    border-top: none;
+    border-bottom: 2px solid transparent;
+  }
+  .t-mod-tab.is-active {
+    border-top-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+  .t-mod-tab svg { width: 18px; height: 18px; }
+  .t-mod-tab > span { font-size: 14px; }
 }
 
 /* Hauptbereich (mittlere Spalte) */
@@ -900,7 +1075,7 @@
   background: var(--surface-alt); color: var(--ink-soft);
   white-space: nowrap;
 }
-.t-badge--phase { background: var(--accent-soft); color: var(--accent); }
+.t-badge--phase { background: var(--accent-soft); color: var(--accent-soft-ink); }
 
 /* ----------------------------------------------------------------
    BUTTONS — eine Größe + drei Modifiers
@@ -915,19 +1090,46 @@
   color: var(--ink);
   white-space: nowrap;
 }
+/* KASKADENKOLLISION Nr. 5 (aufgeloest 2026-08-25).
+   `.t-btn:hover` ist (0,2,0) — eine Klasse PLUS eine Pseudoklasse — und
+   schlaegt damit jede Varianten-Regel `.t-btn--primary` / `--danger`
+   (0,1,0). Die Varianten-Hover-Regeln setzten nur `filter`, kein
+   `background`. Folge: sobald der Zeiger einen gefuellten Knopf
+   beruehrte, fiel seine Fuellung auf --surface-alt zurueck und der
+   weisse Text stand auf hellem Grund — "Endgueltig loeschen" war beim
+   Ueberfahren ein leeres Kaestchen mit duennem rotem Rand, gemessen
+   1.13:1. Der gefaehrlichste Knopf der App verlor seine Beschriftung
+   genau in dem Moment, in dem man ihn anfasst.
+   REGEL DARAUS: wer eine Variante ueber eine Fuellung definiert, muss
+   ihren :hover die Fuellung ERNEUT setzen — `filter` allein ist kein
+   Ersatz, weil es die Herkunft des `background` nicht aendert.
+   Der Fix steht bewusst bei den Varianten und nicht als
+   `.t-btn:not(...)` an der Basis: die Basis-Hover soll fuer den
+   Standardknopf weiter gelten. */
 .t-btn:hover { background: var(--surface-alt); }
 .t-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   font-weight: 600;
 }
-.t-btn--primary:hover { filter: brightness(1.06); }
+.t-btn--primary:hover {
+  background: var(--accent);          /* Nr. 5: Fuellung erneut setzen */
+  border-color: var(--accent);
+  filter: brightness(1.06);
+}
 .t-btn--sm { padding: 5px 10px; font-size: 13px; }
 .t-btn--ghost {
   border-color: transparent;
   background: transparent;
   color: var(--ink-soft);
+}
+/* Der Ghost-Knopf behaelt bewusst `border-width: 1px` bei
+   `border-color: transparent` — sonst springt das Layout, sobald er
+   neben einem berandeten Knopf steht oder selbst einen Rand bekommt. */
+.t-btn--ghost:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
 }
 .t-btn--onDark {
   background: rgba(255, 255, 255, 0.12);
@@ -1359,7 +1561,7 @@
 }
 .t-list-card-status--draft     { background: #EEEAE3; color: var(--ink-soft); }
 .t-list-card-status--ready     { background: #DCE7F0; color: #2F5F86; }
-.t-list-card-status--running   { background: var(--accent-soft); color: var(--accent); }
+.t-list-card-status--running   { background: var(--accent-soft); color: var(--accent-soft-ink); }
 .t-list-card-status--finished  { background: #DDE8DD; color: var(--qualified); }
 
 /* Kurzinfo — "16 Teams · 4 Gruppen · 12 von 24 Spielen gespielt" */
@@ -2866,9 +3068,18 @@ textarea.t-input {
   gap: var(--s2);
 }
 .t-btn--danger {
-  background: var(--danger, #a33);
-  color: #fff;
-  border: 1px solid var(--danger, #a33);
+  background: var(--danger);
+  color: var(--danger-ink);
+  border: 1px solid var(--danger);
+}
+/* Kaskadenkollision Nr. 5, zweiter Fall: ohne diese Regel schlaegt
+   `.t-btn:hover` (0,2,0) die Fuellung von `.t-btn--danger` (0,1,0), und
+   der Loeschen-Knopf wird beim Ueberfahren zum leeren Kaestchen
+   (gemessen 1.13:1). Fuellung erneut setzen, nicht nur `filter`. */
+.t-btn--danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  filter: brightness(1.06);
 }
 .t-btn--danger:disabled {
   background: var(--surface-alt);
@@ -3061,7 +3272,11 @@ textarea.t-input {
   color: var(--ink-soft);
 }
 .t-wizard-logo-status.is-ok {
-  color: var(--ok, #2c8a4f);
+  /* --ok gab es nie; ENTSCHEID: bestehenden Token benutzen statt einen
+     zweiten Gruen-Namen einzufuehren. --done/--qualified ist der
+     Erfolgs-Gruenton des Sets (hell #4F7A4A, dunkel #6B9A66) und deckt
+     "Upload geglueckt" mit ab. (2026-08-25) */
+  color: var(--done);
 }
 .t-wizard-logo-status.is-error {
   color: var(--danger, #c0392b);
@@ -3081,7 +3296,13 @@ textarea.t-input {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: var(--r-sm, 4px);
+  /* Stand hier als var(--r-sm, 4px). --r-sm gab es nie -- und es wird
+     auch nicht nachgetragen: die Radien-Skala des Moduls ist SEMANTISCH
+     (--r-card / --r-btn / --r-board), keine Groessenskala sm/md/lg. Ein
+     --r-sm waere ein zweites Namensschema; --r-board (zufaellig auch 4px)
+     waere fuer ein Logo-Vorschaubild schlicht gelogen. Bleibt darum ein
+     Literal, bis es einen zweiten Nutzer gibt. (2026-08-25) */
+  border-radius: 4px;
   background: var(--surface);
 }
 .t-wizard-logo-picker {
@@ -3234,11 +3455,13 @@ textarea.t-input {
   color: var(--ink-soft);
   cursor: pointer;
 }
-.t-btn--ghost {
-  background: transparent;
-  border-color: transparent;
-}
-.t-btn--ghost:hover { background: rgba(0, 0, 0, 0.04); }
+/* Hier stand eine zweite `.t-btn--ghost`-Definition mitsamt eigener
+   Hover-Farbe `rgba(0, 0, 0, 0.04)`. Sie stand SPAETER in der Quelle und
+   gewann damit bei gleicher Spezifitaet gegen die Definition oben im
+   Knopf-Abschnitt — zwei Wahrheiten fuer denselben Knopf, und die
+   gewinnende war die themafremde: ein Schwarz-Alpha-Hover ist auf
+   dunklem Grund praktisch unsichtbar. Entfernt 2026-08-25; es gilt die
+   Definition im Knopf-Abschnitt mit `--surface-alt`. */
 
 /* Mobile: schmaler Bildschirm, weniger Padding. */
 @media (max-width: 600px) {
@@ -3466,8 +3689,8 @@ textarea.t-input {
   align-items: center;
   gap: var(--s2);
   padding: var(--s2) var(--s3);
-  background: var(--warn-soft, #fef3cd);
-  border-left: 3px solid var(--warn, #b58410);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
   border-radius: var(--r-card);
   font-size: 12px;
 }
@@ -3562,8 +3785,8 @@ textarea.t-input {
   margin: 0;
 }
 .t-banner--warning {
-  background: var(--warn-soft, #fef3cd);
-  border-left: 3px solid var(--warn, #b58410);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
   color: var(--ink, #1a1a17);
 }
 
@@ -3862,8 +4085,8 @@ textarea.t-input {
   align-items: center;
   gap: var(--s2);
   padding: var(--s2) var(--s3);
-  background: var(--warn-soft, #fef3cd);
-  border-left: 3px solid var(--warn, #b58410);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
   border-radius: var(--r-card);
   font-size: 12px;
 }
@@ -3935,49 +4158,22 @@ textarea.t-input {
   padding: var(--s4);
 }
 
-/* `.t-mod button` (Zeile 217) nimmt jedem Knopf border, background und
-   color — und schlägt dabei `.t-btn` (Klasse+Typ gegen Klasse allein).
-   Im Modul ist dieser flache Look der Bestand; in einem Dialog wäre er
-   ein Rückschritt: „Speichern" verlöre seine Füllung, „Abbrechen"
-   seinen Rahmen und der Löschen-Knopf sein Rot — ausgerechnet dort, wo
-   ein Klick am meisten anrichtet.
+/* Hier stand ein kompletter Nachbau der Knopf-Optik unter
+   `.t-dialog-host .t-btn…` (0,2,0 statt 0,1,0), der den flachmachenden
+   Reset `.t-mod button` nur IM DIALOG ueberstimmte. Sein eigener
+   Kommentar nannte den sauberen Schnitt bereits beim Namen: ein
+   `:where()` um `button`. Der ist jetzt gemacht (siehe Kaskadenkollision
+   Nr. 6 im Reset-Abschnitt), die Doppelung damit erledigt und entfernt.
 
-   Die Werte sind bewusst identisch mit `.t-btn` ff. (Zeile 803) und
-   `.t-btn--danger` (Zeile 2714) — hier steht kein neuer Entwurf, nur
-   dieselbe Optik mit der Gewichtung, die gegen den Reset ankommt.
-   Der saubere Schnitt wäre ein `:where()` um `button` in Zeile 217;
-   das ist eine modulweite Änderung und liegt im Backlog. */
-.t-dialog-host .t-btn {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-}
-.t-dialog-host .t-btn:hover { background: var(--surface-alt); }
-.t-dialog-host .t-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.t-dialog-host .t-btn--primary:hover { filter: brightness(1.06); }
-.t-dialog-host .t-btn--ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-soft);
-}
-.t-dialog-host .t-btn--ghost:hover { background: var(--surface-alt); }
-.t-dialog-host .t-btn--danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-.t-dialog-host .t-btn--danger:hover { filter: brightness(1.06); }
-.t-dialog-host .t-btn--danger:disabled {
-  background: var(--surface-alt);
-  color: var(--ink-soft);
-  border-color: var(--line);
-  cursor: not-allowed;
-  filter: none;
-}
+   Der Nachbau war ausserdem SELBST die Quelle des schlimmsten Falls:
+   seine Zeile `.t-dialog-host .t-btn:hover { background: var(--surface-alt) }`
+   ist (0,3,0) und schlug `.t-dialog-host .t-btn--danger` (0,2,0), waehrend
+   die zugehoerige Hover-Regel nur `filter` setzte — "Endgueltig loeschen"
+   war beim Ueberfahren ein leeres Kaestchen (Weiss auf #F5F1E9, 1.13:1).
+   Zwei Ebenen desselben Fehlers uebereinander; beide sind mit dem
+   Schnitt oben und den Varianten-Hover-Regeln im Knopf-Abschnitt weg.
+   Die Dialoge tragen `t-mod t-dialog-host` (dialog-host.js:49) und
+   erben die Knopf-Optik jetzt aus derselben einen Quelle wie das Modul. */
 
 /* `--r3` gibt es im Modul nicht (es kennt --r-card/--r-btn/--r-board),
    deshalb hatte die Lösch-Bestätigung eckige Ecken. Bis der Token an
@@ -4157,4 +4353,272 @@ textarea.t-input {
 }
 @media (prefers-reduced-motion: reduce) {
   .t-dialog { animation: none; }
+}
+
+/* ================================================================
+   DRUCKLAYOUT (@media print) — 2026-08-25
+   ================================================================
+   Es gab keins. `grep -c '@media print'` lieferte in main.css UND
+   tournament.css 0, der "Drucken"-Knopf (main.js:2915, Kontextmenue
+   :2922, Handler :3083) rief blank `window.print()` — also der
+   Bildschirm auf Papier, mit Seitenleiste, Bodenleiste, Filtern und
+   Knoepfen. Ein Knopf ohne Funktion ist laut Hausregel kein Knopf.
+
+   WAS GEDRUCKT WIRD: der fachliche Kern — Spielplan, Gruppentabellen,
+   Turnierbaum. Alles Bedienbare faellt weg; auf Papier kann man nichts
+   klicken, und jeder Knopf kostet eine Zeile, die eine Paarung braucht.
+
+   DREI ENTSCHEIDE, die man dem Ergebnis nicht ansieht:
+
+   1. ALLE DREI ANSICHTEN AUF EINMAL. Auf dem Bildschirm zeigt das Modul
+      genau einen Tab (`.t-view.is-active`). Wer druckt, will aber das
+      TURNIER, nicht den Tab, in dem er gerade steht. Der Druck loest
+      `.is-active` deshalb auf und zeigt Spielplan, Gruppen und Baum
+      nacheinander — jeweils auf einer eigenen Seite.
+      HAKEN: Gruppen und Baum haengen an Lazy-Mounts
+      (`[data-tab-body="gruppen-mount"]`), die erst beim ersten
+      Tab-Klick gefuellt werden. Wer direkt aus dem Spielplan druckt,
+      haette sonst zwei leere Ueberschriften auf zwei leeren Seiten.
+      Deshalb blendet die `:has()`-Regel weiter unten eine Ansicht aus,
+      deren Mount leer ist. Faellt `:has()` aus (aeltere Engine), wird
+      NUR diese eine Regel verworfen — der Rest des Drucklayouts steht.
+
+   2. FARBE IST AUF PAPIER KEIN TRAEGER. Statusstreifen (offen /
+      laeuft / beendet) unterscheiden sich am Bildschirm nur durch die
+      Farbe des 3px-Balkens; im Graudruck sind alle drei dasselbe Grau.
+      Statt `print-color-adjust: exact` zu erzwingen (das haengt am
+      Treiber und schluckt Toner) bekommt jeder Zustand ein Merkmal,
+      das ohne Farbe traegt: der Balken wird zu einem Rand mit eigener
+      STRICHART, und `.t-match-action-text` bleibt stehen — dort steht
+      der Zustand bereits als WORT ("Beendet"). Nur der Knopf darin
+      faellt weg, nicht der Text.
+      Dieselbe Logik bei den Badges: statt Fuellung ein Rand.
+
+   3. DIE ANZEIGETAFEL WIRD UMGEDREHT. `.t-match-score` ist am
+      Bildschirm ein dunkler Block mit heller Ziffer (--board /
+      --board-ink). Auf Papier waere das ein schwarzer Kasten pro
+      Ergebnis. Im Druck also weiss mit Rand und schwarzer Ziffer.
+
+   Kein `@page`-Kopf mit Turniername und Datum: der Modulkopf traegt
+   Namen und Phase und bleibt als erste Zeile stehen. Ein DATUM steht
+   im Detail-Kopf gar nicht im DOM (main.js baut dort Modus und
+   Team-Zahl) — das nachzuruesten ist eine Aenderung an main.js und
+   gehoert nicht in eine CSS-Runde.
+   ---------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  /* ---- ERST DIE TOKENS, DANN ALLES ANDERE ------------------------
+     Im Dunkelmodus druckte diese Seite fast leer: --ink ist dort
+     #F2EDE4, also hellbeige — auf weissem Papier praktisch unsichtbar.
+     Im ersten Druck-Screenshot mit gesetztem [data-theme=dark] waren
+     Ueberschriften, Teamnamen und Tabellenwerte nur noch zu erahnen.
+     Das ist kein Randfall: das Theme haengt am Geraet des Druckenden,
+     nicht am Dokument.
+     Papier hat genau EIN Thema. Der Druck setzt deshalb den kompletten
+     Token-Satz des Moduls auf Schwarz-auf-Weiss zurueck — an EINER
+     Stelle, statt an jeder Regel eine Druckfarbe nachzuziehen.
+     Der Selektor traegt [data-theme=dark] mit, weil der Dunkel-Block
+     oben (0,2,0) sonst gewinnt. */
+  .t-mod,
+  [data-theme="dark"] .t-mod {
+    --paper: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-alt: #FFFFFF;
+    --ink: #000000;
+    --ink-soft: #3A3A3A;
+    --line: #999999;
+    --accent: #000000;
+    --accent-soft: #FFFFFF;
+    --accent-ink: #000000;
+    --accent-soft-ink: #000000;
+    --board: #FFFFFF;
+    --board-ink: #000000;
+    --board-dim: #555555;
+    --open: #000000;
+    --qualified: #000000;
+    --done: #000000;
+    --out: #555555;
+    --live: #000000;
+    --danger: #000000;
+    --danger-ink: #000000;
+    --warn: #000000;
+    --warn-soft: #FFFFFF;
+  }
+
+  /* ---- Modul-Rahmen: alle Scroll- und Hoehenklammern loesen -------
+     .t-mod ist am Bildschirm ein Container mit fester Hoehe und
+     overflow:hidden; im Druck wuerde damit alles nach der ersten
+     Seite verschwinden. */
+  .t-mod {
+    display: block;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    background: #fff;
+  }
+  .t-shell { display: block; }
+  .t-mod-main,
+  .t-mod-aside {
+    display: block;
+    padding: 0;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
+
+  /* ---- Was auf Papier nichts verloren hat ------------------------
+     Navigation (Seitenleiste, Bodenleiste, Kontextmenue, Bottom-Sheet),
+     alles Bedienbare (Knoepfe, Filter, Editoren) und die Kontextspalte.
+     Die Bodenleiste ist position:fixed — ohne diese Zeile klebte sie
+     auf JEDER Seite. */
+  .t-mod-nav,
+  .t-mod-tabs,
+  .t-mod-menu,
+  .t-mod-more-sheet,
+  .t-mod-more-overlay,
+  .t-mod-more-panel,
+  .t-mod-header-actions,
+  .t-mod-aside,
+  .t-dialog-host,
+  .t-toolbar,
+  .t-filter-wrap,
+  .t-filter-dropdown,
+  .t-btn,
+  .t-view-head .spacer,
+  .t-match-action .t-btn,
+  .t-schedule-edit-bar,
+  .t-schedule-edit-actions,
+  .t-fill-ko-card,
+  .bracket-tabs,
+  .t-swap-bar,
+  .t-hint {
+    display: none !important;
+  }
+
+  /* ---- Die drei fachlichen Ansichten, jede auf eigener Seite ----- */
+  .t-view { display: none !important; }
+  .t-view[data-view="spielplan"],
+  .t-view[data-view="gruppen"],
+  .t-view[data-view="baum"] {
+    display: block !important;
+    break-before: page;
+  }
+  /* Die erste gedruckte Ansicht faengt keinen Seitenumbruch an. */
+  .t-view[data-view="spielplan"] { break-before: auto; }
+
+  /* Leere Lazy-Mounts nicht als leere Seite drucken (Entscheid 1). */
+  .t-view:has(> [data-tab-body]:empty) { display: none !important; }
+
+  /* ---- Kopf ------------------------------------------------------ */
+  .t-mod-header {
+    border-bottom: 2px solid #000;
+    padding: 0 0 6mm;
+    margin-bottom: 6mm;
+    background: none;
+    break-after: avoid;
+  }
+  .t-view-head {
+    break-after: avoid;
+    border-bottom: 1px solid #999;
+    padding-bottom: 2mm;
+  }
+
+  /* ---- Nichts zerreissen ----------------------------------------- */
+  .t-card,
+  .t-group-card,
+  .t-match,
+  .bracket-col,
+  .t-standings-table tr,
+  .t-thirds-table tr {
+    break-inside: avoid;
+  }
+  .t-card {
+    border: 1px solid #999;
+    box-shadow: none;
+    background: none;
+    margin-bottom: 4mm;
+  }
+
+  /* ---- Turnierbaum: alle Runden, kein horizontaler Scroll -------- */
+  .bracket-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 8mm;
+  }
+  .bracket-col {
+    min-width: 55mm;
+    max-width: 70mm;
+  }
+
+  /* ---- Farbe ersetzen (Entscheid 2) ------------------------------
+     Strichart statt Farbe: gepunktet = offen, doppelt = laeuft,
+     durchgezogen = beendet. */
+  .t-match-bar {
+    background: none !important;
+    border-left: 3px dotted #000;
+  }
+  .t-match--live .t-match-bar { border-left-style: double; border-left-width: 4px; }
+  .t-match--done .t-match-bar { border-left-style: solid; }
+  .t-match--live .t-match-meta-time::after { content: " · laeuft"; font-weight: 700; }
+  .t-match--done .t-match-team { color: #000; }
+  .t-match { background: none; border-bottom: 1px solid #ccc; }
+  .t-match-action-text { display: inline; font-size: 10pt; }
+
+  .t-badge {
+    background: none !important;
+    color: #000 !important;
+    border: 1px solid #000;
+  }
+  .t-dot { border: 1px solid #000; background: none !important; }
+
+  /* ---- Anzeigetafel umdrehen (Entscheid 3) ----------------------- */
+  .t-match-score {
+    background: none !important;
+    color: #000 !important;
+    border: 1px solid #000;
+  }
+  .t-match-score.empty { border-style: dashed; }
+
+  /* ---- Tabellen lesbar auf Papier -------------------------------- */
+  .t-standings-table,
+  .t-thirds-table {
+    font-size: 10pt;
+  }
+  .t-standings-table th,
+  .t-thirds-table th {
+    border-bottom: 1px solid #000;
+  }
+  /* Der Zeilenhintergrund fuer Platz 1/2 steht an ZWEI Stellen: als
+     Zeilenfarbe in main.css und noch einmal auf der Zelle in
+     tournament.css (.t-standings-row.is-first td, 0,2,1). Wer nur die
+     Zeile neutralisiert, bekommt auf Papier trotzdem ein graues Band —
+     im ersten Druck-Screenshot genau so passiert. */
+  .t-standings-row.is-first,
+  .t-standings-row.is-second,
+  .t-standings-row.is-first td,
+  .t-standings-row.is-second td,
+  .t-thirds-row.is-qualified {
+    background: none !important;
+  }
+
+  /* Das Logo-Ersatzquadrat ist am Bildschirm eine dunkle Flaeche
+     (background: var(--ink)) — auf Papier ein schwarzer Klotz in der
+     Kopfzeile jedes Ausdrucks. Als Umriss statt als Flaeche. Ein
+     echtes <img class="t-logo"> bleibt unberuehrt. */
+  .t-logo--placeholder {
+    background: none !important;
+    border: 1px solid #000;
+    color: #000 !important;
+  }
+  .t-thirds-row.is-out { opacity: 1; font-style: italic; }
+
+  /* ---- Fokusringe und Animationen gehoeren nicht auf Papier ------ */
+  .t-mod :focus-visible { outline: none; }
+  .t-mod * { animation: none !important; transition: none !important; }
 }
