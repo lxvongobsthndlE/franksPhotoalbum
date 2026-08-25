@@ -214,15 +214,6 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
     return koerper.includes(`${variable}.disabled = true;`);
   };
 
-  /**
-   * Befristete Ausnahme (2026-08-25). Diese zwei Handler haengen an
-   * Selektoren, die KEIN Renderer ausgibt — sie sind tot und stehen
-   * dokumentiert in `BASELINE_TOTE_SELEKTOREN`
-   * (selector-drift.test.js). Sie zu sperren waere Kosmetik an einer
-   * Leiche; sie werden in derselben Runde geloescht, danach faellt
-   * diese Liste ersatzlos weg.
-   */
-  const TOTE_HANDLER = new Set(['rescheduleBtn', 'saveGroupsBtn']);
 
   it('kein mutierender Knopf im Einstellungen-Tab haengt ungeschuetzt an addEventListener', () => {
     // Gegenprobe zur Liste oben: wir suchen das ALTE Muster im Bereich
@@ -240,7 +231,6 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
       const m = zeilen[k].match(/(\w+Btn)\.addEventListener\('click', async/);
       if (!m) continue;
       if (hatEigeneSperre(m[1], k)) continue;
-      if (TOTE_HANDLER.has(m[1])) continue;
       durchgerutscht.push(`main.js:${k + 1}  ${zeilen[k].trim()}`);
     }
     expect(durchgerutscht, 'ungeschuetzte Klick-Handler:\n' + durchgerutscht.join('\n')).toEqual([]);

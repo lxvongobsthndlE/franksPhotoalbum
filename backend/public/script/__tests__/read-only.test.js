@@ -146,8 +146,15 @@ describe('Source-Scan: jedes mutierende data-action in main.js / spielplan-helpe
           // den Test kippen, ohne dass sich am Gating etwas änderte
           // (belegt am 2026-08-25 bei main.js:2465).
           const listenerRe = /(?:querySelector(?:All)?|closest)\([^)]*data-action/i;
+          // Kommentarzeilen zaehlen nicht als Fundstelle: ein Kommentar
+          // rendert kein Markup. Ohne diesen Filter machte jede
+          // Erlaeuterung, die ein data-action beim Namen nennt, den
+          // Test rot (belegt 2026-08-25 an der Notiz zu
+          // openPickTeamForGroupModal).
+          const commentRe = /^\s*(?:\/\/|\*|\/\*)/;
           const hits = [];
           lines.forEach((line, idx) => {
+            if (commentRe.test(line)) return;
             if (re.test(line) && !listenerRe.test(line)) hits.push(idx);
           });
           if (hits.length === 0) {

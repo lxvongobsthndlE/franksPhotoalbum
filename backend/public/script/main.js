@@ -3227,18 +3227,6 @@ function renderTournamentInstanceDetailV3(t) {
         }
       });
     }
-    detail.querySelector('[data-action="reschedule"]')?.addEventListener('click', () => {
-      rescheduleTournament(t.id, t.name).then((ok) => {
-        if (ok) {
-          // Renderer neu aufbauen — die Route liefert ein vollständiges
-          // DTO, aber der einfachste Weg ist: Detail-View mit der neuen
-          // View nochmal öffnen.
-          if (typeof openTournamentInstance === 'function') {
-            openTournamentInstance(t.id).catch(() => {});
-          }
-        }
-      });
-    });
     // Regeln-Tab Aktionen. Header-Button „Bearbeiten" ist statisch
     // gerendert (im Markup oben), Mount-Buttons „Speichern"/„Abbrechen"
     // werden dynamisch von renderRulesView gebaut → wir delegieren
@@ -4199,18 +4187,6 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     });
   }
 
-  // Zeitplan neu terminieren — existierender Flow (mit Confirm-Handshake wenn ≥1 finished).
-  // Hinweis: in der neuen UI hat dieser Knopf nur dann eine Wirkung, wenn der
-  // Renderer ihn noch rendert (Fallback). Hauptweg ist jetzt das Form mit
-  // Spieldauer/Platten + Auto-Reschedule.
-  const rescheduleBtn = mount.querySelector('[data-action="reschedule"]');
-  if (rescheduleBtn) {
-    rescheduleBtn.addEventListener('click', async () => {
-      const ok = await rescheduleTournament(t.id, t.name);
-      if (ok) await openTournamentInstance(t.id);
-    });
-  }
-
   // ─── Setzreihenfolge ──────────────────────────────────────────────
   // Etappe B.8: Bug-Fix. wireTeamsList wurde vorher NUR in loadTeamsTab
   // aufgerufen — der Seeding-Block im Einstellungen-Tab zeigte Teams mit
@@ -4276,23 +4252,6 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       });
       if (ok?.cancelled) return;
       await balanceShuffleGroups(t.id);
-    });
-  }
-
-  // Speichern (Gruppen-DnD-Ergebnis) — PATCH /:id/groups. Etappe B.8:
-  // DnD ist im Einstellungen-Tab jetzt read-only (User-Spec: Swaps statt
-  // Moves, Größen konstant). Der Save-Button wird nicht mehr gerendert —
-  // dieser Handler bleibt nur als Fallback, falls ein Renderer-Update
-  // ihn versehentlich wieder rendert.
-  const saveGroupsBtn = mount.querySelector('[data-action="save-groups"]');
-  if (saveGroupsBtn && board) {
-    saveGroupsBtn.addEventListener('click', async () => {
-      const out = window.spielplanHelpers?.serializeGroupsInput?.(board);
-      if (!out || !out.ok) {
-        toast(out?.error || 'Gruppen-Eingabe ungültig', 'error');
-        return;
-      }
-      await saveGroupsAssignment(t.id, out.groups);
     });
   }
 
@@ -4389,17 +4348,6 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       }
     });
   }
-
-  // Touch-Picker: Klick auf Team-Karte → Modal „In welche Gruppe?"
-  // Etappe B.8: Ebenfalls obsolet, da DnD im Einstellungen-Tab jetzt
-  // read-only ist. Bleibt als Fallback für Renderer-Änderungen.
-  mount.querySelectorAll('[data-action="pick-team-for-group"]').forEach((card) => {
-    card.addEventListener('click', () => {
-      const teamId = card.getAttribute('data-team-id');
-      const teamName = card.getAttribute('data-team-name') ?? 'Team';
-      openPickTeamForGroupModal(mount, t, teamId, teamName);
-    });
-  });
 
   // ─── Spielfelder ──────────────────────────────────────────────────
   // Speichern (Spielfelder-Editor) — PATCH /:id/fields.
@@ -4584,6 +4532,23 @@ async function rescheduleAuto(tournamentId, mount) {
  * Touch-Picker: Modal „In welche Gruppe?" für Klick auf Team-Karte.
  * Etappe B.8 (D7): An der Platte mit einer Hand ist DnD unpraktisch —
  * der User tippt das Team an und wählt die Zielgruppe per Radio.
+ *
+ * ACHTUNG, Stand 2026-08-25: Diese Funktion hat KEINEN Aufrufer mehr.
+ * Ihre einzige Verdrahtung hing an `[data-action="pick-team-for-group"]`
+ * — einem Attribut, das kein Renderer ausgibt (belegt vom
+ * Drift-Detektor). Der tote Selektor ist entfernt; die Funktion bleibt
+ * absichtlich stehen, weil eine Parallel-Spur ihre Dialog-Tokens gerade
+ * erst gerichtet hat (`dialog-host.test.js` prüft sie) und weil ihr
+ * Erfolgs-Toast auf „bitte ,Speichern' klicken" verweist — auf einen
+ * Knopf, den es seit B.8.1 nicht mehr gibt. Sie ist also nicht
+ * einsatzfähig, sondern ein halber Umbau.
+ *
+ * OFFENE PRODUKTFRAGE: Der Touch-Picker („Team antippen → Zielgruppe
+ * wählen") ist die zweite Bedienart neben dem Paar-Tausch. Entweder
+ * bekommt er einen Renderer und einen Server-Weg (er müsste auf
+ * POST /:id/groups/swaps umgestellt werden, weil Gruppengrößen konstant
+ * bleiben müssen) — oder er wird samt `cssEscape` gelöscht. Das ist ein
+ * Bedien-Entscheid, kein Aufräumen.
  */
 function openPickTeamForGroupModal(mount, t, teamId, teamName) {
   const board = mount.querySelector('[data-role="groups-board"]');
