@@ -5,6 +5,8 @@
   logout,
   apiCall,
   fetchWithAuth,
+  onSessionExpired,
+  forceReauth,
 } from './auth-oidc.js';
 import {
   renderWizardView,
@@ -662,6 +664,150 @@ function toast(msg, type = 'info') {
   setTimeout(() => t.remove(), 3600);
 }
 
+// ── SITZUNGSENDE: EINGABEN UEBERLEBEN ───────────────────
+// Punkt 4.2 der Uebergabe. Der Kern ist NICHT die Meldung, sondern
+// dass die eingetippten Werte bleiben. Sie ueberleben jetzt auf zwei
+// Wegen, und beide werden gebraucht:
+//
+//   1. Der Dialog bleibt STEHEN. auth-oidc.js leitet beim
+//      gescheiterten Refresh nicht mehr selbst um; das 3:2 steht
+//      also weiter in den Feldern, und nach dem Anmelden in einem
+//      zweiten Tab reicht ein erneutes „Speichern".
+//   2. Wer sich neu anmeldet, verlaesst die Seite — dann traegt
+//      der sessionStorage die Werte durch den Authentik-Umweg.
+//      sessionStorage lebt pro Tab und ueberdauert die
+//      Weiterleitung; genau so kommt auch der accessToken zurueck.
+const PENDING_RESULT_KEY = 'tournament:pendingResultInput';
+// Zwei Stunden: laenger als jede Anmelde-Schleife, kuerzer als ein
+// Turniertag. Ein Entwurf von heute Vormittag darf nicht in das
+// Spiel von heute Nachmittag rutschen.
+const PENDING_RESULT_MAX_ALTER_MS = 2 * 60 * 60 * 1000;
+
+function safeSessionStorage() {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch (e) {
+    return null; // Privater Modus / blockierte Speicherung
+  }
+}
+
+/**
+ * Sichert die Eingaben des offenen Ergebnis-Dialogs.
+ * @returns {boolean} true, wenn wirklich etwas zu sichern war
+ */
+function stashPendingResultInput() {
+  const store = safeSessionStorage();
+  const dlg = document.getElementById('result-entry-modal');
+  if (!store || !dlg) return false;
+  const scoreHome = dlg.querySelector('#re-home')?.value ?? '';
+  const scoreAway = dlg.querySelector('#re-away')?.value ?? '';
+  if (scoreHome === '' && scoreAway === '') return false; // nichts getippt
+  const eintrag = {
+    tournamentId: dlg.dataset.tournamentId || '',
+    matchId: dlg.querySelector('#re-match-id')?.value || '',
+    scoreHome,
+    scoreAway,
+    at: Date.now(),
+  };
+  try {
+    store.setItem(PENDING_RESULT_KEY, JSON.stringify(eintrag));
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[pendingResult] Sichern fehlgeschlagen', e);
+    return false;
+  }
+}
+
+function readPendingResultInput() {
+  const store = safeSessionStorage();
+  if (!store) return null;
+  try {
+    const roh = store.getItem(PENDING_RESULT_KEY);
+    if (!roh) return null;
+    const eintrag = JSON.parse(roh);
+    if (!eintrag || typeof eintrag !== 'object') return null;
+    if (!Number.isFinite(eintrag.at) || Date.now() - eintrag.at > PENDING_RESULT_MAX_ALTER_MS) {
+      store.removeItem(PENDING_RESULT_KEY);
+      return null;
+    }
+    return eintrag;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearPendingResultInput() {
+  const store = safeSessionStorage();
+  if (!store) return;
+  try {
+    store.removeItem(PENDING_RESULT_KEY);
+  } catch (e) {
+    /* nichts zu tun */
+  }
+}
+
+/**
+ * Holt gesicherte Eingaben in einen frisch geoeffneten
+ * Ergebnis-Dialog zurueck. Vorsichtig: nur ins richtige Turnier, nur
+ * wenn das Spiel dort ueberhaupt noch waehlbar ist.
+ *
+ * @returns {boolean} true, wenn etwas zurueckgeholt wurde
+ */
+function restorePendingResultInput(dlg, tournamentId) {
+  if (!dlg) return false;
+  const eintrag = readPendingResultInput();
+  if (!eintrag) return false;
+  if (eintrag.tournamentId && eintrag.tournamentId !== tournamentId) return false;
+  const matchEl = dlg.querySelector('#re-match-id');
+  if (eintrag.matchId && matchEl) {
+    if (matchEl.tagName === 'SELECT') {
+      const gibtEs = Array.from(matchEl.options).some((o) => o.value === eintrag.matchId);
+      // Das Spiel ist inzwischen gespielt oder weg — dann gehoert der
+      // Entwurf nicht mehr hierher.
+      if (!gibtEs) return false;
+      matchEl.value = eintrag.matchId;
+      matchEl.dispatchEvent(new Event('change'));
+    } else if (matchEl.value && matchEl.value !== eintrag.matchId) {
+      return false; // anderes Spiel vorgegeben
+    }
+  }
+  const homeEl = dlg.querySelector('#re-home');
+  const awayEl = dlg.querySelector('#re-away');
+  if (homeEl && eintrag.scoreHome !== '') homeEl.value = eintrag.scoreHome;
+  if (awayEl && eintrag.scoreAway !== '') awayEl.value = eintrag.scoreAway;
+  clearPendingResultInput();
+  toast('Deine zuletzt eingetippten Werte sind wieder da — bitte pruefen und speichern.', 'info');
+  return true;
+}
+
+/**
+ * Meldung beim Sitzungsende. Leitet NICHT von selbst um — genau das
+ * war der Schaden: die Weiterleitung nahm die Eingabe mit, bevor
+ * jemand sie lesen konnte.
+ */
+let sessionExpiredDialogOffen = false;
+async function handleSessionExpired() {
+  if (sessionExpiredDialogOffen) return;
+  sessionExpiredDialogOffen = true;
+  const gesichert = stashPendingResultInput();
+  try {
+    const text = gesichert
+      ? 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Deine eingetippten Werte sind gesichert: sie stehen weiter im Dialog und kommen nach dem Anmelden von selbst zurueck.'
+      : 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Was du bereits gespeichert hast, ist sicher. Melde dich neu an, um weiterzuarbeiten.';
+    const ok = await showConfirmDlg(
+      'Anmeldung abgelaufen',
+      text,
+      'Neu anmelden',
+      'Spaeter',
+      false,
+    );
+    if (ok) await forceReauth();
+  } finally {
+    sessionExpiredDialogOffen = false;
+  }
+}
+
 // ── BOOT ─────────────────────────────────────────────────
 // Issue 2: Beim Tab-Schließen das Wizard-Flag zurücksetzen.
 // pagehide feuert zuverlässiger als beforeunload (auch bei Back/Forward
@@ -669,6 +815,13 @@ function toast(msg, type = 'info') {
 // absetzen — das Flag selbst ist die kritische Information.
 window.addEventListener('pagehide', () => {
   wizardMounted = null;
+});
+
+// Sitzungsende: einmal je Seitenleben anmelden. Der Horcher steht
+// vor allem anderen, damit auch ein Ablauf waehrend des Startens
+// gemeldet wird statt still zu verpuffen.
+onSessionExpired(() => {
+  handleSessionExpired();
 });
 
 window.addEventListener('load', async () => {
@@ -5624,6 +5777,9 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   const trigger = captureDialogTrigger(document);
   const dlg = document.createElement('div');
   dlg.id = 'result-entry-modal';
+  // Fuer stashPendingResultInput: der Entwurf gehoert zu genau diesem
+  // Turnier und darf nicht in einem anderen wieder auftauchen.
+  dlg.dataset.tournamentId = tournamentId;
   dlg.className = `${DIALOG_HOST_CLASS} t-dialog-host--sheet`;
   dlg.innerHTML = `
     <div class="t-dialog" role="dialog" aria-modal="true" aria-labelledby="re-title">
@@ -5746,6 +5902,11 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   // Ins erste Punktefeld, nicht auf den Dialog. Ist kein Spiel
   // vorgegeben, muss der User erst eins wählen — dann gehört der
   // Fokus ins Auswahlfeld.
+  // Gesicherte Eingaben eines abgelaufenen Versuchs zurueckholen,
+  // BEVOR der Fokus gesetzt wird — sonst steht der Cursor in einem
+  // Feld, dessen Inhalt sich gleich noch aendert.
+  restorePendingResultInput(dlg, tournamentId);
+
   const firstField =
     mIdInput && mIdInput.tagName === 'SELECT' ? mIdInput : dlg.querySelector('#re-home');
   if (firstField) firstField.focus();
@@ -5856,6 +6017,10 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         );
       }
       tlog('toast:shown');
+      // Gespeichert — ein gesicherter Entwurf desselben Spiels waere
+      // ab jetzt eine Falle (er wuerde den Score beim naechsten
+      // Oeffnen erneut vorschlagen).
+      clearPendingResultInput();
       closeDialog();
       tlog('modal:removed');
 
