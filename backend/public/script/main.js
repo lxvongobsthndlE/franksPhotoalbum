@@ -40,6 +40,16 @@ import {
   filterMemberViews,
   renderTournamentListCard,
 } from './tournament-render.js';
+// Dialoge, die an document.body hängen: Token-Vererbung + Tastatur +
+// Fokus-Rückgabe an EINER Stelle (A5, 2026-08-25).
+import {
+  DIALOG_HOST_CLASS,
+  DIALOG_TOKEN_CLASSES,
+  captureDialogTrigger,
+  restoreDialogTrigger,
+  isDialogCloseKey,
+  isDialogSubmitKey,
+} from './dialog-host.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -4456,8 +4466,14 @@ function openPickTeamForGroupModal(mount, t, teamId, teamName) {
   }).join('');
 
   // Mini-Modal in den Mount einhängen (kein neues Framework).
+  const trigger = captureDialogTrigger(document);
   const overlay = document.createElement('div');
-  overlay.className = 't-pick-team-modal';
+  // A5 (2026-08-25): Das Modal hängt an document.body, die .t-btn-
+  // Regeln greifen dort auf --r-btn/--line/--surface zu. Ohne die
+  // Klasse t-mod sind die Tokens undefiniert und die Deklarationen
+  // damit ungültig — genau daher kamen die eckigen, randlosen
+  // Knöpfe mit dem Hover-Aussetzer. Siehe dialog-host.js.
+  overlay.className = `t-pick-team-modal ${DIALOG_TOKEN_CLASSES}`;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.innerHTML = `
@@ -4473,12 +4489,35 @@ function openPickTeamForGroupModal(mount, t, teamId, teamName) {
   // An body anhängen, damit es nicht vom Mount-Scroll-Container beschnitten wird.
   document.body.appendChild(overlay);
 
+  let overlayClosed = false;
+  function onOverlayKeyDown(ev) {
+    if (!overlay.isConnected) {
+      document.removeEventListener('keydown', onOverlayKeyDown);
+      return;
+    }
+    if (isDialogCloseKey(ev)) {
+      ev.preventDefault();
+      close();
+    }
+  }
   const close = () => {
-    document.body.removeChild(overlay);
+    if (overlayClosed) return;
+    overlayClosed = true;
+    document.removeEventListener('keydown', onOverlayKeyDown);
+    overlay.remove();
+    restoreDialogTrigger(trigger);
   };
+  document.addEventListener('keydown', onOverlayKeyDown);
   overlay.addEventListener('click', (ev) => {
     if (ev.target === overlay) close();
   });
+  // Fokus in den Dialog, sonst läuft Escape ins Leere und die
+  // Tastaturbedienung endet am Backdrop.
+  (
+    overlay.querySelector('input[name="t-pick-team-target"]:checked') ||
+    overlay.querySelector('input[name="t-pick-team-target"]') ||
+    overlay.querySelector('[data-pick-ok]')
+  )?.focus();
   overlay.querySelector('[data-pick-cancel]').addEventListener('click', close);
   overlay.querySelector('[data-pick-ok]').addEventListener('click', () => {
     const chosen = overlay.querySelector('input[name="t-pick-team-target"]:checked');
@@ -5324,56 +5363,97 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
     return parts.join(' · ');
   };
 
+  // ── A5 (2026-08-25): Der Dialog hängt an document.body ───────────
+  // …also AUSSERHALB von .t-mod, wo alle Turnier-Tokens definiert sind.
+  // Ohne die Klasse t-mod erbt er keinen einzigen davon: Radien fielen
+  // auf 0, Rahmen auf `none`, Abstände auf 0 — er sah aus wie aus einer
+  // anderen Anwendung. DIALOG_HOST_CLASS ist die eine Wahrheit dafür,
+  // Begründung in dialog-host.js. `--sheet` markiert den Dialog, der
+  // auf dem Handy von unten einfährt (nicht jeder soll das).
+  const trigger = captureDialogTrigger(document);
   const dlg = document.createElement('div');
   dlg.id = 'result-entry-modal';
-  dlg.className = 'dlg-bg';
+  dlg.className = `${DIALOG_HOST_CLASS} t-dialog-host--sheet`;
   dlg.innerHTML = `
-    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
-      <div class="tournament-detail-dlg-head">
-        <h3>Ergebnis eintragen</h3>
-        <button type="button" class="modal-x" data-action="close">✕</button>
+    <div class="t-dialog" role="dialog" aria-modal="true" aria-labelledby="re-title">
+      <div class="t-dialog-head">
+        <h3 class="t-dialog-title" id="re-title">Ergebnis eintragen</h3>
+        <button type="button" class="t-dialog-close" data-action="close" aria-label="Schließen">✕</button>
       </div>
-      <form id="result-entry-form" class="tournament-detail-form">
+      <form id="result-entry-form" class="t-dialog-body">
         ${initialMatch
           ? `<input type="hidden" id="re-match-id" value="${esc(initialMatch.id)}">`
           : (openSorted.length
-              ? `<label class="tournament-detail-field">
-                  <span class="tournament-detail-label">Match <span class="t-required">*</span></span>
-                  <select id="re-match-id" required>
-                    <option value="">— offenes Match wählen —</option>
+              ? `<div class="t-field">
+                  <label class="t-field-label" for="re-match-id">Welches Spiel?</label>
+                  <select id="re-match-id" class="t-field-select" required>
+                    <option value="">— offenes Spiel wählen —</option>
                     ${openSorted.map(({ id, m }) => (
                       `<option value="${esc(id)}">${esc(labelFor(m))}</option>`
                     )).join('')}
                   </select>
-                </label>`
-              : `<p class="t-hint">Keine offenen Matches vorhanden — bitte zuerst Spiele generieren.</p>`
+                </div>`
+              : `<p class="t-hint">Keine offenen Spiele vorhanden — bitte zuerst Spiele generieren.</p>`
             )}
-        <div id="re-subline" class="re-subline" aria-live="polite"></div>
-        <div class="re-score-row">
-          <span class="re-team">
-            <i class="t-dot re-dot" id="re-home-dot"></i>
-            <span class="re-team-name" id="re-home-name">–</span>
-          </span>
-          <input id="re-home" type="number" min="0" value="0" required
-                 class="re-score-input" aria-label="Ergebnis Heim">
-        </div>
-        <div class="re-score-row">
-          <span class="re-team">
-            <i class="t-dot re-dot" id="re-away-dot"></i>
-            <span class="re-team-name" id="re-away-name">–</span>
-          </span>
-          <input id="re-away" type="number" min="0" value="0" required
-                 class="re-score-input" aria-label="Ergebnis Gast">
-        </div>
-        <div class="tournament-card-actions">
-          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
-          <button type="submit" class="btn btn-primary">Speichern</button>
+        <div id="re-subline" class="t-dialog-subline" aria-live="polite"></div>
+        <div class="t-score-entry">
+          <div class="t-score-entry-row">
+            <span class="t-score-entry-team">
+              <i class="t-dot" id="re-home-dot"></i>
+              <span class="name" id="re-home-name">–</span>
+            </span>
+            <input id="re-home" type="number" min="0" inputmode="numeric" required
+                   class="t-score-entry-input" aria-label="Punkte Heimteam">
+          </div>
+          <div class="t-score-entry-row">
+            <span class="t-score-entry-team">
+              <i class="t-dot" id="re-away-dot"></i>
+              <span class="name" id="re-away-name">–</span>
+            </span>
+            <input id="re-away" type="number" min="0" inputmode="numeric" required
+                   class="t-score-entry-input" aria-label="Punkte Gastteam">
+          </div>
         </div>
       </form>
+      <div class="t-dialog-foot">
+        <button type="button" class="t-btn" data-action="close">Abbrechen</button>
+        <button type="submit" form="result-entry-form" class="t-btn t-btn--primary">Speichern</button>
+      </div>
     </div>`;
   document.body.appendChild(dlg);
+
+  // ── Eine Schliess-Wahrheit für alle fünf Wege ────────────────────
+  // Backdrop-Klick, ✕, Abbrechen, Escape und erfolgreiches Speichern
+  // laufen alle hier durch. Nur so ist sicher, dass der keydown-
+  // Horcher wieder abgeräumt wird UND der Fokus zum auslösenden
+  // Element zurückkehrt.
+  let dialogClosed = false;
+  function onDialogKeyDown(e) {
+    // Selbstheilung: Wenn jemand den Dialog an uns vorbei aus dem DOM
+    // genommen hat (closeTournamentDetailModalById), horchen wir
+    // sonst bis zum Seitenende weiter.
+    if (!dlg.isConnected) {
+      document.removeEventListener('keydown', onDialogKeyDown);
+      return;
+    }
+    if (isDialogCloseKey(e)) {
+      e.preventDefault();
+      closeDialog();
+    }
+  }
+  function closeDialog() {
+    if (dialogClosed) return;
+    dialogClosed = true;
+    document.removeEventListener('keydown', onDialogKeyDown);
+    dlg.remove();
+    // Nach erfolgreichem Speichern lädt die Detail-Ansicht neu; der
+    // auslösende Knopf ist dann nicht mehr im Dokument. Dann kehrt der
+    // Fokus bewusst nirgendwohin zurück (siehe restoreDialogTrigger).
+    restoreDialogTrigger(trigger);
+  }
+  document.addEventListener('keydown', onDialogKeyDown);
   dlg.addEventListener('click', (e) => {
-    if (e.target === dlg || e.target.dataset.action === 'close') dlg.remove();
+    if (e.target === dlg || e.target.dataset.action === 'close') closeDialog();
   });
 
   const mIdInput = dlg.querySelector('#re-match-id');
@@ -5409,7 +5489,32 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
     });
   }
 
-  dlg.querySelector('#result-entry-form').addEventListener('submit', async (e) => {
+  const formEl = dlg.querySelector('#result-entry-form');
+
+  // ── Fokus beim Öffnen ──────────────────────────────────────────
+  // Ins erste Punktefeld, nicht auf den Dialog. Ist kein Spiel
+  // vorgegeben, muss der User erst eins wählen — dann gehört der
+  // Fokus ins Auswahlfeld.
+  const firstField =
+    mIdInput && mIdInput.tagName === 'SELECT' ? mIdInput : dlg.querySelector('#re-home');
+  if (firstField) firstField.focus();
+
+  // ── Enter speichert ───────────────────────────────────────────
+  // Die Knöpfe stehen jetzt im Fussbereich, also AUSSERHALB des
+  // <form> (nur per form="…" zugeordnet). Die implizite Absende-
+  // Logik der Browser ist in dieser Konstellation uneinheitlich —
+  // deshalb lösen wir selbst aus und unterbinden mit
+  // preventDefault() das mögliche zweite, native Absenden.
+  for (const el of dlg.querySelectorAll('.t-score-entry-input, .t-field-select')) {
+    el.addEventListener('keydown', (e) => {
+      if (!isDialogSubmitKey(e)) return;
+      e.preventDefault();
+      if (typeof formEl.requestSubmit === 'function') formEl.requestSubmit();
+      else formEl.dispatchEvent(new Event('submit', { cancelable: true }));
+    });
+  }
+
+  formEl.addEventListener('submit', async (e) => {
     e.preventDefault();
     // Trace-ID für strukturiertes Logging (Bug 7, 2026-08-18). Eine ID
     // pro Save-Klick, geht als x-trace-id-Header an den Server UND in
@@ -5499,7 +5604,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         );
       }
       tlog('toast:shown');
-      dlg.remove();
+      closeDialog();
       tlog('modal:removed');
 
       // BUG 7 (2026-08-18, "Ergebnis erscheint nicht in der Liste"):

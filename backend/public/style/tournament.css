@@ -200,7 +200,10 @@
    Deshalb bekommt die Listen-Schale zusätzlich die Klasse t-mod (eine
    Wahrheit für die Tokens, keine Kopie) und hier den Gegen-Reset für
    die Layout-Eigenschaften, die .t-mod als Modul-Container mitbringt.
-   Dasselbe Muster nutzt der Ergebnis-Dialog (.t-dialog-host).
+   Dasselbe Muster nutzen seit A5 (2026-08-25) die drei Dialoge, die
+   an document.body hängen — .t-dialog-host, ganz am Dateiende. Bis
+   dahin hat diese Zeile eine Klasse behauptet, die es noch gar nicht
+   gab; jetzt stimmt sie.
    ---------------------------------------------------------------- */
 .t-list-host {
   container-type: normal;
@@ -3706,4 +3709,285 @@ textarea.t-input {
   .t-fields-list { grid-template-columns: 1fr; }
   .t-settings-actions { flex-direction: column; align-items: stretch; }
   .t-danger-zone-actions { flex-direction: column; align-items: stretch; }
+}
+
+/* ================================================================
+   DIALOG-HOST + ERGEBNIS-DIALOG (A5, 2026-08-25)
+   ================================================================
+   Drei Dialoge dieser App hängen an `document.body`, nicht im Modul:
+
+     #result-entry-modal   Ergebnis eintragen      (main.js)
+     .t-confirm-backdrop   Löschen bestätigen      (tournament.js)
+     .t-pick-team-modal    Team verschieben        (main.js)
+
+   Alle Tokens des Moduls stehen auf `.t-mod` (Zeile 42), nicht auf
+   `:root`. Ausserhalb dieses Teilbaums erben sie nicht — und ein
+   `var(--line)` ohne Wert macht nicht "irgendwas Graues", sondern die
+   ganze Deklaration ungültig. Genau daher kamen die gemeldeten
+   Ausfälle: eckige Ecken, fehlende Rahmen, gap:0, Hover-Aussetzer.
+
+   Die Lösung ist dieselbe wie bei der Turnierliste (`.t-list-host`,
+   ab Zeile 205): das Wurzelelement bekommt `t-mod` zusätzlich — EINE
+   Wahrheit für die Tokens, keine Kopie — und hier den Gegen-Reset für
+   die Layout-Eigenschaften, die `.t-mod` als Modul-Container mitbringt.
+
+   Was genau zurückgenommen wird und warum:
+     container-type  .t-mod ist ein Container (`inline-size`, Zeile 89).
+                     Bliebe das stehen, würden die Container-Queries des
+                     Moduls (`@container (min-width: …)`) gegen die
+                     Dialogbreite messen statt gegen den Arbeitsbereich
+                     — die Bodenleiste und die Tab-Umschaltung hängen
+                     daran.
+     flex-direction  .t-mod ist `flex-direction: column` (Zeile 92). Der
+                     Backdrop zentriert aber über align-items und
+                     justify-content, und in einer Spalte tauschen die
+                     beiden ihre Achsen: `align-items: flex-end` schöbe
+                     den Dialog nach RECHTS statt nach unten.
+     width           .t-mod ist `width: 100%` (Zeile 90); der Backdrop
+                     ist `position: fixed; inset: 0` und rechnet seine
+                     Breite selbst aus.
+     padding         `.t-mod { padding: 0 }` (Zeile 134) schlägt im
+                     Kaskaden-Rang `.dlg-bg { padding: 20px }` aus
+                     main.css — ohne Rückgabe klebte der Dialog am
+                     Bildschirmrand.
+     height/overflow greifen heute nur über `.t-wizard-host > .t-mod`
+                     bzw. `.t-detail-host > .t-mod` (Zeilen 158/186),
+                     also nicht am body. Sie stehen hier trotzdem: der
+                     Tag, an dem ein Dialog in einen dieser Hosts
+                     gehängt wird, wäre sonst ein sehr stiller Fehler.
+   ---------------------------------------------------------------- */
+.t-dialog-host {
+  container-type: normal;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  padding: var(--s4);
+}
+
+/* `.t-mod button` (Zeile 217) nimmt jedem Knopf border, background und
+   color — und schlägt dabei `.t-btn` (Klasse+Typ gegen Klasse allein).
+   Im Modul ist dieser flache Look der Bestand; in einem Dialog wäre er
+   ein Rückschritt: „Speichern" verlöre seine Füllung, „Abbrechen"
+   seinen Rahmen und der Löschen-Knopf sein Rot — ausgerechnet dort, wo
+   ein Klick am meisten anrichtet.
+
+   Die Werte sind bewusst identisch mit `.t-btn` ff. (Zeile 803) und
+   `.t-btn--danger` (Zeile 2714) — hier steht kein neuer Entwurf, nur
+   dieselbe Optik mit der Gewichtung, die gegen den Reset ankommt.
+   Der saubere Schnitt wäre ein `:where()` um `button` in Zeile 217;
+   das ist eine modulweite Änderung und liegt im Backlog. */
+.t-dialog-host .t-btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.t-dialog-host .t-btn:hover { background: var(--surface-alt); }
+.t-dialog-host .t-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.t-dialog-host .t-btn--primary:hover { filter: brightness(1.06); }
+.t-dialog-host .t-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+.t-dialog-host .t-btn--ghost:hover { background: var(--surface-alt); }
+.t-dialog-host .t-btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.t-dialog-host .t-btn--danger:hover { filter: brightness(1.06); }
+.t-dialog-host .t-btn--danger:disabled {
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  border-color: var(--line);
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* `--r3` gibt es im Modul nicht (es kennt --r-card/--r-btn/--r-board),
+   deshalb hatte die Lösch-Bestätigung eckige Ecken. Bis der Token an
+   seiner Definitionsstelle nachgezogen ist, bekommt der Dialog hier
+   den Modul-Radius — nicht als zweite Wahrheit, sondern als die
+   richtige: --r-card ist der Radius jeder Karte im Modul. */
+.t-dialog-host .t-confirm-dialog { border-radius: var(--r-card); }
+
+/* ----------------------------------------------------------------
+   DIALOG-KARTE
+   ---------------------------------------------------------------- */
+.t-dialog {
+  background: var(--surface);
+  border-radius: var(--r-card);
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(31, 27, 22, 0.22);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.t-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.t-dialog-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+  flex: 1;
+}
+/* Zwei Klassen, damit die Regel gegen `.t-mod button` (Zeile 217)
+   ankommt — sonst fiele die Farbe auf `inherit` zurück. */
+.t-dialog .t-dialog-close {
+  width: 32px; height: 32px;
+  border-radius: var(--r-btn);
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  display: grid; place-items: center;
+  font-size: 16px;
+  flex: none;
+}
+.t-dialog .t-dialog-close:hover { background: var(--surface-alt); color: var(--ink); }
+
+.t-dialog-body {
+  padding: var(--s4);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.t-dialog-foot {
+  display: flex;
+  gap: var(--s2);
+  justify-content: flex-end;
+  padding: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+/* Die graue Zeile mit Runde, Zeit und Platte — das Spiel steht damit
+   genau einmal im Dialog, nicht zusätzlich in einer Vorschau-Box. */
+.t-dialog-subline {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: var(--s4);
+  letter-spacing: 0.04em;
+}
+.t-dialog-subline:empty { display: none; }
+
+/* Auswahlfeld, wenn kein Spiel vorgegeben ist */
+.t-field { margin-bottom: var(--s4); }
+.t-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: var(--s2);
+}
+.t-field-select {
+  width: 100%;
+  padding: 10px var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* ---- Die Eingabezeilen ----
+   Teamname links, Eingabefeld rechts — in einer Zeile, damit klar ist,
+   welche Zahl zu wem gehört. Die Felder greifen die Anzeigetafel-Optik
+   auf: dunkel im Ruhezustand wäre zu viel, aber Radius und Ziffern-
+   behandlung sind dieselben.
+
+   Die Felder starten LEER, nicht mit 0 (siehe main.js): eine
+   vorbelegte Null muss man erst wegtippen, und ein versehentlich
+   gespeichertes 0:0 kostet mehr Zeit als es spart. */
+.t-score-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.t-score-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  gap: var(--s3);
+  align-items: center;
+}
+.t-score-entry-team {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.t-score-entry-team .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-score-entry-input {
+  width: 100%;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-board);
+  background: var(--surface-alt);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 0;
+}
+.t-score-entry-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+/* Die Pfeilchen der Zahlenfelder stören hier nur */
+.t-score-entry-input::-webkit-outer-spin-button,
+.t-score-entry-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.t-score-entry-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* ---- Auf dem Handy fährt der Dialog von unten ein ----
+   Nur der Ergebnis-Dialog: er ist der einzige, den man während eines
+   Turniers dutzendfach mit dem Daumen bedient. Die Lösch-Bestätigung
+   und der Team-Picker bleiben mittig — eine Bestätigung, die von unten
+   hereinwischt, lädt zum Wegtippen ein. Deshalb der Modifier
+   `--sheet` statt einer Regel auf `.t-dialog-host`. */
+@media (max-width: 599px) {
+  .t-dialog-host--sheet {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .t-dialog {
+    max-width: none;
+    border-radius: var(--r-card) var(--r-card) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: t-dialog-up 0.2s ease;
+  }
+  .t-score-entry-row { grid-template-columns: minmax(0, 1fr) 96px; }
+  .t-score-entry-input { height: 56px; font-size: 26px; }
+}
+@keyframes t-dialog-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-dialog { animation: none; }
 }
