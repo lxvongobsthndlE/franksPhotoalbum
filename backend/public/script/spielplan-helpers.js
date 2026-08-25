@@ -448,7 +448,9 @@ export function renderAsideTables(matches, limit = 6) {
  * gleichmäßig. Wird per renderColgroup() als <col>-Liste eingesetzt.
  *
  * P5-Truncation 2026-08-25: bei .t-mod ≤600 px wird eine 5er-Colgroup
- * (Standings) bzw. 7er-Colgroup (Beste Dritte) verwendet. Hintergrund:
+ * (Standings) bzw. 6er-Colgroup (Beste Dritte) verwendet — je Tabelle
+ * genau so viele <col>, wie nach den display:none-Regeln in main.css
+ * sichtbar bleiben. Hintergrund:
  * das 9er-Colgroup hatte „Geister-Spalten" (8%/7%/7%/7%), die der Browser
  * bei `display: none` weiterhin für die Spaltenbreite berücksichtigte
  * — die 5 sichtbaren Spalten bekamen dadurch zu wenig Platz und wurden
@@ -466,18 +468,53 @@ const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%',
    darf. Summe 14+36+20+15+15 = 100%, weiter kein auto. */
 const STANDINGS_COL_WIDTHS_MOBILE = ['14%', '36%', '20%', '15%', '15%'];
 const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
-// Beste-Dritte-Mobile: Pl · Team · Gruppe · Sp · Becher · Diff · Pkt (7 Spalten).
-// Gruppe bleibt sichtbar (sonst weiß man nicht, aus welcher Gruppe der Dritte kommt),
-// S/U/N ausgeblendet wie in Standings. Sum: 8+12+10+18+13+13 = 74% + auto-Team 26%.
-// (User-Punkt 2 betraf nur Standings — Thirds behält vorerst auto-Team.)
-const THIRDS_COL_WIDTHS_MOBILE = ['8%', 'auto', '12%', '10%', '18%', '13%', '13%'];
+/* Beste-Dritte-Mobile — korrigiert 2026-08-25.
+ *
+ * WAS FALSCH WAR: die Liste hatte SIEBEN Eintraege
+ *   ['8%','auto','12%','10%','18%','13%','13%']
+ * fuer SECHS sichtbare Spalten. Der Kommentar zaehlte "Sp" als sichtbar,
+ * main.css blendet data-col="played" auf Mobile aber aus. <col>-Elemente
+ * werden bei table-layout: fixed POSITIONSWEISE auf die tatsaechlich
+ * gerenderten Spalten gelegt — eine per display:none entfernte Spalte
+ * verschiebt alle folgenden Breiten um eins nach links:
+ *   Pl->8%  Team->auto  Gruppe->12%  Becher->10%(war fuer "Sp." gedacht!)
+ *   Diff->18%  Pkt->13%  und 13% blieben ungenutzt liegen.
+ * Becher bekam damit die Breite einer einstelligen Zahlenspalte:
+ * ~37px bei 374px Tabellenbreite, "12:10" braucht ~44px -> "12:…".
+ * Unter 430px war der Versatz sogar ZWEI Spalten gross, weil dort ein
+ * zweiter CSS-Block zusaetzlich "Becher" versteckte.
+ *
+ * WAS JETZT GILT: dieselbe Machart wie STANDINGS_COL_WIDTHS_MOBILE —
+ * exakt so viele Eintraege wie sichtbare Spalten, feste Prozente, kein
+ * 'auto', Summe genau 100%. Reihenfolge = DOM-Reihenfolge der sichtbaren
+ * Spalten:
+ *   Pl. 14% · Team 32% · Gruppe 16% · Becher 16% · Diff 11% · Pkt. 11%
+ *
+ * Bemessung bei 374px Tabellenbreite (derselbe Bezug wie bei Standings),
+ * Zellen-Padding auf Mobile 6px/4px = 8px horizontal, Werte 12px
+ * tabular-nums, Ueberschriften 11px uppercase:
+ *   Pl.     14% = 52px  — "10." + "Pl."; 14% ist der bei Standings am
+ *                         25.08. gemessene Mindestwert, darunter kuerzt es
+ *   Gruppe  16% = 60px  — bindend ist die Ueberschrift "GRUPPE", nicht "A"
+ *   Becher  16% = 60px  — "12:10" ~44px, Ueberschrift "BECHER" ~53px
+ *   Diff    11% = 41px  — "+12" ~30px, Ueberschrift "DIFF" ~38px
+ *   Pkt.    11% = 41px  — Ueberschrift "PKT." ~38px
+ *   Team    32% = 120px — Rest; darf als einzige Spalte kuerzen
+ * Summe 14+32+16+16+11+11 = 100.
+ *
+ * WER HIER ETWAS AENDERT: die Anzahl der Eintraege haengt an den
+ * display:none-Regeln in main.css (@container max-width: 600px,
+ * .t-thirds-table th/td[data-col=...]). Spalte versteckt oder wieder
+ * eingeblendet -> diese Liste MUSS mitgezogen werden, sonst rutschen
+ * alle Breiten erneut. */
+const THIRDS_COL_WIDTHS_MOBILE = ['14%', '32%', '16%', '16%', '11%', '11%'];
 
 function renderColgroup(widths) {
   return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
 }
 
 // === Compact-Mode-Switch (P5-Truncation 2026-08-25) =====================
-// .t-mod ≤600 px → Mobile-Colgroups (5 Spalten Standings, 7 Beste Dritte).
+// .t-mod ≤600 px → Mobile-Colgroups (5 Spalten Standings, 6 Beste Dritte).
 // .t-mod >600 px → Desktop-Colgroups (9 Spalten Standings, 10 Beste Dritte).
 //
 // Detection: ResizeObserver auf .t-mod, feuert nur beim Crossen der 600-px-

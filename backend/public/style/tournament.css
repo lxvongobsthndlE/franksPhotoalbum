@@ -45,7 +45,22 @@
   --surface:      #FFFFFF;
   --surface-alt:  #F5F1E9;
   --ink:          #1F1B16;
-  --ink-soft:     #8A8077;
+  /* --ink-soft 2026-08-25 von #8A8077 auf #70685F abgedunkelt (WCAG 1.4.3).
+     Gemessen (relative Luminanz nach WCAG, Quotient (L_hell+0.05)/(L_dunkel+0.05)):
+       ALT #8A8077 (L=0.221735)
+         auf --surface     #FFFFFF (L=1.000000) -> 3.86:1   DURCHGEFALLEN
+         auf --surface-alt #F5F1E9 (L=0.882063) -> 3.43:1   DURCHGEFALLEN
+       NEU #70685F (L=0.141716)
+         auf --surface     #FFFFFF              -> 5.48:1   bestanden
+         auf --surface-alt #F5F1E9              -> 4.86:1   bestanden
+     Der strengere Fall ist --surface-alt (Badges, Hover-Flaechen), nicht Weiss —
+     danach ist der Wert bemessen. #70685F ist der Original-Ton mit Faktor 0.81
+     skaliert (138/128/119 -> 112/104/95), der warme Grauton bleibt erhalten.
+     Der Token wird an 69 Stellen ausschliesslich als `color` benutzt (nie als
+     background/border/fill), Abdunkeln ist daher nebenwirkungsfrei.
+     DUNKELMODUS bleibt #A69C90 und ist nicht betroffen — nachgerechnet:
+     6.01:1 auf --surface, 5.57:1 auf --surface-alt, 6.61:1 auf --paper. */
+  --ink-soft:     #70685F;
   --line:         #E7DFD2;
   --accent:       #8B6B4A;
   --accent-soft:  #F0E7DA;
@@ -67,6 +82,12 @@
   --qualified:    #4F7A4A;
   --done:         #4F7A4A;
   --out:          #A79E94;
+  /* --live nachgetragen 2026-08-25: der Statusstreifen eines laufenden
+     Spiels war undefiniert und fiel auf Akzentbraun zurueck. Wert aus der
+     Spec (#C0453A). Bewusst ein EIGENER Token, kein Alias auf --danger:
+     "Spiel laeuft" und "zerstoerende Aktion" sind zwei Bedeutungen, die
+     sich unabhaengig voneinander aendern duerfen. */
+  --live:         #C0453A;
   --danger:       #C0453A;
 
   /* ---- Radien ----
@@ -82,6 +103,11 @@
   --s2: 8px;
   --s3: 12px;
   --s4: 16px;
+  /* --s5 nachgetragen 2026-08-25: die Skala ist sN = N x 4px, die 5 war
+     eine echte Luecke — zwei Regeln nutzten var(--s5) bereits, eine davon
+     mit hartem 20px-Fallback. Definiert statt Fallback, damit es EINE
+     Wahrheit gibt. */
+  --s5: 20px;
   --s6: 24px;
   --s8: 32px;
 
@@ -122,6 +148,9 @@
   --qualified:    #6B9A66;
   --done:         #6B9A66;
   --out:          #6E665D;
+  /* Dunkel-Wert nach derselben Aufhellung wie --danger (#C0453A -> #D66B60),
+     damit der Streifen auf dunklem Grund nicht absaeuft. */
+  --live:         #D66B60;
   --danger:       #D66B60;
 }
 
@@ -132,6 +161,36 @@
 .t-mod *::before,
 .t-mod *::after { box-sizing: border-box; }
 .t-mod { margin: 0; padding: 0; min-width: 0; }
+
+/* ----------------------------------------------------------------
+   TASTATUR-FOKUS — Basisregel fuer das ganze Modul
+   ----------------------------------------------------------------
+   Stand vor dem 2026-08-25: mehrere Komponenten setzten `outline: none`,
+   ohne einen sichtbaren Ersatz zu liefern (Team-Umbenennen-Feld,
+   Einstellungen-Kopfzeile, .t-input). Wer mit der Tastatur navigierte,
+   sah nicht, wo der Fokus stand — Bedienung praktisch blind.
+
+   Diese Regel steht ABSICHTLICH ganz oben, direkt hinter den Resets:
+   `:focus-visible` ist eine Pseudoklasse, `.t-mod :focus-visible` hat
+   damit dieselbe Spezifitaet (0,0,2,0) wie ein spaeteres
+   `.t-komponente:focus`. Bei Gleichstand entscheidet die Quell-
+   Reihenfolge — eine Komponente kann den Ring hier unten also bewusst
+   umdefinieren (z.B. `outline-offset: -1px`, wenn er sonst aus der
+   Karte laeuft). Was sie NICHT mehr darf: ihn ersatzlos abschalten.
+
+   Farbe: var(--accent). Nachgerechnet gegen WCAG 1.4.11 (>= 3:1 fuer
+   Nicht-Text):
+     hell   #8B6B4A auf #FFFFFF 4.88:1 · auf --surface-alt 4.34:1
+     dunkel #B8916A auf #23201B 5.64:1 · auf --surface-alt 5.23:1
+   Traegt also in beiden Modi.
+
+   `:focus-visible` statt `:focus`: Maus-/Touch-Klicks bekommen weiter
+   keinen Ring, nur Tastatur- und Screenreader-Navigation.
+   ---------------------------------------------------------------- */
+.t-mod :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ----------------------------------------------------------------
    WIZARD-HOST-MODUS
@@ -362,6 +421,14 @@
     left: 0;
     right: 0;
     bottom: 0;
+    /* EINZIGE Wahrheit fuer die Hoehe der Bodenleiste. Hoehe und
+       safe-area gehoeren zusammen: 56px Inhalt (= .t-mod-tab height)
+       PLUS der Home-Indicator, den padding-bottom danach wieder frei
+       raeumt. Wer hier etwas aendert, aendert es NUR hier — ein zweiter
+       height-Wert in einem spaeteren Block (z.B. dem 767er, der bei
+       <= 600px mitgreift) gewinnt ueber die Quell-Reihenfolge und
+       zerlegt die Leiste. Genau das war der Bug vom 2026-08-25;
+       Herleitung im Kommentar im 767er-Block weiter unten. */
     height: calc(56px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--surface);
@@ -755,15 +822,50 @@
   /* Hauptbereich etwas knapper padden — auf 390px ist jeder Pixel
      sichtbar. */
   .t-mod-main { padding: var(--s4) var(--s3); }
-  .t-mod-tabs {
-    height: 48px;
-    min-height: 48px;
-    max-height: 48px;
-  }
-  .t-mod-tab {
-    height: 48px;
-    font-size: 14px;
-  }
+
+  /* ----------------------------------------------------------------
+     HIER STAND EINE HOEHEN-KOLLISION (aufgeloest 2026-08-25)
+     ----------------------------------------------------------------
+     Entfernt wurden:
+         .t-mod-tabs { height/min-height/max-height: 48px }
+         .t-mod-tab  { height: 48px; font-size: 14px }
+
+     Beides waren Reste der alten HORIZONTALEN Top-Tab-Leiste, die der
+     Kommentar bei .t-mod-tab oben schon als obsolet bezeichnet, aber
+     nie geloescht hat. Seit P3 (2026-08-24) ist .t-mod-tabs auf Mobile
+     eine FIXIERTE BODENLEISTE, definiert im Block
+     @container (max-width: 600px) weiter oben:
+         height: calc(56px + env(safe-area-inset-bottom, 0px));
+         padding-bottom: env(safe-area-inset-bottom, 0px);
+
+     Warum das ein Fehler war — und nicht nur Ballast:
+     600px-Block und 767px-Block greifen bei <= 600px BEIDE. Container-
+     Queries erhoehen die Spezifitaet nicht, beide Selektoren sind
+     (0,0,1,0) — also gewinnt die Quell-Reihenfolge, und der 767er steht
+     spaeter. Ergebnis: height 48px statt calc(56px + safe-area), dazu
+     max-height 48px als harte Klammer. Das padding-bottom aus dem
+     600er-Block blieb aber aktiv, und mit box-sizing: border-box
+     (Reset oben) frisst es die Hoehe von innen auf:
+         iPhone mit 34px Home-Indicator -> 48 - 34 = 14px Inhaltshoehe
+         fuer ein 22px-Icon plus 11px-Label.
+
+     DIE FALLE FUER DEN NAECHSTEN (dritter Fall dieser Art in dieser Datei;
+     die beiden frueheren: das padding-Shorthand von .t-mod-main, siehe
+     Kommentar vor dem 600er-Block oben, und der P7-Fix 3655565 am
+     #content-padding in main.css):
+       1. Der Breakpoint einer Regel sagt NICHT, in welchem Bereich sie
+          allein gilt. 767 und 600 ueberlappen; wer bei <= 600 etwas
+          festlegen will, muss pruefen, ob der 767er-Block dieselbe
+          Eigenschaft spaeter nochmal setzt.
+       2. Die Bodenleisten-Geometrie hat GENAU EINE Wahrheit: den Block
+          @container (max-width: 600px) oben. Wer die Hoehe der Leiste
+          oder der Tabs aendern will, aendert sie DORT — nicht hier, und
+          nicht per zusaetzlicher Regel weiter unten.
+       3. Hoehe und safe-area gehoeren zusammen: height ohne
+          env(safe-area-inset-bottom) im calc() ergibt auf Geraeten mit
+          Home-Indicator eine zu flache Leiste, sobald padding-bottom
+          gesetzt ist.
+     ---------------------------------------------------------------- */
 }
 
 /* ----------------------------------------------------------------
@@ -1435,7 +1537,7 @@
 }
 .t-match--done .t-match-bar { background: var(--qualified); }
 .t-match--done .t-match-team { color: var(--ink-soft); }
-.t-match--live .t-match-bar { background: var(--live, var(--accent)); }
+.t-match--live .t-match-bar { background: var(--live); }
 
 /* Meta-Spalte — ZWEI Zeilen oben links.
      Zeile 1: Zeit · Tisch — 14 px, tabular-nums, --ink
@@ -1824,7 +1926,12 @@
 }
 .t-match--bracket.t-match--placeholder .name {
   font-style: italic;
-  color: var(--muted, #8A8077);
+  /* War var(--muted, #8A8077): --muted ist der GLOBALE Token aus main.css
+     (hell #8a7e74 = 3.95:1 auf Weiss, 3.51:1 auf --surface-alt — beides
+     unter 4.5). Das Modul hat mit --ink-soft einen eigenen, jetzt
+     konformen Token fuer Nebentext; hier greift die Bracket-Karte an der
+     Modul-Grenze vorbei in die App-Palette. Auf den Modul-Token gezogen. */
+  color: var(--ink-soft);
 }
 .t-match--bracket .t-dot--placeholder {
   background: transparent;
@@ -1839,7 +1946,9 @@
 }
 .t-match--bracket.t-match--done [data-area="home"]:not(.is-winner) .name,
 .t-match--bracket.t-match--done [data-area="away"]:not(.is-winner) .name {
-  color: var(--muted, #8A8077);
+  /* siehe .t-match--bracket.t-match--placeholder .name — Modul-Token
+     statt globalem --muted. */
+  color: var(--ink-soft);
   font-weight: 400;
 }
 .t-match--bracket.t-match--done .t-dot:not(.t-dot--placeholder) {
@@ -2139,9 +2248,18 @@
   transition: border-color 0.15s ease;
 }
 .t-input:focus {
+  /* Maus/Touch: kein Ring, nur Rahmen + weicher Schein. Der Schein allein
+     war nie eine Fokus-Anzeige — --accent-soft (#F0E7DA) auf weissem
+     Grund sind 1.1:1. */
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* Tastatur: sichtbarer Ring. Muss NACH .t-input:focus stehen — gleiche
+   Spezifitaet (0,0,2,0), es entscheidet die Quell-Reihenfolge. */
+.t-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 textarea.t-input {
   resize: vertical;
@@ -2521,7 +2639,11 @@ textarea.t-input {
 .t-wizard-team-row.is-dragging {
   z-index: 10;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-  background: var(--surface-2, var(--surface));
+  /* War var(--surface-2, var(--surface)) — --surface-2 existiert nicht, der
+     Fallback trug die Regel allein. --surface-alt IST die zweite Flaeche des
+     Sets (hell #F5F1E9 / dunkel #2A2620) und hebt die gezogene Zeile sichtbar
+     vom weissen Grund ab, wofuer der Fallback --surface nie taugte. */
+  background: var(--surface-alt);
   cursor: grabbing;
 }
 .t-wizard-team-placeholder {
@@ -2561,9 +2683,18 @@ textarea.t-input {
 }
 .t-wizard-team-name-input:hover { border-color: var(--line); }
 .t-wizard-team-name-input:focus {
-  border-color: var(--accent, #5A8A6B);
+  /* Der Fallback #5A8A6B war ausserdem ein Gruenton aus einem fremden
+     Set — --accent ist im Modul immer definiert, der Fallback ist weg. */
+  border-color: var(--accent);
   outline: none;
   background: var(--surface);
+}
+/* Tastatur: hier stand `outline: none` OHNE Ersatz — ein 1px-Rahmen auf
+   einer weissen Zeile ist keine Fokus-Anzeige. Ring nach der :focus-Regel,
+   damit die Quell-Reihenfolge ihn gewinnen laesst. */
+.t-wizard-team-name-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .t-wizard-team-actions {
   display: flex;
@@ -2663,7 +2794,10 @@ textarea.t-input {
 }
 .t-confirm-dialog {
   background: var(--surface);
-  border-radius: var(--r3);
+  /* War var(--r3) — nie definiert, der Dialog bekam eckige Ecken. Kein neuer
+     Token: die Radien-Skala ist semantisch (--r-card/--r-btn/--r-board), ein
+     numerisches --r3 waere ein zweites Schema. Der Dialog ist eine Karte. */
+  border-radius: var(--r-card);
   box-shadow: 0 24px 64px rgba(31, 27, 22, 0.32);
   padding: 24px;
   max-width: 440px;
@@ -3034,7 +3168,7 @@ textarea.t-input {
   border-radius: 50%;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
 }
 
 .t-teams-name-input {
@@ -3077,7 +3211,7 @@ textarea.t-input {
   border-radius: 999px;
   border: 1px solid var(--line, #E7DFD2);
   background: var(--surface);
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
   cursor: pointer;
 }
 .t-btn--ghost {
@@ -3134,12 +3268,12 @@ textarea.t-input {
 .t-rules-meta .spacer { margin-left: auto; }
 .t-rules-meta > span {
   font-size: 12px;
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 .t-rules-overflow-note {
   font-size: 12px;
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
   font-style: italic;
   margin-top: 1em;
 }
@@ -3191,7 +3325,7 @@ textarea.t-input {
   height: 24px;
   font-size: 16px;
   line-height: 1;
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
   cursor: grab;
   border-radius: 4px;
 }
@@ -3243,7 +3377,7 @@ textarea.t-input {
 }
 .t-team-seed {
   font-size: 12px;
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
   padding: 2px 8px;
   background: var(--bg, #F7F4EE);
@@ -3252,7 +3386,7 @@ textarea.t-input {
 .t-team-edit-hint {
   grid-column: 1 / -1;            /* eigene Zeile unter dem Row-Inhalt */
   font-size: 11px;
-  color: var(--ink-soft, #8A8077);
+  color: var(--ink-soft);
   font-style: italic;
   margin-top: 2px;
   display: none;                  /* per Default weg — nur bei Admin sichtbar */
@@ -3286,7 +3420,7 @@ textarea.t-input {
 .t-settings-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--s5, 20px);
+  gap: var(--s5);
 }
 .t-settings-section {
   display: flex;
@@ -3360,23 +3494,34 @@ textarea.t-input {
   cursor: pointer;
   border-radius: var(--r-card, 8px) var(--r-card, 8px) 0 0;
 }
-.t-settings-section-header:hover,
+.t-settings-section-header:hover {
+  background: var(--surface-alt);
+}
+/* Vorher teilte sich die Kopfzeile eine Regel mit :hover und setzte
+   `outline: none`. Der Hintergrundwechsel #FFFFFF -> #F5F1E9 ist als
+   Fokus-Anzeige 1.13:1, also praktisch nichts — und ein reiner
+   Farbwechsel ohne Formaenderung faellt bei Farbsehschwaeche ganz weg.
+   Jetzt: Hintergrund bleibt als Hover-Feedback, der Fokus bekommt den
+   Ring aus der Basisregel oben. `outline-offset: -2px`, weil die
+   Kopfzeile die volle Sektionsbreite hat und ein aeusserer Ring sonst
+   an den Nachbarn stoesst. */
 .t-settings-section-header:focus-visible {
-  background: var(--surface-alt, #fafaf7);
-  outline: none;
+  background: var(--surface-alt);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .t-settings-section-header .t-settings-section-title {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-soft, #5a5a55);
+  color: var(--ink-soft);
   font-weight: 600;
   margin: 0;
 }
 .t-settings-section-toggle {
   display: inline-block;
   font-size: 14px;
-  color: var(--ink-soft, #5a5a55);
+  color: var(--ink-soft);
   transition: transform 0.15s ease;
 }
 .t-settings-section[data-collapsed="true"] .t-settings-section-body { display: none; }
@@ -3531,7 +3676,11 @@ textarea.t-input {
   touch-action: manipulation;
 }
 .t-group-team-card.is-selected {
-  background: var(--accent-tint, var(--surface-2));
+  /* War var(--accent-tint, var(--surface-2)) — BEIDE undefiniert, damit war
+     die ganze Deklaration ungueltig und die Karte durchsichtig statt getoent.
+     --accent-soft ist genau dieser getoente Akzent-Grund und existiert in
+     hell UND dunkel. Kein neuer Token. */
+  background: var(--accent-soft);
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent);
 }
@@ -3569,7 +3718,8 @@ textarea.t-input {
   gap: var(--s2);
   padding: var(--s2) var(--s3);
   margin-top: var(--s3);
-  background: var(--accent-tint, var(--surface-2));
+  /* siehe .t-group-team-card.is-selected — war doppelt undefiniert. */
+  background: var(--accent-soft);
   border: 1px solid var(--accent);
   border-radius: var(--r-card);
 }
