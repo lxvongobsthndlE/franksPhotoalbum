@@ -3596,6 +3596,12 @@ async function loadStandingsTab(tournamentId) {
   mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Tabellen…</p></div></div>';
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/standings`, 'GET');
+    // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
+    // Absenden und der Antwort kann der Nutzer laengst in einem anderen
+    // Turnier stehen — Turnier A oeffnen, schnell zu B wechseln, und die
+    // Tabelle von A landete im Mount von B. Der Guard steht
+    // an sechs weiteren Stellen im File woertlich so.
+    if (activeTournamentInstance?.id !== tournamentId) return;
     const groups = data.groups || [];
     const scoreLabel = data.scoreLabel || 'Punkte';
 
@@ -3662,6 +3668,7 @@ async function loadStandingsTab(tournamentId) {
       ) ? { tournament } : null
     ));
   } catch (e) {
+    if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
   }
@@ -3683,6 +3690,11 @@ function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillK
   const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
   if (!mount) return;
   if (!groups) return; // kein Vorlauf → still ignorieren
+  // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Der Observer feuert
+  // beim Crossen der 600-px-Grenze, also potenziell lange nach dem Laden.
+  // Steht der Nutzer inzwischen in einem anderen Turnier, wuerden hier
+  // die Tabellen des alten in dessen Mount gemalt.
+  if (activeTournamentInstance?.id !== tournamentId) return;
   const groupsHtml = renderStandingsGroups(groups, scoreLabel);
   const bestThirdsHtml = renderBestThirdsTable(bestThirds);
   mount.innerHTML = groupsHtml + bestThirdsHtml;
@@ -3710,6 +3722,12 @@ async function loadBracketTab(tournamentId) {
   mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Turnierbaum…</p></div></div>';
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/bracket`, 'GET');
+    // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
+    // Absenden und der Antwort kann der Nutzer laengst in einem anderen
+    // Turnier stehen — Turnier A oeffnen, schnell zu B wechseln, und die
+    // Baum    von A landete im Mount von B. Der Guard steht
+    // an sechs weiteren Stellen im File woertlich so.
+    if (activeTournamentInstance?.id !== tournamentId) return;
     const matches = Array.isArray(data && data.matches) ? data.matches : [];
     // P5-Re-Fix (2026-08-25): Die zwei neuen Flags aus dem /bracket-
     // Response (allGroupsFinished + bracketHasPlaceholders) ersetzen
@@ -3736,6 +3754,7 @@ async function loadBracketTab(tournamentId) {
     // natürliche Anker, weil sie direkt zeigen, was fertig ist.
     // Mitglieder sehen weiterhin keinen Button (isAdmin-Gate).
   } catch (e) {
+    if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
     toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
   }
