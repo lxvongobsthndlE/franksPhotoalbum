@@ -446,12 +446,115 @@ export function renderAsideTables(matches, limit = 6) {
  * Prozentbreiten über ein <colgroup> für alle Tabellen identisch.
  * Pl. + Mark fix, Team bekommt den großen Rest, Zahlenspalten
  * gleichmäßig. Wird per renderColgroup() als <col>-Liste eingesetzt.
+ *
+ * P5-Truncation 2026-08-25: bei .t-mod ≤600 px wird eine 5er-Colgroup
+ * (Standings) bzw. 7er-Colgroup (Beste Dritte) verwendet. Hintergrund:
+ * das 9er-Colgroup hatte „Geister-Spalten" (8%/7%/7%/7%), die der Browser
+ * bei `display: none` weiterhin für die Spaltenbreite berücksichtigte
+ * — die 5 sichtbaren Spalten bekamen dadurch zu wenig Platz und wurden
+ * getruncated („BECH…", „+…", „9…"). Mit 5 Spalten summieren sich die
+ * Fix-Werte zu 56% + auto-Team 44% → ausreichend für „12:10" + „+12" + „18".
+ * Siehe getStandingsColWidths()/getThirdsColWidths() + Compact-Mode-Switch.
  */
 const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+const STANDINGS_COL_WIDTHS_MOBILE = ['10%', 'auto', '18%', '14%', '14%'];
 const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+// Beste-Dritte-Mobile: Pl · Team · Gruppe · Sp · Becher · Diff · Pkt (7 Spalten).
+// Gruppe bleibt sichtbar (sonst weiß man nicht, aus welcher Gruppe der Dritte kommt),
+// S/U/N ausgeblendet wie in Standings. Sum: 8+12+10+18+13+13 = 74% + auto-Team 26%.
+const THIRDS_COL_WIDTHS_MOBILE = ['8%', 'auto', '12%', '10%', '18%', '13%', '13%'];
 
 function renderColgroup(widths) {
   return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
+}
+
+// === Compact-Mode-Switch (P5-Truncation 2026-08-25) =====================
+// .t-mod ≤600 px → Mobile-Colgroups (5 Spalten Standings, 7 Beste Dritte).
+// .t-mod >600 px → Desktop-Colgroups (9 Spalten Standings, 10 Beste Dritte).
+//
+// Detection: ResizeObserver auf .t-mod, feuert nur beim Crossen der 600-px-
+// Grenze (User-Hinweis: nicht bei jedem Pixel). Renderer liest den State
+// bei jedem Aufruf → Tab-Wechsel triggert ohnehin ein Re-Render und holt
+// den aktuellen Mode.
+//
+// Reihenfolge der Entscheidung pro Renderer-Aufruf:
+//   1. tModCompactMode wurde bereits gesetzt (durch vorherigen Render oder
+//      ResizeObserver) → nutze diesen Wert.
+//   2. Noch null (= noch nie gemessen) → detectCompactModeFromTMod()
+//      misst .t-mod-Breite (oder Viewport-Fallback, wenn .t-mod noch
+//      nicht gemounted ist — z. B. in Vitest ohne DOM).
+
+let tModCompactMode = null;       // null = noch nicht gemessen
+let tModResizeObserver = null;    // ein Observer für die ganze App-Lifetime
+
+function detectCompactModeFromTMod() {
+  const mod = typeof document !== 'undefined' ? document.querySelector('.t-mod') : null;
+  if (mod) return mod.getBoundingClientRect().width <= 600;
+  return typeof window !== 'undefined' && window.innerWidth <= 660;
+}
+
+function getStandingsColWidths() {
+  if (tModCompactMode === null) tModCompactMode = detectCompactModeFromTMod();
+  return tModCompactMode ? STANDINGS_COL_WIDTHS_MOBILE : STANDINGS_COL_WIDTHS;
+}
+
+function getThirdsColWidths() {
+  if (tModCompactMode === null) tModCompactMode = detectCompactModeFromTMod();
+  return tModCompactMode ? THIRDS_COL_WIDTHS_MOBILE : THIRDS_COL_WIDTHS;
+}
+
+/** Test-Hook: setzt den Compact-Mode direkt. */
+export function setCompactMode(value) {
+  tModCompactMode = value;
+}
+
+/** Test-Hook: liest den aktuellen Compact-Mode. */
+export function getCompactMode() {
+  return tModCompactMode;
+}
+
+/**
+ * Setzt einen ResizeObserver auf .t-mod, der nur beim Crossen der 600-px-
+ * Grenze onChange() aufruft. Scroll-Position wird vor dem Re-Render
+ * gesichert und nach dem nächsten Paint wiederhergestellt
+ * (User-Hinweis: Handy-Drehen darf nicht auf „oben" springen).
+ *
+ * Idempotent: zweiter Aufruf ist no-op (derselbe Observer bleibt aktiv).
+ */
+export function ensureTModResizeObserver(onChange) {
+  if (tModResizeObserver) return;
+  if (typeof ResizeObserver === 'undefined') return;
+  tModResizeObserver = new ResizeObserver((entries) => {
+    for (const e of entries) {
+      const newCompact = e.contentRect.width <= 600;
+      if (newCompact === tModCompactMode) continue; // nur Crossings
+      // Scroll-Position retten (User-Hinweis: nicht oben landen)
+      const content = typeof document !== 'undefined'
+        ? document.getElementById('content') : null;
+      const savedScroll = content ? content.scrollTop
+        : (typeof window !== 'undefined' ? window.scrollY : 0);
+      tModCompactMode = newCompact;
+      if (typeof onChange === 'function') onChange();
+      // Nach Paint: Scroll wiederherstellen
+      requestAnimationFrame(() => {
+        if (content) content.scrollTop = savedScroll;
+        else if (typeof window !== 'undefined') window.scrollTo(0, savedScroll);
+      });
+    }
+  });
+  const mod = document.querySelector('.t-mod');
+  if (mod) {
+    tModResizeObserver.observe(mod);
+    tModCompactMode = mod.getBoundingClientRect().width <= 600;
+  }
+}
+
+/** Detacht den Observer (z. B. beim Verlassen der Detail-View). */
+export function detachTModResizeObserver() {
+  if (tModResizeObserver) {
+    tModResizeObserver.disconnect();
+    tModResizeObserver = null;
+  }
 }
 
 /**
@@ -505,7 +608,7 @@ export function renderStandingsGroups(groups, scoreLabel) {
         <div class="t-card-body">
           <h3 class="t-standings-group-title">${title}</h3>
           <table class="t-standings-table">
-            ${renderColgroup(STANDINGS_COL_WIDTHS)}
+            ${renderColgroup(getStandingsColWidths())}
             <thead>
               <tr>
                 <th class="is-rank"  data-col="pl">Pl.</th>
@@ -591,7 +694,7 @@ export function renderBestThirdsTable(bestThirds) {
       <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
       ${hint}
       <table class="t-thirds-table">
-        ${renderColgroup(THIRDS_COL_WIDTHS)}
+        ${renderColgroup(getThirdsColWidths())}
         <thead>
           <tr>
             <th class="is-rank"  data-col="pl">Pl.</th>
@@ -942,6 +1045,10 @@ if (typeof window !== 'undefined') {
     applyPropagatedMatches,
     renderStandingsGroups,
     renderBestThirdsTable,
+    setCompactMode,
+    getCompactMode,
+    ensureTModResizeObserver,
+    detachTModResizeObserver,
     bracket: {
       groupMatchesByRound,
       renderMatchCardBracket,

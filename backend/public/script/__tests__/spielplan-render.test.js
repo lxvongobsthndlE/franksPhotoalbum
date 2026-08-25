@@ -27,7 +27,7 @@
  * Diese Datei sichert die v3-Logik ab.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   sortMatchesBySchedule,
   applySpielplanFilter,
@@ -38,6 +38,7 @@ import {
   renderAsideNext,
   renderAsideTables,
   renderBestThirdsTable,
+  setCompactMode,
 } from '../spielplan-helpers.js';
 
 // ── Hilfsfabrik: minimaler Match-Stub, der zu den Feldern passt,
@@ -605,5 +606,65 @@ describe('renderBestThirdsTable — Spalten-Markup (P2)', () => {
     // Sichtbare: pl, group, points (+ Team als auto)
     const thCols = (html.match(/<th[^>]*data-col="([^"]+)"/g) || []).map((s) => s.match(/data-col="([^"]+)"/)[1]);
     expect(thCols).toEqual(['pl', 'group', 'played', 'won', 'drawn', 'lost', 'score', 'diff', 'points']);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// P5-Truncation 2026-08-25: Compact-Mode-Switch für Beste-Dritte.
+// Mobile (7 Colgroup-Spalten): Pl · Team · Gruppe · Sp · Becher · Diff · Pkt.
+// Gruppe bleibt sichtbar (sonst weiß man nicht, aus welcher Gruppe der
+// Dritte kommt), S/U/N ausgeblendet wie in Standings. Sum: 8+12+10+
+// 18+13+13 = 74% + auto-Team 26%.
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => {
+  beforeEach(() => setCompactMode(false));
+
+  const sample = {
+    qualifyCount: 1,
+    rows: [{
+      teamId: 't1', name: 'Team X', groupKey: 'A',
+      played: 3, won: 2, drawn: 0, lost: 1,
+      goalsFor: 12, goalsAgainst: 10, goalDiff: 2, points: 6,
+      qualifies: true,
+    }],
+  };
+
+  it('Desktop: 10 Colgroup-Spalten', () => {
+    setCompactMode(false);
+    const html = renderBestThirdsTable(sample);
+    const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
+    expect(cols).toHaveLength(10);
+  });
+
+  it('Mobile: 7 Colgroup-Spalten (Pl · Team · Gruppe · Sp · Becher · Diff · Pkt)', () => {
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
+    expect(cols).toHaveLength(7);
+    expect(html).toContain('width:8%');
+    expect(html).toContain('width:12%');
+    expect(html).toContain('width:10%');
+    expect(html).toContain('width:18%');
+    expect(html).toContain('width:13%');
+  });
+
+  it('Mobile: keine 7%-Geister-Spalten (S/U/N weg) + Spalten-Anzahl = 7', () => {
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    // Vorher waren 3 × width:7% (S/U/N) + 2 × width:8% (Gruppe/Sp) im
+    // Desktop-Colgroup. Im Mobile bleibt width:8% (Pl) und width:12%
+    // (Gruppe) üblich, S/U/N-Spalten mit width:7% sind weg.
+    expect(html).not.toContain('width:7%');
+    const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
+    expect(cols).toHaveLength(7);
+  });
+
+  it('Mobile: Gruppe-Spalte bleibt sichtbar (data-col=group vorhanden)', () => {
+    setCompactMode(true);
+    const html = renderBestThirdsTable(sample);
+    // Pl, Gruppe, Sp, Becher, Diff, Pkt (Team hat kein data-col → auto)
+    expect(html).toContain('data-col="group"');
+    expect(html).toContain('data-col="played"');
   });
 });

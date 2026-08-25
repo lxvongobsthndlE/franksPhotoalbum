@@ -29,6 +29,7 @@ import {
   applyPropagatedMatches,
   renderStandingsGroups,
   renderBestThirdsTable,
+  ensureTModResizeObserver,
 } from './spielplan-helpers.js';
 import { renderRulesParagraphs } from './rules-helpers.js';
 import {
@@ -3430,10 +3431,33 @@ async function loadStandingsTab(tournamentId) {
     // ist — also unbedenklich, hier zu konkatenieren.
     const bestThirdsHtml = renderBestThirdsTable(data.bestThirds);
     mount.innerHTML = groupsHtml + bestThirdsHtml;
+    // P5-Truncation 2026-08-25: ResizeObserver auf .t-mod, der beim
+    // Crossen der 600-px-Grenze die Tabellen mit der passenden
+    // Colgroup neu rendert. Refresh-Callback re-fetched nicht (zu
+    // teuer), sondern greift auf die zuletzt geladenen groups zurück.
+    // Da loadStandingsTab ohnehin die Quelle der Wahrheit ist, rufen
+    // wir sie rekursionsfrei via refreshStandingsTab() auf.
+    ensureTModResizeObserver(() => refreshStandingsTab(tournamentId, groups, data.bestThirds, scoreLabel));
   } catch (e) {
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
   }
+}
+
+/**
+ * Re-Render-Helfer für ResizeObserver (P5-Truncation 2026-08-25).
+ * Greift auf die zuletzt geladenen Daten zurück statt neu zu fetchen
+ * — beim Crossen der 600-px-Grenze will der User keinen Loading-Spinner,
+ * nur eine andere Spaltenbreite. Scroll-Position wird im Observer
+ * gesichert und nach dem Paint wiederhergestellt.
+ */
+function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel) {
+  const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
+  if (!mount) return;
+  if (!groups) return; // kein Vorlauf → still ignorieren
+  const groupsHtml = renderStandingsGroups(groups, scoreLabel);
+  const bestThirdsHtml = renderBestThirdsTable(bestThirds);
+  mount.innerHTML = groupsHtml + bestThirdsHtml;
 }
 
 /**
@@ -4350,25 +4374,26 @@ async function resetResults(tournamentId, confirmName) {
  */
 async function deleteTournamentWithConfirm(instanceId, instanceName, confirmName) {
   try {
-    const res = await fetch(`/api/tournaments/${encodeURIComponent(instanceId)}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ confirmTournamentName: confirmName }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      if (res.status === 409 && /confirm_tournament_name/.test(body?.error || '')) {
-        toast('Turniername stimmt nicht', 'error');
-        return;
-      }
-      throw new Error(body?.message || `HTTP ${res.status}`);
-    }
+    // apiCall() aus auth-oidc.js setzt Authorization: Bearer <token>
+    // automatisch und macht 401-Auto-Refresh + Retry. raw fetch würde
+    // denselben Bug erzeugen wie in tournament.js vor dem dortigen
+    // Fix (siehe main.js:6392-6394). P2-Folge-Fix (2026-08-25):
+    // DELETE schlug mit 401 fehl, sobald die 15-min-Token-Lifetime
+    // abgelaufen war — der Refresh-Token blieb 7 Tage gültig.
+    await apiCall(
+      `/tournaments/${encodeURIComponent(instanceId)}`,
+      'DELETE',
+      { confirmTournamentName: confirmName },
+    );
     if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
     toast('Turnier gelöscht', 'success');
     await loadTournamentInstances(true);
   } catch (e) {
-    toast(e.message || 'Turnier konnte nicht gelöscht werden', 'error');
+    if (e.status === 409 && /delete_locked_results_present/.test(e.serverCode || e.serverMessage || '')) {
+      toast('Turniername stimmt nicht', 'error');
+      return;
+    }
+    toast(e.serverMessage || e.message || 'Turnier konnte nicht gelöscht werden', 'error');
   }
 }
 

@@ -13,8 +13,8 @@
  * Renderer delegiert an sie. So bleibt der Test ohne DOM-Mock.
  */
 
-import { describe, it, expect } from 'vitest';
-import { renderStandingsGroups } from '../spielplan-helpers.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { renderStandingsGroups, setCompactMode } from '../spielplan-helpers.js';
 
 // ─────────────────────────────────────────────────────────────────
 // Tests
@@ -198,5 +198,69 @@ describe('renderStandingsGroups — Edge cases', () => {
     );
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// P5-Truncation 2026-08-25: Compact-Mode-Switch für Standings-Colgroup.
+// Vorher: Renderer gab immer das 9er-Colgroup aus — die 8%/7%/7%/7%-
+// Geister-Spalten reservierten 29% der Tabellenbreite, obwohl sie per
+// CSS display:none ausgeblendet waren. Auf .t-mod ≤600 px blieben für
+// die 5 sichtbaren Spalten nur 36% + auto-Team 35% → Becher/Diff/Pkt
+// wurden getruncated ("BECH…", "+…", "9…"). Mit 5er-Colgroup summieren
+// sich die Fix-Werte zu 56% + auto-Team 44% → ausreichend für "12:10".
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => {
+  beforeEach(() => setCompactMode(false)); // jeder Test startet mit Desktop
+
+  const sample = [{
+    groupKey: 'A', groupName: 'Gruppe A',
+    standings: [{
+      teamId: 't1', name: 'Team Alpha',
+      played: 3, won: 3, drawn: 0, lost: 0,
+      goalsFor: 12, goalsAgainst: 10, goalDiff: 2, points: 9,
+    }],
+  }];
+
+  it('Desktop-Mode: 9 Colgroup-Spalten (6% + auto + 8% + 7% + 7% + 7% + 12% + 9% + 9%)', () => {
+    setCompactMode(false);
+    const html = renderStandingsGroups(sample, 'Becher');
+    const cols = html.match(/<col style="width:[^"]+">/g) || [];
+    expect(cols).toHaveLength(9);
+    expect(html).toContain('width:6%');
+    expect(html).toContain('width:8%');
+    expect(html).toContain('width:7%');
+    expect(html).toContain('width:12%');
+    expect(html).toContain('width:9%');
+  });
+
+  it('Mobile-Mode: 5 Colgroup-Spalten (10% + auto + 18% + 14% + 14%)', () => {
+    setCompactMode(true);
+    const html = renderStandingsGroups(sample, 'Becher');
+    const cols = html.match(/<col style="width:[^"]+">/g) || [];
+    expect(cols).toHaveLength(5);
+    expect(html).toContain('width:10%');
+    expect(html).toContain('width:18%');
+    expect(html).toContain('width:14%');
+  });
+
+  it('Mobile-Mode: keine 8%/7%-Geister-Spalten mehr', () => {
+    setCompactMode(true);
+    const html = renderStandingsGroups(sample, 'Becher');
+    // Vorher: width:8% (Sp), width:7% (S, U, N) waren im Colgroup, wurden
+    // per display:none ausgeblendet, hielten aber 29% der Breite besetzt.
+    expect(html).not.toContain('width:8%');
+    expect(html).not.toContain('width:7%');
+  });
+
+  it('Mobile-Werte-Beispiel: 12:10 muss in 18%-Spalte passen', () => {
+    setCompactMode(true);
+    const html = renderStandingsGroups(sample, 'Becher');
+    // 18% von ~370 px Tabellenbreite = ~67 px → "12:10" (~50 px @ 12px-Font) passt.
+    // Wir können hier nur prüfen, dass der Wert überhaupt im Output steht.
+    expect(html).toContain('12:10');
+    // Und dass die Spalte dahinter breit genug deklariert ist.
+    expect(html).toContain('width:18%');
   });
 });
