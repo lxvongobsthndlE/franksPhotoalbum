@@ -3475,6 +3475,15 @@ async function loadBracketTab(tournamentId) {
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/bracket`, 'GET');
     const matches = Array.isArray(data && data.matches) ? data.matches : [];
+    // P5-Re-Fix (2026-08-25): Die zwei neuen Flags aus dem /bracket-
+    // Response (allGroupsFinished + bracketHasPlaceholders) ersetzen
+    // die alte Heuristik `matches.length === 0`. Die alte Heuristik
+    // hat den Button nie gezeigt, sobald die KO-Stage generiert war
+    // (matches.length > 0, aber Slots haben Platzhalter → Render
+    // zeigt „Sieger VF 1" usw.). Das war der Hauptbug, der User aus
+    // jeder vor-Generierung-Turniersituation ausgesperrt hat.
+    const allGroupsFinished = data?.allGroupsFinished === true;
+    const bracketHasPlaceholders = data?.bracketHasPlaceholders === true;
     const renderer = (window.spielplanHelpers && window.spielplanHelpers.bracket && window.spielplanHelpers.bracket.renderBracket)
       || ((globalThis.spielplanHelpers && globalThis.spielplanHelpers.bracket && globalThis.spielplanHelpers.bracket.renderBracket));
     if (typeof renderer !== 'function') {
@@ -3483,16 +3492,19 @@ async function loadBracketTab(tournamentId) {
     mount.innerHTML = renderer(matches);
     wireBracketTabs(mount);  // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
 
-    // P3 (2026-08-24): Fallback-Button „K.-o.-Phase starten". Wenn der
-    // Bracket-View leer ist, alle Gruppenspiele finished sind UND der
-    // Modus groups_ko ist, kann der Admin den Auto-Fill manuell triggern.
-    // Sichtbar nur für Admins — Mitglieder sehen den leeren Bracket
-    // weiterhin still.
+    // P3 (2026-08-24) + P5-Re-Fix (2026-08-25): Fallback-Button
+    // „K.-o.-Phase starten". Erscheint NUR wenn
+    //   - Admin (isAdmin)
+    //   - Modus groups_ko
+    //   - alle Gruppenspiele finished sind
+    //   - das Bracket noch nicht gefüllt ist (= Slots haben Platzhalter)
+    // Mitglieder sehen den leeren Bracket weiterhin still.
     const tournament = activeTournamentInstance;
     if (
-      matches.length === 0
-      && tournament?.isAdmin === true
+      tournament?.isAdmin === true
       && tournament?.config?.mode === 'groups_ko'
+      && allGroupsFinished
+      && bracketHasPlaceholders
     ) {
       wireFillKoButton(mount, tournament);
     }
@@ -3503,11 +3515,17 @@ async function loadBracketTab(tournamentId) {
 }
 
 /**
- * P3 (2026-08-24): Hängt einen Fallback-Button „K.-o.-Phase starten" an
- * die Bracket-Mount, wenn der automatische maybeFillKoFromGroupFinish-
- * Trigger nicht gegriffen hat (z.B. weil die Gruppenphase schon vor
- * diesem Fix abgeschlossen wurde). Click → POST /:id/fill-ko →
- * Re-Render des Brackets.
+ * P3 (2026-08-24) + P5-Re-Fix (2026-08-25): Hängt einen Fallback-Button
+ * „K.-o.-Phase starten" an die Bracket-Mount, wenn der automatische
+ * maybeFillKoFromGroupFinish-Trigger nicht gegriffen hat (z.B. weil die
+ * Gruppenphase schon vor diesem Fix abgeschlossen wurde). Click →
+ * POST /:id/fill-ko → Re-Render des Brackets.
+ *
+ * User-Forderung P5 (2026-08-25): "Eine Wahrheit, zwei Auslöser." —
+ * der manuelle Knopf ruft dieselbe Funktion wie der automatische Weg.
+ * Antwort ist `{ ok, updatedCount, qualifiers, matches, firstMatchup? }`
+ * — wir zeigen den Toast mit dem ersten Matchup, damit der User sofort
+ * sieht, was passiert ist.
  */
 function wireFillKoButton(mount, tournament) {
   if (!mount || !tournament) return;
@@ -3518,28 +3536,133 @@ function wireFillKoButton(mount, tournament) {
   btn.textContent = 'K.-o.-Phase starten';
   const wrap = document.createElement('div');
   wrap.className = 't-fill-ko-cta';
+  // Hinweistext dabei — User soll verstehen, warum der Button da ist.
+  const note = document.createElement('p');
+  note.className = 't-fill-ko-note t-hint';
+  note.textContent = 'Alle Gruppenspiele sind eingetragen. Die K.-o.-Phase wurde noch nicht aus den Ergebnissen gefüllt.';
+  wrap.appendChild(note);
   wrap.appendChild(btn);
   mount.prepend(wrap);
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     btn.textContent = 'Fülle K.-o.-Phase…';
     try {
-      await apiCall(
+      const result = await apiCall(
         `/tournaments/${encodeURIComponent(tournament.id)}/fill-ko`,
         'POST'
       );
-      toast('K.-o.-Phase gefüllt', 'success');
+      const mu = result?.firstMatchup;
+      const msg = mu?.home && mu?.away
+        ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+        : 'K.-o.-Phase gefüllt';
+      toast(msg, 'success');
       await openTournamentInstance(tournament.id);
     } catch (e) {
-      toast(
-        e?.serverMessage
-          || (e?.status === 409 && /group_phase_not_complete/.test(e.message))
-            ? 'Gruppenphase ist noch nicht abgeschlossen.'
-            : 'K.-o.-Phase konnte nicht gefüllt werden',
-        'error',
-      );
+      const errorMsg = e?.status === 409 && /group_phase_not_complete/.test(e.message)
+        ? 'Gruppenphase ist noch nicht abgeschlossen.'
+        : (e?.serverMessage || 'K.-o.-Phase konnte nicht gefüllt werden');
+      toast(errorMsg, 'error');
       btn.disabled = false;
       btn.textContent = 'K.-o.-Phase starten';
+    }
+  });
+}
+
+/**
+ * P5-Re-Fix (2026-08-25): Modal mit drei Buttons, das nach einem
+ * Save-Ablehnung erscheint, wenn ein Gruppenscore nachträglich geändert
+ * wurde NACHDEM die K.-o.-Phase schon befüllt war. User-Forderung:
+ * "Zeig mir eine Warnung, dass sich die Qualifikation ändern könnte, und
+ * biete an, die K.-o.-Phase neu zu setzen. Nicht still überschreiben."
+ *
+ * Drei Optionen:
+ *   - "Abbrechen" — User hat das Save eigentlich nicht gewollt (zu spät,
+ *     Save ist bereits durch — aber zumindest kein Bracket-Override).
+ *   - "Bracket beibehalten" — neues Gruppenergebnis steht in der DB, das
+ *     Bracket wird NICHT aktualisiert (z.B. wenn nur ein Tippfehler war,
+ *     der die Qualifikation nicht verschiebt).
+ *   - "K.-o.-Phase neu setzen" — POST /:id/fill-ko aufrufen, Bracket
+ *     wird neu qualifiziert.
+ *
+ * Da openConfirmDialog nur zwei Buttons unterstützt, ist das hier ein
+ * eigenes Inline-Modal mit drei Buttons — klein, klar, kein
+ * zusätzliches CSS nötig (wir nutzen die bestehenden dlg-Klassen).
+ */
+function openBracketRefillConfirmDialog(tournamentId) {
+  if (!tournamentId) return;
+  // Bereits ein Dialog offen → nicht doppelt rendern.
+  if (document.getElementById('bracket-refill-modal')) return;
+  const dlg = document.createElement('div');
+  dlg.id = 'bracket-refill-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>K.-o.-Phase neu qualifizieren?</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <div class="tournament-detail-dlg-body">
+        <p>Du hast gerade ein Gruppenspiel-Ergebnis geändert. Die K.-o.-Phase ist
+          aber bereits befüllt — wenn sich durch deine Änderung die
+          Qualifikation verschiebt, stimmt das Bracket jetzt nicht mehr.</p>
+        <p>Wie willst du vorgehen?</p>
+        <ul class="t-list t-list--bullets">
+          <li><strong>Abbrechen:</strong> Modal zu, Bracket bleibt wie es ist
+            (dein geändertes Gruppenergebnis bleibt trotzdem gespeichert).</li>
+          <li><strong>Bracket beibehalten:</strong> Das Bracket wird nicht
+            angefasst — sinnvoll, wenn deine Änderung die Qualifikation
+            nicht verschiebt.</li>
+          <li><strong>K.-o.-Phase neu setzen:</strong> Das Bracket wird
+            komplett neu qualifiziert — Folge-Matches, die bereits
+            ausgespielt waren, bleiben mit ihren Scores erhalten, aber
+            die Slots bekommen die neuen Teams.</li>
+        </ul>
+      </div>
+      <div class="tournament-card-actions">
+        <button type="button" class="btn btn-ghost" data-action="cancel">Abbrechen</button>
+        <button type="button" class="btn btn-secondary" data-action="keep">Bracket beibehalten</button>
+        <button type="button" class="btn btn-primary" data-action="refill">K.-o.-Phase neu setzen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const close = () => dlg.remove();
+
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.dataset.action === 'close') {
+      close();
+      return;
+    }
+    const action = e.target.dataset && e.target.dataset.action;
+    if (action === 'cancel') {
+      close();
+    } else if (action === 'keep') {
+      close();
+      toast('K.-o.-Bracket bleibt unverändert', 'info');
+    } else if (action === 'refill') {
+      // Buttons sperren, damit User nicht doppelt klickt.
+      const buttons = dlg.querySelectorAll('button');
+      buttons.forEach((b) => { b.disabled = true; });
+      apiCall(
+        `/tournaments/${encodeURIComponent(tournamentId)}/fill-ko`,
+        'POST',
+      )
+        .then((result) => {
+          const mu = result?.firstMatchup;
+          const msg = mu?.home && mu?.away
+            ? `K.-o.-Phase neu gesetzt: ${mu.home} trifft auf ${mu.away}`
+            : 'K.-o.-Phase neu gesetzt';
+          toast(msg, 'success');
+          close();
+          return openTournamentInstance(tournamentId);
+        })
+        .catch((e2) => {
+          toast(
+            e2?.serverMessage || 'K.-o.-Phase konnte nicht neu gesetzt werden',
+            'error',
+          );
+          buttons.forEach((b) => { b.disabled = false; });
+        });
     }
   });
 }
@@ -5195,6 +5318,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         propagated: result?.propagated,
         matchId: result?.match?.id,
         propagatedMatchesCount: result?.propagatedMatches?.length,
+        koFill: result?.koFill,
       });
       const propagated = Array.isArray(result?.propagated) ? result.propagated.length : 0;
       const undoNote = propagated
@@ -5204,6 +5328,32 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         `Ergebnis gespeichert (${sh} : ${sa})${undoNote}`,
         'success',
       );
+      // P5-Re-Fix (2026-08-25): Wenn der Server beim Speichern die
+      // K.-o.-Phase automatisch befüllt hat, zeigen wir einen ZUSÄTZ-
+      // lichen Toast "K.-o.-Phase steht: Team X trifft auf Team Y".
+      // Vorher: Server-Log hatte die Info, der User sah nichts —
+      // Hauptursache für "der Baum füllt sich nicht" Missverständnis.
+      if (result?.koFill?.filled) {
+        const mu = result.koFill.firstMatchup;
+        const koMsg = mu?.home && mu?.away
+          ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+          : 'K.-o.-Phase gefüllt';
+        // Kurze Verzögerung, damit der Save-Toast nicht doppelt wirkt.
+        setTimeout(() => toast(koMsg, 'success'), 350);
+        tlog('ko-fill:toast-shown', { updatedCount: result.koFill.updatedCount });
+      } else if (result?.bracketWasAlreadyFilled) {
+        // User hat ein Gruppenscore nachträglich geändert, NACHDEM die
+        // K.-o.-Phase schon befüllt war. Server hat den Auto-Fill
+        // abgelehnt (siehe maybeFillKoFromGroupFinish, P5-Re-Fix).
+        // Wir warnen und bieten "neu setzen" an. Modal mit drei Buttons:
+        // Abbrechen / Brackets lassen / Brackets neu qualifizieren.
+        tlog('ko-fill:warn-already-filled');
+        // Kurze Verzögerung, damit der Save-Toast nicht überdeckt wird.
+        setTimeout(
+          () => openBracketRefillConfirmDialog(tournamentId),
+          400,
+        );
+      }
       tlog('toast:shown');
       dlg.remove();
       tlog('modal:removed');

@@ -1540,6 +1540,8 @@ export default async function tournamentRoutes(fastify) {
         ok: true,
         updatedCount: result.updatedCount,
         qualifiers: result.qualifiers,
+        // P5-Re-Fix (2026-08-25): firstMatchup für den Toast.
+        firstMatchup: result.firstMatchup ?? null,
         matches: view.matches,
       };
     } catch (err) {
@@ -2400,6 +2402,22 @@ export default async function tournamentRoutes(fastify) {
   });
 
   // GET /api/tournaments/:id/bracket — nur KO-Matches
+  //
+  // P5-Re-Fix (2026-08-25): Response um zwei Flags erweitert, damit der
+  // Frontend-Fallback-Button „K.-o.-Phase starten" zuverlässig
+  // erscheint:
+  //   - allGroupsFinished: true, wenn jede Gruppen-Match-Status 'finished'
+  //     ist. Sonst macht der Button keinen Sinn.
+  //   - bracketHasPlaceholders: true, wenn mindestens ein KO-Match noch
+  //     keinen teamHome/teamAway hat (= die Phase wurde noch nicht
+  //     befüllt). Genau dann ist der Button sinnvoll.
+  //
+  // Vorher: Frontend hat nur `matches.length === 0` geprüft, aber
+  // `matches` ist die KO-Match-Liste. Sobald die KO-Stage existiert
+  // (was sofort bei Generierung passiert), ist matches.length > 0,
+  // auch wenn die Slots noch leer sind (= alle teamHome/teamAway null
+  // und das Rendering zeigt Platzhalter wie „Sieger VF 1"). Folge: der
+  // Button wurde NIE angezeigt, obwohl die Phase füllbar war.
   fastify.get('/:id/bracket', async (request, reply) => {
     try {
       const auth = await requireTournamentRead(
@@ -2411,8 +2429,27 @@ export default async function tournamentRoutes(fastify) {
         fastify.prisma,
         auth.tournament.id
       );
-      const koMatches = view.matches.filter((m) => m.isKoMatch);
-      return { matches: koMatches };
+      const allMatches = view.matches;
+      const koMatches = allMatches.filter((m) => m.isKoMatch);
+      const groupMatches = allMatches.filter((m) => m.isGroupMatch);
+      const allGroupsFinished = groupMatches.length > 0
+        && groupMatches.every((m) => m.isFinished);
+      // DTO-Shape: teamHome/teamAway sind NICHT direkt im DTO — die
+      // Teams leben unter home/away (kind=team vs kind=placeholder).
+      // Ein Slot ist "leer", wenn home ODER away fehlt ODER als
+      // placeholder markiert ist (dann hat auch kein teamId). Wir
+      // prüfen alle drei Fälle, weil das DTO bei teamId=null + placeholder=
+      // null ein home/away === null liefert.
+      const slotIsEmpty = (slot) =>
+        !slot || slot.kind === 'placeholder' || slot.teamId == null;
+      const bracketHasPlaceholders = koMatches.some(
+        (m) => slotIsEmpty(m.home) || slotIsEmpty(m.away)
+      );
+      return {
+        matches: koMatches,
+        allGroupsFinished,
+        bracketHasPlaceholders,
+      };
     } catch (err) {
       return handleError(reply, err, 'Bracket laden fehlgeschlagen');
     }
@@ -2525,6 +2562,10 @@ export default async function tournamentRoutes(fastify) {
       let updated;
       let updatedDto;
       let propagatedDtos = [];
+      // P5-Re-Fix (2026-08-25): koFill-Info wird INNERHALB der Transaktion
+      // berechnet, aber AUSSERHALB für die Response gebraucht. Daher
+      // müssen wir die Variable vor der Transaktion deklarieren.
+      let koFillResult;
 
       await fastify.prisma.$transaction(async (tx) => {
         updated = await tx.match.update({
@@ -2597,7 +2638,7 @@ export default async function tournamentRoutes(fastify) {
         // Wir übergeben `stage.type` statt `match.stageType` (Schema hat
         // keine stageType-Spalte auf Match). `stage` ist bereits oben
         // geladen (für isKo-Check) — Type-String ist dieselbe Wahrheit.
-        const koFillResult = await maybeFillKoFromGroupFinish(tx, ctx, {
+        koFillResult = await maybeFillKoFromGroupFinish(tx, ctx, {
           matchId: match.id,
           stageType: stage?.type ?? null,
         });
@@ -2627,8 +2668,37 @@ export default async function tournamentRoutes(fastify) {
       log('response:sent 200', {
         propagatedCount: propagated.length,
         propagatedIds: propagated,
+        koFill: koFillResult?.filled
+          ? { updatedCount: koFillResult.updatedCount, qualifiers: koFillResult.qualifiers }
+          : (koFillResult?.reason ?? null),
       });
-      return { match: updatedDto, propagated, propagatedMatches: propagatedDtos };
+      // P5-Re-Fix (2026-08-25): koFill-Info ins Response einbauen, damit
+      // das Frontend einen Erfolgs-Toast zeigen kann ("K.-o.-Phase
+      // steht: Team X trifft auf Team Y"). Vorher war die Info nur im
+      // Server-Log — der User hat von der Auto-Befüllung NICHTS mit-
+      // bekommen und dachte, der Save hätte nichts bewirkt.
+      //
+      // Sonderfall `bracket_already_filled`: das passiert, wenn der User
+      // ein Gruppenscore nachträglich ändert, NACHDEM die K.-o.-Phase
+      // schon befüllt war. Per User-Forderung soll das Bracket NICHT
+      // still überschrieben werden — der Frontend-Warn-Toast bietet
+      // „neu setzen" an.
+      const koFillFilled = koFillResult?.filled === true;
+      return {
+        match: updatedDto,
+        propagated,
+        propagatedMatches: propagatedDtos,
+        koFill: koFillFilled
+          ? {
+              filled: true,
+              updatedCount: koFillResult.updatedCount,
+              qualifiers: koFillResult.qualifiers,
+              firstMatchup: koFillResult.firstMatchup ?? null,
+            }
+          : { filled: false, reason: koFillResult?.reason ?? null },
+        bracketWasAlreadyFilled:
+          !koFillFilled && koFillResult?.reason === 'bracket_already_filled',
+      };
     } catch (err) {
       log('error', err?.message || err);
       return handleError(reply, err, 'Ergebnis eintragen fehlgeschlagen');
@@ -2813,6 +2883,35 @@ async function maybeFillKoFromGroupFinish(tx, ctx, justSavedMatch) {
     return { filled: false, reason: 'group_phase_not_complete' };
   }
 
+  // P5-Re-Fix (2026-08-25): Wenn die K.-o.-Phase bereits gefüllt ist
+  // (alle KO-Slots haben teamHome/teamAway gesetzt), überschreiben wir
+  // nicht still. Statt dessen melden wir `bracket_already_filled`
+  // zurück, damit das Frontend einen Warn-Toast + "neu setzen"-Button
+  // zeigen kann. User-Wortlaut: "Nicht still überschreiben."
+  //
+  // Vorher: jede Änderung an einem Gruppenscore hat das Bracket
+  // kommentarlos neu qualifiziert — wenn der User einen Tippfehler
+  // korrigiert hat, war plötzlich Slot 8 mit einem anderen Team besetzt,
+  // und die Folge-Matches (falls schon ausgespielt) zeigten einen
+  // "Sieger kommt aus anderem Match"-Konflikt.
+  //
+  // Wir laden hier RAW-KO-Match-Zeilen, nicht das DTO — `teamHome`/
+  // `teamAway` sind die DB-Spalten und hier direkter. Wenn beide gesetzt
+  // sind, ist das Bracket "real" befüllt.
+  const koMatches = await tx.match.findMany({
+    where: {
+      tournamentId: ctx.tournament.id,
+      stage: { type: 'ko' },
+    },
+    select: { id: true, teamHome: true, teamAway: true },
+  });
+  const bracketAlreadyFilled =
+    koMatches.length > 0 &&
+    koMatches.every((m) => m.teamHome && m.teamAway);
+  if (bracketAlreadyFilled) {
+    return { filled: false, reason: 'bracket_already_filled' };
+  }
+
   return fillKoFromQualifiers(tx, ctx);
 }
 
@@ -2906,6 +3005,12 @@ async function fillKoFromQualifiers(tx, ctx) {
 
   const existingKo = allMatches.filter((m) => m.stage?.type === 'ko');
   let updatedCount = 0;
+  // P5-Re-Fix (2026-08-25): Für den Toast "K.-o.-Phase steht: Team X
+  // trifft auf Team Y" bauen wir das erste Matchup mit aufgelösten
+  // Team-Namen. Das ist nicht Engine-Funktionalität, sondern UX-Feedback
+  // — der User sieht im Modal direkt, was passiert ist.
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  let firstMatchup = null;
   for (const fresh of newBracket.matches) {
     // Wir matchen NICHT über fresh.id (das ist die Engine-ID aus
     // buildBracket, z.B. "ko_QF_1"), sondern über (round, bracketPos)
@@ -2938,8 +3043,22 @@ async function fillKoFromQualifiers(tx, ctx) {
         },
       });
       updatedCount += 1;
+      if (!firstMatchup) {
+        // Erstes tatsächlich verändertes Match merken — das ist der
+        // Bezugspunkt für die User-Meldung.
+        firstMatchup = {
+          round: fresh.round,
+          home: teamById.get(fresh.teamHome)?.name ?? null,
+          away: teamById.get(fresh.teamAway)?.name ?? null,
+        };
+      }
     }
   }
 
-  return { filled: true, updatedCount, qualifiers: qualify.qualifiers.length };
+  return {
+    filled: true,
+    updatedCount,
+    qualifiers: qualify.qualifiers.length,
+    firstMatchup,
+  };
 }
