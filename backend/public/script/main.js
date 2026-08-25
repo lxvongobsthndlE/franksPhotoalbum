@@ -3567,18 +3567,31 @@ function wireFillKoButton(mount, tournament) {
   if (!mount || !tournament) return;
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 't-btn t-btn--primary';
+  btn.className = 't-btn t-btn--primary t-btn--lg t-fill-ko-btn';
   btn.dataset.action = 'start-ko-phase';
-  btn.textContent = 'K.-o.-Phase starten';
+  // Lucide-Icon „Swords" für „K.-o.-Phase starten" — Kampf-Symbol
+  // passt zur KO-Phase. Inline-SVG im selben Stil wie die übrigen
+  // Icons der App (siehe ICON_TAB_* / ICON_SHEET_*), damit der
+  // Icon-Look konsistent bleibt.
+  btn.innerHTML = '<svg class="t-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="9.5 6.5 21 17 21 21 17 21 6.5 9.5"/></svg>'
+    + '<span>K.-o.-Phase starten</span>';
   const wrap = document.createElement('div');
   wrap.className = 't-fill-ko-cta';
   // Hinweistext dabei — User soll verstehen, warum der Button da ist.
   const note = document.createElement('p');
   note.className = 't-fill-ko-note t-hint';
-  note.textContent = 'Alle Gruppenspiele sind eingetragen. Die K.-o.-Phase wurde noch nicht aus den Ergebnissen gefüllt.';
+  note.textContent = 'Alle Gruppenspiele sind eingetragen — die K.-o.-Phase wurde noch nicht aus den Ergebnissen gefüllt. Klick füllt das Bracket mit den Qualifikanten.';
   wrap.appendChild(note);
   wrap.appendChild(btn);
-  mount.prepend(wrap);
+  // Card drumherum, damit der Block wie ein eigener CTA aussieht
+  // (User-Feedback: „mach dass es mehr wie ein button aussieht").
+  const card = document.createElement('div');
+  card.className = 't-card t-fill-ko-card';
+  const body = document.createElement('div');
+  body.className = 't-card-body t-fill-ko-card-body';
+  card.appendChild(body);
+  body.appendChild(wrap);
+  mount.appendChild(card);
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     btn.textContent = 'Fülle K.-o.-Phase…';

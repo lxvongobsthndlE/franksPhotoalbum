@@ -805,6 +805,23 @@
 }
 .t-btn--onDark:hover { background: rgba(255, 255, 255, 0.20); }
 
+/* Größerer Modifier für Hero-CTAs — P5-Re-Fix-3 (2026-08-25):
+   „K.-o.-Phase starten" sollte visuell wie ein Hauptbutton wirken,
+   nicht wie eine schmale Tab-Aktion. Padding + Schrift + Icon-Größe
+   hoch, damit der Block Aufmerksamkeit zieht. */
+.t-btn--lg {
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: calc(var(--r-btn) + 2px);
+  gap: var(--s3);
+}
+.t-btn--lg .t-btn-icon {
+  width: 18px; height: 18px;
+  stroke-width: 2.25;
+  flex-shrink: 0;
+}
+
 /* ----------------------------------------------------------------
    KARTEN
    ---------------------------------------------------------------- */
@@ -821,6 +838,50 @@
 }
 .t-card-title { font-weight: 600; font-size: 15px; }
 .t-card-body  { padding: var(--s4); }
+
+/* P5-Re-Fix-3 (2026-08-25): Hero-CTA-Block „K.-o.-Phase starten".
+   Eigene Card unten unter den Gruppentabellen — visuell vom Rest
+   abgesetzt, damit klar ist: das hier ist der nächste Schritt.
+   Akzent-Border links + weicher Akzent-Hintergrund hebt den Block
+   aus der Standard-Standings-Optik heraus. */
+.t-fill-ko-card {
+  margin-top: var(--s4);
+  border-left: 4px solid var(--accent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%,
+    var(--surface) 60%
+  );
+}
+.t-fill-ko-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s4) var(--s4);
+}
+.t-fill-ko-card-body > p {
+  margin: 0;
+}
+.t-fill-ko-note {
+  font-size: 13px;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+.t-fill-ko-btn {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, transparent),
+              0 2px 6px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.t-fill-ko-btn:hover {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 70%, transparent),
+              0 4px 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: translateY(-1px);
+}
+.t-fill-ko-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 
 /* ----------------------------------------------------------------
    TOOLBAR + FILTER-CHIPS
