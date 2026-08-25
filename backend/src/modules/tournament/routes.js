@@ -2995,8 +2995,14 @@ async function fillKoFromQualifiers(tx, ctx) {
 
   // Gruppen-Modell heißt Group_ (Tabellen-Name groups_, weil Group mit
   // Prisma-Multi-Schema kollidiert) — Zugriff via prisma.group_.
+  // BUGFIX 2026-08-25: Group_ hat KEIN tournamentId (schema.prisma:176-188) —
+  // nur stageId plus die stage-Relation. Bei P3 wurde der Modellname korrigiert
+  // (group -> group_), die where-Klausel aber nicht; Prisma lehnte sie mit
+  // "Unknown argument `tournamentId`" ab, /fill-ko antwortete 500 und der
+  // Knopf "K.-o.-Phase starten" war tot. Die drei anderen group_-Queries
+  // (routes.js:766, :992, view.js:78) machen es seit jeher richtig.
   const groupsRaw = await tx.group_.findMany({
-    where: { tournamentId: tournament.id },
+    where: { stage: { tournamentId: tournament.id } },
     include: { memberships: { include: { team: true } } },
   });
   if (groupsRaw.length < 1) return { filled: false, reason: 'no_groups' };
