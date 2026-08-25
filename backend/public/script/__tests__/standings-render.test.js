@@ -119,12 +119,17 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     expect(html).toMatch(/class="t-standings-num is-points"\s+data-col="points">1</);
   });
 
-  it('Top-2 bekommen is-first / is-second Klassen für Qualifikations-Marker', () => {
+  it('A3: Zeilenklassen kommen aus qualifyPerGroup, nicht aus einer Annahme', () => {
+    // Default (kein Wert uebergeben) = 2, also das bisherige Verhalten:
+    // Platz 1+2 qualifiziert, Platz 2 traegt die Trennlinie, Platz 3
+    // ist der Anwaerter.
     const html = renderStandingsGroups(fixture, 'Becher');
-    expect(html).toContain('class="t-standings-row is-first"');
-    expect(html).toContain('class="t-standings-row is-second"');
+    expect(html).toContain('class="t-standings-row is-qualified"');
+    expect(html).toContain('class="t-standings-row is-qualified is-cutoff"');
     // Gamma ist nicht qualifiziert:
-    expect(html).not.toContain('class="t-standings-row is-first"><td class="t-standings-rank" data-col="pl">3');
+    // Die alten Klassen darf es nicht mehr geben.
+    expect(html).not.toContain('is-first');
+    expect(html).not.toContain('is-second');
   });
 
   it('Score-Label wird in Spalte 7 (nicht 3) gerendert', () => {
@@ -267,5 +272,67 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
     // 20% von ~374 px = ~75 px → "12:10" (~50 px @ 12px-Font) passt.
     expect(html).toContain('12:10');
     expect(html).toContain('width:20%');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// A3 — Qualifikationszustaende (Redesign Teil 1, 2026-08-25)
+//
+// Der Defekt, gegen den diese Tests schuetzen: der Renderer vergab
+// `is-first`/`is-second` nach Position und kodierte damit die Annahme
+// "immer genau zwei steigen auf". Bei qualifyPerGroup 1 oder 3 war die
+// Einfaerbung schlicht falsch — sichtbar, aber von keinem Test bemerkt.
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderStandingsGroups — A3 Qualifikationszustaende', () => {
+  const g = (n) => ([{
+    groupKey: 'A', groupName: 'Gruppe A',
+    standings: Array.from({ length: n }, (_, i) => ({
+      teamId: 't' + i, name: 'Team ' + i,
+      played: 3, won: 3 - i, drawn: 0, lost: i,
+      goalsFor: 10 - i, goalsAgainst: i, goalDiff: 10 - 2 * i, points: 9 - 3 * i,
+    })),
+  }]);
+  const rowClasses = (html) =>
+    [...html.matchAll(/<tr class="t-standings-row([^"]*)"/g)].map((m) => m[1].trim());
+
+  it('qualifyPerGroup=1: nur Platz 1 qualifiziert, Platz 2 ist Anwaerter', () => {
+    expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 1)))
+      .toEqual(['is-qualified is-cutoff', 'is-pending', '', '']);
+  });
+
+  it('qualifyPerGroup=2: Plaetze 1+2 qualifiziert, Linie unter 2, Platz 3 Anwaerter', () => {
+    expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 2)))
+      .toEqual(['is-qualified', 'is-qualified is-cutoff', 'is-pending', '']);
+  });
+
+  it('qualifyPerGroup=3: drei qualifiziert, Linie unter 3', () => {
+    expect(rowClasses(renderStandingsGroups(g(5), 'Becher', 3)))
+      .toEqual(['is-qualified', 'is-qualified', 'is-qualified is-cutoff', 'is-pending', '']);
+  });
+
+  it('ohne Angabe faellt es auf 2 zurueck — bisheriges Verhalten bleibt', () => {
+    expect(rowClasses(renderStandingsGroups(g(3), 'Becher')))
+      .toEqual(rowClasses(renderStandingsGroups(g(3), 'Becher', 2)));
+  });
+
+  it('kaputte Konfiguration macht die Tabelle nicht unbrauchbar', () => {
+    // 0, negativ, null, Text -> Rueckfall auf 2 statt gar keiner Faerbung.
+    for (const bad of [0, -1, null, undefined, 'zwei', 2.5]) {
+      expect(rowClasses(renderStandingsGroups(g(3), 'Becher', bad)))
+        .toEqual(['is-qualified', 'is-qualified is-cutoff', 'is-pending']);
+    }
+  });
+
+  it('mehr Aufsteiger als Teams: alle qualifiziert, kein Anwaerter, keine Ausnahme', () => {
+    expect(rowClasses(renderStandingsGroups(g(2), 'Becher', 5)))
+      .toEqual(['is-qualified', 'is-qualified']);
+  });
+
+  it('A3: kein Haekchen, kein Stern, kein Pfeil im Markup', () => {
+    const html = renderStandingsGroups(g(4), 'Becher', 2);
+    expect(html).not.toContain('✓');
+    expect(html).not.toContain('★');
+    expect(html).not.toContain('→');
   });
 });

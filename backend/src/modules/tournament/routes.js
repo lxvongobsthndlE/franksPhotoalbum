@@ -2401,6 +2401,12 @@ export default async function tournamentRoutes(fastify) {
         sport,
         scoreLabel,
         scoreShort,
+        // A3 (2026-08-25): die Gruppentabelle faerbt die Aufstiegsplaetze.
+        // Vorher hat der Renderer "immer zwei" angenommen — bei
+        // qualifyPerGroup 1 oder 3 war die Einfaerbung damit schlicht
+        // falsch. Der Wert gehoert in die Antwort, nicht in eine Annahme
+        // im Frontend.
+        qualifyPerGroup: config.qualifyPerGroup,
         allGroupsFinished,
         bracketHasPlaceholders,
       };

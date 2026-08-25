@@ -634,17 +634,35 @@ export function detachTModResizeObserver() {
  * formt „Becher" als Doppelwert (erzielt:kassiert) — nicht als Score-
  * Label in Spalte 3.
  *
- * Top-2 bekommen `is-first` / `is-second`-Klassen für den Qualifikations-
- * Marker (CSS-Hook für den Haken in derselben Zelle wie die Rank-Zahl).
+ * A3 (Redesign Teil 1, 2026-08-25): die Zeilenklassen sagen jetzt, was
+ * gemeint ist, statt nur zu zaehlen. Vorher `is-first`/`is-second` — das
+ * kodierte die Annahme "immer genau zwei steigen auf" im Renderer und war
+ * bei `qualifyPerGroup: 1` oder `: 3` schlicht falsch eingefaerbt.
+ * Jetzt drei Zustaende, abgeleitet aus der Turnier-Konfiguration:
+ *   is-qualified  Platz <= qualifyPerGroup      (gruen hinterlegt)
+ *   is-cutoff     der LETZTE qualifizierte Platz (Trennlinie darunter)
+ *   is-pending    der erste Platz darunter       (bernstein hinterlegt)
+ * `is-cutoff` liegt zusaetzlich auf einer `is-qualified`-Zeile — die Linie
+ * markiert die Grenze, die Flaeche den Status. Zwei Signale, kein drittes:
+ * der Haken ist mit A3 entfallen (Plan: "Kein Stern, kein Pfeil, kein
+ * Haekchen — nur Hinterlegung und Trennlinie").
  *
  * Bug 14: <th> bekommen `is-rank` / `is-team` / `is-num`-Klassen, damit
  * Header-Zellen dieselbe Ausrichtung haben wie ihre <td>-Gegenstücke.
  *
  * @param {Array<{groupName?,groupKey?,standings:Array}>} groups
  * @param {string} scoreLabel   "Becher" | "Tore" | "Punkte" (sport-abhängig)
+ * @param {number} [qualifyPerGroup=2]  Wie viele pro Gruppe aufsteigen.
+ *   Default 2 ist der haeufigste Fall UND das bisherige Verhalten — ohne
+ *   den Wert faerbt die Tabelle also genau wie vorher, statt leer zu bleiben.
  * @returns {string} HTML
  */
-export function renderStandingsGroups(groups, scoreLabel) {
+export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
+  // Defensiv: kaputte/fehlende Konfiguration darf die Tabelle nicht
+  // unbrauchbar machen — im Zweifel faerben wir wie bisher zwei Plaetze.
+  const advance = Number.isInteger(qualifyPerGroup) && qualifyPerGroup > 0
+    ? qualifyPerGroup
+    : 2;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
   return groups
     .map((g) => {
@@ -653,9 +671,13 @@ export function renderStandingsGroups(groups, scoreLabel) {
           const gf = s.goalsFor ?? 0;
           const ga = s.goalsAgainst ?? 0;
           const gd = s.goalDiff ?? (gf - ga);
-          const isFirst = i === 0;
-          const isSecond = i === 1;
-          return `<tr class="t-standings-row${isFirst ? ' is-first' : ''}${isSecond ? ' is-second' : ''}">
+          const rank = i + 1;
+          const cls = [
+            rank <= advance ? 'is-qualified' : '',
+            rank === advance ? 'is-cutoff' : '',
+            rank === advance + 1 ? 'is-pending' : '',
+          ].filter(Boolean).join(' ');
+          return `<tr class="t-standings-row${cls ? ' ' + cls : ''}">
             <td class="t-standings-rank" data-col="pl">${i + 1}.</td>
             <td class="t-standings-team">${esc(s.name || s.teamId || '—')}</td>
             <td class="t-standings-num" data-col="played">${s.played ?? 0}</td>

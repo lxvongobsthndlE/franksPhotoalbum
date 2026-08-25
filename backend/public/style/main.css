@@ -6035,29 +6035,26 @@ button.tournament-header-btn {
     text-align: right;
   }
 }
-/* Qualifikations-Marker:
-   Bug 14: vorher gab es pro Reihe bis zu 3 Symbole (Stern/Pfeil + Zahl +
-   Häkchen-::after). Reduziert auf: Rank-Zahl + Häkchen daneben. Die
-   Zeilenfarbe (grün / orange / ausgegraut) trägt den Rest. */
-.t-standings-row.is-first { background: rgba(46, 125, 50, 0.06); }
-.t-standings-row.is-second { background: rgba(255, 152, 0, 0.05); }
-.t-standings-row.is-first .t-standings-rank::after,
-.t-standings-row.is-second .t-standings-rank::after {
-  content: " ✓";
-  margin-left: 4px;
-  font-weight: 700;
-}
-.t-standings-row.is-first .t-standings-rank::after { color: var(--good, #2e7d32); }
-/* 2026-08-25: der Fallback war #ff9800 -- ein drittes Orange, das mit dem
-   Bernstein des Modul-Sets nichts zu tun hatte. Seit --warn in
-   tournament.css definiert ist (hell #B58410, dunkel #D9A445) greift der
-   Fallback hier ohnehin nicht mehr, weil .t-standings-row nur innerhalb
-   von .t-mod vorkommt; er wird trotzdem nachgezogen, damit er nicht als
-   zweite Wahrheit stehenbleibt.
-   --good eine Zeile darueber bleibt bewusst unangetastet: --good/--bad
-   ist ein eigenes, in sich konsistentes Paar (positive/negative Zahl)
-   und braucht einen eigenen Entscheid, nicht diesen. */
-.t-standings-row.is-second .t-standings-rank::after { color: var(--warn, #B58410); }
+/* Qualifikations-Marker der GRUPPENTABELLE — mit A3 entfernt (2026-08-25).
+   Hier standen bis dahin:
+     .t-standings-row.is-first  { background: rgba(46,125,50,.06) }
+     .t-standings-row.is-second { background: rgba(255,152,0,.05) }
+     .t-standings-row.is-first/.is-second .t-standings-rank::after
+                                { content: " ✓" }
+   Der Redesign-Plan (Teil 1, A3) verlangt fuer die Gruppentabelle
+   ausdruecklich „kein Stern, kein Pfeil, kein Haekchen — nur
+   Hinterlegung und Trennlinie". Beide Signale liegen jetzt in
+   tournament.css auf `.t-standings-row.is-qualified/.is-pending/.is-cutoff`,
+   also dort, wo auch die uebrige Modul-Palette steht.
+
+   Die Klassen `is-first`/`is-second` erzeugt der Renderer nicht mehr —
+   sie kodierten „immer genau zwei steigen auf" und waren bei
+   qualifyPerGroup 1 oder 3 falsch. Wer sie hier wieder einfuehrt, baut
+   diese Annahme zurueck.
+
+   Der Haken der DRITTEN-Tabelle bleibt (naechster Block): dort ist er
+   kein Rang-Marker, sondern sagt, wer von den Drittplatzierten die
+   Top-N-Huerde genommen hat — eine andere Aussage, eigene Pruefliste. */
 /* Dritte-Wertung: der Haken wanderte aus einer eigenen <td class="t-thirds-mark">
    in die Rank-Zelle, damit die Tabelle dieselbe Spalten-Aufteilung
    wie die Gruppen-Tabelle hat (Bug 14: konsistente Spaltenanzahl). */

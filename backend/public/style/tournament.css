@@ -1403,12 +1403,37 @@
   margin-bottom: var(--s3);
 }
 
-/* Standings-Tabellen (Etappe B.3 — Gruppen-View) */
+/* ----------------------------------------------------------------
+   GRUPPENTABELLE — A3 (Redesign Teil 1, umgesetzt 2026-08-25)
+   ----------------------------------------------------------------
+   Drei Aenderungen gegenueber Etappe B.3:
+
+   1. AUSRICHTUNG. Vorher war alles linksbuendig — Zahlen standen links
+      unter einer linksbuendigen Ueberschrift. Das sieht ausgerichtet aus,
+      ist es aber nicht, sobald die Zahlen unterschiedlich lang sind.
+      Jetzt: Text links, Zahlen rechts, Ueberschrift wie Wert.
+   2. SYMBOLE. Vorher markierten Stern, Platznummer und Haken dasselbe.
+      Jetzt genau ZWEI Signale: hinterlegte Flaeche (Status) und
+      Trennlinie (Grenze). Der Haken ist mit A3 entfallen — die Regel
+      dafuer stand in main.css und ist dort geloescht.
+   3. ZUSTAENDE STATT ZAEHLUNG. `is-first`/`is-second` kodierten die
+      Annahme "immer genau zwei steigen auf". Jetzt `is-qualified`,
+      `is-cutoff`, `is-pending`, abgeleitet aus `qualifyPerGroup`
+      (siehe renderStandingsGroups).
+
+   ARBEITSTEILUNG MIT main.css — bitte vor dem naechsten Eingriff lesen:
+   diese Komponente ist in BEIDEN Stylesheets definiert. main.css haelt
+   die Layout-Maschinerie (table-layout, Colgroup-Hooks, die
+   Mobile-Regeln unter `.t-mod .t-standings-table`), hier steht die
+   Modul-Palette. tournament.css laedt SPAETER und gewinnt bei gleicher
+   Spezifitaet — die Mobile-Regeln in main.css tragen deshalb bewusst
+   ein `.t-mod ` davor. Wer hier eine Eigenschaft ergaenzt, die main.css
+   bedingt setzt, macht sie dort still wirkungslos. */
 .t-standings-group-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--ink-soft);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   margin: 0 0 var(--s3);
 }
@@ -1417,28 +1442,71 @@
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
+  table-layout: fixed;
 }
 .t-standings-table th,
 .t-standings-table td {
-  padding: 8px 10px;
-  text-align: left;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--line);
 }
 .t-standings-table th {
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--ink-soft);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding-bottom: 6px;
 }
-.t-standings-rank { width: 28px; color: var(--ink-soft); }
-.t-standings-team { font-weight: 500; color: var(--ink); }
-.t-standings-row.is-first td { background: var(--surface-alt); font-weight: 600; }
-/* User-Punkt 1 (2026-08-25): Stern/Pfeil-Symbole entfernt — die
-   hinterlegte Zeile (is-first) und die Trennlinie (border-top auf
-   is-second) signalisieren die Qualifikation bereits, ein drittes
-   Signal war Redundanz. Außerdem sprengte "★ " die 28-px-Rank-Spalte
-   (Pl war für "1." bemessen, zwei Zeichen passen nicht). */
+
+/* Ausrichtung: Text links, Zahlen rechts — Ueberschrift wie Wert. */
+.t-standings-table th.is-rank,
+.t-standings-table th.is-team,
+.t-standings-rank,
+.t-standings-team { text-align: left; }
+.t-standings-table th.is-num,
+.t-standings-num { text-align: right; }
+
+.t-standings-rank { color: var(--ink-soft); font-size: 12px; }
+.t-standings-team {
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-standings-num.is-points { font-weight: 700; color: var(--ink); }
+
+/* Qualifikation — genau zwei Signale: Hinterlegung und Trennlinie.
+   Kein Stern, kein Pfeil, kein Haekchen.
+
+   Die Flaechen sind bewusst als rgba() gesetzt, nicht als Token: sie
+   liegen UEBER der Zeilenfarbe und muessen durchscheinen. --qualified
+   und --open als deckende Fuellung wuerden den Text erschlagen.
+
+   DIE TRENNLINIE IST NICHT DEKORATION — nachgemessen 2026-08-25
+   (Alpha-Komposition, dieselbe Rechnung, die der Browser macht):
+
+     hell    normal (255,255,255)
+             is-qualified -> (243,246,242)   1.089:1 zum Normalgrund
+             is-pending   -> (251,247,240)   1.068:1
+     dunkel  normal (35,32,27)
+             is-qualified -> (38,38,30)      1.065:1
+             is-pending   -> (46,39,28)      1.100:1
+
+   Beide Modi sind gleich stark — die Sorge, 7 % Deckkraft koennten auf
+   dunklem Grund verschwinden, hat die Messung widerlegt. Der kritische
+   Wert ist ein anderer: gruen gegen bernstein unterscheiden sich nur um
+   1.020:1 (hell) bzw. 1.032:1 (dunkel). Die beiden Zustaende trennt also
+   praktisch NUR der Farbton — bei Rot-Gruen-Schwaeche sind sie nicht
+   auseinanderzuhalten.
+
+   Genau deshalb traegt `is-cutoff` eine LINIE: sie sagt ueber die Form,
+   wo die Qualifikationsgrenze liegt, und funktioniert ohne Farbe. Wer
+   die Linie fuer redundant haelt und entfernt, weil "die Farben reichen
+   doch", nimmt der Tabelle ihr einziges farbunabhaengiges Signal. */
+.t-standings-row.is-qualified td { background: rgba(79, 122, 74, 0.07); }
+.t-standings-row.is-pending   td { background: rgba(192, 138, 46, 0.07); }
+.t-standings-row.is-cutoff    td { border-bottom: 2px solid var(--qualified); }
 
 /* ----------------------------------------------------------------
    SCREEN A — TURNIERLISTE (§13.2)
@@ -4594,15 +4662,17 @@ textarea.t-input {
   .t-thirds-table th {
     border-bottom: 1px solid #000;
   }
-  /* Der Zeilenhintergrund fuer Platz 1/2 steht an ZWEI Stellen: als
-     Zeilenfarbe in main.css und noch einmal auf der Zelle in
-     tournament.css (.t-standings-row.is-first td, 0,2,1). Wer nur die
-     Zeile neutralisiert, bekommt auf Papier trotzdem ein graues Band —
-     im ersten Druck-Screenshot genau so passiert. */
-  .t-standings-row.is-first,
-  .t-standings-row.is-second,
-  .t-standings-row.is-first td,
-  .t-standings-row.is-second td,
+  /* Der Zeilenhintergrund steht auf der ZELLE, nicht auf der Zeile —
+     wer nur `tr` neutralisiert, bekommt auf Papier trotzdem ein graues
+     Band (im ersten Druck-Screenshot genau so passiert). Deshalb `td`.
+     Klassennamen mit A3 nachgezogen (2026-08-25): aus is-first/is-second
+     wurden is-qualified/is-pending/is-cutoff. Die Trennlinie von
+     is-cutoff bleibt bewusst stehen — sie ist eine Linie, kein
+     Farbband, und traegt auf Papier die Qualifikationsgrenze. */
+  .t-standings-row.is-qualified,
+  .t-standings-row.is-pending,
+  .t-standings-row.is-qualified td,
+  .t-standings-row.is-pending td,
   .t-thirds-row.is-qualified {
     background: none !important;
   }

@@ -3852,7 +3852,7 @@ async function loadStandingsTab(tournamentId) {
       return;
     }
 
-    const groupsHtml = renderStandingsGroups(groups, scoreLabel);
+    const groupsHtml = renderStandingsGroups(groups, scoreLabel, data.qualifyPerGroup);
     // Beste Dritte (Spec §6.3.1, §13.7). Wird nur gerendert, wenn das
     // Turnier überhaupt welche zulässt (config.bestThirds > 0). Die
     // Render-Funktion gibt einen leeren String zurück, wenn nichts da
@@ -3901,7 +3901,10 @@ async function loadStandingsTab(tournamentId) {
         && tournament?.mode === 'groups_ko'
         && allGroupsFinished
         && bracketHasPlaceholders
-      ) ? { tournament } : null
+      ) ? { tournament } : null,
+      // A3: dieselbe Qualifikationszahl wie beim Erst-Render, sonst
+      // wechselt die Einfaerbung beim Crossen der 600-px-Grenze.
+      data.qualifyPerGroup
     ));
   } catch (e) {
     if (activeTournamentInstance?.id !== tournamentId) return;
@@ -3927,7 +3930,7 @@ async function loadStandingsTab(tournamentId) {
  * Bedingungen (isAdmin, mode, Flags) bleiben über Resize identisch —
  * kein Re-Fetch nötig.
  */
-function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillKoButtonArgs) {
+function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillKoButtonArgs, qualifyPerGroup) {
   const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
   if (!mount) return;
   if (!groups) return; // kein Vorlauf → still ignorieren
@@ -3936,7 +3939,7 @@ function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillK
   // Steht der Nutzer inzwischen in einem anderen Turnier, wuerden hier
   // die Tabellen des alten in dessen Mount gemalt.
   if (activeTournamentInstance?.id !== tournamentId) return;
-  const groupsHtml = renderStandingsGroups(groups, scoreLabel);
+  const groupsHtml = renderStandingsGroups(groups, scoreLabel, qualifyPerGroup);
   const bestThirdsHtml = renderBestThirdsTable(bestThirds);
   mount.innerHTML = groupsHtml + bestThirdsHtml;
   if (fillKoButtonArgs) {
