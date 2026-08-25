@@ -5,6 +5,8 @@
   logout,
   apiCall,
   fetchWithAuth,
+  onSessionExpired,
+  forceReauth,
 } from './auth-oidc.js';
 import {
   renderWizardView,
@@ -662,6 +664,150 @@ function toast(msg, type = 'info') {
   setTimeout(() => t.remove(), 3600);
 }
 
+// ── SITZUNGSENDE: EINGABEN UEBERLEBEN ───────────────────
+// Punkt 4.2 der Uebergabe. Der Kern ist NICHT die Meldung, sondern
+// dass die eingetippten Werte bleiben. Sie ueberleben jetzt auf zwei
+// Wegen, und beide werden gebraucht:
+//
+//   1. Der Dialog bleibt STEHEN. auth-oidc.js leitet beim
+//      gescheiterten Refresh nicht mehr selbst um; das 3:2 steht
+//      also weiter in den Feldern, und nach dem Anmelden in einem
+//      zweiten Tab reicht ein erneutes „Speichern".
+//   2. Wer sich neu anmeldet, verlaesst die Seite — dann traegt
+//      der sessionStorage die Werte durch den Authentik-Umweg.
+//      sessionStorage lebt pro Tab und ueberdauert die
+//      Weiterleitung; genau so kommt auch der accessToken zurueck.
+const PENDING_RESULT_KEY = 'tournament:pendingResultInput';
+// Zwei Stunden: laenger als jede Anmelde-Schleife, kuerzer als ein
+// Turniertag. Ein Entwurf von heute Vormittag darf nicht in das
+// Spiel von heute Nachmittag rutschen.
+const PENDING_RESULT_MAX_ALTER_MS = 2 * 60 * 60 * 1000;
+
+function safeSessionStorage() {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch (e) {
+    return null; // Privater Modus / blockierte Speicherung
+  }
+}
+
+/**
+ * Sichert die Eingaben des offenen Ergebnis-Dialogs.
+ * @returns {boolean} true, wenn wirklich etwas zu sichern war
+ */
+function stashPendingResultInput() {
+  const store = safeSessionStorage();
+  const dlg = document.getElementById('result-entry-modal');
+  if (!store || !dlg) return false;
+  const scoreHome = dlg.querySelector('#re-home')?.value ?? '';
+  const scoreAway = dlg.querySelector('#re-away')?.value ?? '';
+  if (scoreHome === '' && scoreAway === '') return false; // nichts getippt
+  const eintrag = {
+    tournamentId: dlg.dataset.tournamentId || '',
+    matchId: dlg.querySelector('#re-match-id')?.value || '',
+    scoreHome,
+    scoreAway,
+    at: Date.now(),
+  };
+  try {
+    store.setItem(PENDING_RESULT_KEY, JSON.stringify(eintrag));
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[pendingResult] Sichern fehlgeschlagen', e);
+    return false;
+  }
+}
+
+function readPendingResultInput() {
+  const store = safeSessionStorage();
+  if (!store) return null;
+  try {
+    const roh = store.getItem(PENDING_RESULT_KEY);
+    if (!roh) return null;
+    const eintrag = JSON.parse(roh);
+    if (!eintrag || typeof eintrag !== 'object') return null;
+    if (!Number.isFinite(eintrag.at) || Date.now() - eintrag.at > PENDING_RESULT_MAX_ALTER_MS) {
+      store.removeItem(PENDING_RESULT_KEY);
+      return null;
+    }
+    return eintrag;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearPendingResultInput() {
+  const store = safeSessionStorage();
+  if (!store) return;
+  try {
+    store.removeItem(PENDING_RESULT_KEY);
+  } catch (e) {
+    /* nichts zu tun */
+  }
+}
+
+/**
+ * Holt gesicherte Eingaben in einen frisch geoeffneten
+ * Ergebnis-Dialog zurueck. Vorsichtig: nur ins richtige Turnier, nur
+ * wenn das Spiel dort ueberhaupt noch waehlbar ist.
+ *
+ * @returns {boolean} true, wenn etwas zurueckgeholt wurde
+ */
+function restorePendingResultInput(dlg, tournamentId) {
+  if (!dlg) return false;
+  const eintrag = readPendingResultInput();
+  if (!eintrag) return false;
+  if (eintrag.tournamentId && eintrag.tournamentId !== tournamentId) return false;
+  const matchEl = dlg.querySelector('#re-match-id');
+  if (eintrag.matchId && matchEl) {
+    if (matchEl.tagName === 'SELECT') {
+      const gibtEs = Array.from(matchEl.options).some((o) => o.value === eintrag.matchId);
+      // Das Spiel ist inzwischen gespielt oder weg — dann gehoert der
+      // Entwurf nicht mehr hierher.
+      if (!gibtEs) return false;
+      matchEl.value = eintrag.matchId;
+      matchEl.dispatchEvent(new Event('change'));
+    } else if (matchEl.value && matchEl.value !== eintrag.matchId) {
+      return false; // anderes Spiel vorgegeben
+    }
+  }
+  const homeEl = dlg.querySelector('#re-home');
+  const awayEl = dlg.querySelector('#re-away');
+  if (homeEl && eintrag.scoreHome !== '') homeEl.value = eintrag.scoreHome;
+  if (awayEl && eintrag.scoreAway !== '') awayEl.value = eintrag.scoreAway;
+  clearPendingResultInput();
+  toast('Deine zuletzt eingetippten Werte sind wieder da — bitte pruefen und speichern.', 'info');
+  return true;
+}
+
+/**
+ * Meldung beim Sitzungsende. Leitet NICHT von selbst um — genau das
+ * war der Schaden: die Weiterleitung nahm die Eingabe mit, bevor
+ * jemand sie lesen konnte.
+ */
+let sessionExpiredDialogOffen = false;
+async function handleSessionExpired() {
+  if (sessionExpiredDialogOffen) return;
+  sessionExpiredDialogOffen = true;
+  const gesichert = stashPendingResultInput();
+  try {
+    const text = gesichert
+      ? 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Deine eingetippten Werte sind gesichert: sie stehen weiter im Dialog und kommen nach dem Anmelden von selbst zurueck.'
+      : 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Was du bereits gespeichert hast, ist sicher. Melde dich neu an, um weiterzuarbeiten.';
+    const ok = await showConfirmDlg(
+      'Anmeldung abgelaufen',
+      text,
+      'Neu anmelden',
+      'Spaeter',
+      false,
+    );
+    if (ok) await forceReauth();
+  } finally {
+    sessionExpiredDialogOffen = false;
+  }
+}
+
 // ── BOOT ─────────────────────────────────────────────────
 // Issue 2: Beim Tab-Schließen das Wizard-Flag zurücksetzen.
 // pagehide feuert zuverlässiger als beforeunload (auch bei Back/Forward
@@ -669,6 +815,13 @@ function toast(msg, type = 'info') {
 // absetzen — das Flag selbst ist die kritische Information.
 window.addEventListener('pagehide', () => {
   wizardMounted = null;
+});
+
+// Sitzungsende: einmal je Seitenleben anmelden. Der Horcher steht
+// vor allem anderen, damit auch ein Ablauf waehrend des Startens
+// gemeldet wird statt still zu verpuffen.
+onSessionExpired(() => {
+  handleSessionExpired();
 });
 
 window.addEventListener('load', async () => {
@@ -2370,8 +2523,20 @@ async function loadTournamentInstances(reset = false) {
       visibleInstances.length === 1
       && curTournamentView === 'instances'
     ) {
-      await openTournamentInstance(visibleInstances[0].id);
-      return;
+      // Betriebsfestigkeit (2026-08-25): Der Auto-Sprung bekommt sein
+      // EIGENES try. Vorher lag er im try des Listen-Ladens — hakte nur
+      // der Sprung, legte der Listen-catch „Turniere konnten nicht
+      // geladen werden" über eine Liste, die vollständig geladen war.
+      // Jetzt: Liste zeigen statt Fehlerbild.
+      try {
+        await openTournamentInstance(visibleInstances[0].id);
+        return;
+      } catch (jumpErr) {
+        // eslint-disable-next-line no-console
+        console.warn('[loadTournamentInstances] Auto-Sprung fehlgeschlagen', jumpErr);
+        renderTournamentInstancesPage();
+        return;
+      }
     }
 
     renderTournamentInstancesPage();
@@ -2656,6 +2821,162 @@ function placeholder(label, hintEtappe) {
       </div>`;
 }
 
+/**
+ * Doppelklick-Sperre fuer einen Aktionsknopf (Betriebsfestigkeit A2,
+ * 2026-08-25).
+ *
+ * Fehlerklasse: elf mutierende Aktionen im Turniermodul hatten keine
+ * Sperre. Am teuersten `randomize-groups` → POST
+ * /balance-shuffle-groups: der Server wuerfelt bei JEDEM Aufruf neu
+ * und kennt keinen Vorzustand. Wer zweimal tippt — am Handy, an der
+ * Platte, mit einer Hand — sieht die erste Auslosung aufblitzen und
+ * behaelt eine andere.
+ *
+ * Machart uebernommen von den drei Stellen, die es schon richtig
+ * machten (Ergebnis-Speichern, Paar-Tausch, Fill-KO): Knopf vor dem
+ * `await` sperren, im Fehlerfall wieder freigeben. Hier ist das
+ * einmal aufgeschrieben statt elfmal abgetippt — bewusst KEINE zweite
+ * Machart.
+ *
+ * Zwei Entscheidungen, die nicht beliebig sind:
+ *
+ *   `dataset.busy` statt einer Closure-Variablen, damit die Sperre bei
+ *   delegierten Klicks (ein Listener, viele Knoepfe) am getroffenen
+ *   Element haengt und nicht am Listener.
+ *
+ *   Der vorherige `disabled`-Zustand wird gemerkt und wiederher-
+ *   gestellt: einen Knopf, den der Renderer aus Lock-Gruenden
+ *   deaktiviert hat, darf die Sperre nicht versehentlich freischalten.
+ *
+ * @param {HTMLElement|null} btn
+ * @param {() => any} handler
+ */
+async function runGuardedAction(btn, handler) {
+  if (!btn) return handler();
+  if (btn.dataset && btn.dataset.busy === '1') return undefined;
+  const wasDisabled = btn.disabled === true;
+  if (btn.dataset) btn.dataset.busy = '1';
+  btn.disabled = true;
+  if (typeof btn.setAttribute === 'function') btn.setAttribute('aria-busy', 'true');
+  try {
+    return await handler();
+  } finally {
+    if (btn.dataset) delete btn.dataset.busy;
+    btn.disabled = wasDisabled;
+    if (typeof btn.removeAttribute === 'function') btn.removeAttribute('aria-busy');
+  }
+}
+
+/**
+ * Klick-Listener mit Doppelklick-Sperre. Ersetzt
+ * `btn.addEventListener('click', ...)` ueberall dort, wo der Handler
+ * eine Mutation ausloest.
+ */
+function wireGuardedClick(btn, handler) {
+  if (!btn) return;
+  btn.addEventListener('click', (event) => {
+    runGuardedAction(btn, () => handler(event)).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[wireGuardedClick] Handler hat geworfen', err);
+    });
+  });
+}
+
+/**
+ * Lazy-Ladung eines Tab-Mounts mit ehrlichem Fehlerzustand
+ * (Betriebsfestigkeit A5, 2026-08-25).
+ *
+ * Vorher stand `mount.dataset.loaded = '1'` VOR dem `await`. Schlug
+ * das Laden fehl, blieb die Markierung stehen: Wegklicken und
+ * Zurueckklicken luden nicht mehr nach — der Tab war fuer den Rest
+ * der Sitzung kaputt, und einen Weg zurueck gab es nicht. Die
+ * Listenseite bietet in derselben Lage seit jeher „Erneut versuchen".
+ *
+ * Jetzt drei Zustaende statt zwei:
+ *
+ *   'pending'  laeuft gerade — blockt eine zweite Ladung
+ *   '1'        geladen — Tab-Wechsel holt nicht neu
+ *   (fehlt)    fehlgeschlagen — der naechste Tab-Klick versucht es
+ *              von selbst erneut, und im Mount steht ein Knopf
+ *
+ * @param {HTMLElement|null} mount
+ * @param {string} label   Klartext fuer das Fehlerbild
+ * @param {() => Promise<any>} loader
+ */
+function startTabLoad(mount, label, loader) {
+  if (!mount || typeof loader !== 'function') return;
+  if (mount.dataset.loaded) return;
+  mount.dataset.loaded = 'pending';
+  Promise.resolve()
+    .then(() => loader())
+    .then(() => {
+      mount.dataset.loaded = '1';
+    })
+    .catch((err) => {
+      // Markierung WEG, nicht auf '1' — sonst bleibt der Tab kaputt.
+      delete mount.dataset.loaded;
+      // eslint-disable-next-line no-console
+      console.warn('[tab] Laden fehlgeschlagen: ' + label, err);
+      renderTabLoadError(mount, label, () => startTabLoad(mount, label, loader));
+    });
+}
+
+/**
+ * Fehlerbild eines Tab-Mounts mit „Erneut versuchen" — dasselbe
+ * Angebot, das die Listenseite macht (dort
+ * `loadTournamentInstances(true)`). Ohne den Knopf bleibt dem Nutzer
+ * nur ein Seiten-Neuladen, und das kostet am Turniertag den
+ * Scrollstand und den offenen Tab.
+ */
+function renderTabLoadError(mount, label, wieder, detail) {
+  if (!mount) return;
+  const detailZeile = detail
+    ? `<p class="t-hint t-hint--error">${esc(String(detail))}</p>`
+    : '';
+  mount.innerHTML = `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p class="t-hint">${esc(label)} konnte nicht geladen werden.</p>${detailZeile}
+          <button type="button" class="t-btn t-btn--primary" data-action="retry-tab-load">Erneut versuchen</button>
+        </div>
+      </div>`;
+  const btn = mount.querySelector('[data-action="retry-tab-load"]');
+  if (btn && typeof wieder === 'function') {
+    btn.addEventListener('click', () => {
+      wieder();
+    });
+  }
+}
+
+/**
+ * Drucken-Tab (Auftrag C, 2026-08-25).
+ *
+ * Ersetzt den frueheren Etappe-B.6-Platzhalter. Das Drucklayout
+ * selbst kommt aus dem @media-print-Stylesheet einer Parallel-Spur —
+ * hier steht nur, WAS auf das Papier geht, und der Ausloeser.
+ *
+ * Der Knopf traegt dasselbe data-action wie die beiden Knoepfe in der
+ * Kopfzeile; der Handler dafuer haengt bereits am Detail-Container
+ * (querySelectorAll ueber alle Treffer, Klick ruft window.print()) und
+ * greift diesen Knopf mit, weil er im selben innerHTML steckt. Kein
+ * zweiter Listener, kein zweiter Weg.
+ *
+ * Die Aktion steht in SAFE_DATA_ACTIONS — Mitglieder duerfen drucken.
+ */
+function renderDruckenView() {
+  return `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p>Gedruckt wird das Turnier, wie es gerade steht: der Spielplan mit Uhrzeit,
+          Platte und eingetragenen Ergebnissen, die Gruppentabellen und der K.-o.-Baum.</p>
+          <p class="t-hint">Bedienelemente, Seitenleiste und Navigation kommen nicht mit aufs
+          Papier. Fuer den Aushang an der Platte reicht eine Seite Spielplan; der Baum wird
+          im Querformat lesbarer.</p>
+          <button type="button" class="t-btn t-btn--primary" data-action="print">Jetzt drucken</button>
+        </div>
+      </div>`;
+}
+
 function handleTournamentTabSideEffects(view, t, detail) {
   if (!detail) return;
   // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
@@ -2666,10 +2987,15 @@ function handleTournamentTabSideEffects(view, t, detail) {
     if (mount) {
       mount.innerHTML = '';
       if (t?.id && typeof loadEinstellungenTab === 'function') {
-        loadEinstellungenTab(t, mount).catch(() => {
-          if (typeof placeholder === 'function') {
-            mount.innerHTML = placeholder('Einstellungen konnten nicht geladen werden.', '');
-          }
+        // loadEinstellungenTab faengt selbst und zeigt sein Fehlerbild
+        // mit „Erneut versuchen". Der catch hier ist nur die Rueckfall-
+        // ebene, falls schon der Aufruf selbst wirft.
+        loadEinstellungenTab(t, mount).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn('[tab:einstellungen] Laden fehlgeschlagen', err);
+          renderTabLoadError(mount, 'Die Einstellungen', () => {
+            handleTournamentTabSideEffects('einstellungen', t, detail);
+          }, err && err.message ? err.message : null);
         });
       }
       return;
@@ -2688,30 +3014,16 @@ function handleTournamentTabSideEffects(view, t, detail) {
   // also wird der Loader erneut getriggert.
   if (view === 'teams') {
     const mount = detail.querySelector('[data-tab-body="teams-mount"]');
-    if (mount && !mount.dataset.loaded) {
-      mount.dataset.loaded = '1';
-      if (t?.id && typeof loadTeamsTab === 'function') {
-        loadTeamsTab(t).catch(() => {
-          if (typeof placeholder === 'function') {
-            mount.innerHTML = placeholder('Teams konnten nicht geladen werden.', '');
-          }
-        });
-      }
+    if (t?.id && typeof loadTeamsTab === 'function') {
+      startTabLoad(mount, 'Die Teamliste', () => loadTeamsTab(t));
     }
     return;
   }
   // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
   if (view === 'gruppen') {
     const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
-    if (mount && !mount.dataset.loaded) {
-      mount.dataset.loaded = '1';
-      if (t?.id && typeof loadStandingsTab === 'function') {
-        loadStandingsTab(t.id).catch(() => {
-          if (typeof placeholder === 'function') {
-            mount.innerHTML = placeholder('Die Gruppen-Tabellen', 'Der alte Renderer passt nicht ins neue Layout. Kommt mit Etappe B.3.');
-          }
-        });
-      }
+    if (t?.id && typeof loadStandingsTab === 'function') {
+      startTabLoad(mount, 'Die Gruppen-Tabellen', () => loadStandingsTab(t.id));
     }
     return;
   }
@@ -2719,11 +3031,8 @@ function handleTournamentTabSideEffects(view, t, detail) {
   // nur über expliziten Reload.
   if (view === 'baum') {
     const mount = detail.querySelector('[data-tab-body="baum-mount"]');
-    if (mount && !mount.dataset.loaded) {
-      mount.dataset.loaded = '1';
-      if (t?.id && typeof loadBracketTab === 'function') {
-        loadBracketTab(t.id).catch(() => {});
-      }
+    if (t?.id && typeof loadBracketTab === 'function') {
+      startTabLoad(mount, 'Der Turnierbaum', () => loadBracketTab(t.id));
     }
     return;
   }
@@ -2800,6 +3109,43 @@ async function openTournamentInstance(instanceId) {
     throw e; // Issue 6: navigateToGeneratedInstance fängt diesen Throw
     // und fällt auf die Liste zurück. Vorher schluckte openTournamentInstance
     // den Fehler → Wizard-Teardown lief nie → "Wizard bleibt offen".
+  }
+}
+
+/**
+ * Nachladen der Detail-Ansicht NACH einer geglueckten Mutation.
+ *
+ * Betriebsfestigkeit (2026-08-25). `openTournamentInstance` wirft
+ * absichtlich weiter — der Wizard-Teardown haengt an diesem Throw.
+ * Vorher rief jeder Mutations-Handler sie INNERHALB seines eigenen
+ * `try`. Hakte nur das Nachladen, sprang der Mutations-`catch` an und
+ * der Nutzer sah nacheinander
+ *
+ *     „Ergebnis gespeichert (3:2)"   und   „konnte nicht gespeichert werden"
+ *
+ * Er trug es daraufhin erneut ein. Beim Ergebnis-Speichern ist das
+ * besonders teuer: ein zweiter Save mit anderem Score ueberschreibt den
+ * ersten kommentarlos.
+ *
+ * Regel ab jetzt: Die Mutation meldet den MUTATIONS-Ausgang. Ein
+ * hakendes Nachladen ist ein ANSICHTS-Problem und meldet sich als
+ * solches — nie als Fehlschlag der Mutation. Der Aufruf steht deshalb
+ * hinter dem `try`/`catch` der Mutation, und diese Funktion wirft
+ * zusaetzlich nicht: wer sie versehentlich doch in einem `try` aufruft,
+ * kann den Mutations-`catch` trotzdem nicht mehr ausloesen.
+ *
+ * @param {string} tournamentId
+ * @returns {Promise<boolean>} true = Ansicht ist auf dem neuen Stand
+ */
+async function refreshTournamentAfterMutation(tournamentId) {
+  try {
+    await openTournamentInstance(tournamentId);
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[refreshTournamentAfterMutation] Nachladen fehlgeschlagen', e);
+    toast('Gespeichert. Die Ansicht konnte nicht aktualisiert werden — bitte die Seite neu laden.', 'info');
+    return false;
   }
 }
 
@@ -2980,7 +3326,7 @@ function renderTournamentInstanceDetailV3(t) {
             </section>
             <section class="t-view" data-view="drucken">
               <div class="t-view-head"><div class="t-view-title">Drucken</div></div>
-              ${placeholder('Die Druckansicht', 'Kommt in Etappe B.6.')}
+              ${renderDruckenView()}
             </section>
             ${renderEinstellungenSection({ isAdmin })}
           </main>
@@ -3117,18 +3463,6 @@ function renderTournamentInstanceDetailV3(t) {
         }
       });
     }
-    detail.querySelector('[data-action="reschedule"]')?.addEventListener('click', () => {
-      rescheduleTournament(t.id, t.name).then((ok) => {
-        if (ok) {
-          // Renderer neu aufbauen — die Route liefert ein vollständiges
-          // DTO, aber der einfachste Weg ist: Detail-View mit der neuen
-          // View nochmal öffnen.
-          if (typeof openTournamentInstance === 'function') {
-            openTournamentInstance(t.id).catch(() => {});
-          }
-        }
-      });
-    });
     // Regeln-Tab Aktionen. Header-Button „Bearbeiten" ist statisch
     // gerendert (im Markup oben), Mount-Buttons „Speichern"/„Abbrechen"
     // werden dynamisch von renderRulesView gebaut → wir delegieren
@@ -3263,7 +3597,10 @@ function bindSpielplanInteractions(t) {
     }
     const saveEdit = e.target.closest('[data-action="save-schedule-edits"]');
     if (saveEdit && section.contains(saveEdit)) {
-      saveScheduleEdits(t, section);
+      // Delegierter Klick: die Sperre haengt am getroffenen Knopf,
+      // nicht am Listener — sonst wuerde ein zweiter Klick auf einen
+      // ANDEREN Knopf derselben Section mitgesperrt.
+      runGuardedAction(saveEdit, () => saveScheduleEdits(t, section));
       return;
     }
     const cancelEdit = e.target.closest('[data-action="cancel-schedule-edits"]');
@@ -3415,6 +3752,7 @@ async function saveScheduleEdits(t, section) {
     }
   });
 
+  let saved = false;
   try {
     if (updates.length > 0) {
       const out = window.spielplanHelpers?.serializeScheduleInput?.(updates, t.config?.schedule?.baseDate || null);
@@ -3437,7 +3775,7 @@ async function saveScheduleEdits(t, section) {
     }
     toast('Spielplan gespeichert', 'success');
     section.dataset.editMode = '0';
-    await openTournamentInstance(t.id);
+    saved = true;
   } catch (e) {
     if (e.status === 409 && /match_locked/.test(e.serverMessage || '')) {
       toast('Mindestens ein Match ist bereits beendet — Spielplan gesperrt', 'error');
@@ -3447,6 +3785,9 @@ async function saveScheduleEdits(t, section) {
       toast(e.serverMessage || 'Spielplan konnte nicht gespeichert werden', 'error');
     }
   }
+  if (saved) {
+    await refreshTournamentAfterMutation(t.id);
+  }
 }
 
 /**
@@ -3454,13 +3795,17 @@ async function saveScheduleEdits(t, section) {
  */
 async function togglePublishV3(tournamentId, makePublic) {
   if (!tournamentId) return;
+  let saved = false;
   try {
     const endpoint = makePublic ? 'publish' : 'unpublish';
     await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/${endpoint}`, 'POST');
     toast(makePublic ? 'Turnier veröffentlicht' : 'Öffentlich widerrufen', 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     toast(e.serverMessage || 'Aktion fehlgeschlagen', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
   }
 }
 
@@ -3487,6 +3832,12 @@ async function loadStandingsTab(tournamentId) {
   mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Tabellen…</p></div></div>';
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/standings`, 'GET');
+    // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
+    // Absenden und der Antwort kann der Nutzer laengst in einem anderen
+    // Turnier stehen — Turnier A oeffnen, schnell zu B wechseln, und die
+    // Tabelle von A landete im Mount von B. Der Guard steht
+    // an sechs weiteren Stellen im File woertlich so.
+    if (activeTournamentInstance?.id !== tournamentId) return;
     const groups = data.groups || [];
     const scoreLabel = data.scoreLabel || 'Punkte';
 
@@ -3553,8 +3904,14 @@ async function loadStandingsTab(tournamentId) {
       ) ? { tournament } : null
     ));
   } catch (e) {
+    if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
     toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
+    // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
+    // es den Tab als geladen und der „Erneut versuchen"-Knopf
+    // erscheint nie. Der Kartentext oben bleibt als Rueckfall fuer
+    // Direktaufrufe (die Funktion steht im Export-Block).
+    throw e;
   }
 }
 
@@ -3574,6 +3931,11 @@ function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillK
   const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
   if (!mount) return;
   if (!groups) return; // kein Vorlauf → still ignorieren
+  // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Der Observer feuert
+  // beim Crossen der 600-px-Grenze, also potenziell lange nach dem Laden.
+  // Steht der Nutzer inzwischen in einem anderen Turnier, wuerden hier
+  // die Tabellen des alten in dessen Mount gemalt.
+  if (activeTournamentInstance?.id !== tournamentId) return;
   const groupsHtml = renderStandingsGroups(groups, scoreLabel);
   const bestThirdsHtml = renderBestThirdsTable(bestThirds);
   mount.innerHTML = groupsHtml + bestThirdsHtml;
@@ -3601,6 +3963,12 @@ async function loadBracketTab(tournamentId) {
   mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Turnierbaum…</p></div></div>';
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/bracket`, 'GET');
+    // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
+    // Absenden und der Antwort kann der Nutzer laengst in einem anderen
+    // Turnier stehen — Turnier A oeffnen, schnell zu B wechseln, und die
+    // Baum    von A landete im Mount von B. Der Guard steht
+    // an sechs weiteren Stellen im File woertlich so.
+    if (activeTournamentInstance?.id !== tournamentId) return;
     const matches = Array.isArray(data && data.matches) ? data.matches : [];
     // P5-Re-Fix (2026-08-25): Die zwei neuen Flags aus dem /bracket-
     // Response (allGroupsFinished + bracketHasPlaceholders) ersetzen
@@ -3627,8 +3995,14 @@ async function loadBracketTab(tournamentId) {
     // natürliche Anker, weil sie direkt zeigen, was fertig ist.
     // Mitglieder sehen weiterhin keinen Button (isAdmin-Gate).
   } catch (e) {
+    if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
     toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
+    // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
+    // es den Tab als geladen und der „Erneut versuchen"-Knopf
+    // erscheint nie. Der Kartentext oben bleibt als Rueckfall fuer
+    // Direktaufrufe (die Funktion steht im Export-Block).
+    throw e;
   }
 }
 
@@ -3677,6 +4051,7 @@ function wireFillKoButton(mount, tournament) {
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     btn.textContent = 'Fülle K.-o.-Phase…';
+    let saved = false;
     try {
       const result = await apiCall(
         `/tournaments/${encodeURIComponent(tournament.id)}/fill-ko`,
@@ -3687,7 +4062,7 @@ function wireFillKoButton(mount, tournament) {
         ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
         : 'K.-o.-Phase gefüllt';
       toast(msg, 'success');
-      await openTournamentInstance(tournament.id);
+      saved = true;
     } catch (e) {
       const errorMsg = e?.status === 409 && /group_phase_not_complete/.test(e.message)
         ? 'Gruppenphase ist noch nicht abgeschlossen.'
@@ -3695,6 +4070,9 @@ function wireFillKoButton(mount, tournament) {
       toast(errorMsg, 'error');
       btn.disabled = false;
       btn.textContent = 'K.-o.-Phase starten';
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(tournament.id);
     }
   });
 }
@@ -3785,7 +4163,7 @@ function openBracketRefillConfirmDialog(tournamentId) {
             : 'K.-o.-Phase neu gesetzt';
           toast(msg, 'success');
           close();
-          return openTournamentInstance(tournamentId);
+          return refreshTournamentAfterMutation(tournamentId);
         })
         .catch((e2) => {
           toast(
@@ -3961,11 +4339,11 @@ async function loadEinstellungenTab(t, mount) {
     wireEinstellungen(mount, t, { finishedCount });
   } catch (err) {
     console.error('[loadEinstellungenTab] failed', err);
-    if (mount) {
-      mount.innerHTML = `<div class="t-card"><div class="t-card-body">
-        <p class="t-hint t-hint--error">Einstellungen konnten nicht aufgebaut werden: ${esc(err && err.message ? err.message : String(err))}</p>
-      </div></div>`;
-    }
+    // Fehlerbild mit „Erneut versuchen" statt einer Sackgasse — der
+    // Wiederholungsweg ist derselbe Aufruf mit demselben Mount.
+    renderTabLoadError(mount, 'Die Einstellungen', () => {
+      loadEinstellungenTab(t, mount);
+    }, err && err.message ? err.message : String(err));
   }
 }
 
@@ -3995,7 +4373,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Turnier starten — Etappe B.8.
   const startBtn = mount.querySelector('[data-action="start-tournament"]');
   if (startBtn && !startBtn.disabled) {
-    startBtn.addEventListener('click', async () => {
+    wireGuardedClick(startBtn, async () => {
       const ok = await openConfirmDialog({
         title: 'Turnier starten',
         message:
@@ -4013,7 +4391,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Zurück zu Entwurf — Etappe B.8 (Spielplan bleibt erhalten, D8).
   const revertBtn = mount.querySelector('[data-action="revert-to-draft"]');
   if (revertBtn) {
-    revertBtn.addEventListener('click', async () => {
+    wireGuardedClick(revertBtn, async () => {
       let typedName = null;
       if (finishedCount > 0) {
         const dlg = await openConfirmDialog({
@@ -4045,7 +4423,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Offene Spiele verschieben — Etappe B.8 (Turnier-Day-Use-Case).
   const shiftBtn = mount.querySelector('[data-action="shift-open"]');
   if (shiftBtn) {
-    shiftBtn.addEventListener('click', async () => {
+    wireGuardedClick(shiftBtn, async () => {
       await shiftOpenMatches(t.id, mount);
     });
   }
@@ -4053,15 +4431,15 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Spieldauer / Plattenzahl → Auto-Reschedule.
   const rescheduleAutoBtn = mount.querySelector('[data-action="reschedule-auto"]');
   if (rescheduleAutoBtn) {
-    rescheduleAutoBtn.addEventListener('click', async () => {
-      await rescheduleAuto(t.id, mount);
+    wireGuardedClick(rescheduleAutoBtn, async () => {
+      await rescheduleAuto(t.id, mount, t.name);
     });
   }
 
   // Turnier abschließen — simple Confirm ohne Namenseingabe.
   const finishBtn = mount.querySelector('[data-action="finish-tournament"]');
   if (finishBtn) {
-    finishBtn.addEventListener('click', async () => {
+    wireGuardedClick(finishBtn, async () => {
       const ok = await showConfirmDlg(
         'Turnier abschließen',
         `Turnier "${t.name}" wirklich abschließen? Statuswechsel ist reversibel — alle Ergebnisse bleiben erhalten.`,
@@ -4071,18 +4449,6 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       );
       if (!ok) return;
       await finishTournament(t.id);
-    });
-  }
-
-  // Zeitplan neu terminieren — existierender Flow (mit Confirm-Handshake wenn ≥1 finished).
-  // Hinweis: in der neuen UI hat dieser Knopf nur dann eine Wirkung, wenn der
-  // Renderer ihn noch rendert (Fallback). Hauptweg ist jetzt das Form mit
-  // Spieldauer/Platten + Auto-Reschedule.
-  const rescheduleBtn = mount.querySelector('[data-action="reschedule"]');
-  if (rescheduleBtn) {
-    rescheduleBtn.addEventListener('click', async () => {
-      const ok = await rescheduleTournament(t.id, t.name);
-      if (ok) await openTournamentInstance(t.id);
     });
   }
 
@@ -4100,7 +4466,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Neu auslosen (Seeding-Block) — Etappe B.8 Bug-Fix: fehlte im wireEinstellungen.
   const redrawSeedingBtn = mount.querySelector('[data-action="redraw-seeding"]');
   if (redrawSeedingBtn) {
-    redrawSeedingBtn.addEventListener('click', async () => {
+    wireGuardedClick(redrawSeedingBtn, async () => {
       if (finishedCount > 0) {
         toast('Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.', 'error');
         return;
@@ -4130,7 +4496,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Gruppengröße muss gleich bleiben").
   const randomBtn = mount.querySelector('[data-action="randomize-groups"]');
   if (randomBtn) {
-    randomBtn.addEventListener('click', async () => {
+    wireGuardedClick(randomBtn, async () => {
       // Lock-Check vorne (UX, nicht Sicherheit): das Backend lehnt sowieso
       // mit 409 ab. Aber so bekommt der User sofort Feedback statt eines
       // stummen Fehlers nach dem Confirm.
@@ -4151,23 +4517,6 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       });
       if (ok?.cancelled) return;
       await balanceShuffleGroups(t.id);
-    });
-  }
-
-  // Speichern (Gruppen-DnD-Ergebnis) — PATCH /:id/groups. Etappe B.8:
-  // DnD ist im Einstellungen-Tab jetzt read-only (User-Spec: Swaps statt
-  // Moves, Größen konstant). Der Save-Button wird nicht mehr gerendert —
-  // dieser Handler bleibt nur als Fallback, falls ein Renderer-Update
-  // ihn versehentlich wieder rendert.
-  const saveGroupsBtn = mount.querySelector('[data-action="save-groups"]');
-  if (saveGroupsBtn && board) {
-    saveGroupsBtn.addEventListener('click', async () => {
-      const out = window.spielplanHelpers?.serializeGroupsInput?.(board);
-      if (!out || !out.ok) {
-        toast(out?.error || 'Gruppen-Eingabe ungültig', 'error');
-        return;
-      }
-      await saveGroupsAssignment(t.id, out.groups);
     });
   }
 
@@ -4242,6 +4591,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
         return;
       }
       swapConfirmBtn.disabled = true;
+      let saved = false;
       try {
         await apiCall(
           `/tournaments/${encodeURIComponent(t.id)}/groups/swaps`,
@@ -4249,7 +4599,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
           { swaps: [[selected[0].teamId, selected[1].teamId]] }
         );
         toast(`${selected[0].name} ↔ ${selected[1].name} getauscht`, 'success');
-        await openTournamentInstance(t.id);
+        saved = true;
       } catch (e) {
         if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
           toast('Gruppeneinteilung ist gesperrt — Turnier läuft schon.', 'error');
@@ -4258,25 +4608,17 @@ function wireEinstellungen(mount, t, { finishedCount }) {
         }
         swapConfirmBtn.disabled = false;
       }
+      if (saved) {
+        await refreshTournamentAfterMutation(t.id);
+      }
     });
   }
-
-  // Touch-Picker: Klick auf Team-Karte → Modal „In welche Gruppe?"
-  // Etappe B.8: Ebenfalls obsolet, da DnD im Einstellungen-Tab jetzt
-  // read-only ist. Bleibt als Fallback für Renderer-Änderungen.
-  mount.querySelectorAll('[data-action="pick-team-for-group"]').forEach((card) => {
-    card.addEventListener('click', () => {
-      const teamId = card.getAttribute('data-team-id');
-      const teamName = card.getAttribute('data-team-name') ?? 'Team';
-      openPickTeamForGroupModal(mount, t, teamId, teamName);
-    });
-  });
 
   // ─── Spielfelder ──────────────────────────────────────────────────
   // Speichern (Spielfelder-Editor) — PATCH /:id/fields.
   const saveFieldsBtn = mount.querySelector('[data-action="save-fields"]');
   if (saveFieldsBtn) {
-    saveFieldsBtn.addEventListener('click', async () => {
+    wireGuardedClick(saveFieldsBtn, async () => {
       const editor = mount.querySelector('.t-fields-editor');
       if (!editor) return;
       const out = window.spielplanHelpers?.serializeFieldsInput?.(editor);
@@ -4315,7 +4657,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Alle Ergebnisse löschen — POST /:id/reset-results mit confirmTournamentName.
   const resetBtn = mount.querySelector('[data-action="reset-results"]');
   if (resetBtn) {
-    resetBtn.addEventListener('click', async () => {
+    wireGuardedClick(resetBtn, async () => {
       const dlg = await openConfirmDialog({
         title: 'Alle Ergebnisse löschen',
         message:
@@ -4332,7 +4674,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Turnier löschen — DELETE /:id mit confirmTournamentName.
   const deleteBtn = mount.querySelector('[data-action="delete-tournament"]');
   if (deleteBtn) {
-    deleteBtn.addEventListener('click', async () => {
+    wireGuardedClick(deleteBtn, async () => {
       const dlg = await openConfirmDialog({
         title: 'Turnier löschen',
         message:
@@ -4353,6 +4695,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
 // ─── Etappe B.8 Action-Backend-Anbindungen (start / revert / shift / reschedule) ──────
 
 async function startTournament(tournamentId) {
+  let saved = false;
   try {
     const res = await apiCall(
       `/tournaments/${encodeURIComponent(tournamentId)}/start`,
@@ -4363,13 +4706,17 @@ async function startTournament(tournamentId) {
       ? new Date(res.startedAt).toLocaleString('de-DE')
       : 'jetzt';
     toast(`Turnier ist gestartet (${at}) — Sperren für Team-Anzahl, Modus und Reihenfolge greifen jetzt.`, 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     toast(e?.serverMessage || 'Turnier konnte nicht gestartet werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
   }
 }
 
 async function revertToDraft(tournamentId, confirmName) {
+  let saved = false;
   try {
     const body = confirmName ? { confirmTournamentName: confirmName } : {};
     await apiCall(
@@ -4378,9 +4725,12 @@ async function revertToDraft(tournamentId, confirmName) {
       body
     );
     toast('Turnier ist wieder im Entwurf — Spielplan ist erhalten geblieben.', 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     toast(e?.serverMessage || 'Zurücksetzen fehlgeschlagen', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
   }
 }
 
@@ -4391,6 +4741,7 @@ async function shiftOpenMatches(tournamentId, mount) {
     toast('Bitte eine Zahl ungleich 0 eingeben (positiv oder negativ).', 'error');
     return;
   }
+  let saved = false;
   try {
     const res = await apiCall(
       `/tournaments/${encodeURIComponent(tournamentId)}/shift-open-matches`,
@@ -4402,13 +4753,16 @@ async function shiftOpenMatches(tournamentId, mount) {
       `${n} offene${n === 1 ? 's' : ''} Spiel${n === 1 ? '' : 'e'} verschoben (${minutes > 0 ? '+' : ''}${minutes} min).`,
       'success'
     );
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     toast(e?.serverMessage || 'Verschieben fehlgeschlagen', 'error');
   }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
 }
 
-async function rescheduleAuto(tournamentId, mount) {
+async function rescheduleAuto(tournamentId, mount, tournamentName) {
   const durEl = mount?.querySelector?.('[data-reschedule-duration]');
   const fieldsEl = mount?.querySelector?.('[data-reschedule-fields]');
   const duration = parseInt(durEl?.value ?? '30', 10);
@@ -4421,26 +4775,52 @@ async function rescheduleAuto(tournamentId, mount) {
     toast('Plattenzahl muss zwischen 1 und 12 liegen.', 'error');
     return;
   }
+  let saved = false;
   try {
     // 1) Config schreiben.
     await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
       config: { schedule: { matchDurationMinutes: duration, parallelFields } },
     });
     // 2) Reschedule triggern.
-    const ok = await rescheduleTournament(tournamentId, 'AUTO');
+    // Der zweite Parameter ist der Turniername, den der
+    // Bestaetigungsdialog erwartet — hier stand frueher der
+    // Literal-String 'AUTO'. Sind Spiele bereits beendet, verlangt
+    // rescheduleTournament eine Eingabe: der Nutzer haette „AUTO"
+    // tippen muessen statt des Turniernamens, den der Dialog ihm
+    // ansagt. Die drei anderen Aufrufer geben den echten Namen.
+    const name = tournamentName || activeTournamentInstance?.name || '';
+    const ok = await rescheduleTournament(tournamentId, name);
     if (ok) {
       toast(`Zeitplan neu berechnet (${duration} min, ${parallelFields} Platten).`, 'success');
-      await openTournamentInstance(tournamentId);
+      saved = true;
     }
   } catch (e) {
     toast(e?.serverMessage || 'Reschedule fehlgeschlagen', 'error');
   }
+  if (saved) await refreshTournamentAfterMutation(tournamentId);
 }
 
 /**
  * Touch-Picker: Modal „In welche Gruppe?" für Klick auf Team-Karte.
  * Etappe B.8 (D7): An der Platte mit einer Hand ist DnD unpraktisch —
  * der User tippt das Team an und wählt die Zielgruppe per Radio.
+ *
+ * ACHTUNG, Stand 2026-08-25: Diese Funktion hat KEINEN Aufrufer mehr.
+ * Ihre einzige Verdrahtung hing an `[data-action="pick-team-for-group"]`
+ * — einem Attribut, das kein Renderer ausgibt (belegt vom
+ * Drift-Detektor). Der tote Selektor ist entfernt; die Funktion bleibt
+ * absichtlich stehen, weil eine Parallel-Spur ihre Dialog-Tokens gerade
+ * erst gerichtet hat (`dialog-host.test.js` prüft sie) und weil ihr
+ * Erfolgs-Toast auf „bitte ,Speichern' klicken" verweist — auf einen
+ * Knopf, den es seit B.8.1 nicht mehr gibt. Sie ist also nicht
+ * einsatzfähig, sondern ein halber Umbau.
+ *
+ * OFFENE PRODUKTFRAGE: Der Touch-Picker („Team antippen → Zielgruppe
+ * wählen") ist die zweite Bedienart neben dem Paar-Tausch. Entweder
+ * bekommt er einen Renderer und einen Server-Weg (er müsste auf
+ * POST /:id/groups/swaps umgestellt werden, weil Gruppengrößen konstant
+ * bleiben müssen) — oder er wird samt `cssEscape` gelöscht. Das ist ein
+ * Bedien-Entscheid, kein Aufräumen.
  */
 function openPickTeamForGroupModal(mount, t, teamId, teamName) {
   const board = mount.querySelector('[data-role="groups-board"]');
@@ -4554,6 +4934,7 @@ function cssEscape(s) {
 // ─── Etappe B.7 Action-Backend-Anbindungen ───────────────────────
 
 async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
+  let saved = false;
   try {
     const body = {};
     if (finishedCount > 0) {
@@ -4563,9 +4944,12 @@ async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
     }
     const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/redraw`, 'POST', body);
     toast(`Setzreihenfolge neu ausgelost (${res?.teams?.length ?? 0} Teams)`, 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     toast(e.serverMessage || 'Setzreihenfolge konnte nicht neu ausgelost werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
   }
 }
 
@@ -4580,6 +4964,7 @@ async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
  * @param {string} tournamentId
  */
 async function balanceShuffleGroups(tournamentId) {
+  let saved = false;
   try {
     const res = await apiCall(
       `/tournaments/${encodeURIComponent(tournamentId)}/balance-shuffle-groups`,
@@ -4590,7 +4975,7 @@ async function balanceShuffleGroups(tournamentId) {
       `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, Größe pro Gruppe gleich`,
       'success'
     );
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
       toast('Gruppeneinteilung ist gesperrt — Turnier läuft schon.', 'error');
@@ -4598,13 +4983,17 @@ async function balanceShuffleGroups(tournamentId) {
       toast(e.serverMessage || 'Gruppen konnten nicht neu gemischt werden', 'error');
     }
   }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
 }
 
 async function saveGroupsAssignment(tournamentId, groupsPayload) {
+  let saved = false;
   try {
     await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/groups`, 'PATCH', { groups: groupsPayload });
     toast('Gruppeneinteilung gespeichert', 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     if (e.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
       toast('Bereits Spiele beendet — Gruppenzuordnung gesperrt', 'error');
@@ -4612,9 +5001,13 @@ async function saveGroupsAssignment(tournamentId, groupsPayload) {
       toast(e.serverMessage || 'Gruppeneinteilung konnte nicht gespeichert werden', 'error');
     }
   }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
 }
 
 async function saveFieldsConfig(tournamentId, fieldsPayload) {
+  let saved = false;
   try {
     const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fields`, 'PATCH', { fields: fieldsPayload });
     if (res?.warnings?.length > 0) {
@@ -4628,7 +5021,7 @@ async function saveFieldsConfig(tournamentId, fieldsPayload) {
     } else {
       toast(`Spielfelder gespeichert (${res?.fields?.length ?? fieldsPayload.length})`, 'success');
     }
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     if (e.status === 409 && /fields_locked/.test(e.serverMessage || '')) {
       toast('Spielfelder sind nach der Generierung gesperrt', 'error');
@@ -4636,25 +5029,33 @@ async function saveFieldsConfig(tournamentId, fieldsPayload) {
       toast(e.serverMessage || 'Spielfelder konnten nicht gespeichert werden', 'error');
     }
   }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
 }
 
 async function finishTournament(tournamentId) {
+  let saved = false;
   try {
     const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/finish`, 'POST', {});
     toast(`Turnier abgeschlossen${res?.alreadyFinished ? ' (war schon abgeschlossen)' : ''}`, 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     toast(e.serverMessage || 'Turnier konnte nicht abgeschlossen werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
   }
 }
 
 async function resetResults(tournamentId, confirmName) {
+  let saved = false;
   try {
     const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/reset-results`, 'POST', {
       confirmTournamentName: confirmName,
     });
     toast(`${res?.resetCount ?? 0} Ergebnisse zurückgesetzt`, 'success');
-    await openTournamentInstance(tournamentId);
+    saved = true;
   } catch (e) {
     if (e.status === 409 && /reset_results_locked/.test(e.serverMessage || '')) {
       toast('Turniername stimmt nicht', 'error');
@@ -4663,6 +5064,9 @@ async function resetResults(tournamentId, confirmName) {
     } else {
       toast(e.serverMessage || 'Ergebnisse konnten nicht zurückgesetzt werden', 'error');
     }
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
   }
 }
 
@@ -5373,6 +5777,9 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   const trigger = captureDialogTrigger(document);
   const dlg = document.createElement('div');
   dlg.id = 'result-entry-modal';
+  // Fuer stashPendingResultInput: der Entwurf gehoert zu genau diesem
+  // Turnier und darf nicht in einem anderen wieder auftauchen.
+  dlg.dataset.tournamentId = tournamentId;
   dlg.className = `${DIALOG_HOST_CLASS} t-dialog-host--sheet`;
   dlg.innerHTML = `
     <div class="t-dialog" role="dialog" aria-modal="true" aria-labelledby="re-title">
@@ -5495,6 +5902,11 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   // Ins erste Punktefeld, nicht auf den Dialog. Ist kein Spiel
   // vorgegeben, muss der User erst eins wählen — dann gehört der
   // Fokus ins Auswahlfeld.
+  // Gesicherte Eingaben eines abgelaufenen Versuchs zurueckholen,
+  // BEVOR der Fokus gesetzt wird — sonst steht der Cursor in einem
+  // Feld, dessen Inhalt sich gleich noch aendert.
+  restorePendingResultInput(dlg, tournamentId);
+
   const firstField =
     mIdInput && mIdInput.tagName === 'SELECT' ? mIdInput : dlg.querySelector('#re-home');
   if (firstField) firstField.focus();
@@ -5555,6 +5967,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
     tlog('submit:scores-ok', { mId, sh, sa });
     const submitBtn = dlg.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
+    let saved = false;
     try {
       tlog('apiCall:request', { method: 'POST', mId, sh, sa });
       const result = await apiCall(
@@ -5604,6 +6017,10 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         );
       }
       tlog('toast:shown');
+      // Gespeichert — ein gesicherter Entwurf desselben Spiels waere
+      // ab jetzt eine Falle (er wuerde den Score beim naechsten
+      // Oeffnen erneut vorschlagen).
+      clearPendingResultInput();
       closeDialog();
       tlog('modal:removed');
 
@@ -5627,16 +6044,19 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
       //   highlight) aktualisieren, damit der in-place-Pfad korrekt
       //   wäre. Das wäre mehr Code für eine ~200ms-Optimierung, die
       //   der User als "Speichern unzuverlässig" wahrnimmt.
-      tlog('view:openTournamentInstance start (always-full-refresh)');
-      await openTournamentInstance(tournamentId);
-      tlog('view:openTournamentInstance end');
-      tlog('submit:done');
+      saved = true;
     } catch (err) {
       tlog('submit:error', { message: err?.message, status: err?.status });
       // eslint-disable-next-line no-console
       console.error(`[trace-${traceId}] submit failed:`, err);
       submitBtn.disabled = false;
       toast(err.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');
+    }
+    if (saved) {
+      tlog('view:refresh start (always-full-refresh)');
+      await refreshTournamentAfterMutation(tournamentId);
+      tlog('view:refresh end');
+      tlog('submit:done');
     }
   });
 }
@@ -5735,6 +6155,7 @@ async function openMatchDetailModal(tournamentId, matchId) {
         action: 'edit',
         detail: notes ? 'Notiz aktualisiert' : 'Felder aktualisiert',
       }];
+      let saved = false;
       try {
         await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`, 'PATCH', {
           venueLabel: venue,
@@ -5742,9 +6163,12 @@ async function openMatchDetailModal(tournamentId, matchId) {
         });
         toast('Match aktualisiert', 'success');
         dlg.remove();
-        await openTournamentInstance(tournamentId);
+        saved = true;
       } catch (e) {
         toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+      }
+      if (saved) {
+        await refreshTournamentAfterMutation(tournamentId);
       }
     });
   } catch (err) {
@@ -5923,6 +6347,7 @@ async function openCreateTournamentTeamModal(instanceId) {
     }
     submitBtn.disabled = true;
     submitBtn.textContent = 'Wird angelegt…';
+    let saved = false;
     try {
       const { team } = await apiCall(
         `/tournaments/instances/${encodeURIComponent(instanceId)}/teams`,
@@ -5944,14 +6369,17 @@ async function openCreateTournamentTeamModal(instanceId) {
       }
       toast('Team angelegt', 'success');
       close();
-      await openTournamentInstance(instanceId);
-      await loadActiveTournamentView(false);
+      saved = true;
     } catch (e) {
       msg.textContent = e.serverMessage || 'Team konnte nicht angelegt werden';
       msg.classList.remove('hidden');
       msg.className = 'msg msg-error';
       submitBtn.disabled = false;
       submitBtn.textContent = 'Anlegen';
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+      await loadActiveTournamentView(false);
     }
   });
 
@@ -6114,6 +6542,7 @@ async function openAddTournamentParticipantModal(instanceId, options = {}) {
     }
     submitBtn.disabled = true;
     submitBtn.textContent = 'Wird hinzugefügt…';
+    let saved = false;
     try {
       await apiCall(
         `/tournaments/instances/${encodeURIComponent(instanceId)}/participants`,
@@ -6122,14 +6551,17 @@ async function openAddTournamentParticipantModal(instanceId, options = {}) {
       );
       toast('Teilnehmer hinzugefügt', 'success');
       close();
-      await openTournamentInstance(instanceId);
-      await loadActiveTournamentView(false);
+      saved = true;
     } catch (e) {
       msg.textContent = e.serverMessage || 'Teilnehmer konnte nicht hinzugefügt werden';
       msg.className = 'msg msg-error';
       msg.classList.remove('hidden');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Hinzufügen';
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+      await loadActiveTournamentView(false);
     }
   });
 }
@@ -6205,6 +6637,7 @@ async function openAssignUserToParticipantModal(instanceId, participantId) {
       msg.classList.remove('hidden');
       return;
     }
+    let saved = false;
     try {
       await apiCall(
         `/tournaments/instances/${encodeURIComponent(instanceId)}/participants/${encodeURIComponent(participantId)}`,
@@ -6213,11 +6646,14 @@ async function openAssignUserToParticipantModal(instanceId, participantId) {
       );
       toast('User zugeordnet', 'success');
       close();
-      await openTournamentInstance(instanceId);
+      saved = true;
     } catch (e) {
       msg.textContent = e.serverMessage || 'Zuordnung fehlgeschlagen';
       msg.className = 'msg msg-error';
       msg.classList.remove('hidden');
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
     }
   });
 }
@@ -6335,6 +6771,7 @@ async function openCreateTournamentMatchModal(instanceId) {
     if (away) body.awayParticipantId = away;
     const venue = dlg.querySelector('#tmc-venue').value.trim();
     if (venue) body.venueLabel = venue;
+    let saved = false;
     try {
       await apiCall(
         `/tournaments/instances/${encodeURIComponent(instanceId)}/matches`,
@@ -6343,11 +6780,14 @@ async function openCreateTournamentMatchModal(instanceId) {
       );
       toast('Match angelegt', 'success');
       close();
-      await openTournamentInstance(instanceId);
+      saved = true;
     } catch (e) {
       msg.textContent = e.serverMessage || 'Match konnte nicht angelegt werden';
       msg.className = 'msg msg-error';
       msg.classList.remove('hidden');
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
     }
   });
 }
@@ -6482,6 +6922,7 @@ async function openRecordMatchResultModal(instanceId, matchId) {
       : homeScore > awayScore
         ? match.homeParticipantId
         : match.awayParticipantId;
+    let saved = false;
     try {
       const result = await apiCall(
         `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/result`,
@@ -6531,11 +6972,14 @@ async function openRecordMatchResultModal(instanceId, matchId) {
         }
       }
 
-      await openTournamentInstance(instanceId);
+      saved = true;
     } catch (e) {
       msg.textContent = e.serverMessage || 'Ergebnis konnte nicht gespeichert werden';
       msg.className = 'msg msg-error';
       msg.classList.remove('hidden');
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
     }
   });
 }
@@ -6571,6 +7015,7 @@ async function generateTournamentBracket(instanceId) {
   );
   if (!ok) return;
 
+  let saved = false;
   try {
     const result = await apiCall(
       `/tournaments/instances/${encodeURIComponent(instanceId)}/bracket/generate`,
@@ -6584,10 +7029,13 @@ async function generateTournamentBracket(instanceId) {
     } else {
       toast('Bracket generiert', 'success');
     }
-    await openTournamentInstance(instanceId);
-    await loadActiveTournamentView(false);
+    saved = true;
   } catch (e) {
     toast(e.serverMessage || 'Bracket konnte nicht generiert werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(instanceId);
+    await loadActiveTournamentView(false);
   }
 }
 

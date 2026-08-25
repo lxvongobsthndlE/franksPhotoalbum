@@ -8,6 +8,64 @@ const TOKEN_REFRESH_INTERVAL = 14 * 60 * 1000; // Refresh 1 min before expiry (1
 let accessToken = null;
 let refreshTokenTimeout = null;
 
+// ── SITZUNGSENDE ────────────────────────────────────────────
+// Punkt 4.2 der Uebergabe (turniermodul-uebergabe.md), gefixt am
+// 2026-08-25. Vorher endete ein gescheiterter Refresh in
+// `await logout()` — und logout() setzt `window.location.href`.
+// Am Turniertag hiess das: Ergebnis-Dialog offen, 3:2 getippt,
+// Refresh-Cookie abgelaufen → Weiterleitung zu Authentik, Eingabe
+// weg, ohne Meldung und ohne Rueckfrage.
+//
+// Jetzt entscheidet das UI, wann umgeleitet wird. Dieses Modul
+// meldet nur: „die Sitzung ist zu Ende" — und faehrt sonst nichts
+// herunter. Der Redirect passiert erst in `forceReauth()`, also
+// nachdem der Nutzer zugestimmt und das UI seine Eingaben
+// gesichert hat.
+let sessionExpired = false;
+const sessionExpiredHandlers = new Set();
+
+/** Meldet das Sitzungsende genau EINMAL je Ablauf. */
+function notifySessionExpired(reason) {
+  if (sessionExpired) return;
+  sessionExpired = true;
+  for (const fn of sessionExpiredHandlers) {
+    try {
+      fn({ reason });
+    } catch (e) {
+      console.error('session-expired handler failed:', e);
+    }
+  }
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new CustomEvent('auth:session-expired', { detail: { reason } }));
+    } catch (e) {
+      /* CustomEvent fehlt (aelterer Browser) — die Handler oben haben schon gefeuert */
+    }
+  }
+}
+
+/**
+ * Meldet einen Horcher an, der beim Sitzungsende gerufen wird.
+ * Rueckgabe: Funktion zum Abmelden.
+ */
+export function onSessionExpired(fn) {
+  if (typeof fn !== 'function') return () => {};
+  sessionExpiredHandlers.add(fn);
+  return () => sessionExpiredHandlers.delete(fn);
+}
+
+export function isSessionExpired() {
+  return sessionExpired;
+}
+
+/**
+ * Der bewusste Weg zur Neu-Anmeldung. Nur HIER wird umgeleitet —
+ * und nur, weil jemand es ausgeloest hat.
+ */
+export async function forceReauth() {
+  await logout();
+}
+
 // ── CHECK LOGIN STATUS ──────────────────────────────────────
 export async function checkSession() {
   try {
@@ -24,6 +82,7 @@ export async function checkSession() {
     }
 
     // Start refresh timer
+    sessionExpired = false;
     startTokenRefreshTimer();
     return data.user;
   } catch (e) {
@@ -75,6 +134,7 @@ export async function handleOIDCCallback(code, state) {
     accessToken = token;
 
     // Start token refresh timer
+    sessionExpired = false;
     startTokenRefreshTimer();
 
     return { user, inviteResult, loginContext };
@@ -102,12 +162,23 @@ async function refreshAccessToken() {
     const { accessToken: newToken } = await response.json();
     sessionStorage.setItem('accessToken', newToken);
     accessToken = newToken;
+    sessionExpired = false;
 
     return newToken;
   } catch (e) {
     console.error('Token refresh failed:', e);
-    await logout();
-    throw e;
+    // HIER stand der Zwangs-Logout. logout() setzt window.location.href —
+    // die Seite war weg, bevor irgendwer etwas melden oder sichern
+    // konnte. Stattdessen: melden und einen erkennbaren Fehler werfen.
+    // Wer umleiten will, ruft forceReauth().
+    const err = new Error('Deine Anmeldung ist abgelaufen.');
+    err.code = 'session_expired';
+    err.serverMessage = 'Deine Anmeldung ist abgelaufen. Bitte neu anmelden.';
+    err.serverCode = 'session_expired';
+    err.status = 401;
+    err.cause = e;
+    notifySessionExpired('refresh_failed');
+    throw err;
   }
 }
 
@@ -115,9 +186,21 @@ async function refreshAccessToken() {
 function startTokenRefreshTimer() {
   clearTimeout(refreshTokenTimeout);
   refreshTokenTimeout = setTimeout(() => {
-    refreshAccessToken().then(() => {
-      startTokenRefreshTimer(); // Reschedule after refresh
-    });
+    refreshAccessToken()
+      .then(() => {
+        startTokenRefreshTimer(); // Reschedule after refresh
+      })
+      .catch(() => {
+        // Ohne diesen catch war das eine unbehandelte Rejection —
+        // und weil refreshAccessToken frueher selbst ausgeloggt hat,
+        // flog der Nutzer mitten in der Arbeit raus, ausgeloest von
+        // einem Timer, den er nicht gestartet hat.
+        //
+        // notifySessionExpired() ist in refreshAccessToken schon
+        // gelaufen; das UI zeigt seinen Dialog. Kein neuer Timer:
+        // der Refresh-Cookie ist abgelaufen, ein zweiter Versuch in
+        // 14 Minuten waere nur eine weitere Absage.
+      });
   }, TOKEN_REFRESH_INTERVAL);
 }
 

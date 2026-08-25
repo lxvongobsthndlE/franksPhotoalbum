@@ -179,8 +179,20 @@ describe('Ergebnis-Modal A5: Escape und Fokus-Rückkehr', () => {
     // Backdrop-Klick, ✕ und Abbrechen
     expect(modal).toMatch(/e\.target\.dataset\.action === 'close'\) closeDialog\(\)/);
     // …und der Erfolgsfall nach dem Speichern: kein rohes dlg.remove() mehr.
-    expect(modal).toMatch(/tlog\('toast:shown'\);[\s\S]{0,40}closeDialog\(\);/);
-    expect(modal).not.toMatch(/tlog\('toast:shown'\);[\s\S]{0,40}dlg\.remove\(\);/);
+    //
+    // Gemessen statt gezaehlt (2026-08-25): vorher stand hier ein
+    // Zeichenfenster von 40. Das machte den Test von der Kommentar-
+    // laenge zwischen den beiden Zeilen abhaengig — eine eingefuegte
+    // Zeile (clearPendingResultInput) kippte ihn, obwohl die geprüfte
+    // Reihenfolge unveraendert war. Massgeblich ist der Abschnitt
+    // zwischen „Toast gezeigt" und „Modal entfernt".
+    const abToast = modal.indexOf("tlog('toast:shown');");
+    const abEntfernt = modal.indexOf("tlog('modal:removed');");
+    expect(abToast).toBeGreaterThan(-1);
+    expect(abEntfernt).toBeGreaterThan(abToast);
+    const abschnitt = modal.slice(abToast, abEntfernt);
+    expect(abschnitt).toContain('closeDialog();');
+    expect(abschnitt).not.toContain('dlg.remove();');
   });
 
   it('Der keydown-Horcher wird wieder abgeräumt', () => {

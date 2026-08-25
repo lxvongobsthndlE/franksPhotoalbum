@@ -109,30 +109,35 @@ const ALLOW_MARKUP_WITHOUT_HANDLER = new Map([
 // Der Test „Baseline ist noch aktuell" weiter unten wird ROT, sobald ein
 // Eintrag repariert (oder der Selektor gelöscht) wurde — die Liste kann
 // also nicht verrotten. Wer einen Punkt behebt, streicht seine Zeile.
-const BASELINE_TOTE_SELEKTOREN = new Map([
-  [
-    'action:reschedule',
-    'main.js:3110 + main.js:4071 hängen „Zeitplan neu terminieren" an ' +
-      '[data-action="reschedule"]. Gerendert wird nur ' +
-      '[data-action="reschedule-auto"] (spielplan-helpers.js:1338). Ob der ' +
-      'Knopf fehlt oder die zwei Handler Leichen sind, ist ein ' +
-      'Produktentscheid — nicht Sache dieses Tests.',
-  ],
-  [
-    'action:save-groups',
-    'main.js:4152 sucht den Speichern-Knopf der Gruppen-Tafel. Der Wert ' +
-      'kommt sonst nur in der Policy-Liste MUTATING_DATA_ACTIONS ' +
-      '(tournament-render.js:40) vor, in keinem Renderer.',
-  ],
-  [
-    'action:pick-team-for-group',
-    'main.js:4257 bindet Klicks auf Team-Karten der Gruppen-Zuordnung. ' +
-      'Der Wert steht sonst nur in MUTATING_DATA_ACTIONS ' +
-      '(tournament-render.js:41). Der aktive Weg ist seit B.8.1 der ' +
-      'Paar-Klick-Tausch über [data-action="select-for-swap"] — der alte ' +
-      'Pfad wurde vermutlich beim Umbau nicht mit entfernt.',
-  ],
-]);
+// Am 2026-08-25 abgearbeitet und deshalb leer. Die drei Alteinträge
+// waren alle Leichen, nicht fehlende Knöpfe — je einer mit einem
+// belegten Ersatzweg, der die Funktion weiterhin erreichbar hält:
+//
+//   action:reschedule           → gelöscht. Neu terminieren läuft über
+//                                 [data-action="reschedule-auto"]
+//                                 (spielplan-helpers.js) und zusätzlich
+//                                 über saveScheduleEdits, sobald sich
+//                                 die Spieldauer ändert.
+//   action:save-groups          → gelöscht. Gruppen ändert man seit
+//                                 B.8.1 per Paar-Tausch
+//                                 ([data-action="confirm-swap"] →
+//                                 POST /:id/groups/swaps) oder per
+//                                 „Zufällig verteilen". Die Funktion
+//                                 saveGroupsAssignment bleibt (steht im
+//                                 Export-Block).
+//   action:pick-team-for-group  → Verdrahtung gelöscht. Der aktive Weg
+//                                 ist select-for-swap. Das Modal selbst
+//                                 bleibt stehen (ohne Aufrufer, siehe
+//                                 Kommentar an openPickTeamForGroupModal):
+//                                 sein Erfolgstoast verweist auf einen
+//                                 „Speichern"-Knopf, den es seit B.8.1
+//                                 nicht mehr gibt — ob der Touch-Picker
+//                                 zurückkommt oder ganz weicht, ist ein
+//                                 Bedien-Entscheid, kein Aufräumen.
+//
+// Die Liste bleibt bewusst stehen: sie ist die Ablage für den nächsten
+// Fund, der ein Produktentscheid ist und nicht sofort entschieden wird.
+const BASELINE_TOTE_SELEKTOREN = new Map([]);
 
 // ── Dateien einsammeln ───────────────────────────────────────────────
 // Nur die Frontend-Skripte selbst; `__tests__/` ist ein Unterverzeichnis
