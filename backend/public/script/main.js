@@ -2668,6 +2668,67 @@ function placeholder(label, hintEtappe) {
       </div>`;
 }
 
+/**
+ * Doppelklick-Sperre fuer einen Aktionsknopf (Betriebsfestigkeit A2,
+ * 2026-08-25).
+ *
+ * Fehlerklasse: elf mutierende Aktionen im Turniermodul hatten keine
+ * Sperre. Am teuersten `randomize-groups` → POST
+ * /balance-shuffle-groups: der Server wuerfelt bei JEDEM Aufruf neu
+ * und kennt keinen Vorzustand. Wer zweimal tippt — am Handy, an der
+ * Platte, mit einer Hand — sieht die erste Auslosung aufblitzen und
+ * behaelt eine andere.
+ *
+ * Machart uebernommen von den drei Stellen, die es schon richtig
+ * machten (Ergebnis-Speichern, Paar-Tausch, Fill-KO): Knopf vor dem
+ * `await` sperren, im Fehlerfall wieder freigeben. Hier ist das
+ * einmal aufgeschrieben statt elfmal abgetippt — bewusst KEINE zweite
+ * Machart.
+ *
+ * Zwei Entscheidungen, die nicht beliebig sind:
+ *
+ *   `dataset.busy` statt einer Closure-Variablen, damit die Sperre bei
+ *   delegierten Klicks (ein Listener, viele Knoepfe) am getroffenen
+ *   Element haengt und nicht am Listener.
+ *
+ *   Der vorherige `disabled`-Zustand wird gemerkt und wiederher-
+ *   gestellt: einen Knopf, den der Renderer aus Lock-Gruenden
+ *   deaktiviert hat, darf die Sperre nicht versehentlich freischalten.
+ *
+ * @param {HTMLElement|null} btn
+ * @param {() => any} handler
+ */
+async function runGuardedAction(btn, handler) {
+  if (!btn) return handler();
+  if (btn.dataset && btn.dataset.busy === '1') return undefined;
+  const wasDisabled = btn.disabled === true;
+  if (btn.dataset) btn.dataset.busy = '1';
+  btn.disabled = true;
+  if (typeof btn.setAttribute === 'function') btn.setAttribute('aria-busy', 'true');
+  try {
+    return await handler();
+  } finally {
+    if (btn.dataset) delete btn.dataset.busy;
+    btn.disabled = wasDisabled;
+    if (typeof btn.removeAttribute === 'function') btn.removeAttribute('aria-busy');
+  }
+}
+
+/**
+ * Klick-Listener mit Doppelklick-Sperre. Ersetzt
+ * `btn.addEventListener('click', ...)` ueberall dort, wo der Handler
+ * eine Mutation ausloest.
+ */
+function wireGuardedClick(btn, handler) {
+  if (!btn) return;
+  btn.addEventListener('click', (event) => {
+    runGuardedAction(btn, () => handler(event)).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[wireGuardedClick] Handler hat geworfen', err);
+    });
+  });
+}
+
 function handleTournamentTabSideEffects(view, t, detail) {
   if (!detail) return;
   // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
@@ -3312,7 +3373,10 @@ function bindSpielplanInteractions(t) {
     }
     const saveEdit = e.target.closest('[data-action="save-schedule-edits"]');
     if (saveEdit && section.contains(saveEdit)) {
-      saveScheduleEdits(t, section);
+      // Delegierter Klick: die Sperre haengt am getroffenen Knopf,
+      // nicht am Listener — sonst wuerde ein zweiter Klick auf einen
+      // ANDEREN Knopf derselben Section mitgesperrt.
+      runGuardedAction(saveEdit, () => saveScheduleEdits(t, section));
       return;
     }
     const cancelEdit = e.target.closest('[data-action="cancel-schedule-edits"]');
@@ -4056,7 +4120,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Turnier starten — Etappe B.8.
   const startBtn = mount.querySelector('[data-action="start-tournament"]');
   if (startBtn && !startBtn.disabled) {
-    startBtn.addEventListener('click', async () => {
+    wireGuardedClick(startBtn, async () => {
       const ok = await openConfirmDialog({
         title: 'Turnier starten',
         message:
@@ -4074,7 +4138,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Zurück zu Entwurf — Etappe B.8 (Spielplan bleibt erhalten, D8).
   const revertBtn = mount.querySelector('[data-action="revert-to-draft"]');
   if (revertBtn) {
-    revertBtn.addEventListener('click', async () => {
+    wireGuardedClick(revertBtn, async () => {
       let typedName = null;
       if (finishedCount > 0) {
         const dlg = await openConfirmDialog({
@@ -4106,7 +4170,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Offene Spiele verschieben — Etappe B.8 (Turnier-Day-Use-Case).
   const shiftBtn = mount.querySelector('[data-action="shift-open"]');
   if (shiftBtn) {
-    shiftBtn.addEventListener('click', async () => {
+    wireGuardedClick(shiftBtn, async () => {
       await shiftOpenMatches(t.id, mount);
     });
   }
@@ -4114,7 +4178,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Spieldauer / Plattenzahl → Auto-Reschedule.
   const rescheduleAutoBtn = mount.querySelector('[data-action="reschedule-auto"]');
   if (rescheduleAutoBtn) {
-    rescheduleAutoBtn.addEventListener('click', async () => {
+    wireGuardedClick(rescheduleAutoBtn, async () => {
       await rescheduleAuto(t.id, mount);
     });
   }
@@ -4122,7 +4186,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Turnier abschließen — simple Confirm ohne Namenseingabe.
   const finishBtn = mount.querySelector('[data-action="finish-tournament"]');
   if (finishBtn) {
-    finishBtn.addEventListener('click', async () => {
+    wireGuardedClick(finishBtn, async () => {
       const ok = await showConfirmDlg(
         'Turnier abschließen',
         `Turnier "${t.name}" wirklich abschließen? Statuswechsel ist reversibel — alle Ergebnisse bleiben erhalten.`,
@@ -4161,7 +4225,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Neu auslosen (Seeding-Block) — Etappe B.8 Bug-Fix: fehlte im wireEinstellungen.
   const redrawSeedingBtn = mount.querySelector('[data-action="redraw-seeding"]');
   if (redrawSeedingBtn) {
-    redrawSeedingBtn.addEventListener('click', async () => {
+    wireGuardedClick(redrawSeedingBtn, async () => {
       if (finishedCount > 0) {
         toast('Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.', 'error');
         return;
@@ -4191,7 +4255,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Gruppengröße muss gleich bleiben").
   const randomBtn = mount.querySelector('[data-action="randomize-groups"]');
   if (randomBtn) {
-    randomBtn.addEventListener('click', async () => {
+    wireGuardedClick(randomBtn, async () => {
       // Lock-Check vorne (UX, nicht Sicherheit): das Backend lehnt sowieso
       // mit 409 ab. Aber so bekommt der User sofort Feedback statt eines
       // stummen Fehlers nach dem Confirm.
@@ -4341,7 +4405,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Speichern (Spielfelder-Editor) — PATCH /:id/fields.
   const saveFieldsBtn = mount.querySelector('[data-action="save-fields"]');
   if (saveFieldsBtn) {
-    saveFieldsBtn.addEventListener('click', async () => {
+    wireGuardedClick(saveFieldsBtn, async () => {
       const editor = mount.querySelector('.t-fields-editor');
       if (!editor) return;
       const out = window.spielplanHelpers?.serializeFieldsInput?.(editor);
@@ -4380,7 +4444,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Alle Ergebnisse löschen — POST /:id/reset-results mit confirmTournamentName.
   const resetBtn = mount.querySelector('[data-action="reset-results"]');
   if (resetBtn) {
-    resetBtn.addEventListener('click', async () => {
+    wireGuardedClick(resetBtn, async () => {
       const dlg = await openConfirmDialog({
         title: 'Alle Ergebnisse löschen',
         message:
@@ -4397,7 +4461,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // Turnier löschen — DELETE /:id mit confirmTournamentName.
   const deleteBtn = mount.querySelector('[data-action="delete-tournament"]');
   if (deleteBtn) {
-    deleteBtn.addEventListener('click', async () => {
+    wireGuardedClick(deleteBtn, async () => {
       const dlg = await openConfirmDialog({
         title: 'Turnier löschen',
         message:
