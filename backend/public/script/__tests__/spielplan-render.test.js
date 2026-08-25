@@ -651,9 +651,9 @@ describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => 
     const html = renderBestThirdsTable(sample);
     const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(6);
-    expect(html).toContain('width:14%');  // Pl.
-    expect(html).toContain('width:32%');  // Team
-    expect(html).toContain('width:16%');  // Gruppe + Becher
+    expect(html).toContain('width:12%');  // Pl.
+    expect(html).toContain('width:28%');  // Team
+    expect(html).toContain('width:19%');  // Gruppe + Becher
     expect(html).toContain('width:11%');  // Diff + Pkt.
     // Die alten Werte gehörten zum verschobenen 7er-Set.
     expect(html).not.toContain('width:8%');

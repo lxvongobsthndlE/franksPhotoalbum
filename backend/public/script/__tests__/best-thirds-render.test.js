@@ -249,7 +249,7 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     setCompactMode(true);
     const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
       .map((c) => c.match(/width:([^"]+)"/)[1]);
-    expect(cols).toEqual(['14%', '32%', '16%', '16%', '11%', '11%']);
+    expect(cols).toEqual(['12%', '28%', '19%', '19%', '11%', '11%']);
   });
 
   it('Mobile: Summe der Breiten ist genau 100% und es gibt kein auto', () => {
@@ -270,16 +270,18 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     const html = renderBestThirdsTable(sample);
     expect(html).not.toContain('width:10%');
     expect(html).not.toContain('width:18%');
+    expect(html).not.toContain('width:8%');
     expect(html).not.toContain('width:13%');
   });
 
   it('Mobile: "12:10" wird gerendert und die Becher-Spalte hat 16%', () => {
-    // 16% von ~374px Tabellenbreite = ~60px; "12:10" braucht bei 12px
-    // tabular-nums plus 8px Zellen-Padding rund 44px.
+    // 19% der Becher-Spalte: 55px bei 288px Tabellenbreite (390px Viewport),
+    // 49px bei 258px (360px Viewport). "12:10" braucht gemessen 44px, die
+    // Ueberschrift "BECHER" 48px — beides passt in beiden Faellen.
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     expect(html).toContain('12:10');
-    expect(html).toContain('width:16%');
+    expect(html).toContain('width:19%');
   });
 
   it('Mobile-Spaltenzahl passt zur Zahl der nicht versteckten data-col-Spalten', () => {
