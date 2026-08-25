@@ -7067,3 +7067,71 @@ button.tournament-header-btn {
   border-radius: 4px;
 }
 
+/* ================================================================
+   DRUCKLAYOUT — App-Rahmen (2026-08-25)
+   ================================================================
+   Der modulspezifische Teil steht in tournament.css; hier faellt nur
+   das weg, was zur APP gehoert und auf keinem Ausdruck etwas verloren
+   hat: Kopfleiste, Seitenleiste, Hamburger, Toasts, Modals.
+   Bewusst NICHT auf das Turniermodul eingeschraenkt (kein
+   body:has(.t-mod)): eine Kopfleiste mit Suchfeld gehoert auf keinem
+   Ausdruck dieser App aufs Papier, egal welche Seite gedruckt wird.
+
+   #content ist der echte Seiten-Scroller (siehe P7-Kommentar oben) —
+   im Druck muessen seine overflow- und padding-Klammern fallen,
+   sonst endet der Ausdruck nach der ersten Seite. */
+@media print {
+  #header,
+  #sidebar,
+  .hamburger-btn,
+  .toast,
+  .toast-wrap,
+  .modal,
+  .modal-bg,
+  .dlg-bg,
+  .upload-fab {
+    display: none !important;
+  }
+  /* Papier hat genau EIN Thema — siehe die ausfuehrliche Begruendung
+     im Druck-Block von tournament.css. Hier derselbe Schnitt fuer die
+     App-Tokens; [data-theme=dark] muss mitgenannt werden, weil der
+     Dunkel-Block ganz oben dieselbe Spezifitaet hat. */
+  :root,
+  [data-theme="dark"] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --border: #999999;
+    --border2: #666666;
+    --text: #000000;
+    --text2: #222222;
+    --muted: #3A3A3A;
+    --muted2: #666666;
+    --shadow: none;
+    --shadow2: none;
+  }
+  html,
+  body {
+    background: #fff;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  #app,
+  #app.show {
+    display: block;
+    padding-top: 0;
+    min-height: 0;
+  }
+  #body-wrap {
+    display: block;
+    overflow: visible;
+    min-height: 0;
+  }
+  #content {
+    padding: 0;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
+}

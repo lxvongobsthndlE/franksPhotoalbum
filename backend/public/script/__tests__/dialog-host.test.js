@@ -271,9 +271,11 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     // #D66B60 nur 3.43:1). Deshalb --accent-ink / --danger-ink.
     expect(tournamentCss).toMatch(/\.t-btn--primary \{[^}]*color: var\(--accent-ink\)/);
     expect(tournamentCss).toMatch(/\.t-btn--danger \{[^}]*color: var\(--danger-ink\)/);
-    // In beiden Themes definiert.
-    expect((tournamentCss.match(/--accent-ink:/g) || []).length).toBe(2);
-    expect((tournamentCss.match(/--danger-ink:/g) || []).length).toBe(2);
+    // In beiden Themes definiert — plus einmal im Druck-Block, der den
+    // ganzen Token-Satz auf Schwarz-auf-Weiss zuruecksetzt (Papier hat
+    // genau ein Thema). Deshalb >= 2 und nicht == 2.
+    expect((tournamentCss.match(/--accent-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect((tournamentCss.match(/--danger-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   it('der Bottom-Sheet gilt nur für den Ergebnis-Dialog, nicht für jede Bestätigung', () => {

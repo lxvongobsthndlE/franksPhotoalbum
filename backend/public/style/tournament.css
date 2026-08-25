@@ -4354,3 +4354,271 @@ textarea.t-input {
 @media (prefers-reduced-motion: reduce) {
   .t-dialog { animation: none; }
 }
+
+/* ================================================================
+   DRUCKLAYOUT (@media print) — 2026-08-25
+   ================================================================
+   Es gab keins. `grep -c '@media print'` lieferte in main.css UND
+   tournament.css 0, der "Drucken"-Knopf (main.js:2915, Kontextmenue
+   :2922, Handler :3083) rief blank `window.print()` — also der
+   Bildschirm auf Papier, mit Seitenleiste, Bodenleiste, Filtern und
+   Knoepfen. Ein Knopf ohne Funktion ist laut Hausregel kein Knopf.
+
+   WAS GEDRUCKT WIRD: der fachliche Kern — Spielplan, Gruppentabellen,
+   Turnierbaum. Alles Bedienbare faellt weg; auf Papier kann man nichts
+   klicken, und jeder Knopf kostet eine Zeile, die eine Paarung braucht.
+
+   DREI ENTSCHEIDE, die man dem Ergebnis nicht ansieht:
+
+   1. ALLE DREI ANSICHTEN AUF EINMAL. Auf dem Bildschirm zeigt das Modul
+      genau einen Tab (`.t-view.is-active`). Wer druckt, will aber das
+      TURNIER, nicht den Tab, in dem er gerade steht. Der Druck loest
+      `.is-active` deshalb auf und zeigt Spielplan, Gruppen und Baum
+      nacheinander — jeweils auf einer eigenen Seite.
+      HAKEN: Gruppen und Baum haengen an Lazy-Mounts
+      (`[data-tab-body="gruppen-mount"]`), die erst beim ersten
+      Tab-Klick gefuellt werden. Wer direkt aus dem Spielplan druckt,
+      haette sonst zwei leere Ueberschriften auf zwei leeren Seiten.
+      Deshalb blendet die `:has()`-Regel weiter unten eine Ansicht aus,
+      deren Mount leer ist. Faellt `:has()` aus (aeltere Engine), wird
+      NUR diese eine Regel verworfen — der Rest des Drucklayouts steht.
+
+   2. FARBE IST AUF PAPIER KEIN TRAEGER. Statusstreifen (offen /
+      laeuft / beendet) unterscheiden sich am Bildschirm nur durch die
+      Farbe des 3px-Balkens; im Graudruck sind alle drei dasselbe Grau.
+      Statt `print-color-adjust: exact` zu erzwingen (das haengt am
+      Treiber und schluckt Toner) bekommt jeder Zustand ein Merkmal,
+      das ohne Farbe traegt: der Balken wird zu einem Rand mit eigener
+      STRICHART, und `.t-match-action-text` bleibt stehen — dort steht
+      der Zustand bereits als WORT ("Beendet"). Nur der Knopf darin
+      faellt weg, nicht der Text.
+      Dieselbe Logik bei den Badges: statt Fuellung ein Rand.
+
+   3. DIE ANZEIGETAFEL WIRD UMGEDREHT. `.t-match-score` ist am
+      Bildschirm ein dunkler Block mit heller Ziffer (--board /
+      --board-ink). Auf Papier waere das ein schwarzer Kasten pro
+      Ergebnis. Im Druck also weiss mit Rand und schwarzer Ziffer.
+
+   Kein `@page`-Kopf mit Turniername und Datum: der Modulkopf traegt
+   Namen und Phase und bleibt als erste Zeile stehen. Ein DATUM steht
+   im Detail-Kopf gar nicht im DOM (main.js baut dort Modus und
+   Team-Zahl) — das nachzuruesten ist eine Aenderung an main.js und
+   gehoert nicht in eine CSS-Runde.
+   ---------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  /* ---- ERST DIE TOKENS, DANN ALLES ANDERE ------------------------
+     Im Dunkelmodus druckte diese Seite fast leer: --ink ist dort
+     #F2EDE4, also hellbeige — auf weissem Papier praktisch unsichtbar.
+     Im ersten Druck-Screenshot mit gesetztem [data-theme=dark] waren
+     Ueberschriften, Teamnamen und Tabellenwerte nur noch zu erahnen.
+     Das ist kein Randfall: das Theme haengt am Geraet des Druckenden,
+     nicht am Dokument.
+     Papier hat genau EIN Thema. Der Druck setzt deshalb den kompletten
+     Token-Satz des Moduls auf Schwarz-auf-Weiss zurueck — an EINER
+     Stelle, statt an jeder Regel eine Druckfarbe nachzuziehen.
+     Der Selektor traegt [data-theme=dark] mit, weil der Dunkel-Block
+     oben (0,2,0) sonst gewinnt. */
+  .t-mod,
+  [data-theme="dark"] .t-mod {
+    --paper: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-alt: #FFFFFF;
+    --ink: #000000;
+    --ink-soft: #3A3A3A;
+    --line: #999999;
+    --accent: #000000;
+    --accent-soft: #FFFFFF;
+    --accent-ink: #000000;
+    --accent-soft-ink: #000000;
+    --board: #FFFFFF;
+    --board-ink: #000000;
+    --board-dim: #555555;
+    --open: #000000;
+    --qualified: #000000;
+    --done: #000000;
+    --out: #555555;
+    --live: #000000;
+    --danger: #000000;
+    --danger-ink: #000000;
+    --warn: #000000;
+    --warn-soft: #FFFFFF;
+  }
+
+  /* ---- Modul-Rahmen: alle Scroll- und Hoehenklammern loesen -------
+     .t-mod ist am Bildschirm ein Container mit fester Hoehe und
+     overflow:hidden; im Druck wuerde damit alles nach der ersten
+     Seite verschwinden. */
+  .t-mod {
+    display: block;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    background: #fff;
+  }
+  .t-shell { display: block; }
+  .t-mod-main,
+  .t-mod-aside {
+    display: block;
+    padding: 0;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
+
+  /* ---- Was auf Papier nichts verloren hat ------------------------
+     Navigation (Seitenleiste, Bodenleiste, Kontextmenue, Bottom-Sheet),
+     alles Bedienbare (Knoepfe, Filter, Editoren) und die Kontextspalte.
+     Die Bodenleiste ist position:fixed — ohne diese Zeile klebte sie
+     auf JEDER Seite. */
+  .t-mod-nav,
+  .t-mod-tabs,
+  .t-mod-menu,
+  .t-mod-more-sheet,
+  .t-mod-more-overlay,
+  .t-mod-more-panel,
+  .t-mod-header-actions,
+  .t-mod-aside,
+  .t-dialog-host,
+  .t-toolbar,
+  .t-filter-wrap,
+  .t-filter-dropdown,
+  .t-btn,
+  .t-view-head .spacer,
+  .t-match-action .t-btn,
+  .t-schedule-edit-bar,
+  .t-schedule-edit-actions,
+  .t-fill-ko-card,
+  .bracket-tabs,
+  .t-swap-bar,
+  .t-hint {
+    display: none !important;
+  }
+
+  /* ---- Die drei fachlichen Ansichten, jede auf eigener Seite ----- */
+  .t-view { display: none !important; }
+  .t-view[data-view="spielplan"],
+  .t-view[data-view="gruppen"],
+  .t-view[data-view="baum"] {
+    display: block !important;
+    break-before: page;
+  }
+  /* Die erste gedruckte Ansicht faengt keinen Seitenumbruch an. */
+  .t-view[data-view="spielplan"] { break-before: auto; }
+
+  /* Leere Lazy-Mounts nicht als leere Seite drucken (Entscheid 1). */
+  .t-view:has(> [data-tab-body]:empty) { display: none !important; }
+
+  /* ---- Kopf ------------------------------------------------------ */
+  .t-mod-header {
+    border-bottom: 2px solid #000;
+    padding: 0 0 6mm;
+    margin-bottom: 6mm;
+    background: none;
+    break-after: avoid;
+  }
+  .t-view-head {
+    break-after: avoid;
+    border-bottom: 1px solid #999;
+    padding-bottom: 2mm;
+  }
+
+  /* ---- Nichts zerreissen ----------------------------------------- */
+  .t-card,
+  .t-group-card,
+  .t-match,
+  .bracket-col,
+  .t-standings-table tr,
+  .t-thirds-table tr {
+    break-inside: avoid;
+  }
+  .t-card {
+    border: 1px solid #999;
+    box-shadow: none;
+    background: none;
+    margin-bottom: 4mm;
+  }
+
+  /* ---- Turnierbaum: alle Runden, kein horizontaler Scroll -------- */
+  .bracket-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 8mm;
+  }
+  .bracket-col {
+    min-width: 55mm;
+    max-width: 70mm;
+  }
+
+  /* ---- Farbe ersetzen (Entscheid 2) ------------------------------
+     Strichart statt Farbe: gepunktet = offen, doppelt = laeuft,
+     durchgezogen = beendet. */
+  .t-match-bar {
+    background: none !important;
+    border-left: 3px dotted #000;
+  }
+  .t-match--live .t-match-bar { border-left-style: double; border-left-width: 4px; }
+  .t-match--done .t-match-bar { border-left-style: solid; }
+  .t-match--live .t-match-meta-time::after { content: " · laeuft"; font-weight: 700; }
+  .t-match--done .t-match-team { color: #000; }
+  .t-match { background: none; border-bottom: 1px solid #ccc; }
+  .t-match-action-text { display: inline; font-size: 10pt; }
+
+  .t-badge {
+    background: none !important;
+    color: #000 !important;
+    border: 1px solid #000;
+  }
+  .t-dot { border: 1px solid #000; background: none !important; }
+
+  /* ---- Anzeigetafel umdrehen (Entscheid 3) ----------------------- */
+  .t-match-score {
+    background: none !important;
+    color: #000 !important;
+    border: 1px solid #000;
+  }
+  .t-match-score.empty { border-style: dashed; }
+
+  /* ---- Tabellen lesbar auf Papier -------------------------------- */
+  .t-standings-table,
+  .t-thirds-table {
+    font-size: 10pt;
+  }
+  .t-standings-table th,
+  .t-thirds-table th {
+    border-bottom: 1px solid #000;
+  }
+  /* Der Zeilenhintergrund fuer Platz 1/2 steht an ZWEI Stellen: als
+     Zeilenfarbe in main.css und noch einmal auf der Zelle in
+     tournament.css (.t-standings-row.is-first td, 0,2,1). Wer nur die
+     Zeile neutralisiert, bekommt auf Papier trotzdem ein graues Band —
+     im ersten Druck-Screenshot genau so passiert. */
+  .t-standings-row.is-first,
+  .t-standings-row.is-second,
+  .t-standings-row.is-first td,
+  .t-standings-row.is-second td,
+  .t-thirds-row.is-qualified {
+    background: none !important;
+  }
+
+  /* Das Logo-Ersatzquadrat ist am Bildschirm eine dunkle Flaeche
+     (background: var(--ink)) — auf Papier ein schwarzer Klotz in der
+     Kopfzeile jedes Ausdrucks. Als Umriss statt als Flaeche. Ein
+     echtes <img class="t-logo"> bleibt unberuehrt. */
+  .t-logo--placeholder {
+    background: none !important;
+    border: 1px solid #000;
+    color: #000 !important;
+  }
+  .t-thirds-row.is-out { opacity: 1; font-style: italic; }
+
+  /* ---- Fokusringe und Animationen gehoeren nicht auf Papier ------ */
+  .t-mod :focus-visible { outline: none; }
+  .t-mod * { animation: none !important; transition: none !important; }
+}
