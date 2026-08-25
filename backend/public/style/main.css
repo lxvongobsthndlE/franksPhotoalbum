@@ -1755,10 +1755,14 @@ button.tournament-header-btn {
    letzten Footer-Element erscheint einfach zusätzlicher Weißraum. */
 @media (max-width: 660px) {
   #content {
-    /* var(--s4, 16px) — --s4 wird in tournament.css auf .t-mod
-       definiert; auf #content selbst nicht sichtbar, daher Fallback.
-       56 px = Bottom-Bar-Höhe, env() = iOS Safe-Area. */
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--s4, 16px) + 30px);
+    /* User-Punkt 3 (2026-08-25): Berechnung explizit — Bottom-Bar-Höhe
+       + iOS Safe-Area + 24 px normaler Abstand. Die 102-px-Variante
+       (56 + 16 + 30) wurde durch die Shorthand-Regel in
+       @media (max-width: 900px) weiter unten überschrieben (gleiche
+       Spezifität, spätere Quelle gewinnt). Daher jetzt zusätzlich
+       padding-bottom AFTER der Shorthand in dem Block — Defense in
+       Depth. */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom) + 24px);
   }
 }
 .gal-hdr {
@@ -4368,8 +4372,22 @@ button.tournament-header-btn {
     overflow: visible;
   }
   #content {
-    padding: 16px 14px;
+    /* NICHT als Shorthand — das würde padding-bottom aus dem
+       @media-Block oben überschreiben (User-Punkt 3, 2026-08-25).
+       Bottom-Bar-Override kommt weiter unten separat. */
+    padding-top: 16px;
+    padding-right: 14px;
+    padding-left: 14px;
     overflow-x: hidden;
+  }
+  /* User-Punkt 3 (2026-08-25): Bottom-Bar-Override kommt NACH der
+     Shorthand (die wir oben aufgebrochen haben), damit es wirkt.
+     Gilt nur bei Viewport ≤660 px (= @media-Trigger für .t-mod
+     ≤600 px → Bottom-Bar aktiv). */
+  @media (max-width: 660px) {
+    #content {
+      padding-bottom: calc(56px + env(safe-area-inset-bottom) + 24px);
+    }
   }
   .mob-only {
     display: block !important;

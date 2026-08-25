@@ -1121,24 +1121,10 @@ function renderSidebar() {
     </button>`
         : ''
     }
-    <button class="fb fb-parent ${tournamentsExpanded ? 'expanded' : ''} ${activeHomeModule === 'tournaments' ? 'module-active' : ''}" onclick="toggleSidebarTournaments()" aria-expanded="${tournamentsExpanded ? 'true' : 'false'}">
+    <button class="fb ${activeHomeModule === 'tournaments' ? 'module-active' : ''}" onclick="switchToTournamentInstances()">
       <span class="fi">🏆</span>
       <span class="fn">Turniere</span>
-      <span class="fb-chevron" aria-hidden="true">${ICON_CHEVRON_RIGHT}</span>
     </button>
-    ${
-      activeHomeModule === 'tournaments'
-        ? `
-    <button class="fb fb-sub ${curModule === 'tournaments' && curTournamentView === 'dashboard' ? 'active' : ''}" onclick="switchToTournaments('dashboard')">
-      <span class="fi">🏁</span>
-      <span class="fn">Dashboard</span>
-    </button>
-    <button class="fb fb-sub ${curModule === 'tournaments' && curTournamentView === 'instances' ? 'active' : ''}" onclick="switchToTournamentInstances()">
-      <span class="fi">🏆</span>
-      <span class="fn">Turniere</span>
-    </button>`
-        : ''
-    }
     <div class="sb-div"></div>
     ${
       activeHomeModule === 'feed'
@@ -2348,12 +2334,22 @@ async function loadTournamentInstances(reset = false) {
     }
 
     // P4 (2026-08-24, User-Liste): Wenn in der Gruppe genau EIN Turnier
-    // existiert und wir gerade auf der Liste sind (kein aktives
-    // Detail), direkt ins Detail springen. Gilt für Admins UND
+    // existiert, direkt ins Detail springen. Gilt für Admins UND
     // Mitglieder — User-Begründung: „Wenn es nur eins gibt, ist die
     // Liste überflüssig." Draft-Turniere sind für Mitglieder unsichtbar
     // (Server filtert sie schon raus), Admin mit nur-1-Draft sieht die
     // Liste weiterhin — Drafts brauchen expliziten Klick zum Bearbeiten.
+    //
+    // Auto-Jump-Re-Fix (User-Punkt 2, 2026-08-25): Vorher stand hier
+    // `!activeTournamentInstance?.id` als Bedingung — sollte Re-Jump
+    // überspringen, wenn schon ein Turnier aktiv war. User-Bericht:
+    // „Klick auf 'Turniere' öffnet trotzdem die Auswahlliste mit
+    // einem Eintrag." Diagnose: User war auf Detail A, klickte
+    // Seitenleiste-Turniere → activeTournamentInstance?.id = A (truthy)
+    // → Auto-Jump wurde geskippt → Liste wurde gerendert. Bei genau
+    // 1 Turnier ist die Liste aber IMMER überflüssig — Re-Jump ins
+    // gleiche Detail ist ein No-Op visuell (viewState-Capture stellt
+    // Scroll/Tab wieder her), spart aber die Listen-Flash.
     const visibleInstances = tournamentInstances.filter((t) => {
       // Admins sehen alle Statusse in der Liste (auch Drafts).
       // Mitglieder kriegen vom Server nur Nicht-Drafts.
@@ -2361,7 +2357,6 @@ async function loadTournamentInstances(reset = false) {
     });
     if (
       visibleInstances.length === 1
-      && !activeTournamentInstance?.id
       && curTournamentView === 'instances'
     ) {
       await openTournamentInstance(visibleInstances[0].id);
