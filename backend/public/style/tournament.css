@@ -149,11 +149,16 @@
   margin: 0;
   padding: 0;
 }
-.t-wizard-host > .t-mod {
-  /* Volle Höhe, eigene Scroll-Achse statt #content-Scroll —
-     verhindert doppelten Scrollbalken. */
-  height: calc(100vh - 60px); /* Platz für App-Header */
-  overflow: hidden;
+/* Volle Höhe + eigener Scroller NUR auf Desktop (≥768 px).
+   Auf Mobile (<768 px) wächst .t-mod mit seinem Inhalt mit und die
+   Seite selbst (#content) scrollt — verhindert die zwei verschachtel-
+   ten Scrollbalken und die fehlerhafte Tabellen-Breitenrechnung
+   innerhalb eines scrollenden Vorfahren. P5-Reparatur 2026-08-25. */
+@media (min-width: 768px) {
+  .t-wizard-host > .t-mod {
+    height: calc(100vh - 60px); /* Platz für App-Header */
+    overflow: hidden;
+  }
 }
 
 /* Detail-View-Host: dasselbe Muster wie t-wizard-host — wenn ein
@@ -171,9 +176,16 @@
   margin: 0;
   padding: 0;
 }
-.t-detail-host > .t-mod {
-  height: calc(100vh - 60px);
-  overflow: hidden;
+/* Volle Höhe + eigener Scroller NUR auf Desktop (≥768 px).
+   Auf Mobile (<768 px) wächst .t-mod mit seinem Inhalt mit und die
+   Seite selbst (#content) scrollt — verhindert die zwei verschachtel-
+   ten Scrollbalken und die fehlerhafte Tabellen-Breitenrechnung
+   innerhalb eines scrollenden Vorfahren. P5-Reparatur 2026-08-25. */
+@media (min-width: 768px) {
+  .t-detail-host > .t-mod {
+    height: calc(100vh - 60px);
+    overflow: hidden;
+  }
 }
 .t-mod table { border-collapse: collapse; width: 100%; }
 .t-mod button {
@@ -701,6 +713,19 @@
      Hier defensiv display:none, falls die CSS-Spezifität von oben
      (min-width:768px) durch andere Regeln überschrieben wird. */
   .t-mod-aside { display: none; }
+  /* P5-Reparatur 2026-08-25: Verschachtelte Scrollcontainer auflösen.
+     Auf Mobile wächst .t-mod mit seinem Inhalt mit; #content ist der
+     einzige Scroller. overflow: auto auf .t-mod-main / .t-mod-aside
+     würde sonst innerhalb des scrollenden Vorfahren eine falsche
+     Client-Width-Berechnung für table-layout: fixed auslösen
+     (Preview-Messung 2026-08-25: Tabelle 555 px in Karte 587 px).
+     Desktop-Verhalten (overflow: auto für evtl. lange Sidebars) bleibt
+     unverändert. */
+  .t-mod-main {
+    overflow: visible;
+    overflow-x: clip;       /* §13 P1: Seite darf NIE seitlich scrollen */
+  }
+  .t-mod-aside { overflow: visible; }
   /* Hauptbereich etwas knapper padden — auf 390px ist jeder Pixel
      sichtbar. */
   .t-mod-main { padding: var(--s4) var(--s3); }
