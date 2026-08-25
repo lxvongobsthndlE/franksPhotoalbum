@@ -235,18 +235,20 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
     expect(html).toContain('width:9%');
   });
 
-  it('Mobile-Mode: 5 Colgroup-Spalten (8% + 38% + 22% + 16% + 16%, Summe 100%)', () => {
-    // User-Punkt 2 (2026-08-25): Team-Spalte ist jetzt fest 38%, nicht
-    // mehr auto. auto expandierte über das Vorgesehene hinaus und lies
-    // 'BECH…' verschwinden. 8+38+22+16+16 = 100%, kein auto mehr.
+  it('Mobile-Mode: 5 Colgroup-Spalten (14% + 36% + 20% + 15% + 15%, Summe 100%)', () => {
+    // User-Punkt 1 Folge (2026-08-25): Pl-Spalte von 8% auf 14% —
+    // 8% war zu schmal für "10." und "Pl." (Header wurde zu "P…"
+    // truncated). 14% von 374 px = ~52 px → reicht für Worst-Case-Wert.
+    // Team dafür von 38% auf 36% reduziert. Becher von 22% auf 20%
+    // (~75 px — passt weiter für "12:10"). Diff/Pkt bleiben bei 15%.
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(5);
-    expect(html).toContain('width:8%');
-    expect(html).toContain('width:38%');
-    expect(html).toContain('width:22%');
-    expect(html).toContain('width:16%');
+    expect(html).toContain('width:14%');
+    expect(html).toContain('width:36%');
+    expect(html).toContain('width:20%');
+    expect(html).toContain('width:15%');
     // Sicherstellen: kein 'auto' mehr im Mobile-Colgroup.
     expect(html).not.toMatch(/<col[^>]*width:auto/);
   });
@@ -254,20 +256,16 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
   it('Mobile-Mode: keine 7%-Geister-Spalten mehr', () => {
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
-    // Vorher: width:8% (Sp), width:7% (S, U, N) waren im Colgroup, wurden
-    // per display:none ausgeblendet, hielten aber 29% der Breite besetzt.
-    // Mit der neuen Team-38%-Variante gibt es kein 8% mehr (Pl jetzt 8%,
-    // war 10%). 7% ist sicher nirgendwo im Mobile-Colgroup.
+    // 7% war die Geister-Breite für S/U/N-Spalten im 9er-Colgroup.
+    // Im 5er-Mobile-Set kommt 7% nicht mehr vor.
     expect(html).not.toContain('width:7%');
   });
 
-  it('Mobile-Werte-Beispiel: 12:10 muss in 22%-Spalte passen', () => {
+  it('Mobile-Werte-Beispiel: 12:10 muss in 20%-Spalte passen', () => {
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
-    // 22% von ~370 px Tabellenbreite = ~80 px → "12:10" (~50 px @ 12px-Font) passt.
-    // Wir können hier nur prüfen, dass der Wert überhaupt im Output steht.
+    // 20% von ~374 px = ~75 px → "12:10" (~50 px @ 12px-Font) passt.
     expect(html).toContain('12:10');
-    // Und dass die Spalte dahinter breit genug deklariert ist.
-    expect(html).toContain('width:22%');
+    expect(html).toContain('width:20%');
   });
 });

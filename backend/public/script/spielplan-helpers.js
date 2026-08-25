@@ -457,13 +457,14 @@ export function renderAsideTables(matches, limit = 6) {
  * Siehe getStandingsColWidths()/getThirdsColWidths() + Compact-Mode-Switch.
  */
 const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
-/* User-Punkt 2 (2026-08-25): Team-Spalte von 'auto' auf 38% fest.
-   Vorher: auto-Team fraß allen Rest, 'BECH…' wurde abgeschnitten,
-   obwohl die Spalte nominell 18% breit war (auto expandierte in
-   die Praxis weit über 38% hinaus). Jetzt: 8+38+22+16+16 = 100%,
-   kein auto mehr. Becher bekommt ~80 px statt ~45 px — reicht für
-   Überschrift 'Becher' und Worst-Case '12:10'. */
-const STANDINGS_COL_WIDTHS_MOBILE = ['8%', '38%', '22%', '16%', '16%'];
+/* User-Punkt 2 (2026-08-25) Folge 2: Pl-Spalte von 8% auf 14%.
+   8% = ~24 px bei 374 px Tabellenbreite → "1." passte mit Cell-Padding
+   nicht, Header und Body wurden zu "P…" / "1…" getruncated.
+   14% = ~52 px → reicht für "10." und für die Überschrift "Pl.".
+   Team dafür von 38% auf 36% reduziert — reicht immer noch für lange
+   Teamnamen, weil die Spalte eh linksbündig ist und am Rand umbrechen
+   darf. Summe 14+36+20+15+15 = 100%, weiter kein auto. */
+const STANDINGS_COL_WIDTHS_MOBILE = ['14%', '36%', '20%', '15%', '15%'];
 const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 // Beste-Dritte-Mobile: Pl · Team · Gruppe · Sp · Becher · Diff · Pkt (7 Spalten).
 // Gruppe bleibt sichtbar (sonst weiß man nicht, aus welcher Gruppe der Dritte kommt),

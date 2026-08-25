@@ -5853,6 +5853,16 @@ button.tournament-header-btn {
 .t-thirds-table th.is-rank {
   text-align: right;
   color: var(--muted);
+  /* User-Punkt 1 (2026-08-25): nowrap/ellipsis auf der Rank-Zelle
+     rausnehmen. Bei 2-3 Zeichen kann nichts umbrechen — die Regel
+     kürzt hier nur unnötig. Vorher führte das auf Mobile zu "1…" /
+     "P…" weil die Spalte zu schmal war UND die Zelle nichts umbrechen
+     durfte. Mit 14% Pl-Breite ist die Zelle jetzt breit genug für
+     "10." und "Pl.", nowrap/ellipsis ist Ballast. Die globale Regel
+     oben bleibt für die schmalen %-Spalten (Sp/S/U/N) aktiv. */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 .t-standings-table .t-standings-team,
 .t-standings-table th.is-team,
