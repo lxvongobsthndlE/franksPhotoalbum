@@ -1,8 +1,8 @@
 ﻿<div align="center">
 
-![Franks Fotoalbum Logo](backend/public/media/icon-128x128.png)
+![[kru:]nest Logo](backend/public/media/icon-128x128.png)
 
-# 🖼️ Franks Fotoalbum
+# 🖼️ [kru:]nest
 
 **Deine sichere, selbst gehostete Familien-Fotogalerie**
 
@@ -117,7 +117,7 @@ Anpassungen:
 
 ---
 
-## 💡 Warum Franks Fotoalbum?
+## 💡 Warum [kru:]nest?
 
 ✅ **Datenschutz** – Keine Spionage, keine zielgerichteten Werbeanzeigen  
 ✅ **Kontrolliert** – Du verwaltest, wer sieht was  

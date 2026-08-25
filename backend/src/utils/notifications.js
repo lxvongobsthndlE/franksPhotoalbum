@@ -64,7 +64,7 @@ async function sendNotificationEmail(user, { title, body, entityUrl }) {
   if (!to) return; // DEV ohne Catch-All → kein Versand
   const isRedirected = !isProd && to !== user.email;
   const fromEmail = process.env.SMTP_USER;
-  const fromName = process.env.SMTP_FROM || 'Franks Fotoalbum';
+  const fromName = process.env.SMTP_FROM || '[kru:]nest';
   const from = `"${fromName}" <${fromEmail}>`;
   const html = `
 <!DOCTYPE html>
@@ -77,7 +77,7 @@ async function sendNotificationEmail(user, { title, body, entityUrl }) {
 
         <!-- Header -->
         <tr><td style="background:#8a6a4a;padding:22px 28px">
-          <span style="color:#fff;font-size:19px;font-weight:700;letter-spacing:-.2px">📷 Franks Fotoalbum</span>
+          <span style="color:#fff;font-size:19px;font-weight:800;font-style:italic;letter-spacing:-.5px">[kru:]nest</span>
           ${!isProd ? '<span style="margin-left:12px;background:rgba(255,255,255,.18);color:#fff;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600">DEV</span>' : ''}
         </td></tr>
 
