@@ -457,11 +457,18 @@ export function renderAsideTables(matches, limit = 6) {
  * Siehe getStandingsColWidths()/getThirdsColWidths() + Compact-Mode-Switch.
  */
 const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
-const STANDINGS_COL_WIDTHS_MOBILE = ['10%', 'auto', '18%', '14%', '14%'];
+/* User-Punkt 2 (2026-08-25): Team-Spalte von 'auto' auf 38% fest.
+   Vorher: auto-Team fraß allen Rest, 'BECH…' wurde abgeschnitten,
+   obwohl die Spalte nominell 18% breit war (auto expandierte in
+   die Praxis weit über 38% hinaus). Jetzt: 8+38+22+16+16 = 100%,
+   kein auto mehr. Becher bekommt ~80 px statt ~45 px — reicht für
+   Überschrift 'Becher' und Worst-Case '12:10'. */
+const STANDINGS_COL_WIDTHS_MOBILE = ['8%', '38%', '22%', '16%', '16%'];
 const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 // Beste-Dritte-Mobile: Pl · Team · Gruppe · Sp · Becher · Diff · Pkt (7 Spalten).
 // Gruppe bleibt sichtbar (sonst weiß man nicht, aus welcher Gruppe der Dritte kommt),
 // S/U/N ausgeblendet wie in Standings. Sum: 8+12+10+18+13+13 = 74% + auto-Team 26%.
+// (User-Punkt 2 betraf nur Standings — Thirds behält vorerst auto-Team.)
 const THIRDS_COL_WIDTHS_MOBILE = ['8%', 'auto', '12%', '10%', '18%', '13%', '13%'];
 
 function renderColgroup(widths) {

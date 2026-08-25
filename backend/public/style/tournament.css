@@ -1040,8 +1040,11 @@
 .t-standings-rank { width: 28px; color: var(--ink-soft); }
 .t-standings-team { font-weight: 500; color: var(--ink); }
 .t-standings-row.is-first td { background: var(--surface-alt); font-weight: 600; }
-.t-standings-row.is-first .t-standings-rank::before { content: '★ '; color: var(--accent); }
-.t-standings-row.is-second .t-standings-rank::before { content: '↑ '; color: var(--ink-soft); }
+/* User-Punkt 1 (2026-08-25): Stern/Pfeil-Symbole entfernt — die
+   hinterlegte Zeile (is-first) und die Trennlinie (border-top auf
+   is-second) signalisieren die Qualifikation bereits, ein drittes
+   Signal war Redundanz. Außerdem sprengte "★ " die 28-px-Rank-Spalte
+   (Pl war für "1." bemessen, zwei Zeichen passen nicht). */
 
 /* ----------------------------------------------------------------
    SCREEN A — TURNIERLISTE (§13.2)

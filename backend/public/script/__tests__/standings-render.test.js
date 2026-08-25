@@ -235,32 +235,39 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
     expect(html).toContain('width:9%');
   });
 
-  it('Mobile-Mode: 5 Colgroup-Spalten (10% + auto + 18% + 14% + 14%)', () => {
+  it('Mobile-Mode: 5 Colgroup-Spalten (8% + 38% + 22% + 16% + 16%, Summe 100%)', () => {
+    // User-Punkt 2 (2026-08-25): Team-Spalte ist jetzt fest 38%, nicht
+    // mehr auto. auto expandierte über das Vorgesehene hinaus und lies
+    // 'BECH…' verschwinden. 8+38+22+16+16 = 100%, kein auto mehr.
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(5);
-    expect(html).toContain('width:10%');
-    expect(html).toContain('width:18%');
-    expect(html).toContain('width:14%');
+    expect(html).toContain('width:8%');
+    expect(html).toContain('width:38%');
+    expect(html).toContain('width:22%');
+    expect(html).toContain('width:16%');
+    // Sicherstellen: kein 'auto' mehr im Mobile-Colgroup.
+    expect(html).not.toMatch(/<col[^>]*width:auto/);
   });
 
-  it('Mobile-Mode: keine 8%/7%-Geister-Spalten mehr', () => {
+  it('Mobile-Mode: keine 7%-Geister-Spalten mehr', () => {
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
     // Vorher: width:8% (Sp), width:7% (S, U, N) waren im Colgroup, wurden
     // per display:none ausgeblendet, hielten aber 29% der Breite besetzt.
-    expect(html).not.toContain('width:8%');
+    // Mit der neuen Team-38%-Variante gibt es kein 8% mehr (Pl jetzt 8%,
+    // war 10%). 7% ist sicher nirgendwo im Mobile-Colgroup.
     expect(html).not.toContain('width:7%');
   });
 
-  it('Mobile-Werte-Beispiel: 12:10 muss in 18%-Spalte passen', () => {
+  it('Mobile-Werte-Beispiel: 12:10 muss in 22%-Spalte passen', () => {
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
-    // 18% von ~370 px Tabellenbreite = ~67 px → "12:10" (~50 px @ 12px-Font) passt.
+    // 22% von ~370 px Tabellenbreite = ~80 px → "12:10" (~50 px @ 12px-Font) passt.
     // Wir können hier nur prüfen, dass der Wert überhaupt im Output steht.
     expect(html).toContain('12:10');
     // Und dass die Spalte dahinter breit genug deklariert ist.
-    expect(html).toContain('width:18%');
+    expect(html).toContain('width:22%');
   });
 });
