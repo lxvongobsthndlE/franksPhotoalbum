@@ -4167,7 +4167,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   const rescheduleAutoBtn = mount.querySelector('[data-action="reschedule-auto"]');
   if (rescheduleAutoBtn) {
     wireGuardedClick(rescheduleAutoBtn, async () => {
-      await rescheduleAuto(t.id, mount);
+      await rescheduleAuto(t.id, mount, t.name);
     });
   }
 
@@ -4497,7 +4497,7 @@ async function shiftOpenMatches(tournamentId, mount) {
   }
 }
 
-async function rescheduleAuto(tournamentId, mount) {
+async function rescheduleAuto(tournamentId, mount, tournamentName) {
   const durEl = mount?.querySelector?.('[data-reschedule-duration]');
   const fieldsEl = mount?.querySelector?.('[data-reschedule-fields]');
   const duration = parseInt(durEl?.value ?? '30', 10);
@@ -4517,7 +4517,14 @@ async function rescheduleAuto(tournamentId, mount) {
       config: { schedule: { matchDurationMinutes: duration, parallelFields } },
     });
     // 2) Reschedule triggern.
-    const ok = await rescheduleTournament(tournamentId, 'AUTO');
+    // Der zweite Parameter ist der Turniername, den der
+    // Bestaetigungsdialog erwartet — hier stand frueher der
+    // Literal-String 'AUTO'. Sind Spiele bereits beendet, verlangt
+    // rescheduleTournament eine Eingabe: der Nutzer haette „AUTO"
+    // tippen muessen statt des Turniernamens, den der Dialog ihm
+    // ansagt. Die drei anderen Aufrufer geben den echten Namen.
+    const name = tournamentName || activeTournamentInstance?.name || '';
+    const ok = await rescheduleTournament(tournamentId, name);
     if (ok) {
       toast(`Zeitplan neu berechnet (${duration} min, ${parallelFields} Platten).`, 'success');
       saved = true;
