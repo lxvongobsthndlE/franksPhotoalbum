@@ -2794,10 +2794,27 @@ textarea.t-input {
 }
 .t-confirm-dialog {
   background: var(--surface);
-  /* War var(--r3) — nie definiert, der Dialog bekam eckige Ecken. Kein neuer
-     Token: die Radien-Skala ist semantisch (--r-card/--r-btn/--r-board), ein
-     numerisches --r3 waere ein zweites Schema. Der Dialog ist eine Karte. */
-  border-radius: var(--r-card);
+  /* War var(--r3) — nie definiert, der Dialog bekam eckige Ecken.
+     Kein neuer Token: die Radien-Skala ist semantisch
+     (--r-card/--r-btn/--r-board), ein numerisches --r3 waere ein zweites
+     Schema. Der Dialog ist eine Karte, also --r-card.
+
+     WARUM HIER TROTZDEM EIN FALLBACK STEHT (und nur hier):
+     dieser Dialog wird per document.body.appendChild() eingehaengt
+     (tournament.js:4157) und liegt damit AUSSERHALB von .t-mod. Die
+     Modul-Tokens sind auf .t-mod definiert und werden vererbt — am
+     document.body greift also weder --r-card noch --s2/--s3/--line/--ink.
+     (Was dort GREIFT, weil main.css es auf :root setzt: --surface,
+     --accent, --r2. Deshalb hat der Dialog Hintergrund und Fokus-Ring,
+     aber keine Ecken und keinen gap.)
+     Der Fallback ist also kein zweiter Wahrheitswert fuer den Token,
+     sondern die Absicherung einer Regel, die ausserhalb seiner
+     Reichweite lebt. Er wird von selbst wirkungslos, sobald der Dialog
+     seine Modul-Klasse bekommt — daran arbeitet die Spur
+     fix/tourney-dialog (.t-dialog-host). Dann ist das hier der
+     eigentliche --r-card-Wert und der Fallback totes Gewicht, das
+     ersatzlos raus kann. */
+  border-radius: var(--r-card, 12px);
   box-shadow: 0 24px 64px rgba(31, 27, 22, 0.32);
   padding: 24px;
   max-width: 440px;
