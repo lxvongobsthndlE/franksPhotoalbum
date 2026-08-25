@@ -38,6 +38,7 @@ import {
   renderEinstellungenSection,
   renderDetailSidebar,
   filterMemberViews,
+  renderTournamentListCard,
 } from './tournament-render.js';
 
 // ╔══════════════════════════════════════════════════════════╗
@@ -2403,6 +2404,73 @@ async function loadTournamentInstances(reset = false) {
 // sind jetzt in tournament.js exportiert (v3-Mapping, Issue 6, 2026-08-13).
 // Diese Zeile ist absichtlich leer — die Legacy-Funktionen sind entfernt.
 
+/**
+ * A4: Klick-Verdrahtung der Turnierliste.
+ *
+ * Die ganze Karte ist die Aktion, deshalb Delegation auf der Schale statt
+ * inline-onclick pro Knopf. Der Menü-Knopf liegt INNERHALB der Karte —
+ * ohne stopPropagation würde jeder Klick darauf zusätzlich das Turnier
+ * öffnen. Das ist die eine Stelle, an der hier etwas schiefgehen kann.
+ */
+function wireTournamentListInteractions(shell) {
+  if (!shell || shell.dataset.wired === 'true') return;
+  shell.dataset.wired = 'true';
+
+  const closeAllMenus = (except = null) => {
+    shell.querySelectorAll('.t-list-card-menu').forEach((menu) => {
+      if (menu === except) return;
+      menu.hidden = true;
+      const btn = menu.parentElement?.querySelector('[data-action="instance-menu"]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  };
+
+  shell.addEventListener('click', (event) => {
+    const menuBtn = event.target.closest('[data-action="instance-menu"]');
+    if (menuBtn) {
+      // Darf den Karten-Klick NICHT auslösen.
+      event.preventDefault();
+      event.stopPropagation();
+      const menu = menuBtn.parentElement?.querySelector('.t-list-card-menu');
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      closeAllMenus(menu);
+      menu.hidden = !willOpen;
+      menuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      return;
+    }
+
+    const deleteBtn = event.target.closest('[data-action="instance-delete"]');
+    if (deleteBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeAllMenus();
+      deleteTournamentInstance(
+        deleteBtn.dataset.instanceId,
+        deleteBtn.dataset.instanceName || 'Turnier',
+      );
+      return;
+    }
+
+    const card = event.target.closest('[data-action="open-instance"]');
+    closeAllMenus();
+    if (card && card.dataset.instanceId) {
+      openTournamentInstance(card.dataset.instanceId);
+    }
+  });
+
+  // Tastaturbedienung: Enter und Leertaste öffnen die fokussierte Karte.
+  // Ohne das ist role="button" eine Lüge.
+  shell.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { closeAllMenus(); return; }
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+    const card = event.target.closest('[data-action="open-instance"]');
+    if (!card || card !== event.target) return;
+    event.preventDefault();
+    if (card.dataset.instanceId) openTournamentInstance(card.dataset.instanceId);
+  });
+}
+
 function renderTournamentInstancesPage() {
   const grid = $('grid');
   if (!grid) return;
@@ -2413,7 +2481,7 @@ function renderTournamentInstancesPage() {
   // inhaltlich, aber isAdmin ist die maßgebliche Quelle für die
   // Render-Gates — und matcht mit dem serverseitigen
   // requireTournamentWrite-Check 1:1.
-  const canManageInstances = currentTournamentListIsAdmin;
+  const isAdmin = currentTournamentListIsAdmin === true;
   // v3-Phasen-Buckets in fester Reihenfolge (TOURNAMENT_PHASE_ORDER
   // aus tournament.js). Unbekannte Status landen in 'other'
   // ("Sonstige") — siehe Spec §13.5 "Keine stillen Annahmen".
@@ -2426,33 +2494,20 @@ function renderTournamentInstancesPage() {
   }
 
   const instanceGroupsHtml = Object.entries(groupedInstances)
+    // A4: Leere Phasen erscheinen gar nicht — weder Überschrift noch
+    // "Keine Turniere in dieser Phase". Auf dem Handy scrollte man
+    // sonst an drei leeren Kästen vorbei (Redesign-Plan §3.3).
+    .filter(([, instances]) => instances.length > 0)
     .map(([phase, instances]) => {
       const instanceCards = instances
-        .map((instance) => {
-          // Backend liefert Stats bereits aggregiert im prepareTournamentView:
-          // { teamCount, groupCount, matchCount, finishedCount }.
-          // Wir nehmen die Counts vom Backend, nicht aus _count (das gibt
-          // es hier nicht — war ein alter Annahme-Fehler).
-          const matchCount = instance?.matchCount ?? 0;
-          const teamCount = instance?.teamCount ?? null;
-          const groupCount = instance?.groupCount ?? null;
-          const activeClass =
-            activeTournamentInstance?.id === instance.id ? ' tournament-card-active' : '';
-          // data-instance-phase und Badge zeigen die Phase (nicht den
-          // rohen Status), damit Phasen-Tab-Filter und Styling auf der
-          // Phase aufsetzen können, nicht auf dem v3/v2-Status.
-          return `<article class="tournament-card tournament-instance-card${activeClass}" data-instance-phase="${esc(phase)}">
-            <div class="tournament-card-head">
-              <h3>${esc(instance.name || 'Turnier')}</h3>
-              <span class="tournament-status-badge">${esc(tournamentPhaseLabel(phase))}</span>
-            </div>
-            <p class="t-instance-stats">${tournamentModeLabel(instance.mode)} · ${teamCount ?? '–'} Teams · ${groupCount ?? '–'} Gruppen · ${matchCount} Spiele</p>
-            <div class="tournament-card-actions tournament-instance-actions">
-              <button class="btn btn-ghost" onclick="openTournamentInstance('${instance.id}')">Öffnen</button>
-              ${canManageInstances ? `<button class="preset-icon-btn danger" type="button" onclick="deleteTournamentInstance('${instance.id}','${esc(instance.name || 'Turnier')}')" title="Löschen" aria-label="Löschen">${ICON_TRASH}</button>` : ''}
-            </div>
-          </article>`;
-        })
+        .map((instance) => renderTournamentListCard({
+          instance,
+          phase,
+          isAdmin,
+          phaseLabel: tournamentPhaseLabel(phase),
+          modeLabel: tournamentModeLabel(instance?.mode),
+          icons: { more: ICON_MORE, trash: ICON_TRASH },
+        }))
         .join('');
 
       return `<section class="tournament-instance-group" data-phase-group="${esc(phase)}">
@@ -2461,16 +2516,33 @@ function renderTournamentInstancesPage() {
           <span class="tournament-meta-pill">${instances.length}</span>
         </div>
         <div class="tournament-instance-grid">
-          ${instanceCards || '<p class="tournament-empty tournament-instance-empty">Keine Turniere in dieser Phase.</p>'}
+          ${instanceCards}
         </div>
       </section>`;
     })
     .join('');
 
+  // A4: Nur wenn ALLE Phasen leer sind, erscheint ein einzelner
+  // Leerzustand — Admin und Mitglied bekommen unterschiedliche Texte
+  // (Spec §13.2: einem Mitglied ein "Leg eins an" hinzuwerfen, wäre
+  // ein Knopf ohne Funktion).
+  const emptyHtml = `<div class="t-empty-state">
+      <div class="t-empty-state-text">${isAdmin
+        ? 'Noch kein Turnier angelegt.'
+        : 'In dieser Gruppe läuft gerade kein Turnier.'}</div>
+      ${isAdmin ? '<div class="t-empty-state-hint">Leg eins an, um loszulegen.</div>' : ''}
+    </div>`;
+
+  // t-mod bringt die Tokens (--ink, --line, --s4, --r-card …) mit, die
+  // .t-list-card braucht — sie stehen NUR unter .t-mod, nicht global.
+  // t-list-host setzt die Layout-Eigenschaften von .t-mod zurück
+  // (siehe tournament.css, Block LISTEN-HOST).
   grid.innerHTML = `
-    <section class="tournament-page-shell">
-      ${instanceGroupsHtml || '<div class="tournament-empty-state"><p>Noch keine Turniere vorhanden.</p></div>'}
+    <section class="tournament-page-shell t-mod t-list-host">
+      ${instanceGroupsHtml || emptyHtml}
     </section>`;
+
+  wireTournamentListInteractions(grid.querySelector('.t-list-host'));
 }
 
 /**

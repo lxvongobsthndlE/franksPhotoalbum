@@ -57,6 +57,11 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   // und ist isAdmin-gegated (loadBracketTab prüft tournament.isAdmin
   // BEVOR der Button gerendert wird).
   'start-ko-phase',
+  // A4 (2026-08-25): Kontextmenü der Turnierkarte in der Liste.
+  // 'instance-menu' ist selbst nicht mutierend, öffnet aber ausschließlich
+  // mutierende Einträge — deshalb steht der Knopf unter demselben Gate.
+  'instance-menu',
+  'instance-delete',
 ]);
 
 // Safe-Actions, die auch für isAdmin=false sichtbar bleiben dürfen.
@@ -68,6 +73,9 @@ export const SAFE_DATA_ACTIONS = Object.freeze([
   'open-more-menu',
   'toggle-section',
   'toggle-filter-dropdown',
+  // A4: Die ganze Turnierkarte ist die Aktion — reines Öffnen, für
+  // Mitglieder ausdrücklich erlaubt.
+  'open-instance',
 ]);
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -80,6 +88,129 @@ function esc(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// ── Listen-Karte (A4) ───────────────────────────────────────────────
+
+/**
+ * A4 (2026-08-25, redesign-umsetzung-teil2.md): Datum für die Turnierkarte.
+ *
+ * Die DTO-Felder startsAtShort/startsAtDate lassen das Jahr weg — auf der
+ * Listenkarte steht das Turnier aber ohne weiteren Kontext, deshalb hier
+ * die volle Form "05.09.2026". Fehlende oder ungültige Daten liefern einen
+ * leeren String, damit die Zeile dann ganz entfällt statt "Invalid Date"
+ * anzuzeigen.
+ */
+export function formatTournamentCardDate(startsAt) {
+  if (!startsAt) return '';
+  const d = new Date(startsAt);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/**
+ * A4: Eine Turnierkarte in der Liste.
+ *
+ * Vorher: .tournament-card aus main.css — der Status stand zweimal da (als
+ * Abschnittsüberschrift UND als Badge), der Turniername war kleiner als die
+ * Überschrift darüber, die Kennzahlen brachen als Textblock um, und neben
+ * dem "Öffnen"-Knopf saß ein Mülleimer.
+ *
+ * Jetzt: .t-list-card aus tournament.css — die Klasse existierte bereits
+ * vollständig (Logo, Name, Datum, Badge, Kennzahlen, Fortschrittsbalken),
+ * wurde nur nie benutzt.
+ *
+ * Die ganze Karte ist die Aktion (role="button" + tabindex). Löschen liegt
+ * im Kontextmenü, damit man beim Öffnen nicht danebentrifft.
+ *
+ * Bewusst ohne Import von tournament.js: dieses Modul bleibt frei von
+ * Browser-Abhängigkeiten, deshalb kommen Labels und Icons als Strings rein.
+ *
+ * @param {object}  o.instance   Turnier-DTO aus prepareTournamentList
+ * @param {string}  o.phase      Phasen-Bucket (Datenattribut + Badge-Text)
+ * @param {boolean} o.isAdmin    P1-Gate — Mitglieder sehen kein Kontextmenü
+ * @param {string}  o.phaseLabel deutscher Phasenname für das Badge
+ * @param {string}  o.modeLabel  deutscher Modusname für die Kennzahlen-Zeile
+ * @param {{more?: string, trash?: string}} [o.icons] Inline-SVGs aus main.js
+ */
+export function renderTournamentListCard({
+  instance,
+  phase,
+  isAdmin,
+  phaseLabel = '',
+  modeLabel = '',
+  icons = {},
+} = {}) {
+  // Backend liefert die Stats bereits aggregiert (prepareTournamentView):
+  // { teamCount, groupCount, matchCount, finishedCount }.
+  const played = instance?.finishedCount ?? 0;
+  const total = instance?.matchCount ?? 0;
+  const teamCount = instance?.teamCount ?? null;
+  const groupCount = instance?.groupCount ?? null;
+  const pct = total > 0 ? Math.round((played / total) * 100) : 0;
+
+  const name = instance?.name || 'Turnier';
+  const initial = name.trim().charAt(0).toUpperCase() || 'T';
+  const logoHtml = instance?.logoUrl
+    ? `<span class="t-list-card-logo"><img src="${esc(instance.logoUrl)}" alt=""></span>`
+    : `<span class="t-list-card-logo">${esc(initial)}</span>`;
+
+  // Die Badge-Farbe folgt dem Status, nicht der Phase: "draft" und
+  // "generated" liegen im selben Phasen-Bucket, sehen aber verschieden aus.
+  const statusClass = {
+    draft: 't-list-card-status--draft',
+    generated: 't-list-card-status--ready',
+    group_stage: 't-list-card-status--running',
+    ko_stage: 't-list-card-status--running',
+    finished: 't-list-card-status--finished',
+  }[instance?.status] || 't-list-card-status--draft';
+
+  // Datum und Ort statt des wiederholten Status.
+  const subLine = [formatTournamentCardDate(instance?.startsAt), instance?.location || '']
+    .filter(Boolean)
+    .join(' · ');
+
+  // Kennzahlen einzeilig. Gruppen nur, wenn es welche gibt — ko_only hat keine.
+  const infoParts = [];
+  if (modeLabel) infoParts.push(modeLabel);
+  infoParts.push(`${teamCount ?? '–'} Teams`);
+  if (groupCount) infoParts.push(`${groupCount} Gruppen`);
+  infoParts.push(`${total} Spiele`);
+
+  const menuHtml = isAdmin
+    ? `<div class="t-list-card-menu-wrap">
+        <button type="button" class="t-list-card-menu-btn" data-action="instance-menu"
+                data-instance-id="${esc(instance?.id)}" aria-haspopup="true" aria-expanded="false"
+                aria-label="Aktionen für ${esc(name)}">${icons.more || ''}</button>
+        <div class="t-list-card-menu" hidden>
+          <button type="button" class="t-list-card-menu-item danger" data-action="instance-delete"
+                  data-instance-id="${esc(instance?.id)}" data-instance-name="${esc(name)}">${icons.trash || ''}<span>Löschen</span></button>
+        </div>
+      </div>`
+    : '';
+
+  return `<article class="t-list-card" data-instance-id="${esc(instance?.id)}" data-instance-phase="${esc(phase)}"
+           data-action="open-instance" role="button" tabindex="0"
+           aria-label="${esc(name)} öffnen">
+    <div class="t-list-card-row">
+      ${logoHtml}
+      <div class="t-list-card-main">
+        <h3 class="t-list-card-name">${esc(name)}</h3>
+        ${subLine ? `<div class="t-list-card-date">${esc(subLine)}</div>` : ''}
+      </div>
+      <span class="t-list-card-status ${statusClass}">${esc(phaseLabel)}</span>
+      ${menuHtml}
+    </div>
+    <div class="t-list-card-info">${esc(infoParts.join(' · '))}</div>
+    ${total > 0 ? `<div class="t-list-card-progress">
+      <div class="t-list-card-progress-bar"><span class="t-list-card-progress-fill" style="width:${pct}%"></span></div>
+      <div class="t-list-card-progress-label">${played} von ${total} Spielen</div>
+    </div>` : ''}
+  </article>`;
 }
 
 // ── Section-Renderer ────────────────────────────────────────────────

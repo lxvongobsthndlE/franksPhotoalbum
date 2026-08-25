@@ -187,6 +187,32 @@
     overflow: hidden;
   }
 }
+
+/* ----------------------------------------------------------------
+   LISTEN-HOST (A4, 2026-08-25)
+   ----------------------------------------------------------------
+   Die Turnierliste rendert in #grid, also AUSSERHALB der Detail-View.
+   .t-list-card & Geschwister sind aber auf die Tokens von .t-mod
+   angewiesen (--ink, --line, --s4, --r-card …) — die stehen nicht in
+   main.css. Ohne .t-mod fallen sie auf Initialwerte zurück: kein
+   Padding, kein Radius, currentcolor als Rahmen.
+
+   Deshalb bekommt die Listen-Schale zusätzlich die Klasse t-mod (eine
+   Wahrheit für die Tokens, keine Kopie) und hier den Gegen-Reset für
+   die Layout-Eigenschaften, die .t-mod als Modul-Container mitbringt.
+   Dasselbe Muster nutzt der Ergebnis-Dialog (.t-dialog-host).
+   ---------------------------------------------------------------- */
+.t-list-host {
+  container-type: normal;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  width: 100%;
+  max-width: 1800px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
 .t-mod table { border-collapse: collapse; width: 100%; }
 .t-mod button {
   font-family: inherit; font-size: inherit; cursor: pointer;
@@ -1145,6 +1171,26 @@
   flex-wrap: wrap;
 }
 
+/* Der Textblock zwischen Logo und Status-Badge. Nimmt den freien Platz
+   und stapelt Name + Datum/Ort. min-width:0 ist Pflicht, sonst kann der
+   Name nicht kürzen und schiebt das Badge aus der Karte. */
+.t-list-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Die ganze Karte ist die Aktion — kein "Öffnen"-Knopf mehr
+   (Redesign-Plan §3.3). role=button + tabindex kommen aus dem Renderer. */
+.t-list-card[role="button"] { cursor: pointer; }
+.t-list-card[role="button"]:hover { border-color: var(--accent); }
+.t-list-card[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Logo / Platzhalter — 56×56, optional Bild, sonst Initial */
 .t-list-card-logo {
   width: 56px; height: 56px;
@@ -1164,15 +1210,19 @@
   display: block;
 }
 
+/* Der Turniername ist das Größte auf der Karte (Redesign-Plan §3.3).
+   Kein flex:1 mehr — die Breitenverteilung macht jetzt .t-list-card-main,
+   der Name ist nur noch dessen erste Zeile. */
 .t-list-card-name {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.25;
   color: var(--ink);
-  flex: 1;
+  margin: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Datum — klein, gedämpft, unter dem Namen */
@@ -1283,6 +1333,46 @@
   color: var(--ink);
   background: var(--surface-alt);
 }
+
+/* Kontextmenü der Listenkarte (A4, 2026-08-25).
+   Löschen liegt hier statt als Mülleimer direkt auf der Karte — sonst
+   trifft man beim Öffnen leicht daneben. Der Wrap ist der Positions-
+   bezug; die Karte selbst hat kein overflow:hidden, das Menü darf also
+   über den Kartenrand hinausragen. */
+.t-list-card-menu-wrap {
+  position: relative;
+  flex: none;
+}
+.t-list-card-menu {
+  position: absolute;
+  top: calc(100% + var(--s1));
+  right: 0;
+  z-index: 20;
+  min-width: 160px;
+  padding: var(--s1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  box-shadow: 0 8px 24px rgba(31, 27, 22, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+.t-list-card-menu[hidden] { display: none; }
+.t-list-card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: 8px var(--s3);
+  border-radius: var(--r-btn);
+  font-size: 14px;
+  color: var(--ink);
+  text-align: left;
+  white-space: nowrap;
+}
+.t-list-card-menu-item:hover { background: var(--surface-alt); }
+.t-list-card-menu-item.danger { color: var(--danger); }
+.t-list-card-menu-item.danger:hover { background: var(--surface-alt); }
 
 /* View-Header mit Titel + Sub + Aktion (rechts) */
 .t-view-head {
