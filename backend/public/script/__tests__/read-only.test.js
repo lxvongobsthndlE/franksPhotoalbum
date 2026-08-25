@@ -137,7 +137,15 @@ describe('Source-Scan: jedes mutierende data-action in main.js / spielplan-helpe
           // gerendert (per renderEinstellungenSection / renderActionsBlock)
           // und sind dort bereits isAdmin-gegated.
           const re = new RegExp(`data-action=["']${action}["']`, 'i');
-          const listenerRe = /querySelector(?:All)?\([^)]*data-action/i;
+          // `closest()` gehört zur selben Klasse wie `querySelector`:
+          // eine SUCHE, kein Rendering. Ohne diesen Zweig hing das
+          // Urteil über delegierte Dispatch-Zeilen (z. B.
+          // `event.target.closest('[data-action="instance-delete"]')`)
+          // daran, ob zufällig irgendwo in den 120 Zeilen darüber das
+          // Wort `isAdmin` steht — eingefügte Kommentarzeilen konnten
+          // den Test kippen, ohne dass sich am Gating etwas änderte
+          // (belegt am 2026-08-25 bei main.js:2465).
+          const listenerRe = /(?:querySelector(?:All)?|closest)\([^)]*data-action/i;
           const hits = [];
           lines.forEach((line, idx) => {
             if (re.test(line) && !listenerRe.test(line)) hits.push(idx);
