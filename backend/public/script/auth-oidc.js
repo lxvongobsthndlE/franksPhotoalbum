@@ -191,7 +191,7 @@ export async function apiCall(endpoint, method = 'GET', body = null, extra = {})
         let serverCode = '';
         try {
           const j = await parseApiResponse(retryResponse);
-          serverMsg = j?.error || j?.message || '';
+          serverMsg = j?.message || j?.error || '';
           serverCode = j?.code || '';
         } catch (_) {}
         const err = new Error(serverMsg || `HTTP ${retryResponse.status}`);
@@ -208,7 +208,13 @@ export async function apiCall(endpoint, method = 'GET', body = null, extra = {})
       let serverCode = '';
       try {
         const j = await response.json();
-        serverMsg = j.error || j.message || '';
+        // Reihenfolge ist wichtig und darf nicht gedreht werden: die
+        // Turnier-Routen antworten mit { error: '<code>', message:
+        // '<deutscher Satz>' }. Wer `error` zuerst nimmt, zeigt dem
+        // Nutzer `groups_locked` statt der Meldung. handleError()
+        // liefert nur `error` — dort steht der Text drin, also greift
+        // der Fallback.
+        serverMsg = j.message || j.error || '';
         serverCode = j.code || '';
       } catch (_) {}
       const err = new Error(serverMsg || `HTTP ${response.status}`);
@@ -238,6 +244,18 @@ export async function fetchWithAuth(endpoint, options = {}) {
 
   if (accessToken && !requestOptions.headers.Authorization) {
     requestOptions.headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  // Ein String-Body ist bei uns immer JSON. Ohne Content-Type setzt der
+  // Browser `text/plain`, und Fastify hat dafür keinen Parser — die
+  // Antwort ist dann 415, obwohl der Aufruf inhaltlich korrekt ist.
+  // FormData/Blob bleiben unangetastet: dort muss der Browser die
+  // Boundary selbst setzen.
+  const hasContentType = Object.keys(requestOptions.headers).some(
+    (h) => h.toLowerCase() === 'content-type',
+  );
+  if (typeof requestOptions.body === 'string' && !hasContentType) {
+    requestOptions.headers['Content-Type'] = 'application/json';
   }
 
   let response = await fetch(url, requestOptions);

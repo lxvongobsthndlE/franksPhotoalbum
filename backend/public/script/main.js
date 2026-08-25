@@ -2372,7 +2372,7 @@ async function loadTournamentInstances(reset = false) {
 
     // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
     // Wenn der Backend-Call mit 403 fehlschlägt, war es vermutlich fehlende Mitgliedschaft.
-    if (e?.statusCode === 403) {
+    if (e?.status === 403 || e?.statusCode === 403) {
       if (icon) icon.textContent = '🚫';
       if (text) text.textContent = 'Du bist nicht (mehr) Mitglied dieser Gruppe oder hast keine Berechtigung.';
       if (actions) {
@@ -3302,7 +3302,7 @@ function toggleScheduleEditMode(section, t) {
   // Renderer liefert bei isAdmin immer die Edit-View; wir tauschen nur
   // die Karten. Damit auch nicht-editierbare Matches in der Liste
   // bleiben, filtern wir nicht.
-  const listEl = section.querySelector('[data-tab-body="spielplan-mount"]');
+  const listEl = section.querySelector("#t-schedule-list");
   if (!listEl) return;
 
   if (!isAdmin) {
@@ -3383,7 +3383,7 @@ async function saveScheduleEdits(t, section) {
 
   // Pro-Karte-Edits sammeln
   const updates = [];
-  const cards = section.querySelectorAll('[data-role="match-card"]');
+  const cards = section.querySelectorAll(".t-match[data-match-id]");
   cards.forEach((card) => {
     const matchId = card.dataset.matchId;
     const timeInput = card.querySelector('.t-match-edit-time');
@@ -4083,7 +4083,7 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   if (t.isAdmin === true) {
     const seedingTeamsList = mount.querySelector('[data-role="teams-list"]');
     if (seedingTeamsList && typeof wireTeamsList === 'function') {
-      wireTeamsList(mount, t, { reorderable: true });
+      wireTeamsList(mount, t, { isAdmin: true, reorderable: true });
     }
   }
 
@@ -4275,6 +4275,29 @@ function wireEinstellungen(mount, t, { finishedCount }) {
         return;
       }
       await saveFieldsConfig(t.id, out.fields);
+    });
+  }
+
+  // Abbrechen (Spielfelder-Editor). Der Knopf wurde gerendert und vom
+  // Render-Test geprüft, hatte aber keinen Handler: der Nutzer klickte
+  // „Abbrechen", seine Eingaben blieben stehen und er hielt sie für
+  // verworfen. Es gibt keine Route dafür — der Editor wird schlicht aus
+  // der gespeicherten Konfiguration neu aufgebaut.
+  const resetFieldsBtn = mount.querySelector('[data-action="reset-fields"]');
+  if (resetFieldsBtn) {
+    resetFieldsBtn.addEventListener('click', () => {
+      const editor = mount.querySelector('.t-fields-editor');
+      if (!editor) return;
+      // `defaultValue` trägt den Wert aus dem value-Attribut, das der
+      // Renderer aus der gespeicherten Konfiguration geschrieben hat.
+      // Damit ist der Zurücksetz-Punkt immer der Serverstand — ohne
+      // eine zweite Datenquelle, die auseinanderlaufen könnte.
+      editor
+        .querySelectorAll('.t-field-name, .t-fields-count')
+        .forEach((input) => {
+          input.value = input.defaultValue;
+        });
+      toast('Änderungen verworfen', 'info');
     });
   }
 
