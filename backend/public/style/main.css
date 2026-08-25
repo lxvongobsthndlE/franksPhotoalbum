@@ -1738,6 +1738,29 @@ button.tournament-header-btn {
   padding: 30px 28px;
   min-width: 0;
 }
+
+/* P7 (2026-08-24, User-Liste Punkt 7): Echter Scroller ist #content,
+   NICHT .t-mod-main. Wenn die Mobile-Bottom-Bar (tournament.css) bei
+   .t-mod-Container ≤600 px fixed am Viewport klebt, scrollt der User
+   die letzte Zeile unter die Bar. Mein voriger Fix auf .t-mod-main
+   hat nicht gewirkt, weil .t-mod overflow:hidden hat und der
+   Page-Scroller #content ist.
+
+   Breakpoint @media (max-width: 660px) statt 600 px: Die Bottom-Bar
+   triggert per @container (max-width: 600px) auf .t-mod; das sind
+   viewport ≈660 px (Containerbreite = viewport − 56 px #content-Padding).
+   Großzügigere Schwelle deckt den Bar-Bereich voll ab.
+
+   Ohne Detail-View schadet das Padding-Bottom nicht — unter dem
+   letzten Footer-Element erscheint einfach zusätzlicher Weißraum. */
+@media (max-width: 660px) {
+  #content {
+    /* var(--s4, 16px) — --s4 wird in tournament.css auf .t-mod
+       definiert; auf #content selbst nicht sichtbar, daher Fallback.
+       56 px = Bottom-Bar-Höhe, env() = iOS Safe-Area. */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--s4, 16px) + 30px);
+  }
+}
 .gal-hdr {
   margin-bottom: 20px;
 }
