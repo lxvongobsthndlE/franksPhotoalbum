@@ -548,6 +548,28 @@
   background: var(--line);
   margin: var(--s3) var(--s2);
 }
+/* Der Ausgang aus dem Turnier, 2026-08-26. Er steht ueber den Ansichten,
+   weil er keine ist — deshalb eine Haarlinie darunter statt zwischen den
+   Ansichten. Leiser als die Ansichts-Eintraege (kleiner, gedaempft): er
+   ist der seltene Klick, nicht der haeufige. Die weiche Linie ist
+   dieselbe wie am rechten Nav-Rand — ein Trennmuster, nicht zwei.
+
+   Die Selektoren tragen `.t-mod-nav button` mit: die Basisregel oben ist
+   (0,1,1), eine blosse `.t-mod-nav-back`-Klasse (0,1,0) verliert gegen sie
+   und border-radius/color kaemen nie an. Vierte Kollision dieser Art in
+   dieser Datei — deshalb hier ausgeschrieben statt kurz. */
+.t-mod-nav button.t-mod-nav-back {
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding-bottom: var(--s3);
+  margin-bottom: var(--s3);
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+}
+.t-mod-nav button.t-mod-nav-back:hover {
+  background: transparent;
+  color: var(--ink);
+}
 
 /* ----------------------------------------------------------------
    MOBILE TAB-LEISTE — verbindlich (§13 Bug aus altem Stand)

@@ -389,7 +389,22 @@ export function renderDetailSidebar({ isAdmin }) {
   const einstellungenItem = isAdmin
     ? '<button type="button" data-view="einstellungen">Einstellungen</button>'
     : '';
+  // Nacharbeit 2026-08-26 (Jonas: „ich komme nicht ins Turniermenue"):
+  // Der Weg zurueck in die Uebersicht stand nur im mobilen Mehr-Blatt.
+  // Die Aktionszeile unter dem Kopf, die ihn auf Desktop trug, ist am
+  // selben Tag ersatzlos gestrichen worden — auf >600px gab es danach
+  // KEINEN Ausgang mehr aus einem geoeffneten Turnier, und damit auch
+  // keinen Weg zum Erstellen-Knopf, der nur in der Uebersicht steht.
+  //
+  // Der Eintrag traegt bewusst KEIN data-view: der Nav-Binder in main.js
+  // greift nur `button[data-view]`, sonst wuerde er hier einen Ansichts-
+  // Wechsel auf eine Ansicht versuchen, die es nicht gibt. Verdrahtet
+  // wird er ueber den vorhandenen `[data-action="back"]`-Sammelbinder,
+  // der schon beide Saetze im DOM bedient.
+  const zurueckItem =
+    '<button type="button" class="t-mod-nav-back" data-action="back">Zurück zur Übersicht</button>';
   return `<nav class="t-mod-nav" id="t-nav" aria-label="Turnier-Ansichten">
+            ${zurueckItem}
             <button type="button" class="is-active" data-view="spielplan">Spielplan <span class="count" id="cnt-matches"></span></button>
             <button type="button" data-view="gruppen">Gruppen</button>
             <button type="button" data-view="baum">Turnierbaum</button>
