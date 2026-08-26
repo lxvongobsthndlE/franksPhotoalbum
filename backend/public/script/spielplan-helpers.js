@@ -269,7 +269,16 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   } else if (m?.sub) {
     actionHtml = `<div class="t-match-action"><span class="t-match-action-text">${esc(m.sub)}</span></div>`;
   } else {
-    actionHtml = '<div class="t-match-action"><span class="t-match-action-text">–</span></div>';
+    // Markenuebernahme (2026-08-26): GAR NICHTS statt eines
+    // Gedankenstrichs. Der Strich war die ehrliche Antwort, solange die
+    // Aktionsspalte rechts neben den Teams lag und sonst leer gewesen
+    // waere — eine leere Grid-Spalte sieht nach Fehler aus.
+    // Seit die Aktion eine eigene ZEILE unter der Meta ist, kostet ein
+    // Strich eine ganze Zeile Hoehe fuer die Aussage "hier steht
+    // nichts". Bei sechs offenen Spielen untereinander sind das sechs
+    // leere Zeilen. Die Karte laesst die Zeile jetzt weg
+    // (.t-match-action:empty { display: none }).
+    actionHtml = '';
   }
 
   // Anzeigetafel-Layout (Redesign Teil 1, A2): Teams UNTEREINANDER,
@@ -400,7 +409,82 @@ export function renderMatchList(matches, isAdmin) {
   if (!Array.isArray(matches) || matches.length === 0) {
     return '<p class="t-hint">Keine Spiele in dieser Auswahl.</p>';
   }
-  return matches.map((m) => renderMatchCard(m, isAdmin)).join('');
+
+  // Markenuebernahme Etappe 5 (2026-08-26): der Spielplan ist keine
+  // Liste von Spielen mehr, sondern ein Tagesablauf.
+  //
+  // Vorher stand jede Karte fuer sich und trug ihre Uhrzeit selbst. Bei
+  // 18 Spielen las man 18 mal dieselbe Zeit — und sah trotzdem nicht,
+  // was als Naechstes kommt. Jetzt gliedert die UHRZEIT, und die Karten
+  // haengen darunter:
+  //
+  //     14:30 ───────────── ● ALS NAECHSTES
+  //     [Karte] [Karte]
+  //     14:00 ───────────── GESPIELT
+  //     [Karte] [Karte]
+  //
+  // Das laufende Spiel steht GANZ OBEN, ausserhalb der Achse. Es hat
+  // keine Uhrzeit — es ist jetzt. Wer aufs Handy schaut, waehrend an
+  // der Platte gespielt wird, sucht genau diese eine Karte.
+
+  const laufend = matches.filter((m) => m?.isLive);
+  const rest = matches.filter((m) => !m?.isLive);
+
+  // Nach Uhrzeit buendeln. Reihenfolge der Gruppen = Reihenfolge des
+  // ersten Vorkommens; die Liste kommt bereits sortiert herein
+  // (sortMatchesBySchedule), also bleibt die Sortierung erhalten,
+  // ohne dass hier ein zweites Mal sortiert wird.
+  const bloecke = [];
+  const nachZeit = new Map();
+  for (const m of rest) {
+    const zeit = m?.scheduledTime || '';
+    if (!nachZeit.has(zeit)) {
+      const b = { zeit, spiele: [] };
+      nachZeit.set(zeit, b);
+      bloecke.push(b);
+    }
+    nachZeit.get(zeit).spiele.push(m);
+  }
+
+  // Der erste Block, in dem noch nichts gespielt ist, ist "als Naechstes".
+  const naechsterIndex = bloecke.findIndex((b) => b.spiele.some((m) => !m?.isFinished));
+
+  const teile = [];
+  if (laufend.length) {
+    teile.push(laufend.map((m) => renderMatchCard(m, isAdmin)).join(''));
+  }
+
+  bloecke.forEach((b, i) => {
+    const alleFertig = b.spiele.every((m) => m?.isFinished);
+    const istNaechster = i === naechsterIndex;
+    const zustand = alleFertig ? 'Gespielt' : istNaechster ? 'Als Nächstes' : 'Geplant';
+    teile.push(renderZeitmarke(b.zeit, zustand, istNaechster));
+    teile.push(b.spiele.map((m) => renderMatchCard(m, isAdmin)).join(''));
+  });
+
+  return teile.join('');
+}
+
+/**
+ * Eine Marke auf der Zeitachse: Uhrzeit links, Linie, Zustand rechts.
+ *
+ * Der Zustand ist bewusst Text und kein Symbol — "Als Nächstes",
+ * "Gespielt", "Geplant" sagen einem Fremden am Spieltisch mehr als ein
+ * Punkt, dessen Farbe man erst lernen muss. Der Punkt kommt dazu, wo es
+ * eilig ist, nicht statt der Worte.
+ *
+ * Ohne Uhrzeit (kommt vor: unverplante Spiele) traegt die Marke einen
+ * Gedankenstrich statt einer leeren Stelle. Eine Achse mit Luecke sieht
+ * kaputt aus; eine mit "–" sieht nach "noch kein Termin" aus, und genau
+ * das ist es.
+ */
+function renderZeitmarke(zeit, zustand, hervor) {
+  const z = zeit || '–';
+  return `<div class="t-zeitmarke${hervor ? ' is-next' : ''}">
+    <span class="t-zeitmarke-zeit">${esc(z)}</span>
+    <span class="t-zeitmarke-linie" aria-hidden="true"></span>
+    <span class="t-zeitmarke-zustand">${hervor ? '<span class="t-dot-flare" aria-hidden="true"></span>' : ''}${esc(zustand)}</span>
+  </div>`;
 }
 
 /**

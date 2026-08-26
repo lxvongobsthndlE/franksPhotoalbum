@@ -366,9 +366,19 @@ describe('renderMatchCard', () => {
     expect(html).not.toContain('data-action="enter-result"');
   });
 
-  it('Member + !beendet + kein sub → Platzhalter "–"', () => {
+  it('Member + !beendet + kein sub → gar keine Aktionszeile', () => {
+    // Bis zur Markenuebernahme stand hier ein Gedankenstrich. Das war
+    // richtig, solange die Aktion eine SPALTE rechts neben den Teams war:
+    // eine leere Grid-Spalte sieht nach Fehler aus, ein "–" nach Absicht.
+    //
+    // Seit die Aktion eine eigene ZEILE unter der Meta ist, kostet der
+    // Strich eine ganze Zeile Hoehe fuer die Aussage "hier steht nichts".
+    // Bei sechs offenen Spielen untereinander sind das sechs leere
+    // Zeilen. Jetzt faellt die Zeile weg — die Karte endet nach der
+    // Meta-Zeile.
     const html = renderMatchCard(makeMatch({ isFinished: false, sub: null }), false);
-    expect(html).toContain('<span class="t-match-action-text">–</span>');
+    expect(html).not.toContain('t-match-action-text');
+    expect(html).not.toContain('t-match-action');
   });
 
   it('Team-Farbe wird inline als background-style gerendert', () => {

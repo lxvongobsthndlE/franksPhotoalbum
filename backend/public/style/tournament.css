@@ -4982,3 +4982,55 @@ textarea.t-input {
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* ----------------------------------------------------------------
+   ZEITACHSE — Markenuebernahme Etappe 5
+   ----------------------------------------------------------------
+   Uhrzeit links in Mono, eine Haarlinie dazwischen, rechts der Zustand.
+   Die Marke gliedert den Spielplan nach Anstosszeit statt nach Gruppe:
+   am Spieltisch ist "was kommt als Naechstes" die Frage, nicht "wer
+   spielt in Gruppe B".
+
+   Der aktuelle Block traegt Orange — hier ist die einzige Stelle im
+   Spielplan, an der der Akzent auftaucht. Alles Vergangene bleibt grau,
+   alles spaeter Geplante ebenfalls: nur EIN Block ist "als Naechstes",
+   sonst waere es keine Reihenfolge.
+   ---------------------------------------------------------------- */
+.t-zeitmarke {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s5) 0 var(--s2);
+  font-family: var(--f-mono);
+}
+.t-zeitmarke:first-child { margin-top: 0; }
+.t-zeitmarke-zeit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.t-zeitmarke-linie {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.t-zeitmarke-zustand {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.t-zeitmarke.is-next .t-zeitmarke-zustand { color: var(--flare); }
+.t-dot-flare {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--flare);
+  margin-right: 6px;
+  flex: none;
+}
