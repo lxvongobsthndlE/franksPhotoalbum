@@ -1,0 +1,1307 @@
+<title>Turniermodul in der Marke</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* ============================================================
+   Turniermodul in der Marke — Vollständiger Entwurf
+   Palette und Schrift übernommen aus "[kru:]nest Markenübernahme".
+   Nichts hier erfindet ein neues System; es setzt das vorhandene
+   auf alle Ansichten des Moduls fort.
+   ============================================================ */
+:root{
+  --ground:#E4E4E2; --panel:#FFFFFF; --raised:#F5F5F3; --sunk:#EDEDEA;
+  --line:#D1D1CD; --line-soft:#E5E5E1;
+  --ink:#0B0B0C; --ink-2:#3A3A3C; --muted:#65656A;
+  --flare:#BF4413; --flare-soft:#F7E5DC; --flare-line:#E4AE97;
+  --live:#00708F; --live-soft:#D8EDF3;
+  --qual:#1E6E45; --qual-soft:#DCEDE3;
+  --danger:#B4123F;
+  --brand-orange:#DE5426; --brand-black:#0B0B0C;
+  --shadow:0 1px 2px rgba(11,11,12,.07), 0 20px 48px rgba(11,11,12,.13);
+  --shadow-s:0 1px 2px rgba(11,11,12,.06);
+  --paper-shadow:0 2px 4px rgba(11,11,12,.10), 0 24px 60px rgba(11,11,12,.18);
+  --f-disp:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --f-cond:'Archivo Narrow','Arial Narrow','Helvetica Neue',sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0B0B0C; --panel:#161618; --raised:#202024; --sunk:#0F0F11;
+    --line:#2F2F35; --line-soft:#232328;
+    --ink:#F1F0ED; --ink-2:#C5C4C0; --muted:#9A9A9F;
+    --flare:#F0794D; --flare-soft:rgba(240,121,77,.16); --flare-line:rgba(240,121,77,.42);
+    --live:#4FC5E8; --live-soft:rgba(79,197,232,.14);
+    --qual:#5FBE8C; --qual-soft:rgba(95,190,140,.14);
+    --danger:#FF7091;
+    --shadow:0 1px 0 rgba(255,255,255,.04), 0 32px 72px rgba(0,0,0,.66);
+    --shadow-s:0 1px 0 rgba(255,255,255,.04);
+    --paper-shadow:0 1px 0 rgba(255,255,255,.05), 0 32px 80px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0B0B0C; --panel:#161618; --raised:#202024; --sunk:#0F0F11;
+  --line:#2F2F35; --line-soft:#232328;
+  --ink:#F1F0ED; --ink-2:#C5C4C0; --muted:#9A9A9F;
+  --flare:#F0794D; --flare-soft:rgba(240,121,77,.16); --flare-line:rgba(240,121,77,.42);
+  --live:#4FC5E8; --live-soft:rgba(79,197,232,.14);
+  --qual:#5FBE8C; --qual-soft:rgba(95,190,140,.14);
+  --danger:#FF7091;
+  --shadow:0 1px 0 rgba(255,255,255,.04), 0 32px 72px rgba(0,0,0,.66);
+  --shadow-s:0 1px 0 rgba(255,255,255,.04);
+  --paper-shadow:0 1px 0 rgba(255,255,255,.05), 0 32px 80px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+     font-family:var(--f-body);font-size:15px;line-height:1.55;
+     -webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--flare);outline-offset:2px;border-radius:4px}
+img{max-width:100%;display:block}
+
+.pg{max-width:1240px;margin:0 auto;padding:48px 24px 96px;display:flex;flex-direction:column;gap:72px}
+
+/* ---------- Seiten-Typografie ---------- */
+.eyebrow{margin:0;font-family:var(--f-mono);font-size:11px;font-weight:500;
+         letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+h1{margin:.28em 0 0;font-family:var(--f-disp);font-weight:800;font-size:clamp(34px,5.4vw,60px);
+   line-height:1.02;letter-spacing:-.025em;text-wrap:balance;max-width:16ch}
+h2{margin:0;font-family:var(--f-disp);font-weight:700;font-size:clamp(22px,2.6vw,30px);
+   line-height:1.12;letter-spacing:-.02em;text-wrap:balance}
+h3{margin:0;font-family:var(--f-disp);font-weight:700;font-size:17px;letter-spacing:-.01em}
+.lede{margin:18px 0 0;max-width:62ch;font-size:17px;color:var(--ink-2)}
+.note{margin:0;max-width:64ch;color:var(--ink-2)}
+.sec-head{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+.sec-head .eyebrow{color:var(--flare)}
+hr.rule{border:0;border-top:1px solid var(--line);margin:0}
+
+/* ---------- Raster ---------- */
+.row{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.cols{display:grid;gap:24px}
+@media(min-width:760px){ .cols.c2{grid-template-columns:1fr 1fr} .cols.c3{grid-template-columns:repeat(3,1fr)} .cols.c4{grid-template-columns:repeat(4,1fr)} }
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* ---------- Erklärkarte ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+      padding:20px;box-shadow:var(--shadow-s);display:flex;flex-direction:column;gap:8px}
+.card .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--flare)}
+.card p{margin:0;color:var(--ink-2);font-size:14.5px}
+
+/* ---------- Geräterahmen ---------- */
+.dev{width:390px;flex:0 0 390px;max-width:100%;background:var(--panel);border-radius:26px;
+     box-shadow:var(--shadow);overflow:hidden;border:1px solid var(--line)}
+/* Unter 470px passt der 390er-Rahmen plus Seitenpolster nicht mehr nebeneinander —
+   dann schrumpft der Rahmen mit und das Polster wird knapper. Ohne das läuft die
+   Seite waagerecht über, gemessen 10px bei 430px Viewport. */
+@media(max-width:470px){
+  .dev{flex:1 1 auto;width:100%}
+  .pg{padding-left:14px;padding-right:14px}
+  .dlg{width:100%}
+}
+.dev-cap{margin:10px 0 0;text-align:center;font-family:var(--f-mono);font-size:10px;
+         letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.stat{display:flex;justify-content:space-between;align-items:center;padding:9px 18px 3px;
+      font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.stat .sig{display:flex;gap:3px;align-items:flex-end}
+.stat .sig i{display:block;width:3px;background:var(--ink-2);border-radius:1px}
+.stat .sig i:nth-child(1){height:4px}.stat .sig i:nth-child(2){height:6px}
+.stat .sig i:nth-child(3){height:8px}.stat .sig i:nth-child(4){height:10px;background:var(--line)}
+.batt{width:22px;height:11px;border:1px solid var(--ink-2);border-radius:3px;position:relative}
+.batt::after{content:"";position:absolute;inset:2px;right:6px;background:var(--ink-2);border-radius:1px}
+
+/* Screen-Kopf: Kicker, Display-Titel, orange Aktion */
+.shead{padding:6px 18px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.shead .kick{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.16em;
+             text-transform:uppercase;color:var(--muted)}
+.shead .ttl{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:2px}
+.shead h4{margin:0;font-family:var(--f-disp);font-weight:800;font-size:27px;letter-spacing:-.025em}
+.shead .act{font-family:var(--f-cond);font-weight:700;font-size:12.5px;letter-spacing:.1em;
+            text-transform:uppercase;color:var(--flare);white-space:nowrap}
+.sbody{background:var(--ground);padding:14px;display:flex;flex-direction:column;gap:14px;min-height:120px}
+
+/* Segment-Leiste */
+.seg{display:flex;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:4px;gap:4px}
+.seg b,.seg span{flex:1;text-align:center;padding:8px 4px;border-radius:7px;
+                 font-family:var(--f-cond);font-weight:700;font-size:12.5px;letter-spacing:.07em;
+                 text-transform:uppercase;color:var(--muted)}
+.seg b{background:var(--panel);color:var(--ink);box-shadow:var(--shadow-s)}
+
+/* Zeitachse */
+.tmark{display:flex;align-items:center;gap:10px;padding-top:4px}
+.tmark .t{font-family:var(--f-mono);font-weight:600;font-size:13px}
+.tmark .ln{flex:1;height:1px;background:var(--line)}
+.tmark .s{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.tmark .s.now{color:var(--flare)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--flare);display:inline-block;margin-right:5px}
+.dot.live{background:var(--live)}
+
+/* Match-Karte */
+.mc{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-s);overflow:hidden}
+.mc .tm{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px}
+.mc .tm + .tm{border-top:1px solid var(--line-soft)}
+.mc .nm{font-family:var(--f-disp);font-weight:600;font-size:16.5px;letter-spacing:-.01em}
+.mc .sc{font-family:var(--f-mono);font-weight:600;font-size:17px;color:var(--muted)}
+.mc .win .nm{color:var(--ink)} .mc .win .sc{color:var(--flare);font-weight:600}
+.mc .lose .nm{color:var(--muted)} .mc .lose .sc{color:var(--ink-2)}
+.mc .meta{display:flex;justify-content:space-between;gap:10px;padding:8px 14px;
+          border-top:1px solid var(--line);background:var(--raised);
+          font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;
+          text-transform:uppercase;color:var(--muted)}
+.mc.is-live{border-color:var(--live);box-shadow:0 0 0 1px var(--live),var(--shadow-s)}
+.mc.is-live .meta{background:var(--live-soft);color:var(--live)}
+.seed{font-family:var(--f-mono);font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;
+      background:var(--sunk);border:1px solid var(--line);color:var(--ink-2);margin-right:9px}
+
+/* Filter-Chips */
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;
+      border:1px solid var(--line);background:var(--panel);
+      font-family:var(--f-cond);font-weight:600;font-size:12.5px;letter-spacing:.05em;text-transform:uppercase}
+.chip .n{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.chip.on .n{color:var(--panel);opacity:.72}
+
+/* Tabelle */
+.tbl{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-s);overflow:hidden}
+.tbl .th{display:flex;align-items:baseline;justify-content:space-between;padding:13px 14px 4px}
+.tbl .th h5{margin:0;font-family:var(--f-disp);font-weight:700;font-size:18px;letter-spacing:-.015em}
+.tbl .th .sub{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:13px;
+      font-variant-numeric:tabular-nums}
+thead th{font-family:var(--f-mono);font-weight:500;font-size:10px;letter-spacing:.14em;
+         text-transform:uppercase;color:var(--muted);padding:8px 6px;text-align:right}
+thead th.l{text-align:left}
+tbody td{padding:10px 6px;text-align:right;border-top:1px solid var(--line-soft)}
+tbody td.l{text-align:left}
+tbody td.nm{font-family:var(--f-disp);font-weight:600;font-size:15px;letter-spacing:-.01em}
+tbody td.pl{width:34px;color:var(--muted);position:relative;padding-left:14px}
+tbody tr.q td{background:var(--qual-soft)}
+tbody tr.q td.pl{color:var(--qual);font-weight:600}
+tbody tr.q td.pl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--qual)}
+tbody tr.lead td{background:var(--flare-soft)}
+tbody tr.lead td.pl{color:var(--flare);font-weight:600}
+tbody tr.lead td.pl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--flare)}
+.tfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;
+       border-top:1px solid var(--line);background:var(--raised);
+       font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.tfoot .sq{width:9px;height:9px;background:var(--flare);display:inline-block;margin-right:6px}
+.prog{display:flex;gap:3px}
+.prog i{display:block;width:15px;height:4px;border-radius:2px;background:var(--line)}
+.prog i.w{background:var(--qual)} .prog i.l{background:var(--danger);opacity:.55}
+
+/* Listenzeilen (Einstellungen) */
+.lst{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-s);overflow:hidden}
+.lrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px}
+.lrow + .lrow{border-top:1px solid var(--line-soft)}
+.lrow .lb{font-weight:500}
+.lrow .lb small{display:block;font-size:12.5px;color:var(--muted);font-weight:400}
+.lrow .vl{font-family:var(--f-mono);font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:8px}
+.chev{color:var(--muted)}
+.step{display:flex;align-items:center;gap:2px;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:3px}
+.step b{font-family:var(--f-mono);font-size:13px;padding:0 10px;min-width:64px;text-align:center}
+.step span{width:26px;height:24px;display:grid;place-items:center;border-radius:6px;color:var(--ink-2);font-size:15px}
+.grp-lbl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+         color:var(--muted);padding:4px 4px 0}
+
+/* Statuskarte */
+.stcard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--live);
+        border-radius:10px;padding:14px;box-shadow:var(--shadow-s)}
+.stcard .hd{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--live)}
+.stcard .nums{display:flex;gap:26px;margin-top:10px}
+.stcard .nums div b{display:block;font-family:var(--f-disp);font-weight:700;font-size:26px;line-height:1}
+.stcard .nums div span{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* Bodenleiste */
+.bnav{display:flex;background:var(--panel);border-top:1px solid var(--line);padding:6px 4px 10px}
+.bnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;
+        text-decoration:none;color:var(--muted);
+        font-family:var(--f-cond);font-weight:600;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase}
+.bnav a.on{color:var(--flare)}
+.bnav svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;
+          stroke-linecap:round;stroke-linejoin:round}
+
+/* Turnierkarte in der Liste */
+.tcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;
+       box-shadow:var(--shadow-s);display:flex;flex-direction:column;gap:10px}
+.tcard .top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tcard h5{margin:0;font-family:var(--f-disp);font-weight:700;font-size:20px;letter-spacing:-.018em}
+.tcard .when{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);margin-top:2px}
+.pill{font-family:var(--f-cond);font-weight:700;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+      padding:4px 9px;border-radius:999px;white-space:nowrap}
+.pill.live{background:var(--live-soft);color:var(--live)}
+.pill.draft{background:var(--sunk);color:var(--muted)}
+.pill.done{background:var(--qual-soft);color:var(--qual)}
+.kv{display:flex;gap:16px;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+.bar{height:5px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--flare)}
+
+/* Baum-Diagramm */
+.tree{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:var(--shadow-s)}
+.tree .lg{display:flex;gap:16px;margin-top:12px;font-family:var(--f-mono);font-size:10.5px;
+          letter-spacing:.1em;text-transform:uppercase;color:var(--muted);flex-wrap:wrap}
+.tree .lg i{display:inline-block;width:16px;height:2px;background:var(--line);margin-right:6px;vertical-align:middle}
+.tree .lg .a i{background:var(--flare)} .tree .lg .a{color:var(--flare)}
+.tree .lg .g i{background:var(--ink-2)}
+.rpill{display:flex;gap:8px;overflow-x:auto}
+.rpill span{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--line);
+            background:var(--panel);font-family:var(--f-disp);font-weight:600;font-size:14px}
+.rpill span em{font-family:var(--f-mono);font-style:normal;font-size:12px;color:var(--muted);margin-left:6px}
+.rpill span.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.rpill span.on em{color:var(--panel);opacity:.7}
+
+/* Dialog */
+.dlg{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+     width:340px;overflow:hidden}
+.dlg .dh{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.dlg .dh .k{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.dlg .dh h5{margin:2px 0 0;font-family:var(--f-disp);font-weight:700;font-size:19px;letter-spacing:-.018em}
+.dlg .db{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.scin{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.scin .nm{font-family:var(--f-disp);font-weight:600;font-size:16px}
+.scin input{width:66px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--raised);
+            font-family:var(--f-mono);font-size:19px;font-weight:600;text-align:center;color:var(--ink)}
+.dlg .df{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--raised)}
+.btn{flex:1;padding:11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+     font-family:var(--f-cond);font-weight:700;font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink)}
+.btn.pri{background:var(--flare);border-color:var(--flare);color:#fff}
+.btn.dgr{background:var(--danger);border-color:var(--danger);color:#fff}
+
+/* Druckbogen */
+.sheet{background:#fff;color:#111;width:100%;max-width:560px;aspect-ratio:1/1.414;
+       box-shadow:var(--paper-shadow);border-radius:2px;padding:28px 26px;overflow:hidden;
+       display:flex;flex-direction:column;gap:14px;font-family:var(--f-body)}
+.sheet.land{aspect-ratio:1.414/1;max-width:720px}
+.sheet .ph{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;
+           border-bottom:2px solid #111;padding-bottom:8px}
+.sheet .ph .l .k{font-family:var(--f-mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:#555}
+.sheet .ph .l h6{margin:1px 0 0;font-family:var(--f-disp);font-weight:800;font-size:20px;letter-spacing:-.02em}
+.sheet .ph .r{text-align:right;font-family:var(--f-mono);font-size:8.5px;color:#555;line-height:1.5}
+.sheet .pf{margin-top:auto;border-top:1px solid #bbb;padding-top:6px;display:flex;justify-content:space-between;
+           font-family:var(--f-mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#666}
+.psec{font-family:var(--f-mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:#555;
+      border-bottom:1px solid #ddd;padding-bottom:3px}
+table.pt{font-family:var(--f-mono);font-size:10px}
+table.pt thead th{color:#555;padding:4px 4px;font-size:8px}
+table.pt tbody td{padding:5px 4px;border-top:1px solid #e2e2e2}
+table.pt tbody td.nm{font-family:var(--f-disp);font-size:11.5px;font-weight:600}
+table.pt tbody tr.lead td{background:#F2F2F0}
+table.pt tbody tr.q td{background:#F8F8F7}
+table.pt tbody td.pl::before{display:none}
+table.pt tbody tr.lead td.pl,table.pt tbody tr.q td.pl{color:#111;font-weight:700}
+.plegend{display:flex;gap:14px;font-family:var(--f-mono);font-size:8px;letter-spacing:.1em;
+         text-transform:uppercase;color:#666}
+.plegend b{display:inline-block;width:8px;height:8px;border:1px solid #111;margin-right:5px;vertical-align:-1px}
+.plegend b.f{background:#111}
+
+/* Dunkel-Vorschau: fester dunkler Rahmen unabhängig vom Seiten-Thema */
+.darkscope{--ground:#0B0B0C;--panel:#161618;--raised:#202024;--sunk:#0F0F11;
+  --line:#2F2F35;--line-soft:#232328;--ink:#F1F0ED;--ink-2:#C5C4C0;--muted:#9A9A9F;
+  --flare:#F0794D;--flare-soft:rgba(240,121,77,.16);--live:#4FC5E8;--live-soft:rgba(79,197,232,.14);
+  --qual:#5FBE8C;--qual-soft:rgba(95,190,140,.14);--danger:#FF7091;
+  --shadow:0 1px 0 rgba(255,255,255,.04),0 32px 72px rgba(0,0,0,.66);
+  --shadow-s:0 1px 0 rgba(255,255,255,.04);
+  background:#0B0B0C;color:#F1F0ED;padding:26px;border-radius:14px}
+
+/* Sidebar-Streifen */
+.sbar{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;width:260px;
+      box-shadow:var(--shadow-s)}
+.sbar a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:8px;text-decoration:none;color:var(--ink-2)}
+.sbar a.on{background:var(--flare-soft);color:var(--flare);font-weight:600}
+.sbar svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.sbar .em{font-size:17px;width:19px;text-align:center}
+
+.tag{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:10.5px;
+     letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ok{color:var(--qual)} .no{color:var(--danger)}
+.scroll{overflow-x:auto}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="pg">
+
+  <!-- ============ KOPF ============ -->
+  <header>
+    <p class="eyebrow">[kru:]nest · Turniermodul · Vollständiger Entwurf</p>
+    <h1>Vom Formular zum Spielbericht</h1>
+    <p class="lede">Jede Ansicht des Turniermoduls in der Markensprache — Tinte auf Papiergrau,
+      Orange nur für den Weg zum Titel, Ziffern im Mono. Dazu die drei Druckbögen, die bisher
+      fehlten: der Ausdruck ist kein Bildschirmfoto, sondern ein Blatt, das am Spieltisch liegt.</p>
+    <p class="note" style="margin-top:16px">Palette, Schrift und Radien sind unverändert aus
+      <em>[kru:]nest Markenübernahme</em> übernommen. Neu ist nur die Fortsetzung auf die
+      Ansichten, die dort nicht gezeigt waren — Liste, Wizard, Teams, Regelwerk, Dialoge, Druck
+      und Desktop.</p>
+  </header>
+
+  <hr class="rule">
+
+  <!-- ============ 1 · RAHMEN ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">01 · Der Rahmen</p>
+      <h2>Drei Teile, die auf jedem Screen gleich sind</h2>
+      <p class="note">Kicker sagt, wo man ist. Der Display-Titel sagt, was man sieht. Rechts steht
+        genau eine Aktion, in Orange — nie zwei. Darunter, wenn nötig, eine Segment-Leiste.
+        Die Bodenleiste bleibt immer sichtbar.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="dev">
+          <div class="stat"><span>14:32</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">Frühjahrsturnier · Sa 18. April</div>
+            <div class="ttl"><h4>Spielplan</h4><div class="act">Teams</div></div>
+          </div>
+          <div class="sbody">
+            <div class="seg"><b>Alle</b><span>Offen</span><span>Läuft</span><span>Fertig</span></div>
+            <p class="note" style="font-size:13px;color:var(--muted);margin:0">Inhalt der Ansicht</p>
+          </div>
+          <nav class="bnav">
+            <a href="#" class="on"><svg viewBox="0 0 24 24"><path d="M13 5h8M13 12h8M13 19h8m-10-2-2 2-4-4m6-8-2 2-4-4"/></svg>Spielplan</a>
+            <a href="#"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>Gruppen</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></svg>Baum</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>Mehr</a>
+          </nav>
+        </div>
+        <p class="dev-cap">Rahmen · 390 px</p>
+      </div>
+      <div class="cols c2" style="flex:1;min-width:300px">
+        <div class="card"><span class="k">Kicker</span><h3>Wo bin ich</h3>
+          <p>Turniername und Datum, Mono, gesperrt. Er wiederholt nie den Titel darunter.</p></div>
+        <div class="card"><span class="k">Titel</span><h3>Was sehe ich</h3>
+          <p>Archivo 800, eng gesetzt. Der größte Text auf dem Screen — daran erkennt man die Ansicht im Vorbeigehen.</p></div>
+        <div class="card"><span class="k">Aktion</span><h3>Genau eine</h3>
+          <p>Rechts, orange, Versalien. „Teams", „Regelwerk", „Teilen", „Fertig". Alles Weitere liegt im Mehr-Blatt.</p></div>
+        <div class="card"><span class="k">Leiste</span><h3>Vier Ziele</h3>
+          <p>Spielplan, Gruppen, Baum, Mehr. Aktiv ist orange — die einzige Stelle, wo Orange nicht den Titelweg meint, sondern den Ort.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 2 · LISTE + WIZARD ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">02 · Ankommen</p>
+      <h2>Liste und Anlage</h2>
+      <p class="note">Die beiden Ansichten, die es vor dem Turnier gibt. Beide waren im
+        Marken-Artefakt nicht gezeigt.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="dev">
+          <div class="stat"><span>09:14</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">[kru:]nest</div>
+            <div class="ttl"><h4>Turniere</h4><div class="act">Neu</div></div>
+          </div>
+          <div class="sbody">
+            <div class="tcard">
+              <div class="top">
+                <div><h5>Frühjahrsturnier</h5><div class="when">Sa, 18. April · Vereinsheim</div></div>
+                <span class="pill live">Läuft</span>
+              </div>
+              <div class="kv"><span>12 Teams</span><span>3 Gruppen</span><span>18 Spiele</span></div>
+              <div class="bar"><i style="width:56%"></i></div>
+              <div class="kv" style="color:var(--muted)"><span>10 von 18 gespielt</span></div>
+            </div>
+            <div class="tcard">
+              <div class="top">
+                <div><h5>Herbstpokal</h5><div class="when">Sa, 11. Oktober</div></div>
+                <span class="pill draft">Entwurf</span>
+              </div>
+              <div class="kv"><span>8 Teams</span><span>Nur K.&nbsp;o.</span></div>
+              <div class="kv" style="color:var(--muted)"><span>Noch kein Spielplan</span></div>
+            </div>
+            <div class="tcard">
+              <div class="top">
+                <div><h5>Winterrunde 2025</h5><div class="when">Sa, 7. Dezember</div></div>
+                <span class="pill done">Beendet</span>
+              </div>
+              <div class="kv"><span>16 Teams</span><span>Sieger: Netzroller</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="dev-cap">Turnierliste</p>
+      </div>
+
+      <div>
+        <div class="dev">
+          <div class="stat"><span>09:20</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">Neues Turnier · Schritt 3 von 5</div>
+            <div class="ttl"><h4>Modus</h4><div class="act">Weiter</div></div>
+          </div>
+          <div class="sbody">
+            <div class="prog" style="gap:5px">
+              <i class="w" style="width:100%"></i><i class="w" style="width:100%"></i>
+              <i style="width:100%;background:var(--flare)"></i><i style="width:100%"></i><i style="width:100%"></i>
+            </div>
+            <div class="lst">
+              <div class="lrow"><div class="lb">Spielmodus<small>Gilt für den gesamten Ablauf</small></div></div>
+              <div style="padding:0 14px 14px">
+                <div class="seg"><b>Gruppen + K.&nbsp;o.</b><span>Nur Gruppen</span><span>Nur K.&nbsp;o.</span></div>
+              </div>
+              <div class="lrow"><div class="lb">Gruppen</div><div class="vl"><span class="step"><span>−</span><b>3</b><span>+</span></span></div></div>
+              <div class="lrow"><div class="lb">Aufsteiger je Gruppe</div><div class="vl"><span class="step"><span>−</span><b>2</b><span>+</span></span></div></div>
+              <div class="lrow"><div class="lb">Beste Dritte<small>Rücken bei freien Plätzen nach</small></div><div class="vl"><span class="step"><span>−</span><b>2</b><span>+</span></span></div></div>
+            </div>
+            <p class="note" style="font-size:13px;color:var(--muted);margin:0">
+              12 Teams · 3 Gruppen zu 4 · 8 Qualifikanten · Viertelfinale</p>
+          </div>
+        </div>
+        <p class="dev-cap">Wizard · Modus</p>
+      </div>
+
+      <div class="stack" style="flex:1;min-width:280px">
+        <div class="card"><span class="k">Karte</span><h3>Der Name ist das Größte</h3>
+          <p>Status steht genau einmal, als Pille. Kennzahlen in einer Mono-Zeile. Der Balken erscheint
+            erst, wenn es Spiele gibt — ein Entwurf hat keinen.</p></div>
+        <div class="card"><span class="k">Wizard</span><h3>Fortschritt als Streifen</h3>
+          <p>Fünf Segmente statt „Schritt 3 von 5" als Satz. Der aktuelle ist orange, die erledigten grün.
+            Der Kicker trägt die Zahl für alle, die sie doch lesen wollen.</p></div>
+        <div class="card"><span class="k">Rechnung</span><h3>Die Folge steht darunter</h3>
+          <p>Jede Modus-Änderung schreibt sofort hin, was sie bedeutet. Niemand soll rechnen müssen,
+            wie viele Spiele daraus werden.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 3 · SPIELPLAN ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">03 · Die Hauptansicht</p>
+      <h2>Spielplan als Zeitachse</h2>
+      <p class="note">Nicht eine Liste von Spielen, sondern ein Tagesablauf. Die Uhrzeit gliedert,
+        nicht die Gruppe. Wer am Tisch steht, will wissen, was als Nächstes kommt.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="dev">
+          <div class="stat"><span>14:32</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">Frühjahrsturnier · Sa 18. April</div>
+            <div class="ttl"><h4>Spielplan</h4><div class="act">Teams</div></div>
+          </div>
+          <div class="sbody">
+            <div class="chips">
+              <span class="chip on">Alle <span class="n">18</span></span>
+              <span class="chip">Offen <span class="n">7</span></span>
+              <span class="chip">Läuft <span class="n">1</span></span>
+              <span class="chip">Fertig <span class="n">10</span></span>
+            </div>
+
+            <div class="mc is-live">
+              <div class="tm"><span class="nm">Netzroller</span><span class="sc" style="color:var(--ink)">2</span></div>
+              <div class="tm"><span class="nm">Kantenglück</span><span class="sc" style="color:var(--ink)">1</span></div>
+              <div class="meta"><span><span class="dot live"></span>Läuft · Satz 4</span><span>Platte 2</span></div>
+            </div>
+
+            <div class="tmark"><span class="t">14:30</span><span class="ln"></span><span class="s now"><span class="dot"></span>Als Nächstes</span></div>
+            <div class="mc">
+              <div class="tm"><span class="nm">Tafelrunde</span><span class="sc">–</span></div>
+              <div class="tm"><span class="nm">Stille Post</span><span class="sc">–</span></div>
+              <div class="meta"><span>Gruppe C · Platte 1</span><span>20 Min</span></div>
+            </div>
+            <div class="mc">
+              <div class="tm"><span class="nm">Effet &amp; Co.</span><span class="sc">–</span></div>
+              <div class="tm"><span class="nm">Randlage</span><span class="sc">–</span></div>
+              <div class="meta"><span>Gruppe B · Platte 3</span><span>20 Min</span></div>
+            </div>
+
+            <div class="tmark"><span class="t">14:00</span><span class="ln"></span><span class="s">Gespielt</span></div>
+            <div class="mc">
+              <div class="tm win"><span class="nm">Blaue Hummeln</span><span class="sc">3</span></div>
+              <div class="tm lose"><span class="nm">Kellerkinder</span><span class="sc">1</span></div>
+              <div class="meta"><span>Gruppe A · Platte 1</span><span>Bestätigt</span></div>
+            </div>
+            <div class="mc">
+              <div class="tm lose"><span class="nm">Halbdistanz</span><span class="sc">0</span></div>
+              <div class="tm win"><span class="nm">Schmetterhand</span><span class="sc">3</span></div>
+              <div class="meta"><span>Gruppe B · Platte 3</span><span>Bestätigt</span></div>
+            </div>
+          </div>
+          <nav class="bnav">
+            <a href="#" class="on"><svg viewBox="0 0 24 24"><path d="M13 5h8M13 12h8M13 19h8m-10-2-2 2-4-4m6-8-2 2-4-4"/></svg>Spielplan</a>
+            <a href="#"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>Gruppen</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></svg>Baum</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>Mehr</a>
+          </nav>
+        </div>
+        <p class="dev-cap">Spielplan</p>
+      </div>
+
+      <div class="stack" style="flex:1;min-width:290px">
+        <div class="card"><span class="k">Laufend</span><h3>Steht oben, nicht in der Reihe</h3>
+          <p>Das eine Spiel, das gerade läuft, sitzt über der Zeitachse und trägt den Teal-Rand.
+            Es hat keine Uhrzeit — es ist jetzt.</p></div>
+        <div class="card"><span class="k">Zeitmarke</span><h3>Uhrzeit links, Zustand rechts</h3>
+          <p>„Als Nächstes" in Orange, alles Vergangene in Grau. Eine Linie dazwischen. Das ersetzt
+            Überschriften wie „Gruppenphase, Runde 2".</p></div>
+        <div class="card"><span class="k">Ergebnis</span><h3>Der Sieger trägt die Farbe</h3>
+          <p>Sieger-Ziffer orange und fett, Verlierername grau. Kein Haken, kein Pfeil. Ein offenes
+            Spiel zeigt Gedankenstriche, keine Nullen — 0:0 wäre eine Behauptung.</p></div>
+        <div class="card"><span class="k">Filter</span><h3>Zählen statt raten</h3>
+          <p>Jeder Chip trägt seine Anzahl. Wer „Offen 7" sieht, weiß ohne Tippen, wie weit der Tag ist.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 4 · GRUPPEN ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">04 · Tabellen</p>
+      <h2>Der Rang trägt die Farbe</h2>
+      <p class="note">Qualifikation liest man am Band links, nicht an einem Symbol. Orange führt,
+        Grün ist qualifiziert — und weil beide sich fast nur im Farbton unterscheiden, trägt das
+        Band zusätzlich die Form.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="dev">
+          <div class="stat"><span>14:32</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">12 Teams · 3 Gruppen · 18 Spiele</div>
+            <div class="ttl"><h4>Gruppen</h4><div class="act">Regelwerk</div></div>
+          </div>
+          <div class="sbody">
+            <div class="seg"><b>Gruppe A</b><span>Gruppe B</span><span>Gruppe C</span></div>
+            <div class="tbl">
+              <div class="th"><h5>Gruppe A</h5><span class="sub">4 von 6 Spielen</span></div>
+              <div class="scroll"><table>
+                <thead><tr><th class="l">Pl.</th><th class="l">Team</th><th>Sp</th><th>Diff</th><th>Pkt</th></tr></thead>
+                <tbody>
+                  <tr class="lead"><td class="l pl">1</td><td class="l nm">Blaue Hummeln</td><td>3</td><td>+6</td><td>6</td></tr>
+                  <tr class="q"><td class="l pl">2</td><td class="l nm">Netzroller</td><td>2</td><td>+2</td><td>4</td></tr>
+                  <tr><td class="l pl">3</td><td class="l nm">Tafelrunde</td><td>3</td><td>−1</td><td>2</td></tr>
+                  <tr><td class="l pl">4</td><td class="l nm">Kellerkinder</td><td>2</td><td>−7</td><td>0</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tfoot"><span><span class="sq"></span>Plätze 1–2 ziehen direkt ein</span>
+                <span class="prog"><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i></i><i></i></span></div>
+            </div>
+
+            <div class="grp-lbl">Beste Dritte · 2 Plätze frei</div>
+            <div class="tbl">
+              <div class="scroll"><table>
+                <thead><tr><th class="l">Pl.</th><th class="l">Team</th><th>Gr</th><th>Diff</th><th>Pkt</th></tr></thead>
+                <tbody>
+                  <tr class="q"><td class="l pl">1</td><td class="l nm">Die Unbeugsamen</td><td>C</td><td>0</td><td>1</td></tr>
+                  <tr class="q"><td class="l pl">2</td><td class="l nm">Halbdistanz</td><td>B</td><td>−2</td><td>1</td></tr>
+                  <tr><td class="l pl">3</td><td class="l nm">Tafelrunde</td><td>A</td><td>−1</td><td>2</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tfoot"><span>Gewertet wird nach Punkten pro Spiel</span></div>
+            </div>
+          </div>
+          <nav class="bnav">
+            <a href="#"><svg viewBox="0 0 24 24"><path d="M13 5h8M13 12h8M13 19h8m-10-2-2 2-4-4m6-8-2 2-4-4"/></svg>Spielplan</a>
+            <a href="#" class="on"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>Gruppen</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></svg>Baum</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>Mehr</a>
+          </nav>
+        </div>
+        <p class="dev-cap">Gruppen</p>
+      </div>
+
+      <div class="stack" style="flex:1;min-width:290px">
+        <div class="card"><span class="k">Fünf Spalten</span><h3>Nicht neun</h3>
+          <p>Pl., Team, Sp, Diff, Pkt. Siege, Unentschieden und Niederlagen stehen im Ausdruck und
+            auf dem Desktop — auf 390 px schneidet neun Spalten alles ab.</p></div>
+        <div class="card"><span class="k">Band</span><h3>Form vor Farbe</h3>
+          <p>Orange und Grün unterscheiden sich bei 7 % Deckkraft nur um 1,02:1 — bei Rot-Grün-Schwäche
+            gar nicht. Das Band links ist deshalb kein Schmuck, sondern das farbunabhängige Signal.</p></div>
+        <div class="card"><span class="k">Streifen</span><h3>Sechs Spiele auf einen Blick</h3>
+          <p>Je ein Segment pro Gruppenspiel: grün gewonnen, rot verloren, grau noch offen.
+            Ersetzt die Spalte „Sp" für alle, die nur wissen wollen, wie weit die Gruppe ist.</p></div>
+        <div class="card"><span class="k">Fußzeile</span><h3>Die Regel steht dran</h3>
+          <p>„Plätze 1–2 ziehen direkt ein" — nicht in einem Hilfetext, sondern unter der Tabelle,
+            auf die sie sich bezieht.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 5 · BAUM ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">05 · K.-o.-Phase</p>
+      <h2>Erst der Weg, dann der Baum</h2>
+      <p class="note">Ein vollständiger Baum ist auf 390 px unlesbar. Oben deshalb eine
+        Miniatur, die nur zeigt, wie weit es noch ist — darunter die aktuelle Runde als volle Karten.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="dev">
+          <div class="stat"><span>15:41</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">8 Teams · Einfaches K.-o.-System</div>
+            <div class="ttl"><h4>Der Weg zum Titel</h4><div class="act">Teilen</div></div>
+          </div>
+          <div class="sbody">
+            <div class="seg"><b>Runden</b><span>Ganzer Baum</span></div>
+            <div class="tree">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <h3 style="font-family:var(--f-cond);letter-spacing:.08em;text-transform:uppercase">Halbfinale</h3>
+                <span style="font-family:var(--f-mono);font-size:11.5px;color:var(--muted)">Runde 2 von 3</span>
+              </div>
+              <svg viewBox="0 0 320 120" style="width:100%;height:auto;margin-top:12px" aria-label="Weg zum Titel: Halbfinale, dann Finale">
+                <g fill="none" stroke="var(--line)" stroke-width="3" stroke-linecap="round">
+                  <path d="M14 26h44v22h20"/><path d="M14 94h44V72h20"/>
+                </g>
+                <g fill="none" stroke="var(--flare)" stroke-width="3" stroke-linecap="round">
+                  <path d="M92 48h48v12"/><path d="M92 72h48V60"/>
+                </g>
+                <path d="M140 60h34" fill="none" stroke="var(--line)" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round"/>
+                <path d="M178 60h44" fill="none" stroke="var(--flare)" stroke-width="3" stroke-dasharray="9 7" stroke-linecap="round"/>
+                <circle cx="240" cy="60" r="13" fill="none" stroke="var(--flare)" stroke-width="3" stroke-dasharray="5 5"/>
+                <text x="262" y="65" font-family="'IBM Plex Mono',monospace" font-size="13" letter-spacing="1.4" fill="var(--ink-2)">TITEL</text>
+              </svg>
+              <div class="lg"><span class="g"><i></i>Gespielt</span><span class="a"><i></i>Aktuelle Runde</span><span><i></i>Offen</span></div>
+            </div>
+
+            <div class="rpill">
+              <span>Viertelfinale <em>4/4</em></span>
+              <span class="on">Halbfinale <em>0/2</em></span>
+              <span>Finale <em>0/1</em></span>
+            </div>
+
+            <div class="mc">
+              <div class="meta" style="border-top:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink)">
+                <span style="font-family:var(--f-cond);font-weight:700;letter-spacing:.08em">Halbfinale 1</span>
+                <span style="color:var(--flare)"><span class="dot"></span>15:45 · Platte 1</span>
+              </div>
+              <div class="tm"><span class="nm"><span class="seed">A1</span>Blaue Hummeln</span><span class="sc">–</span></div>
+              <div class="tm"><span class="nm"><span class="seed">B2</span>Effet &amp; Co.</span><span class="sc">–</span></div>
+              <div class="meta"><span>Sieger zieht ins Finale · Verlierer spielt um Platz 3</span></div>
+            </div>
+            <div class="mc">
+              <div class="meta" style="border-top:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink)">
+                <span style="font-family:var(--f-cond);font-weight:700;letter-spacing:.08em">Halbfinale 2</span>
+                <span style="color:var(--flare)"><span class="dot"></span>16:10 · Platte 2</span>
+              </div>
+              <div class="tm"><span class="nm"><span class="seed">C1</span>Topspin Bande</span><span class="sc">–</span></div>
+              <div class="tm"><span class="nm"><span class="seed">A2</span>Schmetterhand</span><span class="sc">–</span></div>
+            </div>
+          </div>
+          <nav class="bnav">
+            <a href="#"><svg viewBox="0 0 24 24"><path d="M13 5h8M13 12h8M13 19h8m-10-2-2 2-4-4m6-8-2 2-4-4"/></svg>Spielplan</a>
+            <a href="#"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>Gruppen</a>
+            <a href="#" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></svg>Baum</a>
+            <a href="#"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>Mehr</a>
+          </nav>
+        </div>
+        <p class="dev-cap">Der Weg zum Titel</p>
+      </div>
+
+      <div class="stack" style="flex:1;min-width:290px">
+        <div class="card"><span class="k">Miniatur</span><h3>Kein Baum, eine Strecke</h3>
+          <p>Grau ist gespielt, orange die aktuelle Runde, gestrichelt was noch aussteht. Der Kreis am
+            Ende ist der Titel — die einzige Stelle im ganzen Modul, an der Orange etwas umschließt.</p></div>
+        <div class="card"><span class="k">Runden</span><h3>Pillen mit Stand</h3>
+          <p>„Halbfinale 0/2" sagt mehr als ein Reiter. Die aktive Runde ist schwarz gefüllt,
+            nicht orange — Orange bleibt dem Titelweg vorbehalten.</p></div>
+        <div class="card"><span class="k">Herkunft</span><h3>A1, B2 statt Erklärung</h3>
+          <p>Der Chip vor dem Namen sagt, woher das Team kommt. Bei Platzhaltern steht dort
+            „Sieger HF1" — nie eine leere Zeile.</p></div>
+        <div class="card"><span class="k">Folge</span><h3>Was das Spiel entscheidet</h3>
+          <p>Unter jeder Partie steht, was Sieg und Niederlage bedeuten. Am Spieltisch ist das die
+            häufigste Frage.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 6 · TEAMS, REGELWERK, EINSTELLUNGEN ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">06 · Die übrigen Ansichten</p>
+      <h2>Teams, Regelwerk, Einstellungen</h2>
+      <p class="note">Drei Ansichten, die im Marken-Artefakt fehlten. Alle drei folgen derselben
+        Regel: Listenzeilen statt Formularfelder, Wert rechts im Mono, Erklärung klein darunter.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="dev">
+          <div class="stat"><span>09:31</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">12 Teams · 3 Gruppen</div>
+            <div class="ttl"><h4>Teams</h4><div class="act">Hinzufügen</div></div>
+          </div>
+          <div class="sbody">
+            <div class="grp-lbl">Gruppe A</div>
+            <div class="lst">
+              <div class="lrow"><div class="lb"><span class="seed">A1</span>Blaue Hummeln</div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb"><span class="seed">A2</span>Netzroller</div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb"><span class="seed">A3</span>Tafelrunde</div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb"><span class="seed">A4</span>Kellerkinder</div><div class="vl chev">›</div></div>
+            </div>
+            <div class="grp-lbl">Gruppe B</div>
+            <div class="lst">
+              <div class="lrow"><div class="lb"><span class="seed">B1</span>Schmetterhand</div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb"><span class="seed">B2</span>Effet &amp; Co.</div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb"><span class="seed">B3</span>Halbdistanz</div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb"><span class="seed">B4</span>Randlage</div><div class="vl chev">›</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="dev-cap">Teams</p>
+      </div>
+
+      <div>
+        <div class="dev">
+          <div class="stat"><span>09:33</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">Frühjahrsturnier</div>
+            <div class="ttl"><h4>Regelwerk</h4><div class="act">Bearbeiten</div></div>
+          </div>
+          <div class="sbody">
+            <div class="grp-lbl">Wertung</div>
+            <div class="lst">
+              <div class="lrow"><div class="lb">Sieg</div><div class="vl">3 Punkte</div></div>
+              <div class="lrow"><div class="lb">Unentschieden</div><div class="vl">1 Punkt</div></div>
+              <div class="lrow"><div class="lb">Niederlage</div><div class="vl">0 Punkte</div></div>
+            </div>
+            <div class="grp-lbl">Bei Gleichstand</div>
+            <div class="lst">
+              <div class="lrow"><div class="lb">1. Direkter Vergleich</div><div class="vl">–</div></div>
+              <div class="lrow"><div class="lb">2. Becherdifferenz</div><div class="vl">–</div></div>
+              <div class="lrow"><div class="lb">3. Becher erzielt</div><div class="vl">–</div></div>
+            </div>
+            <p class="note" style="font-size:13px;color:var(--muted);margin:0">
+              Freitext des Veranstalters erscheint darunter, in Fließtext — nicht als Liste.</p>
+          </div>
+        </div>
+        <p class="dev-cap">Regelwerk</p>
+      </div>
+
+      <div>
+        <div class="dev">
+          <div class="stat"><span>15:02</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="shead">
+            <div class="kick">Nur du als Organisator siehst diesen Bereich</div>
+            <div class="ttl"><h4>Einstellungen</h4><div class="act">Fertig</div></div>
+          </div>
+          <div class="sbody">
+            <div class="stcard">
+              <div class="hd"><span class="dot live"></span>Turnier läuft seit 13:00</div>
+              <div class="nums">
+                <div><b>10</b><span>Gespielt</span></div>
+                <div><b>8</b><span>Offen</span></div>
+                <div><b>3</b><span>Platten</span></div>
+              </div>
+            </div>
+            <div class="grp-lbl">Turnier</div>
+            <div class="lst">
+              <div class="lrow"><div class="lb">Name</div><div class="vl">Frühjahrsturnier <span class="chev">›</span></div></div>
+              <div class="lrow"><div class="lb">Datum</div><div class="vl">Sa, 18. April <span class="chev">›</span></div></div>
+              <div class="lrow"><div class="lb">Ort<small>Vereinsheim, Halle 2</small></div><div class="vl chev">›</div></div>
+            </div>
+            <div class="grp-lbl">Spielbetrieb</div>
+            <div class="lst">
+              <div class="lrow"><div class="lb">Spieldauer<small>inkl. 5 Min Puffer</small></div>
+                <div class="vl"><span class="step"><span>−</span><b>20 Min</b><span>+</span></span></div></div>
+              <div class="lrow"><div class="lb">Platten</div>
+                <div class="vl"><span class="step"><span>−</span><b>3</b><span>+</span></span></div></div>
+            </div>
+            <div class="grp-lbl" style="color:var(--danger)">Gefahrenzone</div>
+            <div class="lst" style="border-color:var(--danger)">
+              <div class="lrow"><div class="lb" style="color:var(--danger)">Spielplan neu auslosen<small>Alle Ergebnisse gehen verloren</small></div><div class="vl chev">›</div></div>
+              <div class="lrow"><div class="lb" style="color:var(--danger)">Turnier löschen</div><div class="vl chev">›</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="dev-cap">Einstellungen</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 7 · DIALOGE ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">07 · Dialoge</p>
+      <h2>Zwei Fälle, zwei Töne</h2>
+      <p class="note">Der Ergebnis-Dialog ist der meistbenutzte Bildschirm des ganzen Moduls —
+        er muss mit dem Daumen bedienbar sein, ohne hinzusehen. Der Gefahren-Dialog ist das
+        Gegenteil: er soll bremsen.</p>
+    </div>
+    <div class="row">
+      <div class="dlg">
+        <div class="dh"><div class="k">Halbfinale 1 · 15:45 · Platte 1</div><h5>Ergebnis erfassen</h5></div>
+        <div class="db">
+          <div class="scin"><span class="nm"><span class="seed">A1</span>Blaue Hummeln</span><input value="3" inputmode="numeric" aria-label="Becher Blaue Hummeln"></div>
+          <div class="scin"><span class="nm"><span class="seed">B2</span>Effet &amp; Co.</span><input value="" placeholder="–" inputmode="numeric" aria-label="Becher Effet und Co."></div>
+        </div>
+        <div class="df"><button class="btn">Abbrechen</button><button class="btn pri">Speichern</button></div>
+      </div>
+
+      <div class="dlg">
+        <div class="dh"><div class="k">Gefahrenzone</div><h5>Spielplan neu auslosen?</h5></div>
+        <div class="db">
+          <p class="note" style="font-size:14px;margin:0">Alle <strong>10 erfassten Ergebnisse</strong> gehen
+            verloren. Die Gruppen werden neu gelost, der K.-o.-Baum geleert.</p>
+          <p class="note" style="font-size:13px;color:var(--muted);margin:0">Tippe den Turniernamen, um zu bestätigen.</p>
+          <input style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+                        background:var(--raised);font-family:var(--f-mono);font-size:14px;color:var(--ink)"
+                 placeholder="Frühjahrsturnier" aria-label="Turniername zur Bestaetigung">
+        </div>
+        <div class="df"><button class="btn">Abbrechen</button><button class="btn dgr">Neu auslosen</button></div>
+      </div>
+
+      <div class="stack" style="flex:1;min-width:280px">
+        <div class="card"><span class="k">Erfassen</span><h3>Leer, nicht null</h3>
+          <p>Die Felder starten leer mit einem Gedankenstrich als Platzhalter. Eine vorbelegte 0 wäre
+            ein Ergebnis, das niemand eingetragen hat. Fokus liegt beim Oeffnen im ersten Feld,
+            Enter speichert.</p></div>
+        <div class="card"><span class="k">Bestätigen</span><h3>Die Zahl steht im Satz</h3>
+          <p>Nicht „Bist du sicher?", sondern „10 erfasste Ergebnisse gehen verloren". Der Turniername
+            muss getippt werden — das verhindert den Reflex-Klick.</p></div>
+        <div class="card"><span class="k">Farbe</span><h3>Karmin, nicht Orange</h3>
+          <p>Gefahr ist ein eigener Ton (#B4123F). Neben dem Orange bleibt er als zweite Bedeutung
+            lesbar statt als dessen dunklere Variante.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 8 · DRUCK ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">08 · Der Ausdruck</p>
+      <h2>Drei Bögen, kein Bildschirmfoto</h2>
+      <p class="note">Das Blatt liegt am Spieltisch, wird mit dem Kuli ausgefüllt und hängt am
+        Ende an der Wand. Es braucht kein Menü, keine Bodenleiste und keine Farbflächen, die den
+        Toner fressen — aber Platz zum Eintragen. Alles Schwarz auf Weiß, Raster statt Füllung,
+        Orange nur als dünne Linie.</p>
+    </div>
+
+    <div class="row" style="gap:36px">
+      <div style="flex:1;min-width:300px">
+        <div class="sheet">
+          <div class="ph">
+            <div class="l"><div class="k">[kru:]nest · Spielplan</div><h6>Frühjahrsturnier</h6></div>
+            <div class="r">Sa, 18. April 2026<br>Vereinsheim, Halle 2<br>3 Platten · 20 Min</div>
+          </div>
+          <div class="psec">14:00 Uhr</div>
+          <div class="scroll"><table class="pt">
+            <thead><tr><th class="l" style="width:38px">Zeit</th><th class="l" style="width:44px">Platte</th>
+              <th class="l">Begegnung</th><th style="width:38px">Gr.</th><th style="width:64px">Ergebnis</th></tr></thead>
+            <tbody>
+              <tr><td class="l">14:00</td><td class="l">1</td><td class="l nm">Blaue Hummeln — Kellerkinder</td><td>A</td><td>3 : 1</td></tr>
+              <tr><td class="l">14:00</td><td class="l">2</td><td class="l nm">Netzroller — Tafelrunde</td><td>A</td><td>3 : 2</td></tr>
+              <tr><td class="l">14:00</td><td class="l">3</td><td class="l nm">Halbdistanz — Schmetterhand</td><td>B</td><td>0 : 3</td></tr>
+            </tbody>
+          </table></div>
+          <div class="psec">14:30 Uhr</div>
+          <div class="scroll"><table class="pt">
+            <tbody>
+              <tr><td class="l" style="width:38px">14:30</td><td class="l" style="width:44px">1</td><td class="l nm">Tafelrunde — Stille Post</td><td style="width:38px">C</td><td style="width:64px">___ : ___</td></tr>
+              <tr><td class="l">14:30</td><td class="l">3</td><td class="l nm">Effet &amp; Co. — Randlage</td><td>B</td><td>___ : ___</td></tr>
+              <tr><td class="l">14:30</td><td class="l">2</td><td class="l nm">Topspin Bande — Die Unbeugsamen</td><td>C</td><td>___ : ___</td></tr>
+            </tbody>
+          </table></div>
+          <div class="psec">15:00 Uhr</div>
+          <div class="scroll"><table class="pt">
+            <tbody>
+              <tr><td class="l" style="width:38px">15:00</td><td class="l" style="width:44px">1</td><td class="l nm">Blaue Hummeln — Netzroller</td><td style="width:38px">A</td><td style="width:64px">___ : ___</td></tr>
+              <tr><td class="l">15:00</td><td class="l">2</td><td class="l nm">Kellerkinder — Tafelrunde</td><td>A</td><td>___ : ___</td></tr>
+            </tbody>
+          </table></div>
+          <div class="pf"><span>Stand 14:32 · Seite 1 von 2</span><span>krunest.de/t/fruehjahr</span></div>
+        </div>
+        <p class="dev-cap">Bogen 1 · Spielplan · A4 hoch</p>
+      </div>
+
+      <div style="flex:1;min-width:300px">
+        <div class="sheet">
+          <div class="ph">
+            <div class="l"><div class="k">[kru:]nest · Gruppentabellen</div><h6>Frühjahrsturnier</h6></div>
+            <div class="r">Stand 14:32<br>10 von 18 Spielen</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div>
+              <div class="psec">Gruppe A</div>
+              <table class="pt">
+                <thead><tr><th class="l" style="width:20px">Pl</th><th class="l">Team</th><th style="width:22px">Sp</th><th style="width:22px">S</th><th style="width:22px">N</th><th style="width:30px">Diff</th><th style="width:26px">Pkt</th></tr></thead>
+                <tbody>
+                  <tr class="lead"><td class="l pl">1</td><td class="l nm">Blaue Hummeln</td><td>3</td><td>2</td><td>1</td><td>+6</td><td>6</td></tr>
+                  <tr class="q"><td class="l pl">2</td><td class="l nm">Netzroller</td><td>2</td><td>1</td><td>1</td><td>+2</td><td>4</td></tr>
+                  <tr><td class="l pl">3</td><td class="l nm">Tafelrunde</td><td>3</td><td>0</td><td>3</td><td>−1</td><td>2</td></tr>
+                  <tr><td class="l pl">4</td><td class="l nm">Kellerkinder</td><td>2</td><td>0</td><td>2</td><td>−7</td><td>0</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div class="psec">Gruppe B</div>
+              <table class="pt">
+                <thead><tr><th class="l" style="width:20px">Pl</th><th class="l">Team</th><th style="width:22px">Sp</th><th style="width:22px">S</th><th style="width:22px">N</th><th style="width:30px">Diff</th><th style="width:26px">Pkt</th></tr></thead>
+                <tbody>
+                  <tr class="lead"><td class="l pl">1</td><td class="l nm">Schmetterhand</td><td>3</td><td>3</td><td>0</td><td>+8</td><td>9</td></tr>
+                  <tr class="q"><td class="l pl">2</td><td class="l nm">Effet &amp; Co.</td><td>2</td><td>1</td><td>1</td><td>+1</td><td>3</td></tr>
+                  <tr><td class="l pl">3</td><td class="l nm">Halbdistanz</td><td>3</td><td>1</td><td>2</td><td>−2</td><td>3</td></tr>
+                  <tr><td class="l pl">4</td><td class="l nm">Randlage</td><td>2</td><td>0</td><td>2</td><td>−7</td><td>0</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div class="psec">Gruppe C</div>
+              <table class="pt">
+                <thead><tr><th class="l" style="width:20px">Pl</th><th class="l">Team</th><th style="width:22px">Sp</th><th style="width:22px">S</th><th style="width:22px">N</th><th style="width:30px">Diff</th><th style="width:26px">Pkt</th></tr></thead>
+                <tbody>
+                  <tr class="lead"><td class="l pl">1</td><td class="l nm">Topspin Bande</td><td>2</td><td>2</td><td>0</td><td>+5</td><td>6</td></tr>
+                  <tr class="q"><td class="l pl">2</td><td class="l nm">Stille Post</td><td>2</td><td>1</td><td>1</td><td>0</td><td>3</td></tr>
+                  <tr><td class="l pl">3</td><td class="l nm">Die Unbeugsamen</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td></tr>
+                  <tr><td class="l pl">4</td><td class="l nm">Kantenglück</td><td>1</td><td>0</td><td>1</td><td>−5</td><td>0</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div class="psec">Beste Dritte · 2 Plätze</div>
+              <table class="pt">
+                <thead><tr><th class="l" style="width:20px">Pl</th><th class="l">Team</th><th style="width:26px">Gr</th><th style="width:34px">Pkt/Sp</th><th style="width:30px">Diff</th></tr></thead>
+                <tbody>
+                  <tr class="q"><td class="l pl">1</td><td class="l nm">Die Unbeugsamen</td><td>C</td><td>1,00</td><td>0</td></tr>
+                  <tr class="q"><td class="l pl">2</td><td class="l nm">Halbdistanz</td><td>B</td><td>1,00</td><td>−2</td></tr>
+                  <tr><td class="l pl">3</td><td class="l nm">Tafelrunde</td><td>A</td><td>0,67</td><td>−1</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="plegend"><span><b class="f"></b>Zieht direkt ein</span><span><b></b>Qualifiziert</span>
+            <span>Gewertet nach Punkten pro Spiel</span></div>
+          <div class="pf"><span>Stand 14:32 · Seite 1 von 1</span><span>krunest.de/t/fruehjahr</span></div>
+        </div>
+        <p class="dev-cap">Bogen 2 · Gruppen · A4 hoch</p>
+      </div>
+    </div>
+
+    <div style="margin-top:36px">
+      <div class="sheet land">
+        <div class="ph">
+          <div class="l"><div class="k">[kru:]nest · K.-o.-Phase</div><h6>Frühjahrsturnier</h6></div>
+          <div class="r">Sa, 18. April 2026 · 8 Teams<br>Einfaches K.-o.-System mit Spiel um Platz 3</div>
+        </div>
+        <div class="scroll" style="flex:1;display:flex;align-items:center">
+          <svg viewBox="0 0 900 300" style="width:100%;height:auto" aria-label="Turnierbaum: Viertelfinale bis Finale">
+            <style>
+              .rl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.6px;fill:#666}
+              .tn{font-family:'Archivo',sans-serif;font-size:12px;font-weight:600;fill:#111}
+              .tp{font-family:'Archivo',sans-serif;font-size:12px;font-weight:500;fill:#999}
+              .sc{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;fill:#111}
+              .bx{fill:none;stroke:#111;stroke-width:1}
+              .bxo{fill:none;stroke:#bbb;stroke-width:1}
+              .cn{fill:none;stroke:#999;stroke-width:1}
+              .cno{fill:none;stroke:#ddd;stroke-width:1}
+            </style>
+            <text class="rl" x="8" y="16">VIERTELFINALE</text>
+            <text class="rl" x="248" y="16">HALBFINALE</text>
+            <text class="rl" x="488" y="16">FINALE</text>
+            <text class="rl" x="700" y="16">SIEGER</text>
+
+            <!-- VF 1..4 -->
+            <g>
+              <rect class="bx" x="8" y="28" width="200" height="38" rx="2"/>
+              <line class="cn" x1="8" y1="47" x2="208" y2="47"/>
+              <text class="tn" x="16" y="42">Blaue Hummeln</text><text class="sc" x="196" y="42" text-anchor="end">3</text>
+              <text class="tp" x="16" y="61">Randlage</text><text class="sc" x="196" y="61" text-anchor="end">1</text>
+            </g>
+            <g>
+              <rect class="bx" x="8" y="96" width="200" height="38" rx="2"/>
+              <line class="cn" x1="8" y1="115" x2="208" y2="115"/>
+              <text class="tp" x="16" y="110">Stille Post</text><text class="sc" x="196" y="110" text-anchor="end">2</text>
+              <text class="tn" x="16" y="129">Effet &amp; Co.</text><text class="sc" x="196" y="129" text-anchor="end">3</text>
+            </g>
+            <g>
+              <rect class="bx" x="8" y="164" width="200" height="38" rx="2"/>
+              <line class="cn" x1="8" y1="183" x2="208" y2="183"/>
+              <text class="tn" x="16" y="178">Topspin Bande</text><text class="sc" x="196" y="178" text-anchor="end">3</text>
+              <text class="tp" x="16" y="197">Tafelrunde</text><text class="sc" x="196" y="197" text-anchor="end">0</text>
+            </g>
+            <g>
+              <rect class="bx" x="8" y="232" width="200" height="38" rx="2"/>
+              <line class="cn" x1="8" y1="251" x2="208" y2="251"/>
+              <text class="tn" x="16" y="246">Schmetterhand</text><text class="sc" x="196" y="246" text-anchor="end">3</text>
+              <text class="tp" x="16" y="265">Halbdistanz</text><text class="sc" x="196" y="265" text-anchor="end">2</text>
+            </g>
+
+            <!-- Verbinder VF -> HF -->
+            <path class="cn" d="M208 47h20v34h20"/><path class="cn" d="M208 115h20V81h20"/>
+            <path class="cn" d="M208 183h20v34h20"/><path class="cn" d="M208 251h20v-34h20"/>
+
+            <!-- HF 1..2 (offen, zum Eintragen) -->
+            <g>
+              <rect class="bx" x="248" y="62" width="200" height="38" rx="2"/>
+              <line class="cn" x1="248" y1="81" x2="448" y2="81"/>
+              <text class="tn" x="256" y="76">Blaue Hummeln</text><text class="sc" x="436" y="76" text-anchor="end">___</text>
+              <text class="tn" x="256" y="95">Effet &amp; Co.</text><text class="sc" x="436" y="95" text-anchor="end">___</text>
+            </g>
+            <g>
+              <rect class="bx" x="248" y="198" width="200" height="38" rx="2"/>
+              <line class="cn" x1="248" y1="217" x2="448" y2="217"/>
+              <text class="tn" x="256" y="212">Topspin Bande</text><text class="sc" x="436" y="212" text-anchor="end">___</text>
+              <text class="tn" x="256" y="231">Schmetterhand</text><text class="sc" x="436" y="231" text-anchor="end">___</text>
+            </g>
+
+            <path class="cno" d="M448 81h20v68h20"/><path class="cno" d="M448 217h20v-68h20"/>
+
+            <!-- Finale -->
+            <g>
+              <rect class="bxo" x="488" y="130" width="200" height="38" rx="2"/>
+              <line class="cno" x1="488" y1="149" x2="688" y2="149"/>
+              <text class="tp" x="496" y="144">Sieger Halbfinale 1</text><text class="sc" x="676" y="144" text-anchor="end">___</text>
+              <text class="tp" x="496" y="163">Sieger Halbfinale 2</text><text class="sc" x="676" y="163" text-anchor="end">___</text>
+            </g>
+
+            <path d="M688 149h34" fill="none" stroke="#BF4413" stroke-width="1.4" stroke-dasharray="7 5"/>
+            <rect x="726" y="130" width="160" height="38" rx="2" fill="none" stroke="#BF4413" stroke-width="1.4"/>
+            <text class="rl" x="736" y="146" style="fill:#BF4413">SIEGER</text>
+            <line x1="736" y1="160" x2="876" y2="160" stroke="#BF4413" stroke-width="1"/>
+
+            <!-- Platz 3 -->
+            <text class="rl" x="488" y="216">SPIEL UM PLATZ 3</text>
+            <g>
+              <rect class="bxo" x="488" y="226" width="200" height="38" rx="2"/>
+              <line class="cno" x1="488" y1="245" x2="688" y2="245"/>
+              <text class="tp" x="496" y="240">Verlierer Halbfinale 1</text><text class="sc" x="676" y="240" text-anchor="end">___</text>
+              <text class="tp" x="496" y="259">Verlierer Halbfinale 2</text><text class="sc" x="676" y="259" text-anchor="end">___</text>
+            </g>
+          </svg>
+        </div>
+        <div class="plegend"><span>Gespielte Partien mit Ergebnis · offene Partien mit Eintragefeld</span>
+          <span>Orange: der Weg zum Titel</span></div>
+        <div class="pf"><span>Stand 14:32 · Seite 1 von 1</span><span>krunest.de/t/fruehjahr</span></div>
+      </div>
+      <p class="dev-cap">Bogen 3 · K.-o.-Baum · A4 quer</p>
+    </div>
+
+    <div class="cols c3" style="margin-top:32px">
+      <div class="card"><span class="k">Regel 1</span><h3>Platz zum Eintragen</h3>
+        <p>Jede offene Partie hat ein Feld mit Unterstrichen, kein leeres Nichts. Das Blatt wird
+          während des Turniers ausgefüllt, nicht danach gelesen.</p></div>
+      <div class="card"><span class="k">Regel 2</span><h3>Kein Toner für Flächen</h3>
+        <p>Rangfarben werden zu Grauwerten und einer Legende. Orange bleibt als dünne Linie
+          für den Titelweg — auf Schwarz-Weiß-Druckern wird daraus sauberes Grau.</p></div>
+      <div class="card"><span class="k">Regel 3</span><h3>Kopf und Fuss tragen den Stand</h3>
+        <p>Turniername, Datum, Ort und Uhrzeit des Ausdrucks. Ein Blatt ohne Zeitstempel ist
+          nach zwei Runden Müll.</p></div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 9 · DESKTOP ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">09 · Breiter Bildschirm</p>
+      <h2>Was auf 1920 px dazukommt</h2>
+      <p class="note">Der Entwurf ist für den Daumen gebaut. Auf dem Desktop wird daraus keine
+        andere App, sondern dieselbe mit mehr Spalten: die Bodenleiste wandert nach links, die
+        Tabellen zeigen ihre vollen neun Spalten, und der Baum passt ohne Miniatur.</p>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;
+                box-shadow:var(--shadow);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line)">
+        <span style="font-family:var(--f-disp);font-weight:800;font-size:15px;letter-spacing:-.02em">[kru:]<span style="color:var(--brand-orange)">nest</span></span>
+        <span style="font-family:var(--f-mono);font-size:11px;color:var(--muted)">Frühjahrsturnier · Sa 18. April</span>
+        <span style="margin-left:auto;font-family:var(--f-cond);font-weight:700;font-size:12px;
+                     letter-spacing:.1em;text-transform:uppercase;color:var(--flare)">Teams</span>
+      </div>
+      <div style="display:grid;grid-template-columns:190px 1fr;min-height:280px">
+        <nav style="border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:2px">
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;
+             background:var(--flare-soft);color:var(--flare);text-decoration:none;font-weight:600;font-size:14px">Spielplan</a>
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:14px">Gruppen</a>
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:14px">Der Weg zum Titel</a>
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:14px">Teams</a>
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:14px">Regelwerk</a>
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:14px">Drucken</a>
+          <a href="#" style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:14px">Einstellungen</a>
+        </nav>
+        <div style="padding:18px;background:var(--ground);display:grid;gap:16px;
+                    grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+          <div class="tbl">
+            <div class="th"><h5>Gruppe A</h5><span class="sub">4 von 6</span></div>
+            <div class="scroll"><table>
+              <thead><tr><th class="l">Pl.</th><th class="l">Team</th><th>Sp</th><th>S</th><th>U</th><th>N</th><th>Becher</th><th>Diff</th><th>Pkt</th></tr></thead>
+              <tbody>
+                <tr class="lead"><td class="l pl">1</td><td class="l nm">Blaue Hummeln</td><td>3</td><td>2</td><td>0</td><td>1</td><td>12:6</td><td>+6</td><td>6</td></tr>
+                <tr class="q"><td class="l pl">2</td><td class="l nm">Netzroller</td><td>2</td><td>1</td><td>1</td><td>0</td><td>8:6</td><td>+2</td><td>4</td></tr>
+                <tr><td class="l pl">3</td><td class="l nm">Tafelrunde</td><td>3</td><td>0</td><td>2</td><td>1</td><td>7:8</td><td>−1</td><td>2</td></tr>
+                <tr><td class="l pl">4</td><td class="l nm">Kellerkinder</td><td>2</td><td>0</td><td>0</td><td>2</td><td>2:9</td><td>−7</td><td>0</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div class="tbl">
+            <div class="th"><h5>Gruppe B</h5><span class="sub">5 von 6</span></div>
+            <div class="scroll"><table>
+              <thead><tr><th class="l">Pl.</th><th class="l">Team</th><th>Sp</th><th>S</th><th>U</th><th>N</th><th>Becher</th><th>Diff</th><th>Pkt</th></tr></thead>
+              <tbody>
+                <tr class="lead"><td class="l pl">1</td><td class="l nm">Schmetterhand</td><td>3</td><td>3</td><td>0</td><td>0</td><td>11:3</td><td>+8</td><td>9</td></tr>
+                <tr class="q"><td class="l pl">2</td><td class="l nm">Effet &amp; Co.</td><td>2</td><td>1</td><td>0</td><td>1</td><td>6:5</td><td>+1</td><td>3</td></tr>
+                <tr><td class="l pl">3</td><td class="l nm">Halbdistanz</td><td>3</td><td>1</td><td>0</td><td>2</td><td>5:7</td><td>−2</td><td>3</td></tr>
+                <tr><td class="l pl">4</td><td class="l nm">Randlage</td><td>2</td><td>0</td><td>0</td><td>2</td><td>1:8</td><td>−7</td><td>0</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="dev-cap" style="text-align:left">Desktop · Sidebar statt Bodenleiste, neun Spalten statt fünf</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 10 · DUNKEL ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">10 · Nachtmodus</p>
+      <h2>Derselbe Entwurf, umgedreht</h2>
+      <p class="note">Der Grund wird zur Tinte, das Papier zum Panel. Orange und Teal hellen auf,
+        damit sie nicht absaufen. Die Druckfarbe der Wortmarke bleibt unverändert — sie ist Druck,
+        kein Bedienelement.</p>
+    </div>
+    <div class="darkscope">
+      <div class="row">
+        <div>
+          <div class="dev">
+            <div class="stat"><span>21:08</span><span class="sig"><i></i><i></i><i></i><i></i></span></div>
+            <div class="shead">
+              <div class="kick">Frühjahrsturnier · Sa 18. April</div>
+              <div class="ttl"><h4>Spielplan</h4><div class="act">Teams</div></div>
+            </div>
+            <div class="sbody">
+              <div class="mc is-live">
+                <div class="tm"><span class="nm">Netzroller</span><span class="sc" style="color:var(--ink)">2</span></div>
+                <div class="tm"><span class="nm">Kantenglück</span><span class="sc" style="color:var(--ink)">1</span></div>
+                <div class="meta"><span><span class="dot live"></span>Läuft · Satz 4</span><span>Platte 2</span></div>
+              </div>
+              <div class="tmark"><span class="t">14:00</span><span class="ln"></span><span class="s">Gespielt</span></div>
+              <div class="mc">
+                <div class="tm win"><span class="nm">Blaue Hummeln</span><span class="sc">3</span></div>
+                <div class="tm lose"><span class="nm">Kellerkinder</span><span class="sc">1</span></div>
+                <div class="meta"><span>Gruppe A · Platte 1</span><span>Bestätigt</span></div>
+              </div>
+            </div>
+            <nav class="bnav">
+              <a href="#" class="on"><svg viewBox="0 0 24 24"><path d="M13 5h8M13 12h8M13 19h8m-10-2-2 2-4-4m6-8-2 2-4-4"/></svg>Spielplan</a>
+              <a href="#"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>Gruppen</a>
+              <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></svg>Baum</a>
+              <a href="#"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>Mehr</a>
+            </nav>
+          </div>
+        </div>
+        <div style="flex:1;min-width:280px">
+          <div class="tbl">
+            <div class="th"><h5>Gruppe A</h5><span class="sub">4 von 6 Spielen</span></div>
+            <div class="scroll"><table>
+              <thead><tr><th class="l">Pl.</th><th class="l">Team</th><th>Sp</th><th>Diff</th><th>Pkt</th></tr></thead>
+              <tbody>
+                <tr class="lead"><td class="l pl">1</td><td class="l nm">Blaue Hummeln</td><td>3</td><td>+6</td><td>6</td></tr>
+                <tr class="q"><td class="l pl">2</td><td class="l nm">Netzroller</td><td>2</td><td>+2</td><td>4</td></tr>
+                <tr><td class="l pl">3</td><td class="l nm">Tafelrunde</td><td>3</td><td>−1</td><td>2</td></tr>
+              </tbody>
+            </table></div>
+            <div class="tfoot"><span><span class="sq"></span>Plätze 1–2 ziehen direkt ein</span></div>
+          </div>
+          <div style="height:16px"></div>
+          <div class="dlg" style="width:100%">
+            <div class="dh"><div class="k">Halbfinale 1 · 15:45</div><h5>Ergebnis erfassen</h5></div>
+            <div class="db">
+              <div class="scin"><span class="nm">Blaue Hummeln</span><input value="3" aria-label="Becher"></div>
+              <div class="scin"><span class="nm">Effet &amp; Co.</span><input value="" placeholder="–" aria-label="Becher"></div>
+            </div>
+            <div class="df"><button class="btn">Abbrechen</button><button class="btn pri">Speichern</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 11 · LEISTE ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">11 · Kleinigkeit mit Wirkung</p>
+      <h2>Das Turnier-Symbol in der Seitenleiste</h2>
+      <p class="note">Jeder andere Eintrag der [kru:]nest-Leiste trägt ein gezeichnetes Icon.
+        „Turniere" trägt als einziges ein Emoji — deshalb fällt es heraus, unabhängig davon,
+        welches Emoji es ist.</p>
+    </div>
+    <div class="row">
+      <div>
+        <div class="sbar">
+          <a href="#"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Alle Fotos</a>
+          <a href="#"><svg viewBox="0 0 24 24"><path d="m5 3 14 9-14 9V3Z"/></svg>Diashow</a>
+          <a href="#"><span class="em">🏆</span>Turniere</a>
+        </div>
+        <p class="dev-cap">Heute · das Emoji bricht die Reihe</p>
+      </div>
+      <div>
+        <div class="sbar">
+          <a href="#"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Alle Fotos</a>
+          <a href="#"><svg viewBox="0 0 24 24"><path d="m5 3 14 9-14 9V3Z"/></svg>Diashow</a>
+          <a href="#" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></svg>Turniere</a>
+        </div>
+        <p class="dev-cap">Vorschlag · dasselbe Zeichen wie der Baum-Reiter</p>
+      </div>
+      <div class="stack" style="flex:1;min-width:280px">
+        <div class="card"><span class="k">Warum kein Pokal</span><h3>Der Pokal ist das Ende</h3>
+          <p>Ein Pokal steht für den Sieg, nicht für die Sache. Das Modul heißt „Turniere" und
+            zeigt meistens einen Spielplan — das Baum-Zeichen sagt genau das und ist außerdem schon
+            der Reiter für den Titelweg. Ein Zeichen, zwei Orte, dieselbe Bedeutung.</p></div>
+        <div class="card"><span class="k">Nebenwirkung</span><h3>Färbbar</h3>
+          <p>Ein SVG nimmt <code style="font-family:var(--f-mono);font-size:12px">currentColor</code> an
+            und wird im aktiven Zustand orange wie die übrigen. Ein Emoji bleibt immer bunt und
+            ignoriert den Nachtmodus.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ============ 12 · WAS ZU ENTSCHEIDEN IST ============ -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">12 · Vor der Umsetzung</p>
+      <h2>Vier Punkte, die du entscheiden musst</h2>
+      <p class="note">Alles andere ist gezeichnet und kann gebaut werden. Diese vier hängen an
+        deinem Urteil, nicht an meinem.</p>
+    </div>
+    <div class="cols c2">
+      <div class="card"><span class="k">Entscheid 1</span><h3>Nur das Modul oder die ganze App?</h3>
+        <p>Das Artefakt ist eine Marken<em>übernahme</em>. Bleibt der Rest von [kru:]nest vorerst beige,
+          sieht das Turniermodul bewusst fremd aus — „eine App in der App". Das kann gewollt sein.
+          Wenn nicht, ist die Palette der übrigen Oberfläche ein eigenes, größeres Vorhaben:
+          283 hartcodierte Hex-Werte stehen dort noch im Weg.</p></div>
+      <div class="card"><span class="k">Entscheid 2</span><h3>Becher auf dem Handy zeigen oder nicht?</h3>
+        <p>Der Entwurf zeigt mobil fünf Spalten und lässt „Becher" weg. Heute ist die Spalte drin
+          und passt gemessen. Weglassen macht die Tabelle ruhiger, kostet aber die Information, die
+          bei Punktgleichheit entscheidet.</p></div>
+      <div class="card"><span class="k">Entscheid 3</span><h3>Wird gedruckt oder als PDF geteilt?</h3>
+        <p>Die drei Bögen sind für Papier gebaut (Eintragefelder, Graustufen). Wenn sie vor allem
+          als PDF in einer Gruppe landen, wären Farbflächen und Links sinnvoller — das ist ein
+          anderes Blatt, nicht dasselbe in bunt.</p></div>
+      <div class="card"><span class="k">Entscheid 4</span><h3>Wortmarke im Modulkopf?</h3>
+        <p>Der Desktop-Entwurf zeigt oben links [kru:]nest. Auf dem Handy nimmt der Kicker diesen
+          Platz ein und nennt stattdessen das Turnier. Beides zugleich wäre eine Zeile zu viel.</p></div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--line);padding-top:22px;
+                 font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">
+    Entwurf · Archivo / Archivo Narrow / IBM Plex Sans / IBM Plex Mono · hell und dunkel getrennt getokent ·
+    Palette aus „[kru:]nest Markenübernahme"
+  </footer>
+</div>
