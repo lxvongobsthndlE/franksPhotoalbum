@@ -3925,27 +3925,6 @@ function bindSpielplanInteractions(t) {
       openResultEntryModal(t.id, null, t.matches || []);
       return;
     }
-    // Etappe B.7: Edit-Toggle für den Spielplan.
-    const editToggle = e.target.closest('[data-action="toggle-schedule-edit"]');
-    if (editToggle && section.contains(editToggle)) {
-      toggleScheduleEditMode(section, t);
-      return;
-    }
-    const saveEdit = e.target.closest('[data-action="save-schedule-edits"]');
-    if (saveEdit && section.contains(saveEdit)) {
-      // Delegierter Klick: die Sperre haengt am getroffenen Knopf,
-      // nicht am Listener — sonst wuerde ein zweiter Klick auf einen
-      // ANDEREN Knopf derselben Section mitgesperrt.
-      runGuardedAction(saveEdit, () => saveScheduleEdits(t, section));
-      return;
-    }
-    const cancelEdit = e.target.closest('[data-action="cancel-schedule-edits"]');
-    if (cancelEdit && section.contains(cancelEdit)) {
-      // Verwerfen + neu rendern (DOM-State weg, Renderer liefert wieder Read-View).
-      section.dataset.editMode = '0';
-      renderSpielplan(t);
-      return;
-    }
   });
 
 
@@ -3954,165 +3933,6 @@ function bindSpielplanInteractions(t) {
   // `document` und lief bei JEDEM Klick der ganzen Anwendung mit, um
   // etwas zuzuklappen, das es nicht mehr gibt. Eine Chip-Reihe hat
   // keinen offenen Zustand, den man schliessen muesste.
-}
-
-/**
- * Etappe B.7: Spielplan-Edit-Toggle.
- *
- * Wir setzen einen `data-edit-mode="1"`-Flag auf der Section und
- * re-rendern die Match-Liste mit `renderMatchCard(..., isEdit=true)`.
- * KO- und finished-Matches bleiben mit disabled-Inputs.
- */
-function toggleScheduleEditMode(section, t) {
-  const isEditing = section.dataset.editMode === '1';
-  section.dataset.editMode = isEditing ? '0' : '1';
-
-  const finishedCount = (t.matches || []).filter((m) => m && m.isFinished).length;
-  const locked = finishedCount > 0;
-  const isAdmin = t.isAdmin === true;
-
-  // Renderer liefert bei isAdmin immer die Edit-View; wir tauschen nur
-  // die Karten. Damit auch nicht-editierbare Matches in der Liste
-  // bleiben, filtern wir nicht.
-  const listEl = section.querySelector("#t-schedule-list");
-  if (!listEl) return;
-
-  if (!isAdmin) {
-    toast('Nur Admins können den Spielplan bearbeiten', 'error');
-    section.dataset.editMode = '0';
-    return;
-  }
-  if (locked) {
-    toast(`${finishedCount} Spiele bereits beendet — Spielplan gesperrt`, 'error');
-    section.dataset.editMode = '0';
-    return;
-  }
-
-  // Re-render mit isEdit-Flag.
-  const matches = (t.matches || []);
-  const filtered = applySpielplanFilter(matches, currentSpielplanFilter);
-  const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderMatchList);
-  if (typeof renderer !== 'function') {
-    listEl.innerHTML = '<div class="t-hint">Renderer nicht verfügbar</div>';
-    return;
-  }
-  // Edit-Bar oben + Liste darunter.
-  const fieldsConfig = t.config?.fields || [];
-  listEl.innerHTML =
-    renderScheduleEditBar(t) +
-    renderer(filtered, isAdmin, true, fieldsConfig) // 3. Param: isEdit, 4.: fieldsConfig (falls Renderer es nutzt)
-      .replace(/data-action="enter-result"/g, ''); // Edit-Modus: kein Ergebnis-Button
-
-  // Toggle-Button-Label aktualisieren
-  const toggleBtn = section.querySelector('[data-action="toggle-schedule-edit"]');
-  if (toggleBtn) {
-    toggleBtn.textContent = section.dataset.editMode === '1' ? 'Bearbeiten beenden' : 'Bearbeiten';
-    toggleBtn.classList.toggle('is-active', section.dataset.editMode === '1');
-  }
-}
-
-function renderScheduleEditBar(t) {
-  const duration = t.config?.schedule?.matchDurationMinutes ?? 30;
-  const fieldsCount = (t.config?.fields || []).length;
-  return `
-    <div class="t-schedule-edit-bar">
-      <div class="t-schedule-edit-config">
-        <label>Dauer pro Spiel
-          <input class="t-schedule-edit-duration" type="number" min="5" max="180" step="5" value="${duration}"> min
-        </label>
-        <span class="t-hint">Platten: ${fieldsCount}</span>
-      </div>
-      <div class="t-schedule-edit-actions">
-        <button type="button" class="t-btn t-btn--primary" data-action="save-schedule-edits">Speichern &amp; neu terminieren</button>
-        <button type="button" class="t-btn t-btn--ghost" data-action="cancel-schedule-edits">Abbrechen</button>
-      </div>
-      <div class="t-hint">Änderung der Dauer wird per Reschedule neu berechnet. Pro-Karte-Änderungen werden direkt übernommen.</div>
-    </div>
-  `;
-}
-
-/**
- * Etappe B.7: Speichert die Schedule-Edits.
- *
- * Zwei Schritte (Spec A2):
- *   1. Wenn sich matchDurationMinutes geändert hat → PATCH /:id { config } + POST /:id/reschedule.
- *   2. Wenn Pro-Karte-Edits (Zeit/Platte) gemacht wurden → PATCH /:id/schedule.
- *
- * Bei 409 (Lock durch ≥1 finished) brechen wir ab und melden dem User.
- */
-async function saveScheduleEdits(t, section) {
-  if (!t || !t.id || !section) return;
-  const finishedCount = (t.matches || []).filter((m) => m && m.isFinished).length;
-  if (finishedCount > 0) {
-    toast(`${finishedCount} Spiele bereits beendet — Spielplan gesperrt`, 'error');
-    return;
-  }
-
-  const durationInput = section.querySelector('.t-schedule-edit-duration');
-  const baseDuration = t.config?.schedule?.matchDurationMinutes ?? 30;
-  const newDuration = durationInput ? parseInt(durationInput.value, 10) : baseDuration;
-  const durationChanged = Number.isFinite(newDuration) && newDuration !== baseDuration;
-
-  // Pro-Karte-Edits sammeln
-  const updates = [];
-  const cards = section.querySelectorAll(".t-match[data-match-id]");
-  cards.forEach((card) => {
-    const matchId = card.dataset.matchId;
-    const timeInput = card.querySelector('.t-match-edit-time');
-    const fieldInput = card.querySelector('.t-match-edit-field');
-    if (!matchId) return;
-    const orig = (t.matches || []).find((m) => m.id === matchId);
-    if (!orig) return;
-    const timeVal = timeInput?.value || null;
-    const fieldVal = fieldInput?.value ? parseInt(fieldInput.value, 10) : null;
-    const baseDate = orig.scheduledAt ? orig.scheduledAt.slice(0, 10) : (t.config?.schedule?.baseDate || null);
-    const newScheduledAt = timeVal && baseDate
-      ? `${baseDate}T${timeVal}:00.000Z`
-      : (timeVal ? null : null);
-    const origField = orig.field ?? null;
-    const changedTime = timeVal !== (orig.scheduledTime || '');
-    const changedField = fieldVal !== origField;
-    if (changedTime || changedField) {
-      updates.push({ matchId, scheduledAt: newScheduledAt, field: Number.isFinite(fieldVal) ? fieldVal : null });
-    }
-  });
-
-  let saved = false;
-  try {
-    if (updates.length > 0) {
-      const out = window.spielplanHelpers?.serializeScheduleInput?.(updates, t.config?.schedule?.baseDate || null);
-      if (!out || !out.ok) {
-        toast(out?.error || 'Spielplan-Eingabe ungültig', 'error');
-        return;
-      }
-      await apiCall(`/tournaments/${encodeURIComponent(t.id)}/schedule`, 'PATCH', { updates: out.updates });
-    }
-    if (durationChanged) {
-      const newConfig = {
-        ...(t.config || {}),
-        schedule: {
-          ...(t.config?.schedule || {}),
-          matchDurationMinutes: newDuration,
-        },
-      };
-      await apiCall(`/tournaments/${encodeURIComponent(t.id)}`, 'PATCH', { config: newConfig });
-      await rescheduleTournament(t.id, t.name);
-    }
-    toast('Spielplan gespeichert', 'success');
-    section.dataset.editMode = '0';
-    saved = true;
-  } catch (e) {
-    if (e.status === 409 && /match_locked/.test(e.serverMessage || '')) {
-      toast('Mindestens ein Match ist bereits beendet — Spielplan gesperrt', 'error');
-    } else if (e.status === 409 && /schedule_conflict/.test(e.serverMessage || '')) {
-      toast('Zeit-/Platten-Konflikt — bitte Eingaben prüfen', 'error');
-    } else {
-      toast(e.serverMessage || 'Spielplan konnte nicht gespeichert werden', 'error');
-    }
-  }
-  if (saved) {
-    await refreshTournamentAfterMutation(t.id);
-  }
 }
 
 /**
@@ -4971,21 +4791,6 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   // — „eine Wahrheit, zwei Ausloeser" (P5, 2026-08-25) gilt unveraendert,
   // nur dass der zweite Ausloeser jetzt hier sitzt statt unter den
   // Gruppentabellen. An wireGuardedClick, weil die Route mutiert.
-  // Spielzeiten bearbeiten: wechselt in den Spielplan und schaltet dort
-  // den Edit-Modus ein. Der Modus selbst gehoert in die Ansicht, in der
-  // man die Spiele sieht — nur sein EINSTIEG liegt hier.
-  const editEinstiegBtn = mount.querySelector('[data-action="toggle-schedule-edit"]');
-  if (editEinstiegBtn) {
-    editEinstiegBtn.addEventListener('click', () => {
-      const detail = document.getElementById('tournament-detail');
-      if (!detail) return;
-      switchToView('spielplan', null);
-      handleTournamentTabSideEffects('spielplan', t, detail);
-      const section = detail.querySelector('section.t-view[data-view="spielplan"]');
-      if (section) toggleScheduleEditMode(section, t);
-    });
-  }
-
   const koNotfallBtn = mount.querySelector('[data-action="start-ko-phase"]');
   if (koNotfallBtn) {
     wireGuardedClick(koNotfallBtn, async () => {
@@ -5401,8 +5206,10 @@ async function shiftOpenMatches(tournamentId, mount) {
 async function rescheduleAuto(tournamentId, mount, tournamentName) {
   const durEl = mount?.querySelector?.('[data-reschedule-duration]');
   const fieldsEl = mount?.querySelector?.('[data-reschedule-fields]');
+  const pauseEl = mount?.querySelector?.('[data-reschedule-pause]');
   const duration = parseInt(durEl?.value ?? '30', 10);
   const parallelFields = parseInt(fieldsEl?.value ?? '4', 10);
+  const pause = parseInt(pauseEl?.value ?? '0', 10);
   if (!Number.isFinite(duration) || duration < 5 || duration > 240) {
     toast('Spieldauer muss zwischen 5 und 240 Minuten liegen.', 'error');
     return;
@@ -5411,11 +5218,29 @@ async function rescheduleAuto(tournamentId, mount, tournamentName) {
     toast('Plattenzahl muss zwischen 1 und 12 liegen.', 'error');
     return;
   }
+  if (!Number.isFinite(pause) || pause < 0 || pause > 60) {
+    toast('Pause muss zwischen 0 und 60 Minuten liegen.', 'error');
+    return;
+  }
   let saved = false;
   try {
     // 1) Config schreiben.
+    //
+    // `slotMinutes` MUSS mitgeschrieben werden. Die Engine nimmt den
+    // groessten der drei Werte — matchDuration + Pause gegen den
+    // gespeicherten slotMinutes (engine/schedule.js:122). Bliebe der
+    // alte Wert stehen (der Wizard legt ihn als Dauer + Pause an), waere
+    // eine VERKUERZUNG hier wirkungslos: wer die Pause von 5 auf 0
+    // stellt, bekaeme weiter den alten 35-Minuten-Takt.
     await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
-      config: { schedule: { matchDurationMinutes: duration, parallelFields } },
+      config: {
+        schedule: {
+          matchDurationMinutes: duration,
+          pauseAfterMatches: pause,
+          parallelFields,
+          slotMinutes: duration + pause,
+        },
+      },
     });
     // 2) Reschedule triggern.
     // Der zweite Parameter ist der Turniername, den der
@@ -5427,7 +5252,10 @@ async function rescheduleAuto(tournamentId, mount, tournamentName) {
     const name = tournamentName || activeTournamentInstance?.name || '';
     const ok = await rescheduleTournament(tournamentId, name);
     if (ok) {
-      toast(`Zeitplan neu berechnet (${duration} min, ${parallelFields} Platten).`, 'success');
+      toast(
+        `Zeitplan neu berechnet (${duration} min Spiel, ${pause} min Pause, ${parallelFields} Platten).`,
+        'success',
+      );
       saved = true;
     }
   } catch (e) {
@@ -17411,8 +17239,6 @@ Object.assign(window, {
   finishTournament,
   resetResults,
   deleteTournamentWithConfirm,
-  toggleScheduleEditMode,
-  saveScheduleEdits,
   deleteTournamentInstance,
   openResultEntryModal,
   loadStandingsTab,

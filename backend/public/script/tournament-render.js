@@ -32,9 +32,11 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   'edit-rules',
   'save-rules',
   'cancel-rules',
-  'toggle-schedule-edit',
-  'save-schedule-edits',
-  'cancel-schedule-edits',
+  // `toggle-schedule-edit` / `save-schedule-edits` /
+  // `cancel-schedule-edits` sind am 2026-08-26 entfallen: der
+  // Spielplan-Edit-Modus gab seit dem Zeitachsen-Umbau keine Eingabe-
+  // felder mehr aus (siehe renderEinstellungen). Eine Policy-Zeile fuer
+  // eine Aktion, die kein Renderer mehr kennt, bewacht nichts.
   'save-fields',
   'reset-fields',
   'redraw-seeding',

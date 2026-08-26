@@ -67,7 +67,12 @@ describe('rescheduleTournament: der Bestaetigungsname ist nie ein Literal', () =
     // beiden anderen hingen an [data-action="reschedule"], einem
     // Selektor, den kein Renderer ausgibt; sie sind in derselben Runde
     // geloescht worden.
-    expect(stellen.length).toBeGreaterThanOrEqual(2);
+    //
+    // Nachmessung 2026-08-26: einer. Der Spielplan-Edit-Modus ist
+    // entfallen (er gab seit dem Zeitachsen-Umbau keine Eingabefelder
+    // mehr aus), damit auch saveScheduleEdits. Uebrig bleibt
+    // rescheduleAuto aus dem Einstellungen-Tab.
+    expect(stellen.length).toBeGreaterThanOrEqual(1);
   });
 
   it('kein Aufruf uebergibt einen festen String als Turniernamen', () => {
@@ -112,5 +117,32 @@ describe('rescheduleAuto reicht den echten Turniernamen durch', () => {
     // Ohne Rueckfall stuende bei einem fehlenden Namen `undefined` im
     // Dialog — dann waere gar keine Eingabe mehr moeglich.
     expect(src).toContain("const name = tournamentName || activeTournamentInstance?.name || '';");
+  });
+});
+
+/**
+ * Die Pause fliesst mit in den Config-Patch — und mit ihr `slotMinutes`.
+ *
+ * Fehlerklasse, die der zweite Test abfaengt (2026-08-26):
+ *   Die Engine nimmt den GROESSTEN der drei Werte —
+ *   `matchDurationMinutes + pauseAfterMatches` gegen den gespeicherten
+ *   `slotMinutes` (engine/schedule.js:122). Der Wizard legt slotMinutes
+ *   als Dauer + Pause an. Schriebe der Einstellungen-Tab nur Dauer und
+ *   Pause, waere jede VERKUERZUNG hier wirkungslos: wer die Pause von 5
+ *   auf 0 stellt, bekaeme weiter den alten 35-Minuten-Takt — und zwar
+ *   ohne Fehlermeldung, der Zeitplan saehe nur unveraendert aus.
+ */
+describe('rescheduleAuto schreibt die Pause mit', () => {
+  it('liest den Pause-Stepper aus dem Einstellungen-Tab', () => {
+    expect(src).toContain("mount?.querySelector?.('[data-reschedule-pause]')");
+  });
+
+  it('sendet pauseAfterMatches UND das daraus berechnete slotMinutes', () => {
+    expect(src).toContain('pauseAfterMatches: pause,');
+    expect(src).toContain('slotMinutes: duration + pause,');
+  });
+
+  it('prueft den Wertebereich der Pause vor dem Senden', () => {
+    expect(src).toContain('pause < 0 || pause > 60');
   });
 });

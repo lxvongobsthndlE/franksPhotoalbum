@@ -196,12 +196,12 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
     });
   }
 
-  it('der delegierte "Speichern & neu terminieren" laeuft ueber runGuardedAction', () => {
-    const i = zeilen.findIndex((l) => l.includes(`closest('[data-action="save-schedule-edits"]')`));
-    expect(i).toBeGreaterThan(-1);
-    const fenster = zeilen.slice(i, i + 10).join('\n');
-    expect(fenster).toContain('runGuardedAction(saveEdit,');
-  });
+  // Der Test „der delegierte 'Speichern & neu terminieren' laeuft ueber
+  // runGuardedAction" ist am 2026-08-26 mit seinem Gegenstand entfallen:
+  // der Spielplan-Edit-Modus samt save-/cancel-schedule-edits ist
+  // geloescht, weil er seit dem Zeitachsen-Umbau keine Eingabefelder
+  // mehr ausgab. `runGuardedAction` bleibt geprueft — ueber die Liste
+  // GESCHUETZTE_AKTIONEN oben und den Gegenprobe-Test unten.
 
   /**
    * Handler mit EIGENER Sperre. `swapConfirmBtn` ist eines der drei

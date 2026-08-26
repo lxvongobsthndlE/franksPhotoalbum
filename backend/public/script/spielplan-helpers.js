@@ -2395,11 +2395,26 @@ function renderActionsBlock(ctx) {
   if (canReschedule.allowed && (isRunning || isGenerated)) {
     const duration = t?.tournament?.config?.schedule?.matchDurationMinutes ?? 30;
     const parallelFields = t?.tournament?.config?.schedule?.parallelFields ?? 4;
+    const pause = t?.tournament?.config?.schedule?.pauseAfterMatches ?? 0;
     betrieb.push(lrow({
       label: 'Spieldauer',
       wert: stepper({
         attr: 'data-reschedule-duration', wert: duration,
         min: 5, max: 240, schritt: 5, einheit: 'min', label: 'Spieldauer',
+      }),
+    }));
+    // Pause zwischen zwei Spielen (2026-08-26, Jonas): stand bisher NUR
+    // im Wizard. Wer sie am Spieltag aendern wollte — weil die Platten
+    // laenger zum Abraeumen brauchen als gedacht —, musste das Turnier
+    // neu anlegen. Sie gehoert neben die Spieldauer: beide zusammen
+    // ergeben den Abstand zweier Anstoesse (Engine: matchDuration +
+    // pauseAfterMatches, engine/schedule.js:122).
+    betrieb.push(lrow({
+      label: 'Pause zwischen Spielen',
+      sub: 'Zählt zur Spieldauer dazu — ergibt den Takt.',
+      wert: stepper({
+        attr: 'data-reschedule-pause', wert: pause,
+        min: 0, max: 60, schritt: 5, einheit: 'min', label: 'Pause zwischen Spielen',
       }),
     }));
     betrieb.push(lrow({
@@ -2430,13 +2445,14 @@ function renderActionsBlock(ctx) {
       action: 'shift-open', art: 'action',
     }));
   }
-  if (isAdmin) {
-    betrieb.push(lrow({
-      label: 'Spielzeiten bearbeiten',
-      sub: 'Zeit und Platte einzelner Spiele ändern.',
-      action: 'toggle-schedule-edit',
-    }));
-  }
+  // „Spielzeiten bearbeiten" ist hier ersatzlos entfallen (2026-08-26,
+  // Jonas: „das ist nur eine leere Huelle"). Der Knopf sprang in den
+  // Spielplan und schaltete dort einen Edit-Modus ein, der seit dem
+  // Zeitachsen-Umbau nichts mehr ausgab: `renderMatchList` nimmt nur
+  // noch (matches, isAdmin) — das dritte Argument `isEdit` lief ins
+  // Leere, die Karten blieben Lese-Ansicht. Uebrig blieb eine Leiste
+  // mit „Speichern", die nichts zu speichern hatte. Zeit und Platte
+  // aller Spiele setzt „Zeitplan neu berechnen" weiter oben.
 
   // Der Stand steht einmal, unten, klein — nicht als Kasten mitten drin.
   const statusHint = finishedCount > 0

@@ -516,7 +516,25 @@ export default async function tournamentRoutes(fastify) {
               });
             }
           }
-          data.config = v.value;
+          // PATCH heisst PATCH: was der Client nicht schickt, bleibt
+          // stehen. Vorher ersetzte `v.value` die GANZE config-Spalte —
+          // und weil der Validator nur seine Whitelist durchlaesst, ging
+          // dabei still alles verloren, was nicht im selben Body stand:
+          // `fields` (die Plattennamen, PATCH /:id/fields schreibt sie in
+          // dieselbe Spalte), `numGroups`, die Tiebreaker, die Punkte —
+          // und `schedule.startTime`, womit ein Zeitplan-Patch aus dem
+          // Einstellungen-Tab das ganze Turnier auf die Default-Anstosszeit
+          // 10:00 zurueckgeworfen haette. Gemessen an DEFAULT_CONFIG
+          // (engine/config.js) faellt jeder verlorene Schluessel lautlos
+          // auf den Default, deshalb sah es nach nichts aus.
+          const bestehend = ctx.tournament.config ?? {};
+          data.config = { ...bestehend, ...v.value };
+          if (v.value.schedule) {
+            data.config.schedule = {
+              ...(bestehend.schedule ?? {}),
+              ...v.value.schedule,
+            };
+          }
         }
       }
 

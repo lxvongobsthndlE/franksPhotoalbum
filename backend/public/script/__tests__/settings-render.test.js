@@ -337,3 +337,80 @@ describe('renderEinstellungen — Statuskarte', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Spielbetrieb: die drei Zahlen des Spieltags
+// ─────────────────────────────────────────────────────────────────
+//
+// Die Pause stand bis zum 2026-08-26 NUR im Wizard (Jonas: „es fehlt
+// noch die Funktion, in den einstellungen die pausenlänge zu
+// bearbeiten"). Wer sie am Spieltag aendern wollte, musste das Turnier
+// neu anlegen. Sie gehoert neben die Spieldauer: die Engine bildet den
+// Abstand zweier Anstoesse aus matchDurationMinutes + pauseAfterMatches.
+describe('renderEinstellungen — Spielbetrieb', () => {
+  const laufend = (schedule = {}) => ({
+    tournament: {
+      id: 't1',
+      name: 'Test',
+      status: 'generated',
+      config: { schedule },
+    },
+    teams: [],
+    groups: [],
+    matches: [{ id: 'm1', isFinished: false }],
+  });
+
+  it('zeigt einen Stepper fuer die Pause mit dem gespeicherten Wert', () => {
+    const html = renderEinstellungen(
+      laufend({ matchDurationMinutes: 20, pauseAfterMatches: 5, parallelFields: 2 }),
+      { isAdmin: true, finishedCount: 0 },
+    );
+    expect(html).toContain('data-reschedule-pause');
+    const m = html.match(/data-reschedule-pause value="(\d+)"/);
+    expect(m, 'Pause-Stepper ohne Wert').not.toBeNull();
+    expect(m[1]).toBe('5');
+  });
+
+  it('ohne gespeicherte Pause steht 0, nicht leer', () => {
+    const html = renderEinstellungen(laufend({ matchDurationMinutes: 20 }), {
+      isAdmin: true,
+      finishedCount: 0,
+    });
+    const m = html.match(/data-reschedule-pause value="(\d+)"/);
+    expect(m[1]).toBe('0');
+  });
+
+  it('die Pause steht zwischen Spieldauer und Platten', () => {
+    const html = renderEinstellungen(laufend({ matchDurationMinutes: 20 }), {
+      isAdmin: true,
+      finishedCount: 0,
+    });
+    const dauer = html.indexOf('data-reschedule-duration');
+    const pause = html.indexOf('data-reschedule-pause');
+    const platten = html.indexOf('data-reschedule-fields');
+    expect(dauer).toBeGreaterThan(-1);
+    expect(pause).toBeGreaterThan(dauer);
+    expect(platten).toBeGreaterThan(pause);
+  });
+
+  it('Mitglieder sehen den Spielbetrieb-Block gar nicht', () => {
+    const html = renderEinstellungen(laufend({ matchDurationMinutes: 20 }), {
+      isAdmin: false,
+      finishedCount: 0,
+    });
+    expect(html).not.toContain('data-reschedule-pause');
+  });
+
+  // Der Einstieg „Spielzeiten bearbeiten" ist am 2026-08-26 entfallen —
+  // er sprang in einen Edit-Modus, der seit dem Zeitachsen-Umbau keine
+  // Eingabefelder mehr ausgab (renderMatchList nimmt nur noch
+  // (matches, isAdmin), das dritte Argument `isEdit` lief ins Leere).
+  it('kein Einstieg mehr in den leeren Spielplan-Edit-Modus', () => {
+    const html = renderEinstellungen(laufend({ matchDurationMinutes: 20 }), {
+      isAdmin: true,
+      finishedCount: 0,
+    });
+    expect(html).not.toContain('toggle-schedule-edit');
+    expect(html).not.toContain('Spielzeiten bearbeiten');
+  });
+});

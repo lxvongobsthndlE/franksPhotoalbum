@@ -109,10 +109,24 @@ const tournament = {
   startedAt: '2026-04-18T13:00:00.000Z', startsAt: '2026-04-18T13:00:00.000Z',
   location: 'Vereinsheim, Halle 2', mode: 'groups_ko', isAdmin: true,
   rules: 'Wer 15 Minuten nach Ansetzung nicht am Tisch steht, verliert das Spiel 0:3.\n\nGetränke gehen aufs Haus, wenn ihr die Becher selbst wieder einsammelt.',
-  config: { fields: [
-    { id: 'f1', name: 'Platte 1', order: 0 },
-    { id: 'f2', name: 'Platte 2', order: 1 },
-    { id: 'f3', name: 'Platte 3', order: 2 }] },
+  config: {
+    fields: [
+      { id: 'f1', name: 'Platte 1', order: 0 },
+      { id: 'f2', name: 'Platte 2', order: 1 },
+      { id: 'f3', name: 'Platte 3', order: 2 }],
+    // Der Zeitplan gehoert seit dem 2026-08-26 in den Pruefstand: der
+    // Block „Spielbetrieb" zeigt Spieldauer, Pause und Platten aus
+    // genau diesen Werten. Ohne sie stuenden dort die Rueckfallwerte,
+    // und ein Screenshot koennte nicht zeigen, dass der gespeicherte
+    // Wert ankommt.
+    schedule: {
+      slotMinutes: 35,
+      matchDurationMinutes: 30,
+      pauseAfterMatches: 5,
+      parallelFields: 3,
+      startTime: '13:00',
+    },
+  },
 };
 const alleSpiele = matches.concat(koMatches);
 const tDto = { tournament, teams, groups: standings, matches: alleSpiele, stats: null };

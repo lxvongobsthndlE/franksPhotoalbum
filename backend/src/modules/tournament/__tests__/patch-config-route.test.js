@@ -491,3 +491,124 @@ describe('PATCH /api/tournaments/:id mit Grunddaten-Feldern', () => {
     expect(res.json().field).toBe('tableLabels');
   });
 });
+// ------------------------------------------------------------------
+// PATCH heisst PATCH: ein Teil-Patch loescht den Rest der Config nicht
+// ------------------------------------------------------------------
+//
+// Fehlerklasse (2026-08-26): Die Route schrieb `data.config = v.value`.
+// `v.value` ist die gefilterte Whitelist des Validators — alles, was
+// nicht im selben Body stand, war danach weg. Das traf ausgerechnet die
+// Werte, die eine ANDERE Route in dieselbe Spalte schreibt:
+// `config.fields` (Plattennamen, PATCH /:id/fields). Ein Klick auf
+// „Zeitplan neu berechnen" im Einstellungen-Tab schickt nur
+// `schedule.*` — und haette damit still die Plattennamen, `numGroups`,
+// die Tiebreaker und die Anstosszeit auf Default zurueckgesetzt.
+// Sichtbar wurde davon nichts, weil `mergeConfig` beim Lesen jeden
+// fehlenden Schluessel aus DEFAULT_CONFIG nachfuellt.
+describe('PATCH config: Teil-Patch bewahrt den Rest der Config', () => {
+  let app, prisma;
+
+  const bestandsConfig = {
+    distribution: 'snake',
+    pointsPerWin: 3,
+    tiebreakers: ['points', 'goalDiff'],
+    numGroups: 4,
+    qualifyPerGroup: 2,
+    fields: [
+      { id: 'f1', name: 'Platte 1', order: 0 },
+      { id: 'f2', name: 'Wintergarten', order: 1 },
+    ],
+    schedule: {
+      slotMinutes: 35,
+      matchDurationMinutes: 30,
+      pauseAfterMatches: 5,
+      parallelFields: 2,
+      startTime: '09:30',
+    },
+  };
+
+  beforeEach(async () => {
+    prisma = createMockPrisma();
+    baseStubs(prisma);
+    prisma.tournament.findUnique.mockResolvedValue({
+      id: tId,
+      groupId: gId,
+      name: 'Mein Turnier',
+      mode: 'groups_ko',
+      status: 'generated',
+      isPublic: false,
+      publicToken: null,
+      publicRevokedAt: null,
+      config: bestandsConfig,
+      group: { id: gId, createdBy: u.admin.id, name: 'G' },
+    });
+    app = await buildApp(prisma);
+  });
+
+  it('schedule-Patch laesst fields, numGroups und Tiebreaker stehen', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: {
+        config: {
+          schedule: {
+            matchDurationMinutes: 20,
+            pauseAfterMatches: 0,
+            parallelFields: 3,
+            slotMinutes: 20,
+          },
+        },
+      },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const cfg = prisma.tournament.update.mock.calls[0][0].data.config;
+    expect(cfg.fields).toEqual(bestandsConfig.fields);
+    expect(cfg.numGroups).toBe(4);
+    expect(cfg.tiebreakers).toEqual(['points', 'goalDiff']);
+    expect(cfg.pointsPerWin).toBe(3);
+  });
+
+  it('schedule-Patch laesst nicht mitgeschickte schedule-Werte stehen', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: {
+        config: {
+          schedule: {
+            matchDurationMinutes: 20,
+            pauseAfterMatches: 0,
+            parallelFields: 3,
+            slotMinutes: 20,
+          },
+        },
+      },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const sched = prisma.tournament.update.mock.calls[0][0].data.config.schedule;
+    // Der Anstoss stand nicht im Body — er bleibt, wo er war.
+    expect(sched.startTime).toBe('09:30');
+    // Und die mitgeschickten Werte gewinnen.
+    expect(sched.matchDurationMinutes).toBe(20);
+    expect(sched.pauseAfterMatches).toBe(0);
+    expect(sched.slotMinutes).toBe(20);
+    expect(sched.parallelFields).toBe(3);
+  });
+
+  it('ein Patch ausserhalb von schedule ueberschreibt nur seinen Schluessel', async () => {
+    // Ergebnisse liegen keine vor (baseStubs: match.count = 0), also ist
+    // auch ein Nicht-schedule-Patch erlaubt.
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${tId}`,
+      payload: { config: { pointsPerWin: 5 } },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(200);
+    const cfg = prisma.tournament.update.mock.calls[0][0].data.config;
+    expect(cfg.pointsPerWin).toBe(5);
+    expect(cfg.fields).toEqual(bestandsConfig.fields);
+    expect(cfg.schedule.startTime).toBe('09:30');
+  });
+});
