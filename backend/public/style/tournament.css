@@ -2298,26 +2298,39 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Baum-Karten sprechen dieselbe Sprache wie die Spielplan-Karten:
+   Mono-Ziffer, kein dunkles Feld. Bis zur Markenuebernahme stand hier
+   die Anzeigetafel (--board als Fuellung, --board-ink als Ziffer) — sie
+   war die Signatur des alten Entwurfs. Wer sie hier stehen laesst,
+   bekommt zwei verschiedene Ergebnis-Darstellungen in derselben App,
+   je nachdem ob man auf Spielplan oder Baum schaut. */
 .t-match--bracket [data-area="home-score"],
 .t-match--bracket [data-area="away-score"] {
+  font-family: var(--f-mono);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: 600;
   text-align: right;
-  min-width: 36px;
-  padding: 2px 6px;
-  font-size: 14px;
-  background: var(--board);
-  color: var(--board-ink);
-  border-radius: var(--r-board, 4px);
+  min-width: 2.2em;
+  padding: 0;
+  font-size: 15px;
+  background: none;
+  color: var(--ink-2);
+  border: 0;
+  border-radius: 0;
   line-height: 1.2;
   align-self: center;
 }
 .t-match--bracket [data-area="home-score"].empty,
 .t-match--bracket [data-area="away-score"].empty {
-  color: var(--board-dim);
-  font-weight: 400;
+  color: var(--muted);
+  font-weight: 500;
   background: transparent;
-  border: 1px dashed var(--board-dim);
+  border: 0;
+}
+/* Der Sieger traegt Orange — wie im Spielplan, ueber den
+   Geschwister-Selektor statt einer eigenen Klasse im Renderer. */
+.t-match--bracket.t-match--done .t-match-team.is-winner + [data-area$="-score"] {
+  color: var(--flare);
 }
 .t-match--bracket.t-match--placeholder .name {
   font-style: italic;
@@ -5034,3 +5047,82 @@ textarea.t-input {
   margin-right: 6px;
   flex: none;
 }
+
+/* ----------------------------------------------------------------
+   DER WEG ZUM TITEL — Markenuebernahme Etappe 6
+   ----------------------------------------------------------------
+   Die Miniatur ueber dem Baum. Sie zeigt keine Paarungen, sondern nur,
+   wie weit es noch ist — ein vollstaendiger Baum ist auf 390px
+   unlesbar, das war der Befund vom 2026-08-19.
+   ---------------------------------------------------------------- */
+.t-weg {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-s);
+  padding: var(--s3) var(--s4) var(--s2);
+  margin-bottom: var(--s3);
+}
+.t-weg-kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.t-weg-titel {
+  font-family: var(--f-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.t-weg-stand {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.t-weg-svg {
+  width: 100%;
+  height: auto;
+  margin-top: var(--s2);
+  overflow: visible;
+}
+.t-weg-label {
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  fill: var(--muted);
+}
+.t-weg-label--ziel { fill: var(--flare); }
+
+/* Runden-Pillen: der Stand steht in der Pille, die aktuelle Runde ist
+   TINTE gefuellt. Orange bleibt dem Titelweg vorbehalten — eine Runde
+   ist ein Ort, kein Ziel. */
+.bracket-tabs { display: flex; }
+.bracket-tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-family: var(--f-disp);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink-2);
+  letter-spacing: -0.01em;
+}
+.bracket-tab-stand {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.bracket-tab.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--panel);
+}
+.bracket-tab.is-active .bracket-tab-stand { color: var(--panel); opacity: 0.7; }

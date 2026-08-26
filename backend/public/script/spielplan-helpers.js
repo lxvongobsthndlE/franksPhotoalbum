@@ -1136,13 +1136,31 @@ export function renderBracket(matches) {
 
   // Mobile-Tab-Leiste: ein Button pro Runde (nur sinnvoll wenn > 1 Spalte).
   // Auf Desktop via CSS ausgeblendet, Listener werden trotzdem angehängt.
+  // Markenuebernahme Etappe 6 (2026-08-26): die Runden-Reiter tragen
+  // ihren Stand. "Halbfinale 0/2" sagt mehr als "Halbfinale" — man sieht
+  // ohne Klick, wo das Turnier steht. Die aktive Runde ist SCHWARZ
+  // gefuellt, nicht orange: Orange gehoert dem Weg zum Titel, ein
+  // Reiter ist ein Ort.
+  const rundenStand = winnerBracket.map((r) => {
+    const spiele = Array.isArray(r.matches) ? r.matches : [];
+    return {
+      label: r.label,
+      fertig: spiele.filter((m) => m?.isFinished).length,
+      gesamt: spiele.length,
+    };
+  });
+  // Die aktuelle Runde ist die erste, in der noch etwas offen ist.
+  const aktuelleRunde = rundenStand.findIndex((r) => r.fertig < r.gesamt);
+
   const tabsHtml = cols > 1
     ? `<div class="bracket-tabs">
-        ${winnerBracket.map((r) =>
-          `<button type="button" class="bracket-tab" data-bracket-tab="${esc(r.label)}">${esc(r.label)}</button>`
+        ${rundenStand.map((r, i) =>
+          `<button type="button" class="bracket-tab${i === aktuelleRunde ? ' is-active' : ''}" data-bracket-tab="${esc(r.label)}">${esc(r.label)}<span class="bracket-tab-stand">${r.fertig}/${r.gesamt}</span></button>`
         ).join('')}
       </div>`
     : '';
+
+  const wegHtml = renderWegZumTitel(rundenStand, aktuelleRunde);
 
   // Architektur (Etappe B.4 Bug-16-Nachschlag, 2026-08-19):
   //   .bracket-wrap ist Flex, .bracket-col sind echte Flex-Column-Container.
@@ -1169,10 +1187,102 @@ export function renderBracket(matches) {
     </div>`;
   }).join('');
 
-  return `${tabsHtml}
+  return `${wegHtml}${tabsHtml}
     <div class="bracket-wrap" style="--bracket-cols:${cols}">
       ${colsHtml}
     </div>`;
+}
+
+/**
+ * "Der Weg zum Titel" — die Miniatur ueber dem Baum.
+ *
+ * Ein vollstaendiger Turnierbaum ist auf 390px unlesbar; das war der
+ * Befund, der 2026-08-19 zur heutigen Spaltenansicht gefuehrt hat. Die
+ * Miniatur loest das anders als ein geschrumpfter Baum: sie zeigt gar
+ * keine Paarungen, sondern nur, WIE WEIT es noch ist.
+ *
+ *   ●━━━━●━━━━○┈┈┈┈( )
+ *   VF   HF   F    TITEL
+ *
+ * Gespielte Runden sind gefuellt und grau, die aktuelle orange, offene
+ * bleiben Umriss. Der Kreis am Ende ist der Titel — die einzige Stelle
+ * im ganzen Modul, an der Orange etwas UMSCHLIESST statt es nur zu
+ * faerben.
+ *
+ * Bewusst als SVG mit fester viewBox und `width: 100%`: die Grafik
+ * skaliert dann mit der Karte, statt bei jeder Breite neu gerechnet zu
+ * werden. Bei einer Runde (nur Finale) waere die Miniatur eine Linie
+ * ohne Aussage — dann faellt sie weg.
+ */
+function renderWegZumTitel(runden, aktuelle) {
+  if (!Array.isArray(runden) || runden.length < 2) return '';
+
+  const n = runden.length;
+  const links = 60;
+  const rechts = 60;
+  const breite = 320;
+  const y = 26;
+  const spanne = breite - links - rechts;
+  const dx = n > 1 ? spanne / (n - 1) : 0;
+
+  const teile = [];
+  // Strecken zwischen den Stationen
+  for (let i = 0; i < n - 1; i++) {
+    const x1 = links + i * dx;
+    const x2 = links + (i + 1) * dx;
+    const gespielt = runden[i].gesamt > 0 && runden[i].fertig >= runden[i].gesamt;
+    const aktiv = i === aktuelle || i + 1 === aktuelle;
+    const farbe = gespielt ? 'var(--ink-2)' : aktiv ? 'var(--flare)' : 'var(--line)';
+    const strich = gespielt || aktiv ? '' : ' stroke-dasharray="3 5"';
+    teile.push(`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${farbe}" stroke-width="3" stroke-linecap="round"${strich}/>`);
+  }
+  // Stationen
+  runden.forEach((r, i) => {
+    const x = links + i * dx;
+    const gespielt = r.gesamt > 0 && r.fertig >= r.gesamt;
+    const aktiv = i === aktuelle;
+    const farbe = gespielt ? 'var(--ink-2)' : aktiv ? 'var(--flare)' : 'var(--line)';
+    const fuell = gespielt || aktiv ? farbe : 'var(--panel)';
+    teile.push(`<circle cx="${x}" cy="${y}" r="5" fill="${fuell}" stroke="${farbe}" stroke-width="3"/>`);
+  });
+  // Ziel
+  const xZiel = links + (n - 1) * dx;
+  teile.push(`<line x1="${xZiel}" y1="${y}" x2="${xZiel + 34}" y2="${y}" stroke="var(--flare)" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>`);
+  teile.push(`<circle cx="${xZiel + 48}" cy="${y}" r="11" fill="none" stroke="var(--flare)" stroke-width="3" stroke-dasharray="5 5"/>`);
+
+  const beschriftung = runden.map((r, i) => {
+    const x = links + i * dx;
+    return `<text x="${x}" y="${y + 22}" text-anchor="middle" class="t-weg-label">${esc(kurzRunde(r.label))}</text>`;
+  }).join('');
+
+  return `<div class="t-weg">
+    <div class="t-weg-kopf">
+      <span class="t-weg-titel">Der Weg zum Titel</span>
+      <span class="t-weg-stand">Runde ${Math.max(1, aktuelle + 1)} von ${n}</span>
+    </div>
+    <svg class="t-weg-svg" viewBox="0 0 ${breite + 20} 56" role="img"
+         aria-label="Fortschritt: Runde ${Math.max(1, aktuelle + 1)} von ${n}">
+      ${teile.join('')}
+      ${beschriftung}
+      <text x="${xZiel + 48}" y="${y + 22}" text-anchor="middle" class="t-weg-label t-weg-label--ziel">Titel</text>
+    </svg>
+  </div>`;
+}
+
+/**
+ * Rundennamen fuer die Miniatur kuerzen. "Viertelfinale" braucht unter
+ * einem 5px-Punkt zu viel Platz; VF/HF/F ist am Spieltisch ohnehin die
+ * gesprochene Form. Unbekannte Namen werden nicht geraten, sondern auf
+ * die ersten zwei Zeichen gekuerzt — falsch abgekuerzt ist schlimmer
+ * als knapp.
+ */
+function kurzRunde(label) {
+  const l = String(label || '');
+  if (/^achtel/i.test(l)) return 'AF';
+  if (/^viertel/i.test(l)) return 'VF';
+  if (/^halb|^semi/i.test(l)) return 'HF';
+  if (/^finale$|^final$/i.test(l)) return 'F';
+  return l.slice(0, 2).toUpperCase();
 }
 
 /**

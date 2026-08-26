@@ -445,7 +445,11 @@ describe('renderBracket', () => {
     ];
     const html = renderBracket(matches);
     expect(html).toContain('class="bracket-tabs"');
-    expect((html.match(/class="bracket-tab"/g) || []).length).toBe(3);
+    // Ueber das data-Attribut zaehlen, nicht ueber den Klassen-String:
+    // seit der Markenuebernahme traegt die aktuelle Runde zusaetzlich
+    // `is-active`, und `class="bracket-tab"` haette sie stillschweigend
+    // nicht mehr mitgezaehlt.
+    expect((html.match(/data-bracket-tab="/g) || []).length).toBe(3);
     expect(html).toContain('data-bracket-tab="Viertelfinale"');
     expect(html).toContain('data-bracket-tab="Halbfinale"');
     expect(html).toContain('data-bracket-tab="Finale"');
@@ -469,5 +473,94 @@ describe('renderBracket', () => {
     expect(html).not.toContain('grid-column:');
     expect(html).not.toContain('grid-row:');
     expect(html).not.toMatch(/data-match-id="[^"]+"[^>]*margin-top/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Der Weg zum Titel + Runden-Stand — Markenuebernahme (2026-08-26)
+//
+// Zwei Dinge, die schweigend falsch sein koennen und die man im
+// Screenshot nicht sieht:
+//   - Der Stand in der Pille ("0/2") wird aus den Spielen gerechnet.
+//     Zaehlt er falsch, glaubt man dem Turnier eine Runde zu viel.
+//   - "Die aktuelle Runde" ist die erste mit einem offenen Spiel. Sind
+//     es zwei, ist es keine Reihenfolge mehr.
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderBracket — Weg zum Titel und Runden-Stand', () => {
+  const runde = (id, label, n, fertig) =>
+    Array.from({ length: n }, (_, i) => makeKoMatch({
+      id: id + i, round: id, roundLabel: label, bracketPos: i + 1,
+      isFinished: i < fertig,
+      scoreHome: i < fertig ? 3 : undefined,
+      scoreAway: i < fertig ? 1 : undefined,
+    }));
+
+  const staende = (html) =>
+    [...html.matchAll(/<span class="bracket-tab-stand">([^<]*)<\/span>/g)].map((m) => m[1]);
+
+  it('jede Pille traegt ihren Stand', () => {
+    const html = renderBracket([
+      ...runde('QF', 'Viertelfinale', 4, 4),
+      ...runde('SF', 'Halbfinale', 2, 0),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
+    expect(staende(html)).toEqual(['4/4', '0/2', '0/1']);
+  });
+
+  it('genau EINE Runde ist aktiv — die erste mit einem offenen Spiel', () => {
+    const html = renderBracket([
+      ...runde('QF', 'Viertelfinale', 4, 4),
+      ...runde('SF', 'Halbfinale', 2, 1),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
+    expect((html.match(/bracket-tab is-active/g) || []).length).toBe(1);
+    // die halb gespielte Runde, nicht die fertige davor
+    expect(html).toMatch(/bracket-tab is-active"[^>]*data-bracket-tab="Halbfinale"/);
+  });
+
+  it('alles gespielt: keine Runde ist aktiv', () => {
+    const html = renderBracket([
+      ...runde('QF', 'Viertelfinale', 2, 2),
+      ...runde('F', 'Finale', 1, 1),
+    ]);
+    expect(html).not.toContain('bracket-tab is-active');
+  });
+
+  it('die Miniatur erscheint ab zwei Runden, nicht bei einer', () => {
+    const eine = renderBracket(runde('F', 'Finale', 1, 0));
+    expect(eine).not.toContain('t-weg-svg');
+    const zwei = renderBracket([...runde('SF', 'Halbfinale', 2, 0), ...runde('F', 'Finale', 1, 0)]);
+    expect(zwei).toContain('t-weg-svg');
+  });
+
+  it('die Miniatur steht VOR den Pillen und dem Baum', () => {
+    const html = renderBracket([
+      ...runde('SF', 'Halbfinale', 2, 0),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
+    const weg = html.indexOf('t-weg-svg');
+    const pillen = html.indexOf('bracket-tabs');
+    const baum = html.indexOf('bracket-wrap');
+    expect(weg).toBeGreaterThan(-1);
+    expect(weg).toBeLessThan(pillen);
+    expect(pillen).toBeLessThan(baum);
+  });
+
+  it('Rundennamen werden gekuerzt, aber nicht geraten', () => {
+    const html = renderBracket([
+      ...runde('QF', 'Viertelfinale', 2, 0),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
+    expect(html).toContain('>VF<');
+    expect(html).toContain('>F<');
+  });
+
+  it('die Miniatur traegt eine Textfassung fuer Screenreader', () => {
+    const html = renderBracket([
+      ...runde('SF', 'Halbfinale', 2, 0),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
+    expect(html).toMatch(/aria-label="Fortschritt: Runde \d+ von \d+"/);
   });
 });
