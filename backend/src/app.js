@@ -134,6 +134,24 @@ app.get('/auth/callback', async (request, reply) => {
   return reply.redirect(`/?${qs}`);
 });
 
+// Zuschauer-Link: /t/<token> liefert die öffentliche Turnier-Ansicht.
+//
+// Eine eigene, sehr kleine Seite — bewusst NICHT die SPA. Ein Zuschauer
+// ohne Konto soll gar nicht erst den angemeldeten Client laden: kein
+// Login-Zustand, keine mutierenden Knöpfe, kein Admin-Code im Speicher.
+// Die Daten holt sie sich über GET /api/tournaments/public/:token; der
+// Token wird hier nur durchgereicht, geprüft wird er dort.
+app.get('/t/:token', async (request, reply) => {
+  return reply.sendFile('live.html', path.join(__dirname, '../public'));
+});
+
+// Der Aushang: ein Blatt mit großem QR-Code zum Ausdrucken und Aufhängen.
+// Braucht keine eigene Berechtigung — wer den Token hat, hat ohnehin
+// Zugang, und der Aushang zeigt nichts, was die Ansicht nicht zeigt.
+app.get('/t/:token/aushang', async (request, reply) => {
+  return reply.sendFile('aushang.html', path.join(__dirname, '../public'));
+});
+
 // Health Check
 app.get('/health', async (request, reply) => {
   return { status: 'ok' };

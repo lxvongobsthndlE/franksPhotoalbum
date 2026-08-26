@@ -12,8 +12,11 @@
  * für den direkten URL-Zugriff durch ein Mitglied (Backend-Check, nicht
  * nur UI-Hide).
  *
- * Stufe-B-Public-Bypass: Wenn isPublic=true und publicToken gesetzt
- * und nicht revoked → anonymous read ist erlaubt.
+ * Öffentlicher Zugang: Hier gibt es KEINEN Bypass. Der Zuschauer-Link
+ * läuft über einen eigenen, über den Token adressierten Pfad — siehe
+ * public-access.js. Die ausführliche Begründung steht dort; kurz: der
+ * frühere Bypass hat den Token nie mit dem Aufrufer verglichen und stand
+ * vor der Draft-Prüfung.
  */
 
 import { canViewTournament } from './access/visibility.js';
@@ -37,18 +40,18 @@ export async function requireAuth(request, prisma) {
  * Lädt das Turnier + Gruppe, prüft Sichtbarkeit.
  *
  *   - 404 wenn Turnier nicht existiert.
- *   - Wenn Public-Bypass aktiv (isPublic, publicToken, !publicRevokedAt):
- *     liefert { tournament, group, public: true, publicToken } ohne User.
- *   - Sonst: requireAuth → muss Mitglied der Gruppe sein → 403 sonst.
+ *   - requireAuth → muss Mitglied der Gruppe sein → 403 sonst.
  *   - Wenn Status='draft' und User ist kein Admin der Gruppe: 403.
+ *
+ * `isPublic` spielt hier bewusst KEINE Rolle: ein freigegebenes Turnier
+ * wird über /api/tournaments/public/:token gelesen, nie über seine ID.
  *
  * @returns {Promise<{
  *   tournament: object,
  *   group: { id, createdBy, name },
- *   user?: { id, role },
+ *   user: { id, role },
  *   isAdmin: boolean,
- *   public: boolean,
- *   publicToken?: string,
+ *   public: false,
  * }>}
  */
 export async function requireTournamentRead(request, prisma, tournamentId) {
@@ -64,18 +67,13 @@ export async function requireTournamentRead(request, prisma, tournamentId) {
     throw err;
   }
 
-  // Public-Bypass: anonymous read, kein User nötig.
-  if (t.isPublic && t.publicToken && !t.publicRevokedAt) {
-    return {
-      tournament: t,
-      group: t.group,
-      isAdmin: false,
-      public: true,
-      publicToken: t.publicToken,
-    };
-  }
+  // Hier stand bis 26.08.2026 ein Public-Bypass. Er prüfte, OB ein Token
+  // in der DB steht — nie, ob der Aufrufer ihn kennt. Wer die ID hatte,
+  // kam rein, und weil der Zweig vor der Draft-Prüfung stand, galt das
+  // auch für Entwürfe. Eine Freigabe macht ein Turnier ab jetzt unter
+  // seinem TOKEN lesbar, nicht unter seiner ID: public-access.js.
 
-  // Sonst: eingeloggter User + Mitgliedschaft.
+  // Eingeloggter User + Mitgliedschaft.
   const { user } = await requireAuth(request, prisma);
   const isAdmin = await isGroupAdmin(prisma, t.groupId, user);
   const member = await prisma.groupMember.findUnique({
@@ -103,20 +101,15 @@ export async function requireTournamentRead(request, prisma, tournamentId) {
  * neuer Turniere (POST /api/tournaments).
  *
  * 403-Fälle:
- *   - Public-Read-Bypass nicht erlaubt (man kann nicht als Anonymous
- *     schreiben).
- *   - User ist kein Admin der Gruppe.
+ *   - User ist kein Admin der Gruppe. (Anonym schreiben ist gar nicht
+ *     erst erreichbar: ohne Bypass endet der Weg schon in requireAuth
+ *     mit 401.)
  *   - Turnier ist im Status 'draft' (kommt nicht in Frage, weil dafür
  *     zuerst requireTournamentRead nötig wäre — wir geben hier auch
  *     bei draft einen sauberen 403 wenn nicht Admin).
  */
 export async function requireTournamentWrite(request, prisma, tournamentId) {
   const ctx = await requireTournamentRead(request, prisma, tournamentId);
-  if (ctx.public) {
-    const err = new Error('Schreibender Zugriff benötigt Login');
-    err.statusCode = 403;
-    throw err;
-  }
   if (!ctx.isAdmin) {
     const err = new Error('Nur Admins dürfen diese Aktion ausführen');
     err.statusCode = 403;

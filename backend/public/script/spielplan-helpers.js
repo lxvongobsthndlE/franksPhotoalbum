@@ -1624,8 +1624,107 @@ export function renderEinstellungen(t, opts = {}) {
           ${fieldsReason}
         </div>
       </section>
+      ${renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen: !isDraft })}
       ${dangerZone}
     </div>
+  `;
+}
+
+/**
+ * Block — Zuschauer-Link (Spec §11, Stufe B).
+ *
+ * Zeigt genau einen der drei Zustände:
+ *
+ *   Entwurf   → erklärt, warum es noch nicht geht (statt einen toten Knopf)
+ *   aus       → ein Knopf, der ihn erteilt
+ *   an        → der Link zum Kopieren, plus Widerruf
+ *
+ * Der Widerruf steht bewusst NICHT in der Gefahrenzone: Er löscht keine
+ * Daten, und wer einen Link zurücknehmen will, soll ihn dort finden, wo
+ * er ihn erteilt hat.
+ */
+function renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen }) {
+  if (!isAdmin) return '';
+
+  const tour = t?.tournament ?? {};
+  const istOeffentlich = tour.isPublic === true && !!tour.publicToken;
+  const linkPfad = istOeffentlich ? `/t/${tour.publicToken}` : '';
+  // `typeof window` allein genügt nicht: In einer Testumgebung kann ein
+  // window-Objekt ohne `location` stehen, und ein Griff auf .origin würde
+  // dann den GESAMTEN Einstellungen-Tab mitreißen — für eine Zeile, die
+  // notfalls auch als Pfad ohne Host brauchbar ist.
+  const herkunft =
+    typeof window !== 'undefined' && window.location && window.location.origin
+      ? window.location.origin
+      : '';
+  const volleUrl = istOeffentlich ? `${herkunft}${linkPfad}` : '';
+
+  let body;
+  if (isDraft) {
+    body = `
+      <div class="t-hint t-hint--info">
+        Solange das Turnier ein Entwurf ist, gibt es keinen Zuschauer-Link.
+        Generiere zuerst den Spielplan.
+      </div>
+    `;
+  } else if (istOeffentlich) {
+    body = `
+      <div class="t-settings-actions">
+        <!-- Bewusst mit vorhandenen Klassen und einem Inline-Flex statt
+             einer eigenen Regel: tournament.css wird parallel umgebaut
+             (Markenübernahme), und ein Block, der ohne neues CSS
+             auskommt, kann dort nicht kollidieren. -->
+        <input class="t-input" type="text" readonly
+               style="flex:1;min-width:0"
+               value="${esc(volleUrl)}" data-public-url
+               aria-label="Zuschauer-Link">
+        <button class="t-btn t-btn--ghost" data-action="copy-public-link" type="button">Kopieren</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Wer diesen Link hat, sieht Tabellen, Spielplan und Ergebnisse —
+        ohne Konto und ohne etwas ändern zu können. Spielernamen werden
+        nicht mit veröffentlicht.
+      </div>
+      <div class="t-settings-actions" style="align-items:center">
+        <img src="/api/tournaments/public/${encodeURIComponent(tour.publicToken)}/qr.svg"
+             alt="QR-Code zum Zuschauer-Link"
+             width="104" height="104"
+             style="width:104px;height:104px;background:#fff;border-radius:6px;padding:5px;flex:none">
+        <button class="t-btn t-btn--ghost" data-action="open-aushang" type="button">Aushang zum Drucken</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Der Aushang ist ein Blatt mit großem QR-Code für den Tresen.
+      </div>
+      <div class="t-settings-actions">
+        <button class="t-btn t-btn--danger" data-action="revoke-public-link" type="button">Link widerrufen</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Ein Widerruf macht den Link sofort ungültig — endgültig. Eine
+        spätere Freigabe erzeugt einen neuen Link, der alte bleibt tot.
+      </div>
+    `;
+  } else {
+    body = `
+      <div class="t-settings-actions">
+        <button class="t-btn t-btn--primary" data-action="create-public-link" type="button">Zuschauer-Link erstellen</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Erzeugt eine Adresse, unter der jeder den Turnierstand mitlesen
+        kann — für den Aushang am Tresen oder die Gruppe im Messenger.
+      </div>
+    `;
+  }
+
+  return `
+    <section class="t-settings-section" data-section="public-link" data-collapsed="${!defaultOpen}">
+      <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${!!defaultOpen}">
+        <span class="t-settings-section-title">Zuschauer-Link</span>
+        <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+      </button>
+      <div class="t-settings-section-body">
+        ${body}
+      </div>
+    </section>
   `;
 }
 
