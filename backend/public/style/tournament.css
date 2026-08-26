@@ -6112,30 +6112,58 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    abgeschnitten und halbierte einen Chip.
 
    Jetzt vier feste Filter, und die Loesung ist keine Scroll-Leiste,
-   sondern Verzicht: flex 1 1 0 teilt die Breite gleichmaessig auf, es
+   sondern Verzicht: die Reihe teilt die Breite gleichmaessig auf, es
    gibt kein overflow mehr. Was nicht passt, kann auch nicht wegscrollen.
-   Bei vier Chips auf 390px bleiben rund 80px je Chip — genug fuer
-   "FERTIG 13" in Archivo Narrow 12.5px.
+
+   Fuenfte Fassung am selben Tag, Jonas: "die einzelnen Kaestchen sind zu
+   schmal, es sieht nicht schoen aus."
+
+   Gemessen war das kein Platzmangel, sondern ein nicht abgerufener Platz:
+   .t-chips war `flex: 0 1 auto` und legte sich um die vier Woerter — 293px
+   breit, waehrend die Leiste 612px hatte. Damit gab es nie einen
+   Ueberschuss, den `flex: 1 1 auto` an den Kindern haette verteilen
+   koennen; jeder Chip blieb auf Inhaltsbreite mit 6px Luft neben dem Wort.
+   Eine Pille mit 6px Polster bei 16px Eckenradius liest sich gequetscht.
+
+   Zwei Zeilen heben das: die Reihe waechst (`flex: 1 1 auto`), die Chips
+   teilen zu gleichen Teilen (`flex: 1 1 0`). Gemessen 84px je Chip statt
+   66 — rund 14px Polster neben dem Wort. Der Deckel bei 360px ist Absicht:
+   ohne ihn stehen die vier Woerter auf 1280px 104px auseinander und lesen
+   sich als Navigationsleiste, nicht als Filter (bei 440px gemessen und
+   verworfen). Unter 360px Container gilt weiter Wortbreite statt gleicher
+   Breite (siehe @container weiter unten); gemessen von 320px bis 1600px
+   kuerzt kein Wort und laeuft keine Seite waagerecht ueber.
    ---------------------------------------------------------------- */
 .t-chips {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+  flex: 1 1 auto;
+  max-width: 360px;
 }
 .t-chips > .t-chip {
-  flex: 1 1 auto;
+  /* 1 1 0 statt 1 1 auto: alle vier gleich breit, unabhaengig davon, ob
+     das Wort ALLE oder FERTIG heisst — vier gleiche Felder lesen sich als
+     eine Reihe, vier verschieden breite als vier Dinge. Das Polster hier
+     ist nur die Untergrenze fuer schmale Container; die sichtbare Luft
+     kommt aus der Aufteilung. */
+  flex: 1 1 0;
   min-width: 0;
-  padding: 7px 6px;
+  padding: 7px 10px;
   display: inline-flex;
   align-items: baseline;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   overflow: hidden;
   white-space: nowrap;
 }
 /* Die Zahl darf schrumpfen, die Beschriftung nicht: "OFFEN" ohne Zahl
    ist noch ein Filter, eine Zahl ohne Wort ist nichts. */
 .t-chips > .t-chip > .count { flex: none; }
+/* Der inaktive Chip bleibt reiner Text (Vorlage, Abschnitt 03) — aber
+   sein Feld ist jetzt breit genug, dass man es treffen kann, ohne es zu
+   sehen. Die Tuchfuehlung beim Ueberfahren zeigt, wie weit es reicht. */
+.t-chips > .t-chip:not(.is-active):hover { background: var(--sunk); }
 
 /* ----------------------------------------------------------------
    DER RAHMEN, IN DEM DAS MODUL SITZT — Beschwerde 1
@@ -6852,6 +6880,13 @@ button.t-lrow:disabled:hover { background: none; }
 @container (max-width: 360px) {
   .t-chips { gap: 4px; }
   .t-chips > .t-chip {
+    /* Zurueck auf natuerliche Breiten: gleich breite Felder sind Luxus
+       und brauchen Luft. Auf 320px Geraetebreite kuerzten mit `1 1 0`
+       gemessen OFFEN und FERTIG — ein Chip, dessen Wort man nicht lesen
+       kann, ist kein Filter mehr. Die Reihe waechst hier trotzdem und
+       verteilt den frueher ungenutzten Platz (auf 375px 57px) als
+       Polster, nur eben nach Wortlaenge statt zu gleichen Teilen. */
+    flex: 1 1 auto;
     padding: 7px 4px;
     font-size: 11.5px;
     letter-spacing: 0.03em;
