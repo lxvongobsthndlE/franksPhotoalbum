@@ -175,14 +175,22 @@ describe('A4: Logo', () => {
     expect(html).toContain('<img src="https://minio.example/t/logo.png" alt="">');
   });
 
-  it('fällt ohne Logo auf den Anfangsbuchstaben zurück', () => {
+  // 2026-08-26, dritte Artefakt-Fassung: der Anfangsbuchstabe im
+  // schwarzen Quadrat ist ersatzlos entfallen. Die Vorlage kennt an
+  // beiden Orten, an denen ein Turnierlogo stehen kann (Modulkopf und
+  // Listenblock), dieselbe Regel: OHNE LOGO KEIN PLATZHALTER. Die
+  // Mehrheit der Turniere hat keins — der Ersatzkasten war der
+  // Normalfall, nicht die Ausnahme, und er sagte nichts, was der Name
+  // daneben nicht schon sagt.
+  it('ohne Logo bleibt die Stelle LEER — kein Ersatzkasten', () => {
     const html = render({ logoUrl: null });
-    expect(html).toContain('<span class="t-list-card-logo">B</span>');
+    expect(html).not.toContain('t-list-card-logo');
+    expect(html).not.toContain('>B</span>');
   });
 
-  it('fällt ohne Namen auf "T" zurück statt auf einen leeren Kreis', () => {
+  it('ohne Namen bleibt sie ebenfalls leer, der Name faellt auf "Turnier"', () => {
     const html = render({ name: '', logoUrl: null });
-    expect(html).toContain('<span class="t-list-card-logo">T</span>');
+    expect(html).not.toContain('t-list-card-logo');
     expect(html).toContain('>Turnier</h3>');
   });
 });

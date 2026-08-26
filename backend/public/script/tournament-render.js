@@ -164,10 +164,15 @@ export function renderTournamentListCard({
   const pct = total > 0 ? Math.round((played / total) * 100) : 0;
 
   const name = instance?.name || 'Turnier';
-  const initial = name.trim().charAt(0).toUpperCase() || 'T';
+  // OHNE LOGO KEIN PLATZHALTER — dieselbe Regel wie im Modulkopf
+  // (Artefakt Abschnitt 01, renderModulKopf). Bis zum 26.08. stand hier
+  // ein schwarzes Quadrat mit dem Anfangsbuchstaben; bei drei Turnieren
+  // untereinander waren das drei Kaesten, die nichts sagten, was der
+  // Name daneben nicht schon sagt. Die Mehrheit der Turniere hat kein
+  // Logo — der Ersatzkasten war also der Normalfall, nicht die Ausnahme.
   const logoHtml = instance?.logoUrl
     ? `<span class="t-list-card-logo"><img src="${esc(instance.logoUrl)}" alt=""></span>`
-    : `<span class="t-list-card-logo">${esc(initial)}</span>`;
+    : '';
 
   // Die Badge-Farbe folgt dem Status, nicht der Phase: "draft" und
   // "generated" liegen im selben Phasen-Bucket, sehen aber verschieden aus.

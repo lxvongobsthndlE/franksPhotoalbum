@@ -1714,18 +1714,38 @@
 /* Listen-Karte — kompakter als .t-card (für Wizard, Tabellen).
    Hat einen Hover-Afford, ist aber selbst noch KEIN klickbarer Link
    (Detail-View kommt in der nächsten Iteration). */
+/* Artefakt Abschnitt 02: „Aus drei Turnierkarten werden drei Bloecke auf
+   einem Blatt. Was jedes Turnier zusammenhaelt, ist der 20-px-
+   Innenabstand — was sie trennt, eine Haarlinie."
+   Der Rahmen bleibt als durchsichtige Kante stehen, weil der laufende
+   Block ihn als Zustandsstreifen einfaerbt (unten) und die Zeile sonst
+   beim Wechsel um 2px springt. */
 .t-list-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  padding: var(--s4);
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 17px var(--s5) 18px;
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  gap: 10px;
+  transition: background 0.15s ease;
 }
-.t-list-card:hover {
-  border-color: var(--accent-soft);
+.t-list-card + .t-list-card { border-top: 1px solid var(--line-soft); }
+.t-list-card:hover { background: var(--raised); }
+/* Der Streifen sagt „laeuft gerade". Vorher unterschied nur die Pille
+   oben rechts das laufende Turnier von den anderen; jetzt ist es beim
+   Ueberfliegen der Liste die erste Information, noch vor dem Namen —
+   und es ist Farbe UND Ort, also auch ohne Farbsehen lesbar. */
+.t-list-card:has(> .t-list-card-row > .t-list-card-status--running)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--live);
 }
 .t-list-card-row {
   display: flex; align-items: center; gap: var(--s3);
@@ -1746,22 +1766,24 @@
 /* Die ganze Karte ist die Aktion — kein "Öffnen"-Knopf mehr
    (Redesign-Plan §3.3). role=button + tabindex kommen aus dem Renderer. */
 .t-list-card[role="button"] { cursor: pointer; }
-.t-list-card[role="button"]:hover { border-color: var(--accent); }
+.t-list-card[role="button"]:hover { background: var(--raised); }
+/* Der Ring liegt INNEN: der Block reicht bis an die Blattkante, ein
+   aeusserer Ring waere dort halb abgeschnitten. */
 .t-list-card[role="button"]:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-/* Logo / Platzhalter — 56×56, optional Bild, sonst Initial */
+/* Logo — nur, wenn es eins GIBT. Der Ersatzkasten mit dem
+   Anfangsbuchstaben ist mit der dritten Fassung entfallen (siehe
+   renderTournamentListCard). Groesse und Radius wie im Modulkopf,
+   damit dasselbe Bild an beiden Orten gleich aussieht — relativer
+   Radius, Haarlinien-Ring, vertiefte Flaeche darunter. */
 .t-list-card-logo {
-  width: 56px; height: 56px;
-  border-radius: 12px;
-  background: var(--ink);
-  color: var(--paper);
-  display: grid; place-items: center;
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: 0.04em;
+  width: 44px; height: 44px;
+  border-radius: 24%;
+  background: var(--sunk);
+  border: 1px solid var(--line-soft);
   flex: none;
   overflow: hidden;
 }
@@ -1775,8 +1797,10 @@
    Kein flex:1 mehr — die Breitenverteilung macht jetzt .t-list-card-main,
    der Name ist nur noch dessen erste Zeile. */
 .t-list-card-name {
-  font-size: 18px;
-  font-weight: 600;
+  font-family: var(--f-disp);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.25;
   color: var(--ink);
   margin: 0;
@@ -1788,23 +1812,29 @@
 
 /* Datum — klein, gedämpft, unter dem Namen */
 .t-list-card-date {
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--muted);
 }
 
 /* Status-Badge — vier deutsche Zustände (§13.2).
    Hintergrund + Text-Farbe aus dem Token-System. */
+/* Die Pille traegt die Schrift der Vorlage: Archivo Narrow, Versalien,
+   gesperrt — dieselbe Sprache wie Segmente, Knoepfe und Kopf-Aktion. */
 .t-list-card-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: var(--r-pill);
+  font-family: var(--f-cond);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   white-space: nowrap;
-  background: var(--surface-alt);
-  color: var(--ink-soft);
+  background: var(--sunk);
+  color: var(--muted);
 }
 .t-list-card-status::before {
   content: "";
@@ -1813,15 +1843,22 @@
   background: currentColor;
   opacity: 0.85;
 }
-.t-list-card-status--draft     { background: #EEEAE3; color: var(--ink-soft); }
-.t-list-card-status--ready     { background: #DCE7F0; color: #2F5F86; }
-.t-list-card-status--running   { background: var(--accent-soft); color: var(--accent-soft-ink); }
-.t-list-card-status--finished  { background: #DDE8DD; color: var(--qualified); }
+/* Vier hartcodierte Hex-Werte standen hier — #EEEAE3, #DCE7F0, #2F5F86,
+   #DDE8DD. Sie lagen ausserhalb der Palette und blieben im Nachtmodus
+   hell: drei helle Pillen auf schwarzem Grund.
+   Und „laeuft" trug ORANGE. Orange ist im Modul der Weg zum Titel; was
+   gerade laeuft, ist Teal. Wo eine Farbe zwei Dinge bedeutet, bedeutet
+   sie keines mehr. */
+.t-list-card-status--draft     { background: var(--sunk);      color: var(--muted); }
+.t-list-card-status--ready     { background: var(--sunk);      color: var(--ink-2); }
+.t-list-card-status--running   { background: var(--live-soft); color: var(--live); }
+.t-list-card-status--finished  { background: var(--qual-soft); color: var(--qual); }
 
 /* Kurzinfo — "16 Teams · 4 Gruppen · 12 von 24 Spielen gespielt" */
 .t-list-card-info {
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1833,8 +1870,8 @@
 }
 .t-list-card-progress-bar {
   position: relative;
-  height: 6px;
-  background: var(--surface-alt);
+  height: 5px;
+  background: var(--sunk);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1846,8 +1883,9 @@
   transition: width 0.2s ease;
 }
 .t-list-card-progress-label {
+  font-family: var(--f-mono);
   font-size: 12px;
-  color: var(--ink-soft);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2881,24 +2919,28 @@
 .t-wizard-row.two { grid-template-columns: 1fr 1fr; }
 .t-wizard-row.three { grid-template-columns: 1fr 1fr 1fr; }
 
+/* Eingabefelder tragen ihre Kontur als INNENSCHATTEN auf vertiefter
+   Flaeche — dieselbe Machart wie das Score-Feld im Dialog. Das ist die
+   einzige Ausnahme, die die dritte Fassung bei den Konturen macht, und
+   sie hat einen Grund: ein Feld muss man treffen, nicht nur finden. */
 .t-input {
   width: 100%;
-  padding: 9px 12px;
-  border-radius: var(--r-btn);
-  border: 1px solid var(--line);
-  background: var(--surface);
+  padding: 12px 14px;
+  border-radius: var(--r-plane);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--sunk);
   color: var(--ink);
+  font-family: var(--f-mono);
   font-size: 14px;
   line-height: 1.4;
-  transition: border-color 0.15s ease;
 }
 .t-input:focus {
   /* Maus/Touch: kein Ring, nur Rahmen + weicher Schein. Der Schein allein
      war nie eine Fokus-Anzeige — --accent-soft (#F0E7DA) auf weissem
      Grund sind 1.1:1. */
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 /* Tastatur: sichtbarer Ring. Muss NACH .t-input:focus stehen — gleiche
    Spezifitaet (0,0,2,0), es entscheidet die Quell-Reihenfolge. */
@@ -3473,21 +3515,26 @@ textarea.t-input {
   color: var(--ink-soft);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
 }
+/* Dieselbe Machart wie .t-input: vertiefte Flaeche, Ring als
+   Innenschatten. `--r2` kam aus main.css und war hier eine Wette darauf,
+   dass die App-Skala und die Modul-Skala denselben Wert fuehren.
+   `--f-mono` statt einer eigenen Schriftliste: die stand hier als
+   vierte Kopie derselben Familie. */
 .t-confirm-input {
   width: 100%;
   font-size: 14px;
-  font-family: ui-monospace, "SF Mono", Consolas, monospace;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r2);
-  background: var(--surface);
+  font-family: var(--f-mono);
+  padding: 12px 14px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r-plane);
+  background: var(--sunk);
   color: var(--ink);
   box-sizing: border-box;
 }
 .t-confirm-input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-  border-color: var(--accent);
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 .t-confirm-actions {
   display: flex;
@@ -4767,12 +4814,17 @@ textarea.t-input {
 /* ----------------------------------------------------------------
    DIALOG-KARTE
    ---------------------------------------------------------------- */
+/* Dritte Fassung, Abschnitt 07: „Beide sind jetzt eine Flaeche statt
+   drei." Der Dialog ist das Blatt, das ueber allem liegt — Papierton,
+   Flaechen-Ecke, der hoehere der beiden Hebewerte. Kopf und Fuss
+   verlieren dabei ihre Trennlinien; den Kopf traegt derselbe
+   Schriftsprung wie im Modul. */
 .t-dialog {
-  background: var(--surface);
-  border-radius: var(--r-card);
+  background: var(--panel);
+  border-radius: var(--r-plane);
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 12px 40px rgba(31, 27, 22, 0.22);
+  box-shadow: var(--lift-hi);
   display: flex;
   flex-direction: column;
   max-height: 90vh;
@@ -4782,8 +4834,7 @@ textarea.t-input {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: var(--s4);
-  border-bottom: 1px solid var(--line);
+  padding: var(--s5) var(--s5) 2px;
 }
 /* Dialog-Kopf — Markenuebernahme Etappe 8.
    Dieselbe Rangfolge wie die Kopfzeile des Moduls: kleiner Kicker,
@@ -4814,18 +4865,23 @@ textarea.t-input {
 .t-dialog .t-dialog-close:hover { background: var(--surface-alt); color: var(--ink); }
 
 .t-dialog-body {
-  padding: var(--s4);
+  padding: var(--s4) var(--s5) 6px;
   overflow-y: auto;
   flex: 1;
 }
 
+/* „Vorher: grau gefuellte Leiste mit Trennlinie, darin zwei umrandete
+   Knoepfe — drei Ebenen fuer zwei Entscheidungen. Jetzt liegen die
+   Knoepfe direkt auf dem Dialog."
+   Beide gleich breit, wie `.btn { flex: 1 }` in der Vorlage: mit dem
+   Daumen trifft man eine halbe Zeile besser als ein Wort. Die orange
+   Fuellung ist die Hierarchie, nicht die Groesse. */
 .t-dialog-foot {
   display: flex;
-  gap: var(--s2);
-  justify-content: flex-end;
-  padding: var(--s4);
-  border-top: 1px solid var(--line);
+  gap: 9px;
+  padding: var(--s3) var(--s5) var(--s5);
 }
+.t-dialog-foot > .t-btn { flex: 1; }
 
 /* Die graue Zeile mit Runde, Zeit und Platte — das Spiel steht damit
    genau einmal im Dialog, nicht zusätzlich in einer Vorschau-Box. */
@@ -4902,12 +4958,17 @@ textarea.t-input {
    eingetragen hat — und beim Speichern eines halb ausgefuellten
    Dialogs stuende sie als echtes 0:3 in der Tabelle. Der Platzhalter
    zeigt denselben Gedankenstrich wie die Karte. */
+/* Das Eingabefeld ist die eine Stelle, die ihre Kontur behaelt — man
+   muss es TREFFEN, nicht nur finden. Sie liegt aber als Innenschatten
+   statt als Rahmen, und das Feld sitzt auf --sunk: vertiefte Flaeche
+   plus Ring ist die einzige zweite Ebene, die der Entwurf noch kennt. */
 .t-score-entry-input {
   width: 100%;
   height: 48px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-btn);
-  background: var(--raised);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r-plane);
+  background: var(--sunk);
   color: var(--ink);
   font-family: var(--f-mono);
   font-size: 22px;
@@ -4918,8 +4979,7 @@ textarea.t-input {
 }
 .t-score-entry-input:focus {
   outline: none;
-  border-color: var(--accent);
-  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 /* Die Pfeilchen der Zahlenfelder stören hier nur */
 .t-score-entry-input::-webkit-outer-spin-button,
@@ -5604,6 +5664,31 @@ textarea.t-input {
   border-bottom: 2px solid #111;
   padding-bottom: 7px;
 }
+.t-bogen-kopf-links {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+/* 54px = 19 mm auf A4. Der Ring in hellem Grau bleibt: ein sehr helles
+   Logo haette auf weissem Papier sonst ueberhaupt keine Kante.
+   10px Luft zur 2px starken schwarzen Kopflinie, damit ein dunkles Logo
+   nicht mit ihr zu einem Klotz verschmilzt — das passiert genau bei den
+   Vereinswappen, die ohnehin dunkel sind.
+   GRAUSTUFEN ist Absicht und kein Fehler: der Bogen zeigt das Logo so,
+   wie es aus einem Schwarz-Weiss-Drucker kommt. Wer sein Wappen in Gruen
+   und Dunkelblau kennt, haelt zwei fast gleiche Grautoene im Ausdruck
+   sonst fuer einen Fehler des Programms. Die Vorschau ist ehrlich. */
+.t-bogen-logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 24%;
+  object-fit: cover;
+  border: 1px solid #ccc;
+  flex: 0 0 auto;
+  margin-bottom: 2px;
+  filter: grayscale(1);
+}
 .t-bogen-marke {
   font-family: var(--f-mono);
   font-size: 8.5px;
@@ -5903,7 +5988,10 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 .t-list-group {
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  /* Kein Abstand mehr zwischen den Bloecken: seit sie keine Karten sind,
+     trennt die Haarlinie. Der Abstand steckt in der Beschriftung
+     darueber — 22px oben, 8px unten, dieselbe Asymmetrie wie ueberall. */
+  gap: 0;
   width: 100%;
 }
 /* Beschriftung statt Ueberschrift: klein, Mono, gesperrt, Versalien —
@@ -5916,7 +6004,29 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
-  padding: var(--s1) var(--s1) 0;
+  padding: 22px var(--s5) 8px;
+}
+/* Die Liste steht auf dem Blatt und braucht selbst kein Polster mehr:
+   Beschriftung und Bloecke bringen ihre 20px mit, und die Trennlinien
+   sollen von Kante zu Kante laufen. Vorher war die Schale eine
+   Flex-Spalte mit 16px Abstand zwischen den Gruppen. */
+.t-list-host {
+  gap: 0;
+  padding: 0 0 var(--s5);
+  overflow: hidden;
+  /* Ein Blatt, kein Wandbehang. Ohne Kappung lief die Liste auf 1920px
+     ueber 1800px Breite, und ein Turnierblock hatte 1760px fuer drei
+     Woerter. Die Vorlage zeigt sie als Blatt auf einem Grund — dieselbe
+     Rolle wie das Modul-Blatt daneben. */
+  max-width: 1000px;
+  margin: 0 auto;
+}
+/* Eine Spalte, immer. Die Bloecke trennt eine Haarlinie, und die gibt es
+   nur untereinander — in einem mehrspaltigen Raster haette `+` je nach
+   Umbruch mal getroffen und mal nicht. */
+.t-list-host .tournament-instance-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
 /* ----------------------------------------------------------------

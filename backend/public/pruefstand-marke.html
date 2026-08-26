@@ -10,6 +10,17 @@
 <link rel="stylesheet" href="./style/tokens.css">
 <link rel="stylesheet" href="./style/tournament.css">
 <link rel="stylesheet" href="./style/brand.css">
+<style>
+/* NUR fuer den Pruefstand — kein Bestandteil der App.
+   main.css baut die App als Flex-Saeule: body ist die Saeule, #body-wrap
+   ein Flex-Kind mit `flex: 1`, #content darin ebenfalls. Ohne diese
+   Kette hat #body-wrap keine Hoehe, #content endet mit seinem Inhalt,
+   und unter dem Blatt stand im Screenshot der cremefarbene App-Grund.
+   Das haette wie ein Fehler des Moduls ausgesehen und war einer des
+   Pruefstands. */
+html, body { height: 100%; }
+body { display: flex; flex-direction: column; margin: 0; }
+</style>
 </head>
 <body>
 <div id="body-wrap">

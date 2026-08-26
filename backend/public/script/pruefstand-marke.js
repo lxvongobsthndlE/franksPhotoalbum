@@ -233,8 +233,12 @@ if (view === 'liste') {
     renderTeamsList(teams, { isAdmin, reorderable: true });
   detail.querySelector('[data-tab-body="regeln-mount"]').innerHTML =
     `<div class="t-card"><div class="t-card-body"><div class="t-rules-paragraphs">${renderRulesParagraphs(tournament.rules)}</div></div></div>`;
+  // Die Bogen-Renderer lesen `t.tournament.*` (druckKopf, druckFuss).
+  // Ein flaches Objekt lieferte deshalb dreimal „Turnier" statt des
+  // echten Namens und nie ein Logo — der Pruefstand haette einen
+  // intakten Renderer angeschwaerzt. Dieselbe Form wie das echte DTO.
   detail.querySelector('[data-tab-body="drucken-mount"]').innerHTML =
-    renderDruckboegen({ ...tournament, groups: standings, matches: alleSpiele }, 2);
+    renderDruckboegen(tDto, 2);
   const eins = detail.querySelector('[data-tab-body="einstellungen-mount"]');
   if (eins) eins.innerHTML = renderEinstellungen(tDto, { isAdmin, finishedCount: 4 });
   try {

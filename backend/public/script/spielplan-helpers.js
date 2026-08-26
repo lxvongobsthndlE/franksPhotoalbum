@@ -1389,13 +1389,41 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
    Drucker — sonst prueft niemand, ob der Ausdruck stimmt.
    ================================================================ */
 
-/** Kopfzeile eines Bogens. */
+/**
+ * Kopfzeile eines Bogens.
+ *
+ * Das TURNIERLOGO steht links, direkt neben dem Namen und unter der
+ * Markenzeile — Artefakt Abschnitt 08. Zwei Gruende, beide aus der
+ * Vorlage:
+ *
+ *   ORT. Der Kopf hat zwei Haelften mit klaren Aufgaben: links steht,
+ *   WESSEN Blatt das ist, rechts, WELCHER STAND darauf abgebildet ist.
+ *   Das Logo gehoert zur Identitaet, also nach links. Rechts wuerde es
+ *   mit Zahlen konkurrieren, die sich bei jedem Nachdruck aendern — und
+ *   an der Pinnwand liest das Auge oben links zuerst.
+ *
+ *   GROESSE. 54px im Entwurf sind 19 mm auf A4, deutlich mehr als die
+ *   44px am Schirm. Grund ist der Schwarz-Weiss-Druck: ein farbiges Logo
+ *   wird im Graustufenraster zerlegt, und feine Striche fallen unter
+ *   etwa 15 mm zusammen. 19 mm haelt auch ein einfacher Buerolaser.
+ *
+ * Ohne Logo rueckt der Name an den Rand — dieselbe Regel wie am Schirm,
+ * kein Platzhalter. Auf Papier faellt eine reservierte Leerstelle noch
+ * staerker auf als am Bildschirm.
+ */
 function druckKopf(bogen, t, rechts) {
   const tour = t?.tournament ?? {};
+  const logoUrl = (typeof tour.logoUrl === 'string' && tour.logoUrl) ? tour.logoUrl : null;
+  const logoHtml = logoUrl
+    ? `<img class="t-bogen-logo" src="${esc(logoUrl)}" alt="" aria-hidden="true">`
+    : '';
   return `<div class="t-bogen-kopf">
-    <div>
-      <div class="t-bogen-marke">[kru:]nest · ${esc(bogen)}</div>
-      <h3 class="t-bogen-titel">${esc(tour.name || 'Turnier')}</h3>
+    <div class="t-bogen-kopf-links">
+      ${logoHtml}
+      <div>
+        <div class="t-bogen-marke">[kru:]nest · ${esc(bogen)}</div>
+        <h3 class="t-bogen-titel">${esc(tour.name || 'Turnier')}</h3>
+      </div>
     </div>
     <div class="t-bogen-meta">${rechts}</div>
   </div>`;
