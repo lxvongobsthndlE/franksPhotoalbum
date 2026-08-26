@@ -132,6 +132,34 @@ nichts zu suchen haben).
   Knopf, der das von Hand tut, ist ein Relikt aus der Zeit vor dem Auto-Refresh.
   **Falls du das anders siehst: konservativ behalten und loggen.**
 
+
+**Kollision, gemeldet und nachgemessen 26.08. 12:45 (Nachbar-Session
+`franksphotoalbum-cd`):** In genau dieser Funktion steckt seit heute eine
+**Rechte-Prüfung**, und darauf liegt ein Test. Beides selbst geprüft:
+
+- `main.js:2388` — `const darfErstellen = currentTournamentListIsAdmin === true;`
+  Der Knopf hing vorher allein an `isInstancesView`, also am Ansichts-Zustand,
+  nicht an der Rolle. Ein Mitglied sah „Turnier erstellen", durfte den Wizard
+  durchlaufen und lief erst beim Abschicken in den 403 von `POST /api/tournaments`.
+- Gesetzt wird der Wert bei `main.js:2530`
+  (`currentTournamentListIsAdmin = instanceData?.isAdmin === true`); direkt danach
+  muss die Leiste neu gebaut werden, sonst fehlt der Knopf auch Admins.
+  Voreinstellung ist bewusst „kein Knopf" — die Leiste entsteht einmal, bevor die
+  Liste geladen ist.
+- Wächter: `backend/public/script/__tests__/admin-only-header-buttons.test.js`.
+  Er liest den Quelltext, ankert an `function renderTournamentHeaderActions` und
+  liest 4000 Zeichen Rumpf. **Verschiebst du den Knopf in den Listen-Kopf, findet
+  er ihn nicht mehr.**
+
+**Was das für dich heißt:** Der Ort darf wandern, die Rechte-Prüfung wandert mit.
+Den Test darfst du anpassen, er ist kein Denkmal — aber danach einmal die
+Mutationsprobe fahren: Prüfung testweise raus, Test **muss** rot werden. Zwei
+Fassungen dieses Tests blieben grün, obwohl der Schutz weg war — einmal, weil der
+erklärende Kommentar die gesuchten Wörter enthielt, einmal, weil `const
+darfErstellen = …` stehen blieb, als nur seine Verwendung fiel. Das ist dieselbe
+Falle wie in Abschnitt 8. Willst du den Test nicht selbst nachziehen, sagt die
+Nachbar-Session zu, es nach deinem Umbau zu tun.
+
 ### B4 — „auch die filter sahen im artefakt wesentlich besser aus"
 
 Die Vorgänger-Session hat `.t-filter-chip` gebaut (Trigger + Zähler + Aktiv-Chip).
