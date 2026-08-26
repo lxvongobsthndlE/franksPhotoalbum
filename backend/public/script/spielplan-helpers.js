@@ -778,7 +778,32 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
     ? qualifyPerGroup
     : 2;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
-  return groups
+  // Beschwerde 2 (2026-08-26): „bei tabellen: wieso sind die untereinander".
+  // Bis hierher hat diese Funktion ALLE Gruppen gemappt und mit join('')
+  // aneinandergeklebt — bei drei Gruppen also drei volle Tabellen unter-
+  // einander, auf 390px weit ausserhalb des Sichtfelds. Die Vorlage zeigt
+  // an dieser Stelle eine Segment-Leiste und GENAU EINE Tabelle.
+  //
+  // Bemerkenswert: die Leiste war nicht zu bauen, sondern nur zu benutzen.
+  // `.t-seg` stand seit der Markenuebernahme vollstaendig im Stylesheet
+  // (tournament.css) und wurde von keiner Zeile Javascript je gerendert.
+  // Genau das ist der rote Faden durch alle Beschwerden: die Bauteile
+  // waren umgefaerbt, die Struktur nie nachgebaut.
+  //
+  // Bei EINER Gruppe gibt es keinen Umschalter — ein Schalter mit einer
+  // Stellung ist eine Bedienung, die nichts bedient.
+  const aktiv = groups[0];
+  const leiste = groups.length > 1
+    ? `<div class="t-seg" role="tablist" data-rolle="gruppen-umschalter">${groups
+        .map((g) => {
+          const name = esc(g.groupName || g.groupKey || 'Gruppe');
+          return `<button type="button" role="tab" data-gruppe="${esc(g.groupKey || name)}"`
+            + ` aria-selected="${g === aktiv ? 'true' : 'false'}"`
+            + `${g === aktiv ? ' class="is-active"' : ''}>${name}</button>`;
+        })
+        .join('')}</div>`
+    : '';
+  return leiste + groups
     .map((g) => {
       const rows = (g.standings || [])
         .map((s, i) => {
@@ -823,9 +848,20 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
         })
         .join('');
       const title = esc(g.groupName || g.groupKey || 'Gruppe');
-      return `<div class="t-card">
+      // Der Stand wandert in den Tabellenkopf, wie in der Vorlage
+      // (Abschnitt 04: <h5>Gruppe A</h5><span class="sub">4 von 6 Spielen</span>).
+      // In der Fusszeile steht dafuer die REGEL — zwei verschiedene
+      // Aussagen an zwei Orten, statt beide unten nebeneinander.
+      const zeilenG = Array.isArray(g.standings) ? g.standings : [];
+      const gespielt = Math.round(zeilenG.reduce((n, s) => n + (s.played ?? 0), 0) / 2);
+      const gesamt = (zeilenG.length * (zeilenG.length - 1)) / 2;
+      const stand = gesamt > 0 ? `${gespielt} von ${gesamt} Spielen` : '';
+      return `<div class="t-card t-standings-panel${aktiv === g ? ' is-active' : ''}" data-gruppe="${esc(g.groupKey || title)}">
         <div class="t-card-body">
-          <h3 class="t-standings-group-title">${title}</h3>
+          <div class="t-standings-head">
+            <h3 class="t-standings-group-title">${title}</h3>
+            ${stand ? `<span class="t-standings-sub">${esc(stand)}</span>` : ''}
+          </div>
           <table class="t-standings-table">
             ${renderColgroup(getStandingsColWidths())}
             <thead>
@@ -885,11 +921,26 @@ function renderStandingsFoot(g, advance) {
       ? 'Platz 1 steigt auf'
       : `Plätze 1–${advance} steigen auf`;
 
-  const stand = gesamt > 0 ? `${gespielt}/${gesamt} Spiele` : '';
+  // Der Stand steht seit 2026-08-26 im Tabellenkopf, nicht mehr hier —
+  // die Vorlage trennt das: oben WIE WEIT, unten NACH WELCHER REGEL.
+  // Rechts steht stattdessen der Streifen: ein Segment je Gruppenspiel.
+  //
+  // ABWEICHUNG von der Vorlage, bewusst: dort sind die Segmente gruen
+  // (gewonnen) und rot (verloren). Auf Gruppenebene hat das keine
+  // Bedeutung — jedes Spiel hat einen Sieger UND einen Verlierer, die
+  // Gruppe als ganze gewinnt nichts. Hier zeigt der Streifen deshalb
+  // gespielt gegen offen. Lieber eine ehrliche Aussage als eine
+  // huebsche, die keine ist.
+  const segmente = gesamt > 0
+    ? `<span class="t-standings-prog" aria-hidden="true">${
+        Array.from({ length: gesamt }, (_, i) =>
+          `<i${i < gespielt ? ' class="is-done"' : ''}></i>`).join('')
+      }</span>`
+    : '';
 
   return `<div class="t-standings-foot">
     <span><span class="t-foot-mark" aria-hidden="true"></span>${esc(regel)}</span>
-    ${stand ? `<span>${esc(stand)}</span>` : ''}
+    ${segmente}
   </div>`;
 }
 

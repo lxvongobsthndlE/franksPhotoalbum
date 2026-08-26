@@ -4084,6 +4084,7 @@ async function loadStandingsTab(tournamentId) {
     // ist — also unbedenklich, hier zu konkatenieren.
     const bestThirdsHtml = renderBestThirdsTable(data.bestThirds);
     mount.innerHTML = groupsHtml + bestThirdsHtml;
+    wireGruppenUmschalter(mount);
     // P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" UNTER
     // den Gruppentabellen anhängen — User-Feedback:
     // „mach den ko phase starten button lieber bei den gruppen hin
@@ -4167,9 +4168,41 @@ function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillK
   const groupsHtml = renderStandingsGroups(groups, scoreLabel, qualifyPerGroup);
   const bestThirdsHtml = renderBestThirdsTable(bestThirds);
   mount.innerHTML = groupsHtml + bestThirdsHtml;
+  wireGruppenUmschalter(mount);
   if (fillKoButtonArgs) {
     wireFillKoButton(mount, fillKoButtonArgs.tournament);
   }
+}
+
+/**
+ * Segment-Leiste ueber den Gruppentabellen (Nacharbeit 2026-08-26,
+ * Beschwerde 2). Ein Klick tauscht Klassen, sonst nichts: die Tabellen
+ * stehen alle im DOM, es gibt keinen Netzweg und keinen Neuaufbau.
+ *
+ * Bewusst NICHT an `wireGuardedClick`: der Doppelklick-Wächter deckt
+ * mutierende Aktionen ab, und ein zweiter Klick auf denselben Reiter
+ * richtet hier nichts an — er zeigt dieselbe Tabelle noch einmal.
+ * Eine Sperre haette hier nur so ausgesehen, als sei etwas zu schuetzen.
+ *
+ * Delegation am Mount, damit ein Neu-Rendern der Tabellen (Resize,
+ * Ergebnis-Eingabe) die Verdrahtung nicht verliert.
+ */
+function wireGruppenUmschalter(mount) {
+  const leiste = mount?.querySelector?.('[data-rolle="gruppen-umschalter"]');
+  if (!leiste) return; // eine Gruppe, kein Umschalter — das ist kein Fehler
+  leiste.addEventListener('click', (ev) => {
+    const knopf = ev.target.closest('button[data-gruppe]');
+    if (!knopf || !leiste.contains(knopf)) return;
+    const ziel = knopf.dataset.gruppe;
+    for (const b of leiste.querySelectorAll('button[data-gruppe]')) {
+      const an = b.dataset.gruppe === ziel;
+      b.classList.toggle('is-active', an);
+      b.setAttribute('aria-selected', an ? 'true' : 'false');
+    }
+    for (const p of mount.querySelectorAll('.t-standings-panel[data-gruppe]')) {
+      p.classList.toggle('is-active', p.dataset.gruppe === ziel);
+    }
+  });
 }
 
 /**

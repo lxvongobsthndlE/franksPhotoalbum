@@ -5401,3 +5401,54 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   .t-mod .t-mod-aside,
   .t-mod .t-mod-more-sheet { display: none !important; }
 }
+
+/* ----------------------------------------------------------------
+   GRUPPEN-UMSCHALTER — Nacharbeit 2026-08-26, Beschwerde 2
+   ----------------------------------------------------------------
+   „bei tabellen: wieso sind die untereinander". Die Vorlage
+   (Abschnitt 04) zeigt eine Segment-Leiste und genau EINE Tabelle.
+   `.t-seg` stand hier schon vollstaendig — sie wurde nur nie
+   gerendert. Was fehlte, sind die Panels dazu.
+
+   Warum display:none und nicht ein Neu-Rendern beim Umschalten: die
+   Tabellen sind bereits im DOM, wenn die Ansicht steht. Ein Wechsel
+   ist dann ein Klassentausch ohne Netzweg und ohne Flackern — und der
+   Scrollstand der Seite bleibt, wo er war.
+   ---------------------------------------------------------------- */
+.t-standings-panel { display: none; }
+.t-standings-panel.is-active { display: block; }
+/* Bei genau einer Gruppe traegt das einzige Panel die aktive Klasse
+   ohnehin (der Renderer setzt sie auf groups[0]) — ein :only-of-type-
+   Notnagel waere hier ausserdem wirkungslos gewesen: die Geschwister
+   sind ebenfalls <div>, also ist das Panel nie "only of type". Genau
+   solche Regeln sehen aus wie ein Sicherheitsnetz und sind keins. */
+
+/* Tabellenkopf: Name links, Stand rechts, Grundlinien fluchtend.
+   Werte aus der Vorlage (.tbl .th). */
+.t-standings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.t-standings-sub {
+  flex: none;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Streifen in der Fusszeile: ein Segment je Gruppenspiel. */
+.t-standings-prog {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+.t-standings-prog > i {
+  display: block;
+  width: 15px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.t-standings-prog > i.is-done { background: var(--qual); }
