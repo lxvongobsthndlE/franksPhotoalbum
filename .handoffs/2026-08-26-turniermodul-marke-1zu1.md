@@ -6,6 +6,39 @@ Jonas hat das Ergebnis im Browser gesehen und abgelehnt.
 
 ---
 
+> **STAND 2026-08-26, 14:xx — vier Etappen gebaut, nicht mehr nur geplant.**
+>
+> Jonas hat die Arbeit selbst angestossen („worauf wartest du?") und dabei eine
+> ANDERE Artefakt-Adresse genannt als die in Abschnitt 3:
+> `https://claude.ai/code/artifact/96b93072-2411-4733-807b-9ca461f201c5`
+> („Turniermodul in der Marke", 12 Abschnitte, vollstaendig gelesen).
+> **Seine Adresse gilt.** Sie ist umfassender als die alte und deckt auch Liste,
+> Wizard, Teams, Regelwerk, Dialoge, Druck, Desktop und den Nachtmodus ab.
+>
+> **Erledigt und committet** (Branch `fix/tourney-marke`, ungepusht):
+> B2, B3, B4, B5, B6, B7, B8 — sieben der acht Beschwerden.
+> Commits `224662d` (Kopf), `9c2d8a5` (Gruppen-Umschalter),
+> `8aa82c7` (Filter + Statusgruppen). Belege in `.handoffs/belege/`.
+>
+> **Noch offen:**
+> - **B1 (Creme)** nur teilweise: die groessten Quellen in der Listenansicht sind
+>   weg, ein systematischer Durchgang durch die restlichen hartkodierten Werte
+>   plus Screenshot-Kontrolle je Ansicht steht aus.
+> - **Die Struktur-Neubauten der uebrigen Screens**, die das Artefakt zeigt und
+>   die bisher niemand angefasst hat: Spielplan als **Zeitachse** (Abschnitt 03 —
+>   das ist die zentrale Idee des Entwurfs und der groesste Posten), K.-o.-Baum
+>   mit Miniatur + Runden-Pillen + Herkunfts-Chips (05), Teams und Regelwerk als
+>   Listenzeilen (06), Einstellungen mit Statuskarte und Steppern (06),
+>   Listenkarten mit Pille/Kennzahlen/Balken (02), Wizard-Fortschritt als
+>   Streifen (02), Desktop-Sidebar (09), Turnier-Symbol in der Seitenleiste
+>   statt Emoji (11).
+>
+> Die Fallen in Abschnitt 8 haben sich alle bestaetigt, und der Pruefstand hat
+> viermal einen intakten Zustand fuer kaputt erklaert (fehlende Klasse, fehlender
+> Handler, fehlendes `main.css`, falsch gezaehlte Spalten). Wer weiterbaut:
+> Pruefstand-Markup IMMER aus der Quelle schneiden, nie nachtippen — und
+> `main.css` mitladen, dort steht die Spalten-Ausblendung.
+
 ## 1. Auftragslage — Jonas' Worte
 
 > „also ich bin noch nicht zufrieden. vieles sieht nicht aus wie im artefakt sondern
