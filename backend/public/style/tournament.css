@@ -1903,42 +1903,108 @@
    Layout: 4 Spalten × 3 Zeilen — bar (links) | meta (oben) |
    rows (Team-Score-Paare, max 560px) | action (rechts, optional).
    ---------------------------------------------------------------- */
+/* ----------------------------------------------------------------
+   MATCH-KARTE — Markenuebernahme Etappe 3 (2026-08-26)
+   ----------------------------------------------------------------
+   Die Karte ist umgebaut, das MARKUP aber unveraendert. Der Renderer
+   liefert weiter bar / meta / rows / action in dieser Reihenfolge; die
+   neue Anordnung entsteht allein ueber Grid-Bereiche. Das war Absicht:
+   ein Umbau, der ohne Renderer-Aenderung auskommt, kann auch nicht
+   versehentlich ein Datenfeld verlieren.
+
+   Vorher: schmaler Farbbalken links, Zeit/Platte in einer 120px-Spalte
+   daneben, Teams rechts. Die Karte las sich von links nach rechts wie
+   eine Tabellenzeile.
+
+   Jetzt (Entwurf): Team ueber Team, Ergebnis rechts, darunter durch eine
+   Linie abgesetzt die Meta-Zeile in Mono. Man liest zuerst, WER spielt —
+   das ist am Spieltisch die Frage, nicht wann.
+
+   Der Balken ist nicht mehr die Statusanzeige (dafuer traegt die Karte
+   selbst einen Rand), sondern nur noch bei laufenden Spielen sichtbar.
+   Siehe .t-match-bar weiter unten. */
 .t-match {
   display: grid;
-  grid-template-columns: 3px 120px minmax(0, 560px) auto;
-  grid-template-rows: auto auto auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "bar meta  rows   act"
-    "bar meta  rows   act"
-    "bar meta  rows   act";
-  column-gap: var(--s3);
-  row-gap: 6px;
-  align-items: center;
-  padding: var(--s3) var(--s4);
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
+    "rows"
+    "meta"
+    "act";
+  gap: 0;
+  padding: 0;
+  margin-bottom: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--panel);
+  box-shadow: var(--shadow-s);
+  overflow: hidden;
 }
 .t-match:last-child { border-bottom: none; }
 
-.t-match-bar {
-  grid-area: bar;
-  align-self: stretch;
-  border-radius: 2px;
-  background: var(--open);
+/* Der Balken traegt keinen Status mehr — das tut jetzt der Rand der
+   Karte. Er bleibt im Markup (der Renderer liefert ihn) und wird
+   ausgeblendet, statt ihn aus dem Renderer zu entfernen: eine tote
+   Regel ist billiger zurueckzunehmen als ein geloeschtes Element. */
+.t-match-bar { display: none; }
+/* ---- Zustaende der Karte — Markenuebernahme Etappe 3 ----
+   Der Zustand sitzt jetzt am Rand der Karte und an der Ziffer, nicht
+   mehr an einem Balken links. Drei Faelle, drei Mittel:
+
+     laeuft    Teal-Rand + Teal-Meta-Zeile. Das eine Spiel, das JETZT
+               passiert, soll sich vom Stapel abheben, ohne Orange zu
+               benutzen — Orange ist der Weg zum Titel, nicht "gerade
+               aktiv".
+     beendet   ruhig. Der Sieger traegt Orange in der Ziffer, der
+               Verlierer verblasst. Kein Haken, kein Rand.
+     offen     nichts. Eine offene Partie ist der Normalfall und
+               braucht keine Auszeichnung. */
+.t-match--done .t-match-team { color: var(--muted); }
+.t-match--done .t-match-team.is-winner { color: var(--ink); }
+/* Die Sieger-Ziffer ist das einzige Orange auf der Karte. Sie steht in
+   derselben Zeile wie der Siegername — deshalb ueber den Geschwister-
+   Selektor, nicht ueber eine eigene Klasse im Renderer. */
+.t-match--done .t-match-team.is-winner + .t-match-score {
+  color: var(--flare);
+  font-weight: 600;
 }
-.t-match--done .t-match-bar { background: var(--qualified); }
-.t-match--done .t-match-team { color: var(--ink-soft); }
-.t-match--live .t-match-bar { background: var(--live); }
+.t-match--live {
+  border-color: var(--live);
+  box-shadow: 0 0 0 1px var(--live), var(--shadow-s);
+}
+.t-match--live .t-match-meta {
+  background: var(--live-soft);
+  color: var(--live);
+}
 
 /* Meta-Spalte — ZWEI Zeilen oben links.
      Zeile 1: Zeit · Tisch — 14 px, tabular-nums, --ink
      Zeile 2: Bezeichnung — 11 px, UPPERCASE, --ink-soft, darf umbrechen */
+/* Meta-Zeile: wandert unter die Teams, wird waagerecht und traegt die
+   eingesenkte Flaeche. Links der Ort (Gruppe, Platte), rechts der
+   Zustand (Dauer, "Bestaetigt"). Beides Mono, gesperrt, gedaempft —
+   es ist Beiwerk, nicht Inhalt. */
 .t-match-meta {
   grid-area: meta;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
   min-width: 0;
+  padding: 8px var(--s4);
+  border-top: 1px solid var(--line);
+  background: var(--raised);
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.t-match-meta > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .t-match-meta-line {
   /* Keine Ellipse, kein nowrap — die Spalte ist breit genug. */
@@ -1968,17 +2034,27 @@
    dass 800 px Leere zwischen Name und Zahl entstehen. */
 .t-match-rows {
   grid-area: rows;
-  max-width: 560px;
+  max-width: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
   grid-template-areas:
     "home  home-s"
     "away  away-s";
-  column-gap: var(--s3);
-  row-gap: 6px;
   align-items: center;
+  /* column-gap: 0 mit Absicht. Die Trennlinie zwischen den Teams laeuft
+     ueber beide Spalten; eine Luecke dazwischen wuerde sie zerschneiden,
+     und die Karte saehe aus wie zwei getrennte Tabellen nebeneinander.
+     Der Abstand kommt stattdessen aus dem Zell-Padding. */
+  column-gap: 0;
+  row-gap: 0;
 }
+/* Trennlinie ZWISCHEN den beiden Teams, nicht um sie herum. Sie sagt
+   "zwei Parteien", waehrend ein Rahmen nur "ein Kasten" sagt. */
+.t-match-rows > :nth-child(3),
+.t-match-rows > :nth-child(4) { border-top: 1px solid var(--line-soft); }
+.t-match-rows > * { padding: 11px 0; }
+.t-match-rows > .t-match-team  { padding-left: var(--s4); padding-right: var(--s3); }
+.t-match-rows > .t-match-score { padding-right: var(--s4); }
 .t-match-rows .t-match-team         { grid-area: home; }
 .t-match-rows .t-match-team.right   { grid-area: away; }
 .t-match-rows .t-match-score[data-area="home-score"] { grid-area: home-s; }
@@ -1986,10 +2062,21 @@
 
 /* Teams — vertikal gestapelt, jede Zeile bekommt ihren Score rechts. */
 .t-match-team {
-  display: flex; align-items: center; gap: var(--s2);
-  font-weight: 500;
-  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   min-width: 0;
+  font-family: var(--f-disp);
+  font-weight: 600;
+  font-size: 16.5px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.t-match-team .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .t-match-team.right {
   justify-content: flex-start; /* Override Default — Name linksbündig wie Heim */
@@ -2001,6 +2088,8 @@
   white-space: nowrap;
   min-width: 0;
 }
+/* Sieger: fetter, nicht farbig. Die Farbe traegt die Ziffer daneben —
+   Name UND Zahl in Orange waeren zwei Signale fuer dieselbe Aussage. */
 .t-match-team.is-winner .name { font-weight: 700; color: var(--ink); }
 
 /* Farb-Punkt (8px) vor dem Heim-Namen bzw. nach dem Gast-Namen.
@@ -2022,27 +2111,38 @@
    Anzeigetafel-Gefühl statt Plastik-Pille.
    Zwei Felder pro Karte — eines pro Team — statt "3 : 2" als
    kombinierter Text. */
+/* Die Anzeigetafel faellt weg. Im alten Entwurf war das Ergebnis ein
+   dunkles Feld mit heller Ziffer — die Signatur des Moduls. Das
+   Marken-Artefakt setzt stattdessen auf die Mono-Ziffer selbst: der
+   SIEGER traegt Orange, der Verlierer bleibt grau. Damit markiert die
+   Farbe den Weg zum Titel statt eine Flaeche zu fuellen, und die Karte
+   bleibt ruhig genug, um fuenf Stueck untereinander zu ertragen. */
 .t-match-score {
+  font-family: var(--f-mono);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 18px;
+  font-weight: 600;
+  font-size: 17px;
   line-height: 1;
-  letter-spacing: 0.02em;
-  background: var(--board);
-  color: var(--board-ink);
-  border-radius: var(--r-board, 4px);
-  height: 32px;
-  min-width: 46px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  height: auto;
+  min-width: 2.2em;
+  text-align: right;
+  justify-self: end;
 }
+/* Offen: Gedankenstrich, keine Null. 0:0 waere ein Ergebnis, das
+   niemand eingetragen hat. */
+/* Offen: nur ein gedaempfter Gedankenstrich. Der gestrichelte Kasten,
+   der hier stand, gehoerte zur Anzeigetafel — er zeichnete den Umriss
+   des dunklen Score-Feldes nach, das es nicht mehr gibt. Ohne Feld ist
+   der Umriss ein Kaestchen um einen Bindestrich. */
 .t-match-score.empty {
-  color: var(--board-dim);
+  color: var(--muted);
   background: transparent;
-  border: 1px dashed var(--board-dim);
-  font-weight: 400;
+  border: 0;
+  font-weight: 500;
   padding: 0;
 }
 
@@ -2115,27 +2215,32 @@
 /* Auf <768px Modul-Breite: Action wandert in die oberste Zeile,
    Team+Score-Bereich darunter in voller Breite (max-width weg). */
 @container (max-width: 767px) {
-  .t-match,
-  .t-match.t-match--large {
-    grid-template-columns: 3px minmax(0, 1fr) auto;
-    grid-template-rows: auto auto auto;
-    grid-template-areas:
-      "bar meta  act"
-      "bar rows  rows"
-      "bar rows  rows";
-    row-gap: 4px;
-    column-gap: var(--s2);
-  }
-  .t-match-rows {
-    max-width: none;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    grid-template-areas:
-      "home  home-s"
-      "away  away-s";
-    column-gap: var(--s2);
-  }
-  .t-match-score  { font-size: 17px; height: 30px; min-width: 42px; }
+  /* ----------------------------------------------------------------
+     HIER STAND DIE FUENFTE KASKADENKOLLISION (aufgeloest 2026-08-26)
+     ----------------------------------------------------------------
+     Entfernt wurde eine komplette Neudefinition des Karten-Grids:
+         .t-match { grid-template-areas: "bar meta act" / "bar rows rows" }
+         .t-match-rows { ... }
+         .t-match-score { height: 30px; min-width: 42px }
+
+     Sie war fuer die ALTE Karte gebaut (Balken links, Meta oben rechts)
+     und hat die neue Anordnung aus der Basisregel bei jeder Modulbreite
+     unter 768px still ueberschrieben — also im Hauptfall. Der Kopf der
+     Karte sass dadurch oben statt unten, und die Teamnamen liefen in die
+     Meta-Zeile.
+
+     Wie die vier Faelle davor gefunden: nicht im Code gelesen, sondern
+     gemessen. `getComputedStyle(karte).gridTemplateAreas` lieferte
+     "bar meta act", waehrend in der Basisregel "rows" / "meta" / "act"
+     stand — die Differenz zwischen Quelltext und Berechnung ist der
+     einzige verlaessliche Hinweis auf eine Kollision.
+
+     Die neue Karte braucht KEINE breitenabhaengige Sonderbehandlung:
+     sie ist ein senkrechter Stapel und funktioniert von 320px bis
+     Desktop mit derselben Regel. Wer hier wieder ein Grid definiert,
+     sollte einen Grund nennen koennen, der bei 1920px nicht auch gilt.
+     ---------------------------------------------------------------- */
+  .t-match-score { font-size: 16px; }
 }
 
 /* ----------------------------------------------------------------
@@ -4769,7 +4874,9 @@ textarea.t-input {
     color: #000 !important;
     border: 1px solid #000;
   }
-  .t-match-score.empty { border-style: dashed; }
+  /* (2026-08-26) Der gestrichelte Umriss ist mit der Anzeigetafel
+     entfallen; auf Papier blieb sonst ein leeres Kaestchen stehen. */
+  .t-match-score.empty { border: 0; }
 
   /* ---- Tabellen lesbar auf Papier -------------------------------- */
   .t-standings-table,
@@ -4934,3 +5041,45 @@ textarea.t-input {
   border-bottom: 1px solid var(--line);
 }
 .t-mod-header-actions:empty { display: none; }
+
+
+/* ----------------------------------------------------------------
+   FARBPUNKTE VOR DEN TEAMNAMEN — Markenuebernahme Etappe 3
+   ----------------------------------------------------------------
+   Der Entwurf zeigt in der Match-Karte KEINEN Punkt. Der Grund ist
+   nicht Geschmack: die Teamfarbe wiederholt nur, was der Name schon
+   sagt, und auf 390px kostet sie den Platz, den lange Namen brauchen.
+   In der Gruppentabelle bleibt der Punkt, dort ordnet er Zeilen einer
+   Gruppe zu — dieselbe Form, zwei verschiedene Aufgaben.
+
+   Ausgeblendet statt aus dem Renderer entfernt: das Element traegt die
+   Teamfarbe als Inline-Style und wird von applyPropagatedMatches
+   angefasst. Eine tote CSS-Regel ist billiger zurueckzunehmen als ein
+   geloeschtes Element mit Logik daran. */
+.t-match .t-match-team > .t-dot { display: none; }
+
+/* Aktionszeile der Karte: eigene Zeile unter der Meta, rechtsbuendig.
+   Sie traegt entweder den Admin-Knopf ("Ergebnis erfassen") oder den
+   Mitglieder-Text ("Beendet"). Vorher lag sie als vierte Grid-Spalte
+   neben den Teams und lief bei langen Namen aus der Karte. */
+.t-match-action {
+  grid-area: act;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s2);
+  min-width: 0;
+  padding: 8px var(--s4);
+  border-top: 1px solid var(--line-soft);
+}
+.t-match-action:empty { display: none; }
+/* Der Mitglieder-Text ist Zustand, kein Knopf — also dieselbe Sprache
+   wie die Meta-Zeile darueber. */
+.t-match-action > span,
+.t-match-action > .t-match-status {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
