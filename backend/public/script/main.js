@@ -640,8 +640,29 @@ const ICON_SHRINK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none"
 // Width/height wird absichtlich weggelassen — CSS setzt 22 px via
 // `.t-mod-tab svg` und `.t-mod-more-list svg` (Lucide-SVGs sind
 // standardmäßig 24 px, werden per CSS skaliert).
+// Dasselbe Zeichen wie ICON_TAB_BRACKET, aber mit fester Groesse.
+// Die Leisten-Icons (ICON_GRID, ICON_LINK, ...) tragen ihre Masse als
+// Attribut, weil `.fb .fi` keine svg-Regel hat; die Reiter-Icons lassen
+// sie bewusst weg, weil `.t-mod-tab svg` dort 22px setzt. Wer das
+// Reiter-Icon ungeprueft in die Leiste haengt, bekommt ein SVG in
+// Standardgroesse — 300x150 statt 15x15.
+const ICON_MODULE_TOURNAMENT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`;
+
 const ICON_TAB_GAMES   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg>`;                                                                       // list-checks
 const ICON_TAB_GROUPS  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>`;                                                                     // table-2
+// ICON_TAB_BRACKET dient doppelt: als Reiter fuer "Der Weg zum Titel"
+// UND als Symbol des Moduls in der Seitenleiste. Dort stand bis zum
+// 26.08. ein Emoji (🏆) — als einziger Eintrag der Leiste, alle anderen
+// tragen ein gezeichnetes Icon. Deshalb fiel es heraus, unabhaengig
+// davon, WELCHES Emoji es war.
+//
+// Kein Pokal: der steht fuer den Sieg, nicht fuer die Sache. Das Modul
+// heisst "Turniere" und zeigt meistens einen Spielplan; das Baum-Zeichen
+// sagt genau das. Ein Zeichen, zwei Orte, dieselbe Bedeutung.
+//
+// Nebenwirkung, die den Ausschlag gab: ein SVG nimmt currentColor an und
+// wird im aktiven Zustand orange wie die uebrigen Eintraege. Ein Emoji
+// bleibt immer bunt und ignoriert den Nachtmodus.
 const ICON_TAB_BRACKET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`;                                                                              // git-fork
 const ICON_TAB_MORE    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`;                                                                                                       // more-horizontal
 
@@ -1285,7 +1306,7 @@ function renderSidebar() {
         : ''
     }
     <button class="fb ${activeHomeModule === 'tournaments' ? 'module-active' : ''}" onclick="switchToTournamentInstances()">
-      <span class="fi">🏆</span>
+      <span class="fi">${ICON_MODULE_TOURNAMENT}</span>
       <span class="fn">Turniere</span>
     </button>
     <div class="sb-div"></div>
