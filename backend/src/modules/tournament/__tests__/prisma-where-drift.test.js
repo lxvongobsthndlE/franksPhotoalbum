@@ -58,8 +58,16 @@ const LOGIC_OPS = new Set(['AND', 'OR', 'NOT']);
 
 /** Lesende Prisma-Methoden, deren `where` ein Modell-Filter ist. */
 const READ_METHODS = [
-  'findMany', 'findFirst', 'findFirstOrThrow', 'findUnique', 'findUniqueOrThrow',
-  'count', 'aggregate', 'groupBy', 'updateMany', 'deleteMany',
+  'findMany',
+  'findFirst',
+  'findFirstOrThrow',
+  'findUnique',
+  'findUniqueOrThrow',
+  'count',
+  'aggregate',
+  'groupBy',
+  'updateMany',
+  'deleteMany',
 ];
 
 /**
@@ -88,7 +96,14 @@ function parseSchema() {
         const custom = compound[1].match(/name\s*:\s*['"](\w+)['"]/);
         const list = compound[1].match(/\[([^\]]*)\]/);
         if (custom) keys.add(custom[1]);
-        else if (list) keys.add(list[1].split(',').map((s) => s.trim()).filter(Boolean).join('_'));
+        else if (list)
+          keys.add(
+            list[1]
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .join('_')
+          );
         continue;
       }
       if (line.startsWith('@@')) continue;
@@ -137,17 +152,26 @@ function topLevelKeys(objSrc) {
   let atKeyPos = true;
   for (let i = 0; i < inner.length; i += 1) {
     const c = inner[i];
-    if (c === '{' || c === '[' || c === '(') { depth += 1; continue; }
-    if (c === '}' || c === ']' || c === ')') { depth -= 1; continue; }
+    if (c === '{' || c === '[' || c === '(') {
+      depth += 1;
+      continue;
+    }
+    if (c === '}' || c === ']' || c === ')') {
+      depth -= 1;
+      continue;
+    }
     if (depth !== 0) continue;
-    if (c === ',') { atKeyPos = true; continue; }
+    if (c === ',') {
+      atKeyPos = true;
+      continue;
+    }
     if (/\s/.test(c)) continue;
     if (!atKeyPos) continue;
-    if (inner.startsWith('...', i)) return null;      // Spread → nicht beurteilbar
-    if (c === '[') return null;                        // berechneter Schlüssel
+    if (inner.startsWith('...', i)) return null; // Spread → nicht beurteilbar
+    if (c === '[') return null; // berechneter Schlüssel
     const rest = inner.slice(i);
     const key = rest.match(/^['"]?(\w+)['"]?\s*:/);
-    if (!key) return null;                             // Shorthand o.ä.
+    if (!key) return null; // Shorthand o.ä.
     keys.push(key[1]);
     atKeyPos = false;
     i += key[0].length - 1;
@@ -181,7 +205,7 @@ function findWhereClauses(src, file) {
     if (wClose === -1) continue;
 
     const keys = topLevelKeys(arg.slice(wOpen, wClose + 1));
-    if (keys === null) continue;                       // fail-open
+    if (keys === null) continue; // fail-open
     found.push({
       accessor,
       keys,
@@ -250,12 +274,12 @@ describe('Where-Drift-Audit: jeder where-Schlüssel existiert im Schema', () => 
       const src = readFileSync(file, 'utf8');
       for (const hit of findWhereClauses(src, file)) {
         const allowed = models.get(hit.accessor);
-        if (!allowed) continue;                        // fail-open: unbekanntes Modell
+        if (!allowed) continue; // fail-open: unbekanntes Modell
         for (const key of hit.keys) {
           if (LOGIC_OPS.has(key) || allowed.has(key)) continue;
           drifts.push(
             `${hit.file.split(/[\\/]/).slice(-2).join('/')}:${hit.line} — ` +
-            `${hit.accessor}.where.${key} existiert nicht im Modell`
+              `${hit.accessor}.where.${key} existiert nicht im Modell`
           );
         }
       }

@@ -13,15 +13,18 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find(t => t.type === 'page' && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0; i < 25 && !page; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find(t => t.type === 'page' && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target mit screen-b-preview.html');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((res, rej) => { ws.addEventListener('open', res); ws.addEventListener('error', rej); });
+  await new Promise((res, rej) => {
+    ws.addEventListener('open', res);
+    ws.addEventListener('error', rej);
+  });
   let id = 0;
   const pending = new Map();
   ws.addEventListener('message', (m) => {
@@ -33,13 +36,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -50,8 +56,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text +
-                    ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -108,16 +113,23 @@ async function runTests() {
       dropCount: document.querySelectorAll('.t-wizard-drop').length,
       fileInputCount: document.querySelectorAll('input[type=file]').length,
       logoLabels: Array.from(document.querySelectorAll('.t-wizard-field-label'))
-        .map(l => l.textContent).filter(t => /logo/i.test(t)),
+        .map((l) => l.textContent)
+        .filter((t) => /logo/i.test(t)),
     };
   });
 
-  expect(logoProbe.dropCount === 0,
-    `Kein .t-wizard-drop mehr im DOM (real: ${logoProbe.dropCount})`);
-  expect(logoProbe.fileInputCount === 0,
-    `Kein <input type="file"> (real: ${logoProbe.fileInputCount})`);
-  expect(logoProbe.logoLabels.length === 0,
-    `Kein Label mit „Logo" mehr (real: ${JSON.stringify(logoProbe.logoLabels)})`);
+  expect(
+    logoProbe.dropCount === 0,
+    `Kein .t-wizard-drop mehr im DOM (real: ${logoProbe.dropCount})`
+  );
+  expect(
+    logoProbe.fileInputCount === 0,
+    `Kein <input type="file"> (real: ${logoProbe.fileInputCount})`
+  );
+  expect(
+    logoProbe.logoLabels.length === 0,
+    `Kein Label mit „Logo" mehr (real: ${JSON.stringify(logoProbe.logoLabels)})`
+  );
 
   // ----------------------------------------------------------------
   // BUG 2: Für jedes Feld prüfen, dass nach 2 Eingaben der Fokus
@@ -151,12 +163,19 @@ async function runTests() {
           date: '2026-09-05',
           location: 'Sporthalle Süd',
           teams: [
-            { name: 'A', seed: 1 }, { name: 'B', seed: 2 },
-            { name: 'C', seed: 3 }, { name: 'D', seed: 4 },
-            { name: 'E', seed: 5 }, { name: 'F', seed: 6 },
+            { name: 'A', seed: 1 },
+            { name: 'B', seed: 2 },
+            { name: 'C', seed: 3 },
+            { name: 'D', seed: 4 },
+            { name: 'E', seed: 5 },
+            { name: 'F', seed: 6 },
           ],
-          numGroups: 3, advancePerGroup: 2, bestThirdsCount: 2,
-          matchDuration: 15, pauseMinutes: 5, startTime: '14:00',
+          numGroups: 3,
+          advancePerGroup: 2,
+          bestThirdsCount: 2,
+          matchDuration: 15,
+          pauseMinutes: 5,
+          startTime: '14:00',
           teamInput: 'A\nB\nC\nD\nE\nF',
         },
         onStateChange: () => {},
@@ -164,61 +183,82 @@ async function runTests() {
       });
       ROOT.innerHTML = '';
       ROOT.appendChild(w);
-      const inputs = Array.from(w.querySelectorAll('input:not([type=button]):not([type=submit]):not([type=radio]):not([type=checkbox]), textarea'));
+      const inputs = Array.from(
+        w.querySelectorAll(
+          'input:not([type=button]):not([type=submit]):not([type=radio]):not([type=checkbox]), textarea'
+        )
+      );
       return inputs.map((i, idx) => ({
         idx,
         type: i.type,
-        label: i.closest('.t-wizard-field')?.querySelector('.t-wizard-field-label')?.textContent
-              || i.closest('.t-wizard-points-cell')?.querySelector('span')?.textContent
-              || i.tagName,
+        label:
+          i.closest('.t-wizard-field')?.querySelector('.t-wizard-field-label')?.textContent ||
+          i.closest('.t-wizard-points-cell')?.querySelector('span')?.textContent ||
+          i.tagName,
       }));
     }, stepNum);
 
     const failed = [];
     for (const f of fieldCount) {
-      const result = await evalPageFn(({ step, idx }) => {
-        // Erneut rendern, damit das Feld frisch da ist (kein Zustand
-        // vom letzten Feld übrig).
-        const ROOT = document.getElementById('root');
-        const w = window.__renderWizardView({
-          initialState: {
-            step,
-            name: 'Sommer-Cup 2026',
-            date: '2026-09-05',
-            location: 'Sporthalle Süd',
-            teams: [
-              { name: 'A', seed: 1 }, { name: 'B', seed: 2 },
-              { name: 'C', seed: 3 }, { name: 'D', seed: 4 },
-              { name: 'E', seed: 5 }, { name: 'F', seed: 6 },
-            ],
-            numGroups: 3, advancePerGroup: 2, bestThirdsCount: 2,
-            matchDuration: 15, pauseMinutes: 5, startTime: '14:00',
-            teamInput: 'A\nB\nC\nD\nE\nF',
-          },
-          onStateChange: () => {},
-          onCancel: () => {},
-        });
-        ROOT.innerHTML = '';
-        ROOT.appendChild(w);
-        const inputs = Array.from(w.querySelectorAll('input:not([type=button]):not([type=submit]):not([type=radio]):not([type=checkbox]), textarea'));
-        const input = inputs[idx];
-        if (!input) return { ok: false, why: 'not-found', total: inputs.length };
-        input.focus();
-        const before = document.activeElement === input;
-        const v1 = input.type === 'number' ? '5' : (input.type === 'time' ? '14:30' : 'X');
-        input.value = v1;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        const after1 = document.activeElement === input;
-        const v2 = input.type === 'number' ? '52' : (input.type === 'time' ? '14:35' : 'XY');
-        input.value = v2;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        const after2 = document.activeElement === input;
-        return {
-          before, after1, after2,
-          activeTag: document.activeElement?.tagName,
-          activeType: document.activeElement?.type,
-        };
-      }, { step: stepNum, idx: f.idx });
+      const result = await evalPageFn(
+        ({ step, idx }) => {
+          // Erneut rendern, damit das Feld frisch da ist (kein Zustand
+          // vom letzten Feld übrig).
+          const ROOT = document.getElementById('root');
+          const w = window.__renderWizardView({
+            initialState: {
+              step,
+              name: 'Sommer-Cup 2026',
+              date: '2026-09-05',
+              location: 'Sporthalle Süd',
+              teams: [
+                { name: 'A', seed: 1 },
+                { name: 'B', seed: 2 },
+                { name: 'C', seed: 3 },
+                { name: 'D', seed: 4 },
+                { name: 'E', seed: 5 },
+                { name: 'F', seed: 6 },
+              ],
+              numGroups: 3,
+              advancePerGroup: 2,
+              bestThirdsCount: 2,
+              matchDuration: 15,
+              pauseMinutes: 5,
+              startTime: '14:00',
+              teamInput: 'A\nB\nC\nD\nE\nF',
+            },
+            onStateChange: () => {},
+            onCancel: () => {},
+          });
+          ROOT.innerHTML = '';
+          ROOT.appendChild(w);
+          const inputs = Array.from(
+            w.querySelectorAll(
+              'input:not([type=button]):not([type=submit]):not([type=radio]):not([type=checkbox]), textarea'
+            )
+          );
+          const input = inputs[idx];
+          if (!input) return { ok: false, why: 'not-found', total: inputs.length };
+          input.focus();
+          const before = document.activeElement === input;
+          const v1 = input.type === 'number' ? '5' : input.type === 'time' ? '14:30' : 'X';
+          input.value = v1;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          const after1 = document.activeElement === input;
+          const v2 = input.type === 'number' ? '52' : input.type === 'time' ? '14:35' : 'XY';
+          input.value = v2;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          const after2 = document.activeElement === input;
+          return {
+            before,
+            after1,
+            after2,
+            activeTag: document.activeElement?.tagName,
+            activeType: document.activeElement?.type,
+          };
+        },
+        { step: stepNum, idx: f.idx }
+      );
 
       const ok = result.before && result.after1 && result.after2;
       const tag = ok ? '✓ PASS' : '✗ FAIL';
@@ -239,8 +279,10 @@ async function runTests() {
     allFailed.push(...failed);
   }
 
-  expect(allFailed.length === 0,
-    `Fokus bleibt in allen Eingabefeldern (verloren: ${allFailed.length})`);
+  expect(
+    allFailed.length === 0,
+    `Fokus bleibt in allen Eingabefeldern (verloren: ${allFailed.length})`
+  );
 
   // ----------------------------------------------------------------
   // Sanity: Live-Preview reagiert ohne Re-Render (BUG 2 Begleit-Check).
@@ -254,11 +296,16 @@ async function runTests() {
         step: 4,
         name: 'X',
         teams: [
-          { name: 'A', seed: 1 }, { name: 'B', seed: 2 },
-          { name: 'C', seed: 3 }, { name: 'D', seed: 4 },
-          { name: 'E', seed: 5 }, { name: 'F', seed: 6 },
+          { name: 'A', seed: 1 },
+          { name: 'B', seed: 2 },
+          { name: 'C', seed: 3 },
+          { name: 'D', seed: 4 },
+          { name: 'E', seed: 5 },
+          { name: 'F', seed: 6 },
         ],
-        numGroups: 3, matchDuration: 15, pauseMinutes: 5,
+        numGroups: 3,
+        matchDuration: 15,
+        pauseMinutes: 5,
         startTime: '14:00',
       },
       onStateChange: () => {},
@@ -282,8 +329,10 @@ async function runTests() {
     };
   });
   expect(liveCheck.focusStayed, 'Fokus bleibt nach Spieldauer-Eingabe');
-  expect(liveCheck.changed,
-    `Live-Preview-Text ändert sich (vor: „${liveCheck.before?.slice(0, 60)}…", nach: „${liveCheck.after?.slice(0, 60)}…")`);
+  expect(
+    liveCheck.changed,
+    `Live-Preview-Text ändert sich (vor: „${liveCheck.before?.slice(0, 60)}…", nach: „${liveCheck.after?.slice(0, 60)}…")`
+  );
 
   console.log('\n=== Fertig. Exit-Code:', process.exitCode || 0, '===');
   s.ws.close();

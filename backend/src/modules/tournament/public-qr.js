@@ -65,11 +65,11 @@ export function buildPublicUrl(request, token) {
   // Hinter einem Reverse Proxy trägt der Host-Header die öffentliche
   // Adresse, nicht die interne. x-forwarded-proto sagt, ob davor TLS
   // terminiert wurde.
-  const proto = String(
-    request.headers['x-forwarded-proto'] ?? request.protocol ?? 'http'
-  ).split(',')[0].trim();
-  const host = String(
-    request.headers['x-forwarded-host'] ?? request.headers.host ?? ''
-  ).split(',')[0].trim();
+  const proto = String(request.headers['x-forwarded-proto'] ?? request.protocol ?? 'http')
+    .split(',')[0]
+    .trim();
+  const host = String(request.headers['x-forwarded-host'] ?? request.headers.host ?? '')
+    .split(',')[0]
+    .trim();
   return `${proto}://${host}/t/${token}`;
 }

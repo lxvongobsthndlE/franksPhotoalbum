@@ -64,12 +64,8 @@ function buildSlotIndex(allMatches) {
   }
   const slotIndex = new Map();
   for (const [targetId, groups] of targetMap.entries()) {
-    const winners = groups.winner
-      .slice()
-      .sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0));
-    const losers = groups.loser
-      .slice()
-      .sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0));
+    const winners = groups.winner.slice().sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0));
+    const losers = groups.loser.slice().sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0));
     slotIndex.set(targetId, {
       winnerHome: winners[0] || null,
       winnerAway: winners[1] || null,
@@ -226,10 +222,10 @@ export function resetCascade(rootMatchId, allMatches) {
     if (!m) continue;
 
     if (m.winnerAdvancesTo) visited.add(m.winnerAdvancesTo);
-    if (m.loserAdvancesTo)  visited.add(m.loserAdvancesTo);
+    if (m.loserAdvancesTo) visited.add(m.loserAdvancesTo);
 
     if (m.winnerAdvancesTo) queue.push(m.winnerAdvancesTo);
-    if (m.loserAdvancesTo)  queue.push(m.loserAdvancesTo);
+    if (m.loserAdvancesTo) queue.push(m.loserAdvancesTo);
   }
 
   // SlotIndex: pro Ziel-Match → welcher Slot wird vom Root-Match
@@ -268,8 +264,8 @@ export function resetCascade(rootMatchId, allMatches) {
     const isLoserAway = slots.loserAway?.id === rootMatchId;
     return {
       ...m,
-      teamHome: (isWinnerHome || isLoserHome) ? null : m.teamHome,
-      teamAway: (isWinnerAway || isLoserAway) ? null : m.teamAway,
+      teamHome: isWinnerHome || isLoserHome ? null : m.teamHome,
+      teamAway: isWinnerAway || isLoserAway ? null : m.teamAway,
       placeholderHome: isWinnerHome || isLoserHome ? m.placeholderHome : m.placeholderHome,
       placeholderAway: isWinnerAway || isLoserAway ? m.placeholderAway : m.placeholderAway,
     };

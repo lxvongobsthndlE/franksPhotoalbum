@@ -130,7 +130,8 @@ function findDrift(schemaModels, filePath) {
   // Genau dort sass der fill-ko-Bug: `tx.match.update` schrieb homeSeed,
   // awaySeed, homeGroup und awayGroup — vier Engine-Felder aus buildBracket,
   // die es als Spalten nie gab. Der Audit lief die ganze Zeit grün.
-  const callRe = /\b(?:prisma|tx|client|db)\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
+  const callRe =
+    /\b(?:prisma|tx|client|db)\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
   let c;
   while ((c = callRe.exec(src)) !== null) {
     const modelName = c[1];
@@ -180,20 +181,71 @@ function findMatchingClose(src, openIdx) {
   // openIdx muss auf `{` zeigen.
   if (src[openIdx] !== '{') return -1;
   let depth = 0;
-  let inSingle = false, inDouble = false, inTemplate = false, inLineComment = false, inBlockComment = false;
+  let inSingle = false,
+    inDouble = false,
+    inTemplate = false,
+    inLineComment = false,
+    inBlockComment = false;
   for (let i = openIdx; i < src.length; i++) {
     const ch = src[i];
     const next = src[i + 1];
-    if (inLineComment) { if (ch === '\n') inLineComment = false; continue; }
-    if (inBlockComment) { if (ch === '*' && next === '/') { inBlockComment = false; i++; } continue; }
-    if (inSingle) { if (ch === '\\') { i++; continue; } if (ch === "'") inSingle = false; continue; }
-    if (inDouble) { if (ch === '\\') { i++; continue; } if (ch === '"') inDouble = false; continue; }
-    if (inTemplate) { if (ch === '\\') { i++; continue; } if (ch === '`') inTemplate = false; continue; }
-    if (ch === '/' && next === '/') { inLineComment = true; i++; continue; }
-    if (ch === '/' && next === '*') { inBlockComment = true; i++; continue; }
-    if (ch === "'") { inSingle = true; continue; }
-    if (ch === '"') { inDouble = true; continue; }
-    if (ch === '`') { inTemplate = true; continue; }
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inSingle) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === "'") inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '`') inTemplate = false;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      continue;
+    }
+    if (ch === '`') {
+      inTemplate = true;
+      continue;
+    }
     if (ch === '{') depth++;
     else if (ch === '}') {
       depth--;
@@ -212,15 +264,29 @@ function extractTopLevelKeys(objBody) {
   let depth = 0;
   while (i < objBody.length) {
     const ch = objBody[i];
-    if (ch === '{') { depth++; i++; continue; }
-    if (ch === '}') { depth--; i++; continue; }
+    if (ch === '{') {
+      depth++;
+      i++;
+      continue;
+    }
+    if (ch === '}') {
+      depth--;
+      i++;
+      continue;
+    }
     if (ch === "'" || ch === '"' || ch === '`') {
       // String überspringen
       const quote = ch;
       i++;
       while (i < objBody.length) {
-        if (objBody[i] === '\\') { i += 2; continue; }
-        if (objBody[i] === quote) { i++; break; }
+        if (objBody[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (objBody[i] === quote) {
+          i++;
+          break;
+        }
         i++;
       }
       continue;
@@ -326,7 +392,10 @@ describe('Schema-Drift-Audit: alle prisma.update/create/upsert-Felder existieren
     } else {
       it(`${rel}: keine Schema-Drifts`, () => {
         const msg = findings
-          .map((f) => `  ${f.model}.${f.op} (${f.clause}) → "${f.field}" nicht in schema.prisma model ${f.model} (Zeile ${f.line})`)
+          .map(
+            (f) =>
+              `  ${f.model}.${f.op} (${f.clause}) → "${f.field}" nicht in schema.prisma model ${f.model} (Zeile ${f.line})`
+          )
           .join('\n');
         throw new Error(`Schema-Drift in ${rel}:\n${msg}`);
       });
@@ -344,7 +413,8 @@ function findDriftInString(schemaModels, src, fakePath) {
   // Genau dort sass der fill-ko-Bug: `tx.match.update` schrieb homeSeed,
   // awaySeed, homeGroup und awayGroup — vier Engine-Felder aus buildBracket,
   // die es als Spalten nie gab. Der Audit lief die ganze Zeit grün.
-  const callRe = /\b(?:prisma|tx|client|db)\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
+  const callRe =
+    /\b(?:prisma|tx|client|db)\.(\w+)\.(update|create|upsert|updateMany|createMany)\s*\(/g;
   let c;
   while ((c = callRe.exec(src)) !== null) {
     const modelName = c[1];

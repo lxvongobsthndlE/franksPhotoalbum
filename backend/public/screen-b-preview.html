@@ -1,844 +1,905 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Screen B — Wizard (Preview)</title>
-  <link rel="stylesheet" href="./style/main.css" />
-  <link rel="stylesheet" href="./style/tournament.css" />
-  <style>
-    /* Preview-only: App-Shell simulieren, damit das Modul-Layout
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Screen B — Wizard (Preview)</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <style>
+      /* Preview-only: App-Shell simulieren, damit das Modul-Layout
        seine volle Breite nutzen kann. Auf der Produktivseite lebt
        die App-Shell in main.css. */
-    html, body {
-      margin: 0;
-      background: var(--paper, #FAF7F1);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-    .preview-frame {
-      display: flex;
-      min-height: 100vh;
-    }
-    .preview-fake-sidebar {
-      flex: none;
-      width: 236px;
-      background: #FAFBFC;
-      border-right: 1px solid var(--line, #E7DFD2);
-      display: flex;
-      flex-direction: column;
-      padding: 20px 0;
-    }
-    @media (max-width: 900px) {
-      .preview-fake-sidebar { display: none; }
-    }
-    #root {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-    /* Preview-Toolbar: Step-Switcher oben rechts */
-    .preview-toolbar {
-      position: fixed;
-      top: 12px; right: 12px;
-      z-index: 100;
-      display: flex;
-      gap: 4px;
-      background: var(--surface, #FFF);
-      border: 1px solid var(--line, #E7DFD2);
-      border-radius: 999px;
-      padding: 4px;
-      font-family: inherit;
-      font-size: 13px;
-    }
-    .mock-banner {
-      position: fixed;
-      top: 56px; left: 50%;
-      transform: translateX(-50%);
-      z-index: 99;
-      max-width: 720px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-size: 13px;
-      font-family: inherit;
-      background: var(--surface, #FFF);
-      border: 1px solid var(--line, #E7DFD2);
-      box-shadow: 0 4px 12px rgba(31, 27, 22, 0.06);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .mock-banner[data-kind="ok"]   { color: #2c6e3f; border-color: rgba(44,110,63,0.3); }
-    .mock-banner[data-kind="warn"] { color: #8a6a1a; border-color: rgba(170,140,30,0.3); }
-    .mock-banner[data-kind="err"]  { color: #a33;    border-color: rgba(170,51,51,0.3); }
-    .mock-banner[data-kind="info"] { color: var(--ink-soft, #8A8077); }
+      html,
+      body {
+        margin: 0;
+        background: var(--paper, #faf7f1);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+      .preview-frame {
+        display: flex;
+        min-height: 100vh;
+      }
+      .preview-fake-sidebar {
+        flex: none;
+        width: 236px;
+        background: #fafbfc;
+        border-right: 1px solid var(--line, #e7dfd2);
+        display: flex;
+        flex-direction: column;
+        padding: 20px 0;
+      }
+      @media (max-width: 900px) {
+        .preview-fake-sidebar {
+          display: none;
+        }
+      }
+      #root {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      /* Preview-Toolbar: Step-Switcher oben rechts */
+      .preview-toolbar {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 100;
+        display: flex;
+        gap: 4px;
+        background: var(--surface, #fff);
+        border: 1px solid var(--line, #e7dfd2);
+        border-radius: 999px;
+        padding: 4px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      .mock-banner {
+        position: fixed;
+        top: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 99;
+        max-width: 720px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-family: inherit;
+        background: var(--surface, #fff);
+        border: 1px solid var(--line, #e7dfd2);
+        box-shadow: 0 4px 12px rgba(31, 27, 22, 0.06);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mock-banner[data-kind='ok'] {
+        color: #2c6e3f;
+        border-color: rgba(44, 110, 63, 0.3);
+      }
+      .mock-banner[data-kind='warn'] {
+        color: #8a6a1a;
+        border-color: rgba(170, 140, 30, 0.3);
+      }
+      .mock-banner[data-kind='err'] {
+        color: #a33;
+        border-color: rgba(170, 51, 51, 0.3);
+      }
+      .mock-banner[data-kind='info'] {
+        color: var(--ink-soft, #8a8077);
+      }
 
-    /* Live/Pill: zeigt oben deutlich, ob gerade echtes Backend läuft. */
-    .mode-pill {
-      position: fixed;
-      top: 12px; left: 12px;
-      z-index: 200;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: inherit;
-      background: var(--surface, #FFF);
-      border: 1px solid var(--line, #E7DFD2);
-      box-shadow: 0 2px 8px rgba(31, 27, 22, 0.08);
-    }
-    .mode-pill[data-mode="live"] {
-      background: #2c6e3f;
-      border-color: #2c6e3f;
-      color: #fff;
-    }
-    .mode-pill[data-mode="live"] .mode-pill-dot {
-      background: #fff;
-      box-shadow: 0 0 0 4px rgba(255,255,255,0.25);
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-    .mode-pill-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--ink-soft, #8A8077);
-    }
-    .mode-pill-link {
-      color: inherit;
-      opacity: 0.85;
-      font-family: ui-monospace, "SF Mono", Consolas, monospace;
-      font-weight: 500;
-      text-decoration: underline;
-      margin-left: 4px;
-    }
-    .preview-toolbar button {
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: none;
-      background: transparent;
-      color: var(--ink-soft, #8A8077);
-      cursor: pointer;
-      font-weight: 500;
-    }
-    .preview-toolbar button.is-active {
-      background: var(--accent, #8B6B4A);
-      color: #FFF;
-      font-weight: 600;
-    }
-    .preview-toolbar .sep {
-      width: 1px;
-      background: var(--line, #E7DFD2);
-      margin: 0 4px;
-    }
-    /* Entwürfe-Sektion (Schnitt 1+b). */
-    .drafts-section {
-      max-width: 1280px;
-      margin: 12px auto 0;
-      padding: 0 16px;
-    }
-    .drafts-section .drafts-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .drafts-section h2 {
-      font-size: 1rem;
-      margin: 0;
-    }
-    .drafts-section button {
-      padding: 6px 12px;
-      border: 1px solid var(--line, #E7DFD2);
-      background: #FFF;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.85rem;
-    }
-    .drafts-list {
-      display: grid;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .drafts-empty {
-      color: var(--muted, #8B7B6B);
-      margin: 8px 0 0;
-      font-size: 0.9rem;
-    }
-  </style>
-</head>
-<body>
-  <div class="preview-toolbar" id="toolbar">
-    <button data-step="1" class="is-active">1</button>
-    <button data-step="2">2</button>
-    <button data-step="3">3</button>
-    <button data-step="4">4</button>
-    <button data-step="5">5</button>
-    <span class="sep"></span>
-    <button data-step="0" title="Inhalt zwischen Steps">Demo-Stand</button>
-    <span class="sep"></span>
-    <button data-mock="clean" title="Mock: immer 201">clean</button>
-    <button data-mock="results" class="is-active" title="Mock: 409 → Dialog → 201">results</button>
-    <button data-mock="finished" title="Mock: 409 finished">finished</button>
-    <button data-mock="off" title="Echtes Backend: fetcht POST /api/tournaments/:id/generate">LIVE</button>
-    <span class="sep"></span>
-    <button data-action="new-live" title="Nur LIVE-Modus: legt einen Entwurf an und öffnet den Wizard dafür. Braucht ?groupId=… in der URL.">＋ Neues Turnier (live)</button>
-    <span class="sep"></span>
-    <button data-view="wizard" class="is-active" title="5-Schritt-Wizard (Mock + Live)">Wizard</button>
-    <button data-view="teams" title="Teams-Ansicht (C5) — Name + Farbe ändern, mit Mock-PATCH">Teams (C5)</button>
-  </div>
-  <div id="mode-pill" class="mode-pill" data-mode="mock-results" hidden>
-    <span class="mode-pill-dot"></span>
-    <span class="mode-pill-text">Modus: Mock (results)</span>
-    <a id="mode-pill-tournament" class="mode-pill-link" href="#" hidden>tournamentId</a>
-  </div>
-  <div id="mock-banner" class="mock-banner" data-kind="info">
-    Noch kein Generate-Versuch. Klick auf „Turnier generieren" in Step 5.
-  </div>
-
-  <div id="drafts-section" class="drafts-section" hidden>
-    <div class="drafts-head">
-      <h2>Meine Entwürfe</h2>
-      <div class="drafts-actions">
-        <button data-action="drafts-refresh" title="GET /api/tournaments/group/:id">Liste neu laden</button>
-      </div>
+      /* Live/Pill: zeigt oben deutlich, ob gerade echtes Backend läuft. */
+      .mode-pill {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 200;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: inherit;
+        background: var(--surface, #fff);
+        border: 1px solid var(--line, #e7dfd2);
+        box-shadow: 0 2px 8px rgba(31, 27, 22, 0.08);
+      }
+      .mode-pill[data-mode='live'] {
+        background: #2c6e3f;
+        border-color: #2c6e3f;
+        color: #fff;
+      }
+      .mode-pill[data-mode='live'] .mode-pill-dot {
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25);
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+      .mode-pill-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ink-soft, #8a8077);
+      }
+      .mode-pill-link {
+        color: inherit;
+        opacity: 0.85;
+        font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+        font-weight: 500;
+        text-decoration: underline;
+        margin-left: 4px;
+      }
+      .preview-toolbar button {
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: none;
+        background: transparent;
+        color: var(--ink-soft, #8a8077);
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .preview-toolbar button.is-active {
+        background: var(--accent, #8b6b4a);
+        color: #fff;
+        font-weight: 600;
+      }
+      .preview-toolbar .sep {
+        width: 1px;
+        background: var(--line, #e7dfd2);
+        margin: 0 4px;
+      }
+      /* Entwürfe-Sektion (Schnitt 1+b). */
+      .drafts-section {
+        max-width: 1280px;
+        margin: 12px auto 0;
+        padding: 0 16px;
+      }
+      .drafts-section .drafts-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .drafts-section h2 {
+        font-size: 1rem;
+        margin: 0;
+      }
+      .drafts-section button {
+        padding: 6px 12px;
+        border: 1px solid var(--line, #e7dfd2);
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .drafts-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .drafts-empty {
+        color: var(--muted, #8b7b6b);
+        margin: 8px 0 0;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-toolbar" id="toolbar">
+      <button data-step="1" class="is-active">1</button>
+      <button data-step="2">2</button>
+      <button data-step="3">3</button>
+      <button data-step="4">4</button>
+      <button data-step="5">5</button>
+      <span class="sep"></span>
+      <button data-step="0" title="Inhalt zwischen Steps">Demo-Stand</button>
+      <span class="sep"></span>
+      <button data-mock="clean" title="Mock: immer 201">clean</button>
+      <button data-mock="results" class="is-active" title="Mock: 409 → Dialog → 201">
+        results
+      </button>
+      <button data-mock="finished" title="Mock: 409 finished">finished</button>
+      <button data-mock="off" title="Echtes Backend: fetcht POST /api/tournaments/:id/generate">
+        LIVE
+      </button>
+      <span class="sep"></span>
+      <button
+        data-action="new-live"
+        title="Nur LIVE-Modus: legt einen Entwurf an und öffnet den Wizard dafür. Braucht ?groupId=… in der URL."
+      >
+        ＋ Neues Turnier (live)
+      </button>
+      <span class="sep"></span>
+      <button data-view="wizard" class="is-active" title="5-Schritt-Wizard (Mock + Live)">
+        Wizard
+      </button>
+      <button data-view="teams" title="Teams-Ansicht (C5) — Name + Farbe ändern, mit Mock-PATCH">
+        Teams (C5)
+      </button>
     </div>
-    <div id="drafts-list" class="drafts-list"></div>
-    <p id="drafts-empty" class="drafts-empty" hidden>Keine Entwürfe in dieser Gruppe.</p>
-  </div>
+    <div id="mode-pill" class="mode-pill" data-mode="mock-results" hidden>
+      <span class="mode-pill-dot"></span>
+      <span class="mode-pill-text">Modus: Mock (results)</span>
+      <a id="mode-pill-tournament" class="mode-pill-link" href="#" hidden>tournamentId</a>
+    </div>
+    <div id="mock-banner" class="mock-banner" data-kind="info">
+      Noch kein Generate-Versuch. Klick auf „Turnier generieren" in Step 5.
+    </div>
 
-  <div class="preview-frame">
-    <aside class="preview-fake-sidebar" aria-hidden="true"></aside>
-    <div id="root"></div>
-  </div>
+    <div id="drafts-section" class="drafts-section" hidden>
+      <div class="drafts-head">
+        <h2>Meine Entwürfe</h2>
+        <div class="drafts-actions">
+          <button data-action="drafts-refresh" title="GET /api/tournaments/group/:id">
+            Liste neu laden
+          </button>
+        </div>
+      </div>
+      <div id="drafts-list" class="drafts-list"></div>
+      <p id="drafts-empty" class="drafts-empty" hidden>Keine Entwürfe in dieser Gruppe.</p>
+    </div>
 
-  <script type="module">
-    import { renderWizardView, renderTournamentCard, renderTeamsView } from './script/tournament.js';
-    import { normalizeConfirmName } from './script/normalize-confirm-name.js';
+    <div class="preview-frame">
+      <aside class="preview-fake-sidebar" aria-hidden="true"></aside>
+      <div id="root"></div>
+    </div>
 
-    // Test-Shim: Mach die Exports für Headless-Tests via window greifbar.
-    // Wird nur in /screen-b-preview.html benutzt; das ist kein Produktions-
-    // Pfad. Tests pollen auf window.__tReady, bevor sie rendWizardView
-    // aufrufen.
-    window.__renderWizardView = renderWizardView;
-    window.__renderTournamentCard = renderTournamentCard;
-    window.__renderTeamsView = renderTeamsView;
-    window.__normalizeConfirmName = normalizeConfirmName;
-    window.__tReady = true;
+    <script type="module">
+      import {
+        renderWizardView,
+        renderTournamentCard,
+        renderTeamsView,
+      } from './script/tournament.js';
+      import { normalizeConfirmName } from './script/normalize-confirm-name.js';
 
-    // ----------------------------------------------------------------
-    // Demo-Vorbelegung — Simuliert, dass ein Admin aus der Turnierliste
-    // heraus schon Schritt 1–2 ausgefüllt hat und jetzt im Step 3 ist.
-    // ----------------------------------------------------------------
-    const PREPOPULATED = {
-      step: 3,
-      name: 'Sommer-Cup 2026',
-      date: '2026-09-05',
-      location: 'Sporthalle Süd',
-      sport: 'becher',
-      logoUrl: null,
-      teamInput: '',
-      teams: [
-        { name: 'Rakija Boys',     color: null, seed: 1 },
-        { name: 'Bierversorium',    color: null, seed: 2 },
-        { name: 'Kubb Küken',       color: null, seed: 3 },
-        { name: 'Los Chungos',      color: null, seed: 4 },
-        { name: 'Saufkumpels',      color: null, seed: 5 },
-        { name: 'Pingpong Panda',   color: null, seed: 6 },
-        { name: 'Wurfgeschosse',    color: null, seed: 7 },
-        { name: 'Becher-Legenden',  color: null, seed: 8 },
-        { name: 'Tischtennis Crew', color: null, seed: 9 },
-        { name: 'Lückenfüller',     color: null, seed: 10 },
-        { name: 'Halbe Halbe',      color: null, seed: 11 },
-        { name: 'Quattro Stagioni', color: null, seed: 12 },
-      ],
-      mode: 'groups_ko',
-      numGroups: 3,
-      distributionMethod: 'seeded',
-      doubleRoundRobin: false,
-      pointsWin: 3,
-      pointsDraw: 1,
-      pointsLoss: 0,
-      tiebreakers: ['points', 'headToHead', 'goalDiff', 'goalsFor', 'goalsAgainst', 'lottery'],
-      advancePerGroup: 2,
-      bestThirdsCount: 2,
-      thirdPlaceMatch: true,
-      numTables: 4,
-      tableNames: [],
-      startTime: '14:00',
-      matchDuration: 15,
-      pauseMinutes: 5,
-    };
+      // Test-Shim: Mach die Exports für Headless-Tests via window greifbar.
+      // Wird nur in /screen-b-preview.html benutzt; das ist kein Produktions-
+      // Pfad. Tests pollen auf window.__tReady, bevor sie rendWizardView
+      // aufrufen.
+      window.__renderWizardView = renderWizardView;
+      window.__renderTournamentCard = renderTournamentCard;
+      window.__renderTeamsView = renderTeamsView;
+      window.__normalizeConfirmName = normalizeConfirmName;
+      window.__tReady = true;
 
-    const ROOT = document.getElementById('root');
-    const TOOLBAR = document.getElementById('toolbar');
+      // ----------------------------------------------------------------
+      // Demo-Vorbelegung — Simuliert, dass ein Admin aus der Turnierliste
+      // heraus schon Schritt 1–2 ausgefüllt hat und jetzt im Step 3 ist.
+      // ----------------------------------------------------------------
+      const PREPOPULATED = {
+        step: 3,
+        name: 'Sommer-Cup 2026',
+        date: '2026-09-05',
+        location: 'Sporthalle Süd',
+        sport: 'becher',
+        logoUrl: null,
+        teamInput: '',
+        teams: [
+          { name: 'Rakija Boys', color: null, seed: 1 },
+          { name: 'Bierversorium', color: null, seed: 2 },
+          { name: 'Kubb Küken', color: null, seed: 3 },
+          { name: 'Los Chungos', color: null, seed: 4 },
+          { name: 'Saufkumpels', color: null, seed: 5 },
+          { name: 'Pingpong Panda', color: null, seed: 6 },
+          { name: 'Wurfgeschosse', color: null, seed: 7 },
+          { name: 'Becher-Legenden', color: null, seed: 8 },
+          { name: 'Tischtennis Crew', color: null, seed: 9 },
+          { name: 'Lückenfüller', color: null, seed: 10 },
+          { name: 'Halbe Halbe', color: null, seed: 11 },
+          { name: 'Quattro Stagioni', color: null, seed: 12 },
+        ],
+        mode: 'groups_ko',
+        numGroups: 3,
+        distributionMethod: 'seeded',
+        doubleRoundRobin: false,
+        pointsWin: 3,
+        pointsDraw: 1,
+        pointsLoss: 0,
+        tiebreakers: ['points', 'headToHead', 'goalDiff', 'goalsFor', 'goalsAgainst', 'lottery'],
+        advancePerGroup: 2,
+        bestThirdsCount: 2,
+        thirdPlaceMatch: true,
+        numTables: 4,
+        tableNames: [],
+        startTime: '14:00',
+        matchDuration: 15,
+        pauseMinutes: 5,
+      };
 
-    // Modus-Konstanten.
-    //
-    // Mock-Modi (alle ohne Backend): clean / results / finished
-    //   - clean:    immer 201
-    //   - results:  1. Aufruf 409 results_present, 2. mit richtigem Namen 201
-    //   - finished: immer 409 tournament_finished
-    //
-    // Live-Modus (off): fetcht gegen das echte Backend
-    //   Voraussetzung: ?tournamentId=<id>&groupId=<gid> in der URL,
-    //   sonst scheitert der Fetch mit klarer Fehlermeldung.
-    const MOCK_MODES = ['clean', 'results', 'finished'];
-    const MOCK_LABELS = {
-      clean:    'Mock: Clean (immer 201)',
-      results:  'Mock: Results vorhanden (1. Aufruf 409, 2. mit Namen 201)',
-      finished: 'Mock: Turnier beendet (immer 409)',
-      off:      'Echtes Backend',
-    };
+      const ROOT = document.getElementById('root');
+      const TOOLBAR = document.getElementById('toolbar');
 
-    /**
-     * Welcher Modus ist aktiv? Liest URL-Query.
-     * Default ist 'results' (Mock), nicht 'off'.
-     */
-    function currentMockMode() {
-      const params = new URLSearchParams(location.search);
-      const m = params.get('mock');
-      if (m === 'off') return 'off';
-      return MOCK_MODES.includes(m) ? m : 'results';
-    }
+      // Modus-Konstanten.
+      //
+      // Mock-Modi (alle ohne Backend): clean / results / finished
+      //   - clean:    immer 201
+      //   - results:  1. Aufruf 409 results_present, 2. mit richtigem Namen 201
+      //   - finished: immer 409 tournament_finished
+      //
+      // Live-Modus (off): fetcht gegen das echte Backend
+      //   Voraussetzung: ?tournamentId=<id>&groupId=<gid> in der URL,
+      //   sonst scheitert der Fetch mit klarer Fehlermeldung.
+      const MOCK_MODES = ['clean', 'results', 'finished'];
+      const MOCK_LABELS = {
+        clean: 'Mock: Clean (immer 201)',
+        results: 'Mock: Results vorhanden (1. Aufruf 409, 2. mit Namen 201)',
+        finished: 'Mock: Turnier beendet (immer 409)',
+        off: 'Echtes Backend',
+      };
 
-    /**
-     * Echter Backend-Fetch gegen POST /api/tournaments/:id/generate.
-     *
-     * Auth: `credentials: 'include'` sendet das JWT-Cookie der Browser-Session
-     * mit. Wenn du nicht eingeloggt bist, kommt 401 → die Pille wird rot.
-     *
-     * Erwartet in der URL: ?tournamentId=<id>
-     * (und idealerweise ?groupId=<gid>, falls das Turnier noch nicht existiert
-     * und über die Preview angelegt werden müsste — aktuell erwarten wir
-     * ein bereits angelegtes Turnier).
-     */
-    async function liveGenerate(state, opts) {
-      const params = new URLSearchParams(location.search);
-      const tournamentId = params.get('tournamentId');
-      if (!tournamentId) {
-        return {
-          ok: false,
-          status: 0,
-          body: { error: 'no_tournament_id',
-            message: 'Live-Modus braucht ?tournamentId=<id> in der URL.' },
-        };
+      /**
+       * Welcher Modus ist aktiv? Liest URL-Query.
+       * Default ist 'results' (Mock), nicht 'off'.
+       */
+      function currentMockMode() {
+        const params = new URLSearchParams(location.search);
+        const m = params.get('mock');
+        if (m === 'off') return 'off';
+        return MOCK_MODES.includes(m) ? m : 'results';
       }
-      const body = {};
-      if (opts.confirmTournamentName) {
-        body.confirmTournamentName = opts.confirmTournamentName;
-      }
-      let res;
-      try {
-        res = await fetch(`/api/tournaments/${tournamentId}/generate`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      } catch (err) {
-        setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
-        return { ok: false, status: 0, body: { error: 'network', message: err.message } };
-      }
-      const respBody = await res.json().catch(() => ({}));
-      if (res.ok) {
-        const m = respBody.matches ?? [];
-        const g = respBody.groups ?? [];
-        setBanner(`[live] ${res.status} — ${m.length} Matches in ${g.length} Gruppen angelegt`, 'ok');
-      } else if (res.status === 409 && respBody.error === 'results_present') {
-        setBanner(`[live] 409 — results_present, finishedMatches=${respBody.finishedMatches}`, 'warn');
-      } else if (res.status === 409 && respBody.error === 'tournament_finished') {
-        setBanner('[live] 409 — tournament_finished', 'err');
-      } else if (res.status === 403) {
-        setBanner('[live] 403 — du bist nicht Admin dieser Gruppe', 'err');
-      } else if (res.status === 401) {
-        setBanner('[live] 401 — nicht eingeloggt. Klick oben rechts auf Anmelden.', 'err');
-      } else {
-        setBanner(`[live] ${res.status} — ${respBody.error ?? res.statusText}`, 'err');
-      }
-      return { ok: res.ok, status: res.status, body: respBody };
-    }
 
-    /**
-     * Mock-Handler (lokales Pseudo-Backend) — unverändert, drei Modi.
-     */
-    function mockGenerate(state, opts) {
-      const params = new URLSearchParams(location.search);
-      const mode = MOCK_MODES.includes(params.get('mock')) ? params.get('mock') : 'results';
-      const usedConfirm = !!opts.confirmTournamentName;
+      /**
+       * Echter Backend-Fetch gegen POST /api/tournaments/:id/generate.
+       *
+       * Auth: `credentials: 'include'` sendet das JWT-Cookie der Browser-Session
+       * mit. Wenn du nicht eingeloggt bist, kommt 401 → die Pille wird rot.
+       *
+       * Erwartet in der URL: ?tournamentId=<id>
+       * (und idealerweise ?groupId=<gid>, falls das Turnier noch nicht existiert
+       * und über die Preview angelegt werden müsste — aktuell erwarten wir
+       * ein bereits angelegtes Turnier).
+       */
+      async function liveGenerate(state, opts) {
+        const params = new URLSearchParams(location.search);
+        const tournamentId = params.get('tournamentId');
+        if (!tournamentId) {
+          return {
+            ok: false,
+            status: 0,
+            body: {
+              error: 'no_tournament_id',
+              message: 'Live-Modus braucht ?tournamentId=<id> in der URL.',
+            },
+          };
+        }
+        const body = {};
+        if (opts.confirmTournamentName) {
+          body.confirmTournamentName = opts.confirmTournamentName;
+        }
+        let res;
+        try {
+          res = await fetch(`/api/tournaments/${tournamentId}/generate`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+        } catch (err) {
+          setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
+          return { ok: false, status: 0, body: { error: 'network', message: err.message } };
+        }
+        const respBody = await res.json().catch(() => ({}));
+        if (res.ok) {
+          const m = respBody.matches ?? [];
+          const g = respBody.groups ?? [];
+          setBanner(
+            `[live] ${res.status} — ${m.length} Matches in ${g.length} Gruppen angelegt`,
+            'ok'
+          );
+        } else if (res.status === 409 && respBody.error === 'results_present') {
+          setBanner(
+            `[live] 409 — results_present, finishedMatches=${respBody.finishedMatches}`,
+            'warn'
+          );
+        } else if (res.status === 409 && respBody.error === 'tournament_finished') {
+          setBanner('[live] 409 — tournament_finished', 'err');
+        } else if (res.status === 403) {
+          setBanner('[live] 403 — du bist nicht Admin dieser Gruppe', 'err');
+        } else if (res.status === 401) {
+          setBanner('[live] 401 — nicht eingeloggt. Klick oben rechts auf Anmelden.', 'err');
+        } else {
+          setBanner(`[live] ${res.status} — ${respBody.error ?? res.statusText}`, 'err');
+        }
+        return { ok: res.ok, status: res.status, body: respBody };
+      }
 
-      if (mode === 'clean') {
-        // Vorschau-Match-Anzahl aus state.teams.length ableiten —
-        // hartkodiertes "matches=18" wäre ein Rest aus den 12-Teams-
-        // Demo-Daten und bei anderen Team-Zahlen irreführend.
-        const _gc = Math.max(2, Math.floor(state.teams.length / 4));
-        const _sizes = [];
-        const _base = Math.floor(state.teams.length / _gc);
-        const _rem = state.teams.length % _gc;
-        for (let i = 0; i < _gc; i++) _sizes.push(i < _rem ? _base + 1 : _base);
-        const _games = _sizes.reduce((s, n) => s + (n * (n - 1)) / 2, 0);
-        setBanner(`[mock] 201 — clean path (groups=${_gc}, matches=${Math.round(_games)})`, 'ok');
+      /**
+       * Mock-Handler (lokales Pseudo-Backend) — unverändert, drei Modi.
+       */
+      function mockGenerate(state, opts) {
+        const params = new URLSearchParams(location.search);
+        const mode = MOCK_MODES.includes(params.get('mock')) ? params.get('mock') : 'results';
+        const usedConfirm = !!opts.confirmTournamentName;
+
+        if (mode === 'clean') {
+          // Vorschau-Match-Anzahl aus state.teams.length ableiten —
+          // hartkodiertes "matches=18" wäre ein Rest aus den 12-Teams-
+          // Demo-Daten und bei anderen Team-Zahlen irreführend.
+          const _gc = Math.max(2, Math.floor(state.teams.length / 4));
+          const _sizes = [];
+          const _base = Math.floor(state.teams.length / _gc);
+          const _rem = state.teams.length % _gc;
+          for (let i = 0; i < _gc; i++) _sizes.push(i < _rem ? _base + 1 : _base);
+          const _games = _sizes.reduce((s, n) => s + (n * (n - 1)) / 2, 0);
+          setBanner(`[mock] 201 — clean path (groups=${_gc}, matches=${Math.round(_games)})`, 'ok');
+          return Promise.resolve({
+            ok: true,
+            status: 201,
+            body: {
+              tournament: { id: 't-preview', name: state.name, status: 'generated' },
+              teams: state.teams,
+              matches: [],
+              warnings: [],
+            },
+          });
+        }
+
+        if (mode === 'finished') {
+          setBanner('[mock] 409 — tournament_finished', 'err');
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            body: { error: 'tournament_finished', message: 'Turnier ist beendet.' },
+          });
+        }
+
+        // mode === 'results'
+        if (!usedConfirm) {
+          setBanner('[mock] 409 — results_present, finishedMatches: 5', 'warn');
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            body: { error: 'results_present', finishedMatches: 5, needsConfirmation: true },
+          });
+        }
+        // 2. Aufruf mit confirmTournamentName — geteilter Vergleich
+        // (Spec §13.10, identisch zu routes.js + tournament.js).
+        const expected = normalizeConfirmName(state.name);
+        const typed = normalizeConfirmName(opts.confirmTournamentName);
+        if (typed !== expected) {
+          setBanner(
+            `[mock] 400 — confirmation_mismatch (${opts.confirmTournamentName} !== ${state.name})`,
+            'err'
+          );
+          return Promise.resolve({
+            ok: false,
+            status: 400,
+            body: { error: 'confirmation_mismatch', message: 'Name stimmt nicht überein.' },
+          });
+        }
+        setBanner(
+          `[mock] 201 — bestätigt mit Namen „${opts.confirmTournamentName}", warnings=[results_deleted]`,
+          'ok'
+        );
         return Promise.resolve({
           ok: true,
           status: 201,
           body: {
-            tournament: { id: 't-preview', name: state.name, status: 'generated' },
+            tournament: { id: 't-preview', name: state.name, status: 'group_stage' },
             teams: state.teams,
             matches: [],
-            warnings: [],
+            warnings: ['results_deleted'],
           },
         });
       }
 
-      if (mode === 'finished') {
-        setBanner('[mock] 409 — tournament_finished', 'err');
-        return Promise.resolve({
-          ok: false,
-          status: 409,
-          body: { error: 'tournament_finished', message: 'Turnier ist beendet.' },
-        });
+      function setBanner(text, kind) {
+        const el = document.getElementById('mock-banner');
+        if (!el) return;
+        el.textContent = text;
+        el.dataset.kind = kind;
       }
 
-      // mode === 'results'
-      if (!usedConfirm) {
-        setBanner('[mock] 409 — results_present, finishedMatches: 5', 'warn');
-        return Promise.resolve({
-          ok: false,
-          status: 409,
-          body: { error: 'results_present', finishedMatches: 5, needsConfirmation: true },
-        });
-      }
-      // 2. Aufruf mit confirmTournamentName — geteilter Vergleich
-      // (Spec §13.10, identisch zu routes.js + tournament.js).
-      const expected = normalizeConfirmName(state.name);
-      const typed = normalizeConfirmName(opts.confirmTournamentName);
-      if (typed !== expected) {
-        setBanner(`[mock] 400 — confirmation_mismatch (${opts.confirmTournamentName} !== ${state.name})`, 'err');
-        return Promise.resolve({
-          ok: false,
-          status: 400,
-          body: { error: 'confirmation_mismatch', message: 'Name stimmt nicht überein.' },
-        });
-      }
-      setBanner(`[mock] 201 — bestätigt mit Namen „${opts.confirmTournamentName}", warnings=[results_deleted]`, 'ok');
-      return Promise.resolve({
-        ok: true,
-        status: 201,
-        body: {
-          tournament: { id: 't-preview', name: state.name, status: 'group_stage' },
-          teams: state.teams,
-          matches: [],
-          warnings: ['results_deleted'],
-        },
-      });
-    }
+      /**
+       * Modus-Pille oben links aktualisieren. Sie zeigt nie "Mock" still
+       * an, wenn gerade LIVE läuft — der User muss zu jeder Zeit sehen,
+       * ob er gegen das echte Backend oder einen Stub fetcht.
+       */
+      function updateModePill() {
+        const pill = document.getElementById('mode-pill');
+        const text = pill?.querySelector('.mode-pill-text');
+        const link = document.getElementById('mode-pill-tournament');
+        if (!pill || !text) return;
 
-    function setBanner(text, kind) {
-      const el = document.getElementById('mock-banner');
-      if (!el) return;
-      el.textContent = text;
-      el.dataset.kind = kind;
-    }
+        const mode = currentMockMode();
+        const isLive = mode === 'off';
+        pill.dataset.mode = isLive ? 'live' : `mock-${mode}`;
+        text.textContent = isLive ? 'LIVE — echtes Backend' : `Modus: Mock (${mode})`;
+        pill.hidden = false;
 
-    /**
-     * Modus-Pille oben links aktualisieren. Sie zeigt nie "Mock" still
-     * an, wenn gerade LIVE läuft — der User muss zu jeder Zeit sehen,
-     * ob er gegen das echte Backend oder einen Stub fetcht.
-     */
-    function updateModePill() {
-      const pill = document.getElementById('mode-pill');
-      const text = pill?.querySelector('.mode-pill-text');
-      const link = document.getElementById('mode-pill-tournament');
-      if (!pill || !text) return;
-
-      const mode = currentMockMode();
-      const isLive = mode === 'off';
-      pill.dataset.mode = isLive ? 'live' : `mock-${mode}`;
-      text.textContent = isLive
-        ? 'LIVE — echtes Backend'
-        : `Modus: Mock (${mode})`;
-      pill.hidden = false;
-
-      const params = new URLSearchParams(location.search);
-      const tid = params.get('tournamentId');
-      if (link) {
-        if (tid) {
-          link.hidden = false;
-          link.textContent = `id=${tid.slice(0, 8)}…`;
-          link.title = tid;
-        } else {
-          link.hidden = true;
-        }
-      }
-    }
-
-    function render(step) {
-      const state = { ...PREPOPULATED, step };
-      ROOT.innerHTML = '';
-      // Diagnose-Log (2026-08-11): prüft, ob renderWizardView überhaupt
-      // aufgerufen wird und ob `view` ein nutzbares Element ist.
-      console.log('[diag] render() step=' + step
-        + ' | typeof renderWizardView=' + typeof renderWizardView
-        + ' | typeof view (vor Aufruf)=undef');
-      let view;
-      try {
-        view = renderWizardView({
-          initialState: state,
-          onCancel: () => console.log('[preview] wizard cancelled'),
-          onGenerate: (s, o) => (currentMockMode() === 'off' ? liveGenerate(s, o) : mockGenerate(s, o)),
-          onStateChange: (s) => {
-            if (window._previewLog) console.log('[preview] state changed', s.step);
-          },
-        });
-        console.log('[diag] view=' + (view ? (view.tagName + '.' + view.className) : 'NULL'));
-      } catch (e) {
-        console.log('[diag] renderWizardView threw: ' + e.message);
-        throw e;
-      }
-      ROOT.appendChild(view);
-
-      // Toolbar-Highlight
-      for (const btn of TOOLBAR.querySelectorAll('button')) {
-        btn.classList.toggle('is-active', Number(btn.dataset.step) === step);
-      }
-    }
-
-    // Demo-Stand: leere Wizard-Ansicht bei Step 1.
-    function renderEmpty() {
-      ROOT.innerHTML = '';
-      const view = renderWizardView({
-        initialState: { step: 1 },
-        onCancel: () => console.log('[preview] wizard cancelled'),
-        onGenerate: (s, o) => (currentMockMode() === 'off' ? liveGenerate(s, o) : mockGenerate(s, o)),
-        onStateChange: () => {},
-      });
-      ROOT.appendChild(view);
-      for (const btn of TOOLBAR.querySelectorAll('button')) {
-        btn.classList.toggle('is-active', btn.dataset.step === '0');
-      }
-    }
-
-    TOOLBAR.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('button');
-      if (!btn) return;
-      if (btn.dataset.mock) {
-        // Mock-Switch: URL-Query umschreiben und Highlight aktualisieren.
         const params = new URLSearchParams(location.search);
-        params.set('mock', btn.dataset.mock);
-        const url = location.pathname + '?' + params.toString();
-        history.replaceState(null, '', url);
-        for (const b of TOOLBAR.querySelectorAll('button[data-mock]')) {
-          b.classList.toggle('is-active', b.dataset.mock === btn.dataset.mock);
-        }
-        updateModePill();
-        setBanner(`Mock umgeschaltet: ${MOCK_LABELS[btn.dataset.mock]}`, 'info');
-        return;
-      }
-      if (btn.dataset.action === 'new-live') {
-        startNewLiveDraft();
-        return;
-      }
-      if (btn.dataset.view) {
-        if (btn.dataset.view === 'teams') renderTeamsViewScreen();
-        else render(1);
-        return;
-      }
-      const step = btn.dataset.step;
-      if (step === '0') renderEmpty();
-      else render(Number(step));
-    });
-
-    // ----------------------------------------------------------------
-    // Teams-View (C5) — eigener Screen.
-    //
-    // 12 Demo-Teams, eigener PATCH-Stub (Mock oder Live), damit die
-    // View ohne echte DB geprüft werden kann.
-    // ----------------------------------------------------------------
-    const DEMO_TEAMS = [
-      { id: 'team-01', name: 'Rakija Boys',     color: '#8B6B4A', seed: 1 },
-      { id: 'team-02', name: 'Bierversorium',    color: '#4F7A4A', seed: 2 },
-      { id: 'team-03', name: 'Kubb Küken',       color: '#3A6FA0', seed: 3 },
-      { id: 'team-04', name: 'Los Chungos',      color: '#A03A3A', seed: 4 },
-      { id: 'team-05', name: 'Saufkumpels',      color: '#6A4FA0', seed: 5 },
-      { id: 'team-06', name: 'Pingpong Panda',   color: '#A07A3A', seed: 6 },
-      { id: 'team-07', name: 'Wurfgeschosse',    color: '#3A8A7A', seed: 7 },
-      { id: 'team-08', name: 'Becher-Legenden',  color: '#7A3A8A', seed: 8 },
-      { id: 'team-09', name: 'Tischtennis Crew', color: '#3A4F8A', seed: 9 },
-      { id: 'team-10', name: 'Lückenfüller',     color: '#8A4F3A', seed: 10 },
-      { id: 'team-11', name: 'Halbe Halbe',      color: '#5A8A3A', seed: 11 },
-      { id: 'team-12', name: 'Quattro Stagioni', color: '#8A6A3A', seed: 12 },
-    ];
-
-    function renderTeamsViewScreen() {
-      ROOT.innerHTML = '';
-      // Mock-PATCH-Stub: 200 OK auf jede Änderung, ausser wenn der
-      // neue Name bereits als Team existiert → 409. So können wir
-      // auch den Fehler-Pfad prüfen, ohne echtes Backend.
-      const usedNames = new Set(DEMO_TEAMS.map((t) => t.name));
-      const stubFetchPatch = async ({ teamId, patch }) => {
-        await new Promise((r) => setTimeout(r, 80));
-        if (patch.name !== undefined) {
-          const trimmed = patch.name.trim();
-          if (trimmed === '') {
-            return { ok: false, status: 400, body: { error: 'team_name_empty' } };
+        const tid = params.get('tournamentId');
+        if (link) {
+          if (tid) {
+            link.hidden = false;
+            link.textContent = `id=${tid.slice(0, 8)}…`;
+            link.title = tid;
+          } else {
+            link.hidden = true;
           }
-          // Duplikat: ein anderer Team hat den Namen schon.
-          const conflict = DEMO_TEAMS.find(
-            (t) => t.id !== teamId && t.name === trimmed
-          );
-          if (conflict) {
-            return { ok: false, status: 409, body: { error: 'team_name_taken' } };
-          }
-          const t = DEMO_TEAMS.find((x) => x.id === teamId);
-          if (t) t.name = trimmed;
-          usedNames.clear();
-          DEMO_TEAMS.forEach((x) => usedNames.add(x.name));
         }
-        if (patch.color !== undefined) {
-          const t = DEMO_TEAMS.find((x) => x.id === teamId);
-          if (t) t.color = patch.color;
-        }
-        return { ok: true, status: 200, body: { id: teamId, ...patch } };
-      };
-      const view = renderTeamsView({
-        teams: DEMO_TEAMS.map((t) => ({ ...t })),
-        tournamentId: 't-preview-teams',
-        canEdit: true,
-        fetchPatch: stubFetchPatch,
-        onUpdated: (newTeams) => {
-          // Im Mock wird der DOM-State durch renderTeamsView
-          // intern aktualisiert. Hier nur Logging.
-          console.log('[preview] teams updated', newTeams.length);
-        },
-      });
-      ROOT.appendChild(view);
-      // Toolbar-Highlight: View-Buttons aktiv, Wizard-Buttons inaktiv.
-      for (const b of TOOLBAR.querySelectorAll('button[data-view]')) {
-        b.classList.toggle('is-active', b.dataset.view === 'teams');
       }
-      for (const b of TOOLBAR.querySelectorAll('button[data-step]')) {
-        b.classList.remove('is-active');
-      }
-      setBanner('Teams-Ansicht (C5) — Name oder Farbe ändern, PATCH geht gegen den Mock-Stub.', 'info');
-    }
 
-    /**
-     * Live-Modus: Legt einen Entwurf in der DB an und öffnet den
-     * Wizard mit vorausgefüllter tournamentId. groupId wird aus der
-     * URL (?groupId=…) gelesen — andernfalls Hinweis statt Aktion.
-     */
-    async function startNewLiveDraft() {
-      if (currentMockMode() !== 'off') {
-        setBanner('Bitte zuerst auf LIVE umschalten.', 'err');
-        return;
-      }
-      const params = new URLSearchParams(location.search);
-      const groupId = params.get('groupId');
-      if (!groupId) {
-        setBanner('?groupId=<id> fehlt in der URL.', 'err');
-        return;
-      }
-      try {
-        const res = await fetch('/api/tournaments', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupId, name: 'Neuer Entwurf' }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setBanner(
-            `[live] ${res.status} — Entwurf konnte nicht angelegt werden: ` +
-            (body.message || body.error || 'unbekannt'),
-            'err'
-          );
-          return;
+      function render(step) {
+        const state = { ...PREPOPULATED, step };
+        ROOT.innerHTML = '';
+        // Diagnose-Log (2026-08-11): prüft, ob renderWizardView überhaupt
+        // aufgerufen wird und ob `view` ein nutzbares Element ist.
+        console.log(
+          '[diag] render() step=' +
+            step +
+            ' | typeof renderWizardView=' +
+            typeof renderWizardView +
+            ' | typeof view (vor Aufruf)=undef'
+        );
+        let view;
+        try {
+          view = renderWizardView({
+            initialState: state,
+            onCancel: () => console.log('[preview] wizard cancelled'),
+            onGenerate: (s, o) =>
+              currentMockMode() === 'off' ? liveGenerate(s, o) : mockGenerate(s, o),
+            onStateChange: (s) => {
+              if (window._previewLog) console.log('[preview] state changed', s.step);
+            },
+          });
+          console.log('[diag] view=' + (view ? view.tagName + '.' + view.className : 'NULL'));
+        } catch (e) {
+          console.log('[diag] renderWizardView threw: ' + e.message);
+          throw e;
         }
-        const t = body.tournament;
-        // URL mit tournamentId aktualisieren, damit die Mode-Pille
-        // die ID anzeigt und der Reload-Zustand identisch ist.
-        params.set('tournamentId', t.id);
-        history.replaceState(null, '', location.pathname + '?' + params.toString());
-        updateModePill();
-        setBanner(`[live] Entwurf angelegt: id=${t.id.slice(0, 8)}…`, 'ok');
-        // Wizard mit gefüllter tournamentId rendern.
-        renderWizardViewFresh({
-          initialState: { ...PREPOPULATED, step: 1, tournamentId: t.id },
-          groupId,
+        ROOT.appendChild(view);
+
+        // Toolbar-Highlight
+        for (const btn of TOOLBAR.querySelectorAll('button')) {
+          btn.classList.toggle('is-active', Number(btn.dataset.step) === step);
+        }
+      }
+
+      // Demo-Stand: leere Wizard-Ansicht bei Step 1.
+      function renderEmpty() {
+        ROOT.innerHTML = '';
+        const view = renderWizardView({
+          initialState: { step: 1 },
           onCancel: () => console.log('[preview] wizard cancelled'),
-          onGenerate: (s, o) => liveGenerate(s, o),
+          onGenerate: (s, o) =>
+            currentMockMode() === 'off' ? liveGenerate(s, o) : mockGenerate(s, o),
           onStateChange: () => {},
         });
-      } catch (err) {
-        setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
+        ROOT.appendChild(view);
+        for (const btn of TOOLBAR.querySelectorAll('button')) {
+          btn.classList.toggle('is-active', btn.dataset.step === '0');
+        }
       }
-    }
 
-    /**
-     * Erzeugt den Wizard und hängt ihn in ROOT ein. Eigene Funktion,
-     * damit „Neues Turnier (live)" denselben Pfad wie render() nimmt.
-     */
-    function renderWizardViewFresh(opts) {
-      ROOT.innerHTML = '';
-      const view = renderWizardView(opts);
-      ROOT.appendChild(view);
-    }
-
-    // ----------------------------------------------------------------
-    // Entwürfe-Sektion (Schnitt 1+b).
-    //
-    // GET /api/tournaments/group/:groupId → Admin sieht die Drafts,
-    // Members sehen die Liste vollständig gefiltert (kein Draft).
-    // Wir zeigen im Studio nur die Drafts, weil die anderen Turniere
-    // für diesen Schnitt nicht interessant sind.
-    // ----------------------------------------------------------------
-    const DRAFTS_SECTION = document.getElementById('drafts-section');
-    const DRAFTS_LIST = document.getElementById('drafts-list');
-    const DRAFTS_EMPTY = document.getElementById('drafts-empty');
-
-    function currentGroupId() {
-      return new URLSearchParams(location.search).get('groupId');
-    }
-
-    async function loadDrafts() {
-      const groupId = currentGroupId();
-      if (!groupId) {
-        DRAFTS_SECTION.hidden = true;
-        return;
-      }
-      DRAFTS_SECTION.hidden = false;
-      DRAFTS_LIST.innerHTML = '';
-      DRAFTS_EMPTY.hidden = true;
-      try {
-        const res = await fetch(
-          `/api/tournaments/group/${encodeURIComponent(groupId)}`,
-          { credentials: 'include' }
-        );
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setBanner(
-            `[live] ${res.status} — Entwürfe konnten nicht geladen werden: ` +
-            (body.message || body.error || 'unbekannt'),
-            'err'
-          );
+      TOOLBAR.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        if (btn.dataset.mock) {
+          // Mock-Switch: URL-Query umschreiben und Highlight aktualisieren.
+          const params = new URLSearchParams(location.search);
+          params.set('mock', btn.dataset.mock);
+          const url = location.pathname + '?' + params.toString();
+          history.replaceState(null, '', url);
+          for (const b of TOOLBAR.querySelectorAll('button[data-mock]')) {
+            b.classList.toggle('is-active', b.dataset.mock === btn.dataset.mock);
+          }
+          updateModePill();
+          setBanner(`Mock umgeschaltet: ${MOCK_LABELS[btn.dataset.mock]}`, 'info');
           return;
         }
-        const drafts = (body.tournaments ?? []).filter(
-          (t) => t.status === 'draft'
-        );
-        if (drafts.length === 0) {
-          DRAFTS_EMPTY.hidden = false;
+        if (btn.dataset.action === 'new-live') {
+          startNewLiveDraft();
           return;
         }
-        for (const t of drafts) {
-          DRAFTS_LIST.appendChild(
-            renderTournamentCard(t, true, {
-              onMenuAction: (turnier, action) => {
-                if (action === 'delete') deleteDraftFromList(turnier);
-              },
-            })
-          );
-        }
-      } catch (err) {
-        setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
-      }
-    }
-
-    async function deleteDraftFromList(tournament) {
-      if (!confirm(`Entwurf „${tournament.name}" wirklich löschen?`)) return;
-      try {
-        const res = await fetch(
-          `/api/tournaments/${encodeURIComponent(tournament.id)}`,
-          { method: 'DELETE', credentials: 'include' }
-        );
-        if (!res.ok) {
-          setBanner(`[live] ${res.status} — Löschen fehlgeschlagen.`, 'err');
+        if (btn.dataset.view) {
+          if (btn.dataset.view === 'teams') renderTeamsViewScreen();
+          else render(1);
           return;
         }
-        setBanner(`[live] Entwurf gelöscht: ${tournament.name}`, 'ok');
-        await loadDrafts();
-      } catch (err) {
-        setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
-      }
-    }
+        const step = btn.dataset.step;
+        if (step === '0') renderEmpty();
+        else render(Number(step));
+      });
 
-    DRAFTS_SECTION.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('button[data-action]');
-      if (!btn) return;
-      if (btn.dataset.action === 'drafts-refresh') loadDrafts();
-    });
+      // ----------------------------------------------------------------
+      // Teams-View (C5) — eigener Screen.
+      //
+      // 12 Demo-Teams, eigener PATCH-Stub (Mock oder Live), damit die
+      // View ohne echte DB geprüft werden kann.
+      // ----------------------------------------------------------------
+      const DEMO_TEAMS = [
+        { id: 'team-01', name: 'Rakija Boys', color: '#8B6B4A', seed: 1 },
+        { id: 'team-02', name: 'Bierversorium', color: '#4F7A4A', seed: 2 },
+        { id: 'team-03', name: 'Kubb Küken', color: '#3A6FA0', seed: 3 },
+        { id: 'team-04', name: 'Los Chungos', color: '#A03A3A', seed: 4 },
+        { id: 'team-05', name: 'Saufkumpels', color: '#6A4FA0', seed: 5 },
+        { id: 'team-06', name: 'Pingpong Panda', color: '#A07A3A', seed: 6 },
+        { id: 'team-07', name: 'Wurfgeschosse', color: '#3A8A7A', seed: 7 },
+        { id: 'team-08', name: 'Becher-Legenden', color: '#7A3A8A', seed: 8 },
+        { id: 'team-09', name: 'Tischtennis Crew', color: '#3A4F8A', seed: 9 },
+        { id: 'team-10', name: 'Lückenfüller', color: '#8A4F3A', seed: 10 },
+        { id: 'team-11', name: 'Halbe Halbe', color: '#5A8A3A', seed: 11 },
+        { id: 'team-12', name: 'Quattro Stagioni', color: '#8A6A3A', seed: 12 },
+      ];
 
-    // Initial einmal laden, wenn groupId in der URL.
-    if (currentGroupId()) {
-      loadDrafts();
-    }
-
-    // Initialer Mock-Highlight + Pille aus URL.
-    const initialMock = currentMockMode();
-    for (const b of TOOLBAR.querySelectorAll('button[data-mock]')) {
-      b.classList.toggle('is-active', b.dataset.mock === initialMock);
-    }
-    updateModePill();
-
-    // Default ist Schritt 1 — der Wizard startet immer am Anfang.
-    // ?step=N erlaubt URL-gesteuerten Wechsel (für Headless-Screenshots).
-    // ?view=teams öffnet direkt die Teams-Ansicht (C5).
-    const urlStep = new URLSearchParams(location.search).get('step');
-    const urlView = new URLSearchParams(location.search).get('view');
-    const urlAutorun = new URLSearchParams(location.search).get('autorun');
-    window._previewLog = true;
-    if (urlView === 'teams') {
-      renderTeamsViewScreen();
-    } else if (urlStep === '0' || urlStep === 'empty') {
-      renderEmpty();
-    } else if (urlStep) {
-      render(Number(urlStep));
-    } else {
-      render(1);
-    }
-
-    // ?autorun=click      → nach Render auf "Turnier generieren" klicken
-    // ?autorun=type        → Klick + im Dialog den Turniernamen eintippen
-    // ?autorun=confirm     → Klick + Eintippen + Klick auf "Neu generieren"
-    // Drei Stufen, damit Screenshot-Tour alle Zustände einfangen kann.
-    if (urlAutorun) {
-      requestAnimationFrame(() => {
-        const findBtn = (text) => Array.from(document.querySelectorAll('button'))
-          .find((b) => b.textContent.trim() === text);
-        const clickGenerate = () => {
-          const btn = findBtn('Turnier generieren');
-          if (btn) btn.click();
+      function renderTeamsViewScreen() {
+        ROOT.innerHTML = '';
+        // Mock-PATCH-Stub: 200 OK auf jede Änderung, ausser wenn der
+        // neue Name bereits als Team existiert → 409. So können wir
+        // auch den Fehler-Pfad prüfen, ohne echtes Backend.
+        const usedNames = new Set(DEMO_TEAMS.map((t) => t.name));
+        const stubFetchPatch = async ({ teamId, patch }) => {
+          await new Promise((r) => setTimeout(r, 80));
+          if (patch.name !== undefined) {
+            const trimmed = patch.name.trim();
+            if (trimmed === '') {
+              return { ok: false, status: 400, body: { error: 'team_name_empty' } };
+            }
+            // Duplikat: ein anderer Team hat den Namen schon.
+            const conflict = DEMO_TEAMS.find((t) => t.id !== teamId && t.name === trimmed);
+            if (conflict) {
+              return { ok: false, status: 409, body: { error: 'team_name_taken' } };
+            }
+            const t = DEMO_TEAMS.find((x) => x.id === teamId);
+            if (t) t.name = trimmed;
+            usedNames.clear();
+            DEMO_TEAMS.forEach((x) => usedNames.add(x.name));
+          }
+          if (patch.color !== undefined) {
+            const t = DEMO_TEAMS.find((x) => x.id === teamId);
+            if (t) t.color = patch.color;
+          }
+          return { ok: true, status: 200, body: { id: teamId, ...patch } };
         };
-        if (urlAutorun === 'click') {
-          clickGenerate();
+        const view = renderTeamsView({
+          teams: DEMO_TEAMS.map((t) => ({ ...t })),
+          tournamentId: 't-preview-teams',
+          canEdit: true,
+          fetchPatch: stubFetchPatch,
+          onUpdated: (newTeams) => {
+            // Im Mock wird der DOM-State durch renderTeamsView
+            // intern aktualisiert. Hier nur Logging.
+            console.log('[preview] teams updated', newTeams.length);
+          },
+        });
+        ROOT.appendChild(view);
+        // Toolbar-Highlight: View-Buttons aktiv, Wizard-Buttons inaktiv.
+        for (const b of TOOLBAR.querySelectorAll('button[data-view]')) {
+          b.classList.toggle('is-active', b.dataset.view === 'teams');
+        }
+        for (const b of TOOLBAR.querySelectorAll('button[data-step]')) {
+          b.classList.remove('is-active');
+        }
+        setBanner(
+          'Teams-Ansicht (C5) — Name oder Farbe ändern, PATCH geht gegen den Mock-Stub.',
+          'info'
+        );
+      }
+
+      /**
+       * Live-Modus: Legt einen Entwurf in der DB an und öffnet den
+       * Wizard mit vorausgefüllter tournamentId. groupId wird aus der
+       * URL (?groupId=…) gelesen — andernfalls Hinweis statt Aktion.
+       */
+      async function startNewLiveDraft() {
+        if (currentMockMode() !== 'off') {
+          setBanner('Bitte zuerst auf LIVE umschalten.', 'err');
           return;
         }
-        // 400 ms warten, bis der Dialog offen ist (Promise löst auf).
-        setTimeout(() => {
-          const input = document.querySelector('.t-confirm-input');
-          if (!input) return;
-          if (urlAutorun === 'type') {
-            input.value = 'Sommer-Cup 2026';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
+        const params = new URLSearchParams(location.search);
+        const groupId = params.get('groupId');
+        if (!groupId) {
+          setBanner('?groupId=<id> fehlt in der URL.', 'err');
+          return;
+        }
+        try {
+          const res = await fetch('/api/tournaments', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupId, name: 'Neuer Entwurf' }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setBanner(
+              `[live] ${res.status} — Entwurf konnte nicht angelegt werden: ` +
+                (body.message || body.error || 'unbekannt'),
+              'err'
+            );
             return;
           }
-          if (urlAutorun === 'confirm') {
-            input.value = 'Sommer-Cup 2026';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            // Klick auf "Neu generieren".
-            const ok = Array.from(document.querySelectorAll('.t-confirm-actions button'))
-              .find((b) => b.textContent.trim() === 'Neu generieren');
-            if (ok) ok.click();
+          const t = body.tournament;
+          // URL mit tournamentId aktualisieren, damit die Mode-Pille
+          // die ID anzeigt und der Reload-Zustand identisch ist.
+          params.set('tournamentId', t.id);
+          history.replaceState(null, '', location.pathname + '?' + params.toString());
+          updateModePill();
+          setBanner(`[live] Entwurf angelegt: id=${t.id.slice(0, 8)}…`, 'ok');
+          // Wizard mit gefüllter tournamentId rendern.
+          renderWizardViewFresh({
+            initialState: { ...PREPOPULATED, step: 1, tournamentId: t.id },
+            groupId,
+            onCancel: () => console.log('[preview] wizard cancelled'),
+            onGenerate: (s, o) => liveGenerate(s, o),
+            onStateChange: () => {},
+          });
+        } catch (err) {
+          setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
+        }
+      }
+
+      /**
+       * Erzeugt den Wizard und hängt ihn in ROOT ein. Eigene Funktion,
+       * damit „Neues Turnier (live)" denselben Pfad wie render() nimmt.
+       */
+      function renderWizardViewFresh(opts) {
+        ROOT.innerHTML = '';
+        const view = renderWizardView(opts);
+        ROOT.appendChild(view);
+      }
+
+      // ----------------------------------------------------------------
+      // Entwürfe-Sektion (Schnitt 1+b).
+      //
+      // GET /api/tournaments/group/:groupId → Admin sieht die Drafts,
+      // Members sehen die Liste vollständig gefiltert (kein Draft).
+      // Wir zeigen im Studio nur die Drafts, weil die anderen Turniere
+      // für diesen Schnitt nicht interessant sind.
+      // ----------------------------------------------------------------
+      const DRAFTS_SECTION = document.getElementById('drafts-section');
+      const DRAFTS_LIST = document.getElementById('drafts-list');
+      const DRAFTS_EMPTY = document.getElementById('drafts-empty');
+
+      function currentGroupId() {
+        return new URLSearchParams(location.search).get('groupId');
+      }
+
+      async function loadDrafts() {
+        const groupId = currentGroupId();
+        if (!groupId) {
+          DRAFTS_SECTION.hidden = true;
+          return;
+        }
+        DRAFTS_SECTION.hidden = false;
+        DRAFTS_LIST.innerHTML = '';
+        DRAFTS_EMPTY.hidden = true;
+        try {
+          const res = await fetch(`/api/tournaments/group/${encodeURIComponent(groupId)}`, {
+            credentials: 'include',
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setBanner(
+              `[live] ${res.status} — Entwürfe konnten nicht geladen werden: ` +
+                (body.message || body.error || 'unbekannt'),
+              'err'
+            );
+            return;
           }
-        }, 400);
+          const drafts = (body.tournaments ?? []).filter((t) => t.status === 'draft');
+          if (drafts.length === 0) {
+            DRAFTS_EMPTY.hidden = false;
+            return;
+          }
+          for (const t of drafts) {
+            DRAFTS_LIST.appendChild(
+              renderTournamentCard(t, true, {
+                onMenuAction: (turnier, action) => {
+                  if (action === 'delete') deleteDraftFromList(turnier);
+                },
+              })
+            );
+          }
+        } catch (err) {
+          setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
+        }
+      }
+
+      async function deleteDraftFromList(tournament) {
+        if (!confirm(`Entwurf „${tournament.name}" wirklich löschen?`)) return;
+        try {
+          const res = await fetch(`/api/tournaments/${encodeURIComponent(tournament.id)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          if (!res.ok) {
+            setBanner(`[live] ${res.status} — Löschen fehlgeschlagen.`, 'err');
+            return;
+          }
+          setBanner(`[live] Entwurf gelöscht: ${tournament.name}`, 'ok');
+          await loadDrafts();
+        } catch (err) {
+          setBanner(`[live] Netzwerkfehler: ${err.message}`, 'err');
+        }
+      }
+
+      DRAFTS_SECTION.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-action]');
+        if (!btn) return;
+        if (btn.dataset.action === 'drafts-refresh') loadDrafts();
       });
-    }
-  </script>
-</body>
+
+      // Initial einmal laden, wenn groupId in der URL.
+      if (currentGroupId()) {
+        loadDrafts();
+      }
+
+      // Initialer Mock-Highlight + Pille aus URL.
+      const initialMock = currentMockMode();
+      for (const b of TOOLBAR.querySelectorAll('button[data-mock]')) {
+        b.classList.toggle('is-active', b.dataset.mock === initialMock);
+      }
+      updateModePill();
+
+      // Default ist Schritt 1 — der Wizard startet immer am Anfang.
+      // ?step=N erlaubt URL-gesteuerten Wechsel (für Headless-Screenshots).
+      // ?view=teams öffnet direkt die Teams-Ansicht (C5).
+      const urlStep = new URLSearchParams(location.search).get('step');
+      const urlView = new URLSearchParams(location.search).get('view');
+      const urlAutorun = new URLSearchParams(location.search).get('autorun');
+      window._previewLog = true;
+      if (urlView === 'teams') {
+        renderTeamsViewScreen();
+      } else if (urlStep === '0' || urlStep === 'empty') {
+        renderEmpty();
+      } else if (urlStep) {
+        render(Number(urlStep));
+      } else {
+        render(1);
+      }
+
+      // ?autorun=click      → nach Render auf "Turnier generieren" klicken
+      // ?autorun=type        → Klick + im Dialog den Turniernamen eintippen
+      // ?autorun=confirm     → Klick + Eintippen + Klick auf "Neu generieren"
+      // Drei Stufen, damit Screenshot-Tour alle Zustände einfangen kann.
+      if (urlAutorun) {
+        requestAnimationFrame(() => {
+          const findBtn = (text) =>
+            Array.from(document.querySelectorAll('button')).find(
+              (b) => b.textContent.trim() === text
+            );
+          const clickGenerate = () => {
+            const btn = findBtn('Turnier generieren');
+            if (btn) btn.click();
+          };
+          if (urlAutorun === 'click') {
+            clickGenerate();
+            return;
+          }
+          // 400 ms warten, bis der Dialog offen ist (Promise löst auf).
+          setTimeout(() => {
+            const input = document.querySelector('.t-confirm-input');
+            if (!input) return;
+            if (urlAutorun === 'type') {
+              input.value = 'Sommer-Cup 2026';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            }
+            if (urlAutorun === 'confirm') {
+              input.value = 'Sommer-Cup 2026';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              // Klick auf "Neu generieren".
+              const ok = Array.from(document.querySelectorAll('.t-confirm-actions button')).find(
+                (b) => b.textContent.trim() === 'Neu generieren'
+              );
+              if (ok) ok.click();
+            }
+          }, 400);
+        });
+      }
+    </script>
+  </body>
 </html>

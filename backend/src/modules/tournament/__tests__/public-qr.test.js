@@ -81,9 +81,7 @@ describe('buildPublicUrl', () => {
         'x-forwarded-host': 'photoalbum.lx-derpi-cloud.de',
       },
     };
-    expect(buildPublicUrl(req, token)).toBe(
-      `https://photoalbum.lx-derpi-cloud.de/t/${token}`
-    );
+    expect(buildPublicUrl(req, token)).toBe(`https://photoalbum.lx-derpi-cloud.de/t/${token}`);
   });
 
   it('nimmt bei mehrfach gesetzten Weiterleitungs-Kopfzeilen den ersten Wert', () => {
@@ -97,9 +95,7 @@ describe('buildPublicUrl', () => {
         'x-forwarded-host': 'photoalbum.lx-derpi-cloud.de, backend:3000',
       },
     };
-    expect(buildPublicUrl(req, token)).toBe(
-      `https://photoalbum.lx-derpi-cloud.de/t/${token}`
-    );
+    expect(buildPublicUrl(req, token)).toBe(`https://photoalbum.lx-derpi-cloud.de/t/${token}`);
   });
 
   it('erzeugt eine Adresse, die der QR dann auch kodieren kann', () => {

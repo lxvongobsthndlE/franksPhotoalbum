@@ -125,9 +125,7 @@ describe('PATCH /api/tournaments/:id mit gültigem rules-Text', () => {
     });
     expect(res.statusCode).toBe(200);
     const updateArg = prisma.tournament.update.mock.calls[0][0];
-    expect(updateArg.data.rules).toBe(
-      'Absatz 1\n\nAbsatz 2 mit Becher 0,5l.\n\nAbsatz 3',
-    );
+    expect(updateArg.data.rules).toBe('Absatz 1\n\nAbsatz 2 mit Becher 0,5l.\n\nAbsatz 3');
   });
 
   it('admin leert das Regelwerk mit "" → rules wird null', async () => {

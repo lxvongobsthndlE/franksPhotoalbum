@@ -196,9 +196,9 @@ describe('requireTournamentRead', () => {
     );
     // Kein gültiger Login: jwtVerify wirft, wie es Fastify ohne Token tut.
     const request = {
-      jwtVerify: vi.fn().mockRejectedValue(
-        Object.assign(new Error('kein Token'), { statusCode: 401 })
-      ),
+      jwtVerify: vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('kein Token'), { statusCode: 401 })),
     };
     await expect(requireTournamentRead(request, prisma, 't1')).rejects.toMatchObject({
       statusCode: 401,
@@ -210,9 +210,9 @@ describe('requireTournamentRead', () => {
       fakeTournament({ status: 'draft', isPublic: true, publicToken: 'tok' })
     );
     const request = {
-      jwtVerify: vi.fn().mockRejectedValue(
-        Object.assign(new Error('kein Token'), { statusCode: 401 })
-      ),
+      jwtVerify: vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('kein Token'), { statusCode: 401 })),
     };
     await expect(requireTournamentRead(request, prisma, 't1')).rejects.toMatchObject({
       statusCode: 401,
@@ -304,9 +304,9 @@ describe('requireTournamentWrite', () => {
       })
     );
     const request = {
-      jwtVerify: vi.fn().mockRejectedValue(
-        Object.assign(new Error('kein Token'), { statusCode: 401 })
-      ),
+      jwtVerify: vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('kein Token'), { statusCode: 401 })),
     };
     await expect(requireTournamentWrite(request, prisma, 't1')).rejects.toMatchObject({
       statusCode: 401,

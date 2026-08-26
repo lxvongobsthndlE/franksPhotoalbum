@@ -35,10 +35,12 @@ describe('Takt: Wie oft holt die Zuschauerseite nach?', () => {
   });
 
   it('Turniertag ohne Anpfiff: der normale Takt', () => {
-    expect(naechsterAbstand({
-      tournament: { status: 'group_stage' },
-      matches: [{ isLive: false }],
-    })).toBe(TAKT_TAG);
+    expect(
+      naechsterAbstand({
+        tournament: { status: 'group_stage' },
+        matches: [{ isLive: false }],
+      })
+    ).toBe(TAKT_TAG);
   });
 
   it('Abgeschlossen: die Seite zieht sich zurück', () => {
@@ -46,10 +48,12 @@ describe('Takt: Wie oft holt die Zuschauerseite nach?', () => {
   });
 
   it('Ein laufendes Spiel schlägt „abgeschlossen" — der Status kann nachhinken', () => {
-    expect(naechsterAbstand({
-      tournament: { status: 'finished' },
-      matches: [{ isLive: true }],
-    })).toBe(TAKT_LIVE);
+    expect(
+      naechsterAbstand({
+        tournament: { status: 'finished' },
+        matches: [{ isLive: true }],
+      })
+    ).toBe(TAKT_LIVE);
   });
 
   it('Noch nie geladen heißt Turniertag, nicht Ruhe', () => {

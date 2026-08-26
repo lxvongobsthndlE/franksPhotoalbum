@@ -28,13 +28,11 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find((t) => t.type === 'page'
-    && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0 && !page; i < 25; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find((t) => t.type === 'page'
-      && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -53,13 +51,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -70,8 +71,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text
-      + ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -95,7 +95,7 @@ async function runTests() {
   await sleep(800);
 
   for (let i = 0; i < 50; i++) {
-    const ready = (await evalPage(send, () => window.__tReady === true));
+    const ready = await evalPage(send, () => window.__tReady === true);
     if (ready) break;
     await sleep(100);
   }
@@ -129,86 +129,95 @@ async function runTests() {
   // Test 1: Wizard mit 15 Teams rendern + Step 3/5 prüfen
   // ----------------------------------------------------------------
   const CONFIGURATIONS = [
-    { name: '15/4 (4/4/4/3)',     teams: 15, numGroups: 4, expected: '4 / 4 / 4 / 3' },
-    { name: '10/3 (4/3/3)',       teams: 10, numGroups: 3, expected: '4 / 3 / 3' },
-    { name: '7/2  (4/3)',         teams:  7, numGroups: 2, expected: '4 / 3' },
-    { name: '5/2  (3/2)',         teams:  5, numGroups: 2, expected: '3 / 2' },
+    { name: '15/4 (4/4/4/3)', teams: 15, numGroups: 4, expected: '4 / 4 / 4 / 3' },
+    { name: '10/3 (4/3/3)', teams: 10, numGroups: 3, expected: '4 / 3 / 3' },
+    { name: '7/2  (4/3)', teams: 7, numGroups: 2, expected: '4 / 3' },
+    { name: '5/2  (3/2)', teams: 5, numGroups: 2, expected: '3 / 2' },
   ];
 
   for (const cfg of CONFIGURATIONS) {
     console.log(`\n--- Konfiguration: ${cfg.name} ---`);
 
     // Wizard mit genau cfg.teams und cfg.numGroups rendern.
-    const probe = await evalPage(send, (cfg) => {
-      const ROOT = document.getElementById('root');
-      ROOT.innerHTML = '';
+    const probe = await evalPage(
+      send,
+      (cfg) => {
+        const ROOT = document.getElementById('root');
+        ROOT.innerHTML = '';
 
-      // Teams anlegen.
-      const teams = [];
-      for (let i = 1; i <= cfg.teams; i++) {
-        teams.push({ name: 'Team ' + i, color: null, seed: i });
-      }
+        // Teams anlegen.
+        const teams = [];
+        for (let i = 1; i <= cfg.teams; i++) {
+          teams.push({ name: 'Team ' + i, color: null, seed: i });
+        }
 
-      // Wizard auf Step 3 (Modus & Gruppenverteilung).
-      const state = {
-        step: 3,
-        name: 'Diagnose-Turnier',
-        date: '2026-09-05',
-        location: 'Sporthalle',
-        sport: 'becher',
-        logoUrl: null,
-        teamInput: '',
-        teams,
-        mode: 'groups_ko',
-        numGroups: cfg.numGroups,
-        distributionMethod: 'random',
-        doubleRoundRobin: false,
-        pointsWin: 3,
-        pointsDraw: 1,
-        pointsLoss: 0,
-        tiebreakers: ['points', 'headToHead', 'goalDiff'],
-        advancePerGroup: 2,
-        bestThirdsCount: 0,
-        thirdPlaceMatch: false,
-        numTables: 4,
-        tableNames: [],
-        startTime: '14:00',
-        matchDuration: 15,
-        pauseMinutes: 5,
-      };
+        // Wizard auf Step 3 (Modus & Gruppenverteilung).
+        const state = {
+          step: 3,
+          name: 'Diagnose-Turnier',
+          date: '2026-09-05',
+          location: 'Sporthalle',
+          sport: 'becher',
+          logoUrl: null,
+          teamInput: '',
+          teams,
+          mode: 'groups_ko',
+          numGroups: cfg.numGroups,
+          distributionMethod: 'random',
+          doubleRoundRobin: false,
+          pointsWin: 3,
+          pointsDraw: 1,
+          pointsLoss: 0,
+          tiebreakers: ['points', 'headToHead', 'goalDiff'],
+          advancePerGroup: 2,
+          bestThirdsCount: 0,
+          thirdPlaceMatch: false,
+          numTables: 4,
+          tableNames: [],
+          startTime: '14:00',
+          matchDuration: 15,
+          pauseMinutes: 5,
+        };
 
-      const w = window.__renderWizardView({
-        initialState: state,
-        onStateChange: () => {},
-        onCancel: () => {},
-      });
-      ROOT.appendChild(w);
+        const w = window.__renderWizardView({
+          initialState: state,
+          onStateChange: () => {},
+          onCancel: () => {},
+        });
+        ROOT.appendChild(w);
 
-      // Dist-Label im Step 3 holen.
-      const distLabel = document.querySelector('.t-wizard-group-dist');
-      const distText = distLabel?.textContent ?? null;
+        // Dist-Label im Step 3 holen.
+        const distLabel = document.querySelector('.t-wizard-group-dist');
+        const distText = distLabel?.textContent ?? null;
 
-      // Live-Preview rechts auslesen.
-      const previewRows = Array.from(document.querySelectorAll('.t-wizard-preview-row'))
-        .map((r) => ({
-          label: r.querySelector('.t-wizard-preview-label')?.textContent,
-          value: r.querySelector('.t-wizard-preview-value')?.textContent,
-        }));
+        // Live-Preview rechts auslesen.
+        const previewRows = Array.from(document.querySelectorAll('.t-wizard-preview-row')).map(
+          (r) => ({
+            label: r.querySelector('.t-wizard-preview-label')?.textContent,
+            value: r.querySelector('.t-wizard-preview-value')?.textContent,
+          })
+        );
 
-      return {
-        distText,
-        previewRows,
-        numTeamsInDom: document.querySelectorAll('.t-wizard-team-list > li').length,
-      };
-    }, cfg);
+        return {
+          distText,
+          previewRows,
+          numTeamsInDom: document.querySelectorAll('.t-wizard-team-list > li').length,
+        };
+      },
+      cfg
+    );
 
-    expect(probe.distText?.includes(cfg.expected),
-      `Step 3: Verteilung "${cfg.expected}" sichtbar (real: "${probe.distText}")`);
+    expect(
+      probe.distText?.includes(cfg.expected),
+      `Step 3: Verteilung "${cfg.expected}" sichtbar (real: "${probe.distText}")`
+    );
 
     // Preview "Gruppen" muss die richtige Verteilung zeigen.
     const gruppenRow = probe.previewRows.find((r) => r.label === 'Gruppen');
-    expect(gruppenRow?.value?.includes(cfg.expected),
-      `Preview "Gruppen" zeigt "${cfg.expected}" (real: "${gruppenRow?.value}")`);
+    expect(
+      gruppenRow?.value?.includes(cfg.expected),
+      `Preview "Gruppen" zeigt "${cfg.expected}" (real: "${gruppenRow?.value}")`
+    );
 
     // Match-Anzahl prüfen: Gruppenspiele = sum(n*(n-1)/2).
     // Bei cfg 15/4: 4*4 → 6 Spiele (3x) + 3*2 → 3 Spiele = 21 Gruppenspiele.
@@ -240,7 +249,9 @@ async function runTests() {
         numGroups,
         distributionMethod: 'random',
         doubleRoundRobin: false,
-        pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+        pointsWin: 3,
+        pointsDraw: 1,
+        pointsLoss: 0,
         tiebreakers: ['points', 'headToHead'],
         advancePerGroup: 2,
         bestThirdsCount: 0,
@@ -271,10 +282,16 @@ async function runTests() {
       };
     }
 
-    const teams12 = Array.from({ length: 12 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
-    const teams15 = Array.from({ length: 15 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams12 = Array.from({ length: 12 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
+    const teams15 = Array.from({ length: 15 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
 
     // 12 / 3 → erwartet 4 / 4 / 4
     const r12_3 = build(teams12, 3);
@@ -294,12 +311,12 @@ async function runTests() {
   console.log('  15/4:', JSON.stringify(compare.r15_4));
 
   // Bei korrektem Rechnen müssen sich 12 vs 15 deutlich unterscheiden.
-  expect(compare.r12_3.distText !== compare.r15_3.distText,
-    `12/3 ≠ 15/3 (beide gleich? bug)`);
-  expect(compare.r12_4.distText !== compare.r15_4.distText,
-    `12/4 ≠ 15/4 (beide gleich? bug)`);
-  expect(compare.r12_3.gruppen !== compare.r12_4.gruppen,
-    `12/3 vs 12/4 zeigt unterschiedliche Gruppenverteilung`);
+  expect(compare.r12_3.distText !== compare.r15_3.distText, `12/3 ≠ 15/3 (beide gleich? bug)`);
+  expect(compare.r12_4.distText !== compare.r15_4.distText, `12/4 ≠ 15/4 (beide gleich? bug)`);
+  expect(
+    compare.r12_3.gruppen !== compare.r12_4.gruppen,
+    `12/3 vs 12/4 zeigt unterschiedliche Gruppenverteilung`
+  );
 
   // ----------------------------------------------------------------
   // Test 3: Erwartete konkrete Werte prüfen
@@ -309,13 +326,17 @@ async function runTests() {
   // 15 / 3 → 5 / 5 / 5 → 3 * (5*4/2) = 30 Gruppenspiele
   // KO: 2 * 3 = 6 Qualifikanten → 8er-Baum = 7 Spiele
   // Gesamt: 37
-  expect(compare.r15_3.distText?.includes('5 / 5 / 5'),
-    `15/3 → 5/5/5 (real: "${compare.r15_3.distText}")`);
+  expect(
+    compare.r15_3.distText?.includes('5 / 5 / 5'),
+    `15/3 → 5/5/5 (real: "${compare.r15_3.distText}")`
+  );
   // 15 / 4 → 4 / 4 / 4 / 3 → 6+6+6+3 = 21 Gruppenspiele
   // KO: 2 * 4 = 8 Qualifikanten → 8er-Baum = 7 Spiele
   // Gesamt: 28
-  expect(compare.r15_4.distText?.includes('4 / 4 / 4 / 3'),
-    `15/4 → 4/4/4/3 (real: "${compare.r15_4.distText}")`);
+  expect(
+    compare.r15_4.distText?.includes('4 / 4 / 4 / 3'),
+    `15/4 → 4/4/4/3 (real: "${compare.r15_4.distText}")`
+  );
 
   console.log('\n=== Diagnose fertig. Exit-Code:', process.exitCode || 0, '===');
   s.ws.close();

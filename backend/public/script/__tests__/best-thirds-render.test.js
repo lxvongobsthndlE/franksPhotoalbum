@@ -25,27 +25,48 @@ describe('renderBestThirdsTable', () => {
         teamId: 'A3',
         name: 'Team Alpha-Drei',
         groupKey: 'A',
-        played: 3, won: 2, drawn: 1, lost: 0,
-        goalsFor: 10, goalsAgainst: 4, goalDiff: 6, points: 7,
-        pointsPerGame: 2.33, goalDiffPerGame: 2.0,
+        played: 3,
+        won: 2,
+        drawn: 1,
+        lost: 0,
+        goalsFor: 10,
+        goalsAgainst: 4,
+        goalDiff: 6,
+        points: 7,
+        pointsPerGame: 2.33,
+        goalDiffPerGame: 2.0,
         qualifies: true,
       },
       {
         teamId: 'B3',
         name: 'Team Bravo-Drei',
         groupKey: 'B',
-        played: 3, won: 2, drawn: 0, lost: 1,
-        goalsFor: 8, goalsAgainst: 5, goalDiff: 3, points: 6,
-        pointsPerGame: 2.0, goalDiffPerGame: 1.0,
+        played: 3,
+        won: 2,
+        drawn: 0,
+        lost: 1,
+        goalsFor: 8,
+        goalsAgainst: 5,
+        goalDiff: 3,
+        points: 6,
+        pointsPerGame: 2.0,
+        goalDiffPerGame: 1.0,
         qualifies: true,
       },
       {
         teamId: 'C3',
         name: 'Team Charlie-Drei',
         groupKey: 'C',
-        played: 2, won: 0, drawn: 1, lost: 1,
-        goalsFor: 2, goalsAgainst: 8, goalDiff: -6, points: 1,
-        pointsPerGame: 0.5, goalDiffPerGame: -3.0,
+        played: 2,
+        won: 0,
+        drawn: 1,
+        lost: 1,
+        goalsFor: 2,
+        goalsAgainst: 8,
+        goalDiff: -6,
+        points: 1,
+        pointsPerGame: 0.5,
+        goalDiffPerGame: -3.0,
         qualifies: false,
       },
     ],
@@ -65,7 +86,7 @@ describe('renderBestThirdsTable', () => {
     const headerMatch = html.match(/<thead>[\s\S]*?<\/thead>/);
     expect(headerMatch).toBeTruthy();
     expect(headerMatch[0]).toMatch(
-      /<th class="is-rank"\s+data-col="pl">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-group"\s+data-col="group">Gruppe<\/th>[\s\S]*<th class="is-num"\s+data-col="played">Sp\.<\/th>[\s\S]*<th class="is-num"\s+data-col="won">S<\/th>[\s\S]*<th class="is-num"\s+data-col="drawn">U<\/th>[\s\S]*<th class="is-num"\s+data-col="lost">N<\/th>[\s\S]*<th class="is-num"\s+data-col="score">Becher<\/th>[\s\S]*<th class="is-num"\s+data-col="diff">Diff<\/th>[\s\S]*<th class="is-num"\s+data-col="points">Pkt\.<\/th>/,
+      /<th class="is-rank"\s+data-col="pl">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-group"\s+data-col="group">Gruppe<\/th>[\s\S]*<th class="is-num"\s+data-col="played">Sp\.<\/th>[\s\S]*<th class="is-num"\s+data-col="won">S<\/th>[\s\S]*<th class="is-num"\s+data-col="drawn">U<\/th>[\s\S]*<th class="is-num"\s+data-col="lost">N<\/th>[\s\S]*<th class="is-num"\s+data-col="score">Becher<\/th>[\s\S]*<th class="is-num"\s+data-col="diff">Diff<\/th>[\s\S]*<th class="is-num"\s+data-col="points">Pkt\.<\/th>/
     );
   });
 
@@ -118,9 +139,9 @@ describe('renderBestThirdsTable', () => {
     const html = renderBestThirdsTable(sample);
     // Genau 2 Reihen bekommen die is-qualified-Klasse — der Haken
     // wird per ::after an die Rank-Zelle gehängt, nicht als <td>.
-    const qualifiedRows = (html.match(/<tr class="t-thirds-row is-qualified">/g) || []);
+    const qualifiedRows = html.match(/<tr class="t-thirds-row is-qualified">/g) || [];
     expect(qualifiedRows.length).toBe(2);
-    const outRows = (html.match(/<tr class="t-thirds-row is-out">/g) || []);
+    const outRows = html.match(/<tr class="t-thirds-row is-out">/g) || [];
     expect(outRows.length).toBe(1);
     // Es gibt keine <td class="t-thirds-mark"> mehr (Bug 14).
     expect(html).not.toContain('t-thirds-mark');
@@ -166,9 +187,17 @@ describe('renderBestThirdsTable', () => {
       qualifyCount: 0,
       rows: [
         {
-          teamId: 'X', name: 'Team <script>', groupKey: 'A',
-          played: 1, won: 0, drawn: 0, lost: 1,
-          goalsFor: 1, goalsAgainst: 2, goalDiff: -1, points: 0,
+          teamId: 'X',
+          name: 'Team <script>',
+          groupKey: 'A',
+          played: 1,
+          won: 0,
+          drawn: 0,
+          lost: 1,
+          goalsFor: 1,
+          goalsAgainst: 2,
+          goalDiff: -1,
+          points: 0,
         },
       ],
     });
@@ -181,19 +210,43 @@ describe('renderBestThirdsTable', () => {
       qualifyCount: 0,
       rows: [
         {
-          teamId: 'P', name: 'Plus', groupKey: 'A',
-          played: 2, won: 2, drawn: 0, lost: 0,
-          goalsFor: 5, goalsAgainst: 1, goalDiff: 4, points: 6,
+          teamId: 'P',
+          name: 'Plus',
+          groupKey: 'A',
+          played: 2,
+          won: 2,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 5,
+          goalsAgainst: 1,
+          goalDiff: 4,
+          points: 6,
         },
         {
-          teamId: 'Z', name: 'Zero', groupKey: 'B',
-          played: 2, won: 1, drawn: 0, lost: 1,
-          goalsFor: 3, goalsAgainst: 3, goalDiff: 0, points: 3,
+          teamId: 'Z',
+          name: 'Zero',
+          groupKey: 'B',
+          played: 2,
+          won: 1,
+          drawn: 0,
+          lost: 1,
+          goalsFor: 3,
+          goalsAgainst: 3,
+          goalDiff: 0,
+          points: 3,
         },
         {
-          teamId: 'N', name: 'Neg', groupKey: 'C',
-          played: 2, won: 0, drawn: 0, lost: 2,
-          goalsFor: 1, goalsAgainst: 5, goalDiff: -4, points: 0,
+          teamId: 'N',
+          name: 'Neg',
+          groupKey: 'C',
+          played: 2,
+          won: 0,
+          drawn: 0,
+          lost: 2,
+          goalsFor: 1,
+          goalsAgainst: 5,
+          goalDiff: -4,
+          points: 0,
         },
       ],
     });
@@ -224,9 +277,17 @@ describe('renderBestThirdsTable', () => {
 
 describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
   const row = {
-    teamId: 'A3', name: 'Team Alpha-Drei', groupKey: 'A',
-    played: 3, won: 2, drawn: 1, lost: 0,
-    goalsFor: 12, goalsAgainst: 10, goalDiff: 2, points: 7,
+    teamId: 'A3',
+    name: 'Team Alpha-Drei',
+    groupKey: 'A',
+    played: 3,
+    won: 2,
+    drawn: 1,
+    lost: 0,
+    goalsFor: 12,
+    goalsAgainst: 10,
+    goalDiff: 2,
+    points: 7,
     qualifies: true,
   };
   const sample = { qualifyCount: 1, rows: [row] };
@@ -235,20 +296,21 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
 
   it('Desktop: 10 <col> für 10 sichtbare Spalten', () => {
     setCompactMode(false);
-    const cols = (renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || []);
+    const cols = renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(10);
   });
 
   it('Mobile: 5 <col> für 5 sichtbare Spalten (Sp/S/U/N/Becher sind versteckt)', () => {
     setCompactMode(true);
-    const cols = (renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || []);
+    const cols = renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(5);
   });
 
   it('Mobile: exakte Breiten in DOM-Reihenfolge Pl · Team · Gruppe · Diff · Pkt', () => {
     setCompactMode(true);
-    const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
-      .map((c) => c.match(/width:([^"]+)"/)[1]);
+    const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || []).map(
+      (c) => c.match(/width:([^"]+)"/)[1]
+    );
     expect(cols).toEqual(['14%', '44%', '12%', '15%', '15%']);
     // Die Invariante, an der die Flucht mit der Standings-Tabelle haengt:
     // Team + Gruppe muss hier so breit sein wie dort Team + Sp. (42 + 14),
@@ -261,8 +323,9 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
   it('Mobile: Summe der Breiten ist genau 100% und es gibt kein auto', () => {
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
-    const cols = (html.match(/<col style="width:([^"]+)">/g) || [])
-      .map((c) => c.match(/width:([^"]+)"/)[1]);
+    const cols = (html.match(/<col style="width:([^"]+)">/g) || []).map(
+      (c) => c.match(/width:([^"]+)"/)[1]
+    );
     expect(html).not.toMatch(/<col[^>]*width:auto/);
     const sum = cols.reduce((acc, w) => acc + parseFloat(w), 0);
     expect(sum).toBe(100);
@@ -307,7 +370,7 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     expect(html).toContain('12:10');
     expect(html).toContain('data-col="score"');
     // Aber keine Colgroup-Breite mehr fuer sie.
-    const cols = (html.match(/<col style="width:([^"]+)">/g) || []);
+    const cols = html.match(/<col style="width:([^"]+)">/g) || [];
     expect(cols).toHaveLength(5);
   });
 
@@ -319,8 +382,9 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     // Sp 14 · Diff 15 · Pkt 15. Dritte mobil: Pl 14 · Team 44 ·
     // Gr 12 · Diff 15 · Pkt 15. (Becher ist mobil seit 26.08. weg.)
     setCompactMode(true);
-    const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
-      .map((c) => parseFloat(c.match(/width:([^"]+)%/)[1]));
+    const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || []).map(
+      (c) => parseFloat(c.match(/width:([^"]+)%/)[1])
+    );
     const kanteVorDiff = cols.slice(0, 3).reduce((a, b) => a + b, 0);
     const kanteVorPkt = cols.slice(0, 4).reduce((a, b) => a + b, 0);
     // Standings mobil: 14+42+14 = 70 bis zur Diff-Kante, +15 = 85 bis Pkt.
@@ -341,7 +405,7 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
       const m = th.match(/data-col="([^"]+)"/);
       return !m || !HIDDEN_ON_MOBILE.includes(m[1]);
     });
-    const cols = (html.match(/<col style="width:[^"]+">/g) || []);
+    const cols = html.match(/<col style="width:[^"]+">/g) || [];
     // Nicht leer-gegen-leer vergleichen: der Test soll fehlschlagen, wenn
     // die Regex nichts findet, nicht stillschweigend 0 === 0 bestaetigen.
     expect(visible).toHaveLength(5);

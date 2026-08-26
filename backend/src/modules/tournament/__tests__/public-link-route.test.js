@@ -29,21 +29,47 @@ const TOKEN = 'T'.repeat(32);
 
 const tournaments = {
   't-live': {
-    id: 't-live', groupId: gId, name: 'Sommerturnier', status: 'group_stage',
-    mode: 'groups_ko', config: {}, isPublic: false, publicToken: null,
-    publicEnabledAt: null, publicRevokedAt: null, startedAt: new Date(),
-    location: 'Vereinsheim', sport: 'becher', createdById: u.admin.id,
+    id: 't-live',
+    groupId: gId,
+    name: 'Sommerturnier',
+    status: 'group_stage',
+    mode: 'groups_ko',
+    config: {},
+    isPublic: false,
+    publicToken: null,
+    publicEnabledAt: null,
+    publicRevokedAt: null,
+    startedAt: new Date(),
+    location: 'Vereinsheim',
+    sport: 'becher',
+    createdById: u.admin.id,
   },
   't-draft': {
-    id: 't-draft', groupId: gId, name: 'Entwurf', status: 'draft',
-    mode: 'groups_ko', config: {}, isPublic: false, publicToken: null,
-    publicEnabledAt: null, publicRevokedAt: null, startedAt: null,
+    id: 't-draft',
+    groupId: gId,
+    name: 'Entwurf',
+    status: 'draft',
+    mode: 'groups_ko',
+    config: {},
+    isPublic: false,
+    publicToken: null,
+    publicEnabledAt: null,
+    publicRevokedAt: null,
+    startedAt: null,
     createdById: u.admin.id,
   },
   't-shared': {
-    id: 't-shared', groupId: gId, name: 'Geteiltes Turnier', status: 'ko_stage',
-    mode: 'groups_ko', config: {}, isPublic: true, publicToken: TOKEN,
-    publicEnabledAt: new Date(), publicRevokedAt: null, startedAt: new Date(),
+    id: 't-shared',
+    groupId: gId,
+    name: 'Geteiltes Turnier',
+    status: 'ko_stage',
+    mode: 'groups_ko',
+    config: {},
+    isPublic: true,
+    publicToken: TOKEN,
+    publicEnabledAt: new Date(),
+    publicRevokedAt: null,
+    startedAt: new Date(),
     createdById: u.admin.id,
   },
 };
@@ -79,20 +105,41 @@ function mockPrisma() {
     tournamentTeam: {
       findMany: vi.fn(async () => [
         {
-          id: 'team-1', tournamentId: 't-shared', name: 'Die Adler', color: '#f00',
-          logoUrl: null, seed: 1,
+          id: 'team-1',
+          tournamentId: 't-shared',
+          name: 'Die Adler',
+          color: '#f00',
+          logoUrl: null,
+          seed: 1,
           players: 'Anna Schmidt, Bernd Meier',
           linkedUserIds: ['u-member'],
         },
       ]),
     },
-    stage: { findMany: vi.fn(async () => [{ id: 's1', tournamentId: 't-shared', type: 'group', name: 'Gruppenphase', orderIndex: 0 }]) },
+    stage: {
+      findMany: vi.fn(async () => [
+        { id: 's1', tournamentId: 't-shared', type: 'group', name: 'Gruppenphase', orderIndex: 0 },
+      ]),
+    },
     group_: {
-      findMany: vi.fn(async () => [{
-        id: 'grp-a', stageId: 's1', key: 'A', name: 'Gruppe A',
-        memberships: [{ id: 'mm1', groupId: 'grp-a', teamId: 'team-1', position: 0, team: { id: 'team-1', name: 'Die Adler' } }],
-        matches: [],
-      }]),
+      findMany: vi.fn(async () => [
+        {
+          id: 'grp-a',
+          stageId: 's1',
+          key: 'A',
+          name: 'Gruppe A',
+          memberships: [
+            {
+              id: 'mm1',
+              groupId: 'grp-a',
+              teamId: 'team-1',
+              position: 0,
+              team: { id: 'team-1', name: 'Die Adler' },
+            },
+          ],
+          matches: [],
+        },
+      ]),
     },
     match: {
       findMany: vi.fn(async () => []),
@@ -139,14 +186,20 @@ const alsAdmin = (method, url) =>
 
 describe('POST /api/tournaments/:id/public — Freigabe', () => {
   it('401 ohne Login', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/tournaments/t-live/public', payload: {} });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/tournaments/t-live/public',
+      payload: {},
+    });
     expect(res.statusCode).toBe(401);
   });
 
   it('403 für ein Mitglied', async () => {
     const res = await app.inject({
-      method: 'POST', url: '/api/tournaments/t-live/public',
-      headers: { 'x-test-user': u.member.id }, payload: {},
+      method: 'POST',
+      url: '/api/tournaments/t-live/public',
+      headers: { 'x-test-user': u.member.id },
+      payload: {},
     });
     expect(res.statusCode).toBe(403);
   });
@@ -186,14 +239,20 @@ describe('POST /api/tournaments/:id/public — Freigabe', () => {
 
 describe('DELETE /api/tournaments/:id/public — Widerruf', () => {
   it('401 ohne Login', async () => {
-    const res = await app.inject({ method: 'DELETE', url: '/api/tournaments/t-shared/public', payload: {} });
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/tournaments/t-shared/public',
+      payload: {},
+    });
     expect(res.statusCode).toBe(401);
   });
 
   it('403 für ein Mitglied', async () => {
     const res = await app.inject({
-      method: 'DELETE', url: '/api/tournaments/t-shared/public',
-      headers: { 'x-test-user': u.member.id }, payload: {},
+      method: 'DELETE',
+      url: '/api/tournaments/t-shared/public',
+      headers: { 'x-test-user': u.member.id },
+      payload: {},
     });
     expect(res.statusCode).toBe(403);
   });
@@ -240,7 +299,10 @@ describe('GET /api/tournaments/public/:token — die Zuschauer-Ansicht', () => {
   });
 
   it('404 bei unbekanntem Token', async () => {
-    const res = await app.inject({ method: 'GET', url: `/api/tournaments/public/${'X'.repeat(32)}` });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/tournaments/public/${'X'.repeat(32)}`,
+    });
     expect(res.statusCode).toBe(404);
   });
 
@@ -271,7 +333,10 @@ describe('GET /api/tournaments/public/:token — die Zuschauer-Ansicht', () => {
   });
 
   it('unbekannter Token bekommt keinen QR', async () => {
-    const res = await app.inject({ method: 'GET', url: `/api/tournaments/public/${'X'.repeat(32)}/qr.svg` });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/tournaments/public/${'X'.repeat(32)}/qr.svg`,
+    });
     expect(res.statusCode).toBe(404);
   });
 

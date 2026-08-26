@@ -34,12 +34,18 @@ export function canViewTournament(tournament, user, isAdmin) {
 export function compareTournaments(a, b) {
   const order = (status) => {
     switch (status) {
-      case 'group_stage': return 0;
-      case 'ko_stage': return 1;
-      case 'generated': return 2;
-      case 'finished': return 3;
-      case 'draft': return 4;
-      default: return 5;
+      case 'group_stage':
+        return 0;
+      case 'ko_stage':
+        return 1;
+      case 'generated':
+        return 2;
+      case 'finished':
+        return 3;
+      case 'draft':
+        return 4;
+      default:
+        return 5;
     }
   };
   const oa = order(a.status);

@@ -441,7 +441,10 @@ describe('Pflicht-Test 3: Member POST /matches/:matchId/result', () => {
       status: 'open',
     });
     prisma.stage.findUnique.mockResolvedValue({
-      id: 's-ko', type: 'ko', name: 'K.-o.-Phase', orderIndex: 1,
+      id: 's-ko',
+      type: 'ko',
+      name: 'K.-o.-Phase',
+      orderIndex: 1,
     });
 
     const res = await app.inject({
@@ -475,10 +478,14 @@ describe('Pflicht-Test 3: Member POST /matches/:matchId/result', () => {
       loserAdvancesTo: null,
     });
     prisma.stage.findUnique.mockResolvedValue({
-      id: 's-ko', type: 'ko', name: 'K.-o.-Phase', orderIndex: 1,
+      id: 's-ko',
+      type: 'ko',
+      name: 'K.-o.-Phase',
+      orderIndex: 1,
     });
     prisma.match.update
-      .mockResolvedValueOnce({  // Update für m-sf-1 selbst
+      .mockResolvedValueOnce({
+        // Update für m-sf-1 selbst
         id: 'm-sf-1',
         tournamentId: tLive,
         stageId: 's-ko',
@@ -490,7 +497,8 @@ describe('Pflicht-Test 3: Member POST /matches/:matchId/result', () => {
         winnerAdvancesTo: 'm-f-1',
         loserAdvancesTo: null,
       })
-      .mockResolvedValueOnce({  // Propagation für m-f-1 (Finale)
+      .mockResolvedValueOnce({
+        // Propagation für m-f-1 (Finale)
         id: 'm-f-1',
         tournamentId: tLive,
         stageId: 's-ko',
@@ -511,17 +519,29 @@ describe('Pflicht-Test 3: Member POST /matches/:matchId/result', () => {
     prisma.match.findMany.mockResolvedValue([
       // m-sf-1 (gerade abgeschlossen) — hat winnerAdvancesTo gesetzt.
       {
-        id: 'm-sf-1', tournamentId: tLive, stageId: 's-ko',
-        teamHome: 'team-a', teamAway: 'team-b',
-        scoreHome: 2, scoreAway: 1, status: 'finished',
-        winnerAdvancesTo: 'm-f-1', loserAdvancesTo: null,
+        id: 'm-sf-1',
+        tournamentId: tLive,
+        stageId: 's-ko',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        scoreHome: 2,
+        scoreAway: 1,
+        status: 'finished',
+        winnerAdvancesTo: 'm-f-1',
+        loserAdvancesTo: null,
       },
       // m-f-1 (Finale, leer → wird durch Propagation gefüllt)
       {
-        id: 'm-f-1', tournamentId: tLive, stageId: 's-ko',
-        teamHome: null, teamAway: null,
-        scoreHome: null, scoreAway: null, status: 'open',
-        winnerAdvancesTo: null, loserAdvancesTo: null,
+        id: 'm-f-1',
+        tournamentId: tLive,
+        stageId: 's-ko',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        status: 'open',
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
       },
     ]);
 

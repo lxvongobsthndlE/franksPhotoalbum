@@ -48,19 +48,19 @@ export function renderRulesParagraphs(rules) {
   const visible = paragraphs.slice(0, MAX_PARAGRAPHS);
   const overflow = paragraphs.length - visible.length;
 
-  const body = visible
-    .map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
-    .join('');
+  const body = visible.map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
-  const overflowNote = overflow > 0
-    ? `<p class="t-rules-overflow-note">+${overflow} weitere Absätze ausgeblendet (Regelwerk zu lang für die Anzeige).</p>`
-    : '';
+  const overflowNote =
+    overflow > 0
+      ? `<p class="t-rules-overflow-note">+${overflow} weitere Absätze ausgeblendet (Regelwerk zu lang für die Anzeige).</p>`
+      : '';
 
   // Sanity-Warnung, falls jemand nahe am Backend-Limit ist und das
   // Frontend-Rendering langsam werden könnte. Reine UI-Hilfe.
-  const lengthNote = trimmed.length > MAX_LENGTH_SOFT
-    ? `<p class="t-rules-overflow-note">Hinweis: Das Regelwerk ist sehr lang (${trimmed.length} Zeichen). Ladezeiten können erhöht sein.</p>`
-    : '';
+  const lengthNote =
+    trimmed.length > MAX_LENGTH_SOFT
+      ? `<p class="t-rules-overflow-note">Hinweis: Das Regelwerk ist sehr lang (${trimmed.length} Zeichen). Ladezeiten können erhöht sein.</p>`
+      : '';
 
   return body + overflowNote + lengthNote;
 }

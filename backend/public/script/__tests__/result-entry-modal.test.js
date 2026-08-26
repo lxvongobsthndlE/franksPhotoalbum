@@ -140,7 +140,9 @@ describe('Ergebnis-Modal A5: die vier Verhaltensänderungen', () => {
     expect(modal).toMatch(/const firstField =/);
     expect(modal).toMatch(/if \(firstField\) firstField\.focus\(\);/);
     // Ist kein Spiel vorgegeben, gehört der Fokus ins Auswahlfeld.
-    expect(modal).toMatch(/mIdInput\.tagName === 'SELECT' \? mIdInput : dlg\.querySelector\('#re-home'\)/);
+    expect(modal).toMatch(
+      /mIdInput\.tagName === 'SELECT' \? mIdInput : dlg\.querySelector\('#re-home'\)/
+    );
   });
 
   it('3. Enter speichert', () => {
@@ -152,7 +154,9 @@ describe('Ergebnis-Modal A5: die vier Verhaltensänderungen', () => {
 
   it('4. Die Knöpfe stehen im Fussbereich, AUSSERHALB des <form>', () => {
     const foot = modal.slice(modal.indexOf('t-dialog-foot'));
-    expect(foot).toMatch(/<button type="button" class="t-btn" data-action="close">Abbrechen<\/button>/);
+    expect(foot).toMatch(
+      /<button type="button" class="t-btn" data-action="close">Abbrechen<\/button>/
+    );
     expect(foot).toMatch(/<button type="submit" form="result-entry-form"/);
     // Das </form> muss VOR dem Fussbereich stehen.
     expect(modal.indexOf('</form>')).toBeGreaterThan(0);

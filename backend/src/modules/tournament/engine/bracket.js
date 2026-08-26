@@ -154,25 +154,27 @@ export function buildBracket(qualifiers, opts = {}) {
     const [aSeed, bSeed] = finalPairs[i];
     const a = seed[aSeed];
     const b = seed[bSeed];
-    matches.push(patchLabel({
-      id: `ko_${roundKey}_${i + 1}`,
-      stageType: 'ko',
-      round: roundKey,
-      bracketType: 'winner',
-      bracketPos: i + 1,
-      teamHome: a?.isBye ? null : a?.teamId ?? null,
-      teamAway: b?.isBye ? null : b?.teamId ?? null,
-      placeholderHome: a?.isBye ? null : null,
-      placeholderAway: b?.isBye ? null : null,
-      homeSeed: aSeed,
-      awaySeed: bSeed,
-      homeGroup: a?.source?.groupKey ?? null,
-      awayGroup: b?.source?.groupKey ?? null,
-      isByeMatch: a?.isBye || b?.isBye,
-      isSkeleton: !hasQualifiers && !a?.isBye && !b?.isBye,
-      status: 'scheduled',
-      source: { pairIndex: i, original: basePairs[i] },
-    }));
+    matches.push(
+      patchLabel({
+        id: `ko_${roundKey}_${i + 1}`,
+        stageType: 'ko',
+        round: roundKey,
+        bracketType: 'winner',
+        bracketPos: i + 1,
+        teamHome: a?.isBye ? null : (a?.teamId ?? null),
+        teamAway: b?.isBye ? null : (b?.teamId ?? null),
+        placeholderHome: a?.isBye ? null : null,
+        placeholderAway: b?.isBye ? null : null,
+        homeSeed: aSeed,
+        awaySeed: bSeed,
+        homeGroup: a?.source?.groupKey ?? null,
+        awayGroup: b?.source?.groupKey ?? null,
+        isByeMatch: a?.isBye || b?.isBye,
+        isSkeleton: !hasQualifiers && !a?.isBye && !b?.isBye,
+        status: 'scheduled',
+        source: { pairIndex: i, original: basePairs[i] },
+      })
+    );
   }
 
   // Folge-Match-Verknüpfungen aufbauen
@@ -213,13 +215,20 @@ export function buildBracket(qualifiers, opts = {}) {
  */
 function roundKeyFor(bracketSize) {
   switch (bracketSize) {
-    case 2:  return 'F';
-    case 4:  return 'SF';
-    case 8:  return 'QF';
-    case 16: return 'R16';
-    case 32: return 'R32';
-    case 64: return 'R64';
-    default: return 'R' + bracketSize;
+    case 2:
+      return 'F';
+    case 4:
+      return 'SF';
+    case 8:
+      return 'QF';
+    case 16:
+      return 'R16';
+    case 32:
+      return 'R32';
+    case 64:
+      return 'R64';
+    default:
+      return 'R' + bracketSize;
   }
 }
 
@@ -426,22 +435,24 @@ function linkFollowers(firstRoundMatches, bracketSize, hasThird) {
         const thirdId = `ko_3RD_1`;
         m1.loserAdvancesTo = thirdId;
         m2.loserAdvancesTo = thirdId;
-        nextRound.push(patchLabel({
-          id: thirdId,
-          stageType: 'ko',
-          round: '3RD',
-          bracketType: 'winner',
-          bracketPos: 1,
-          teamHome: null,
-          teamAway: null,
-          placeholderHome: { type: 'match_loser', matchLabel: m1.labelForPlaceholder() },
-          placeholderAway: { type: 'match_loser', matchLabel: m2.labelForPlaceholder() },
-          homeSourceMatchId: m1.id,
-          awaySourceMatchId: m2.id,
-          status: 'scheduled',
-          homeGroup: null,
-          awayGroup: null,
-        }));
+        nextRound.push(
+          patchLabel({
+            id: thirdId,
+            stageType: 'ko',
+            round: '3RD',
+            bracketType: 'winner',
+            bracketPos: 1,
+            teamHome: null,
+            teamAway: null,
+            placeholderHome: { type: 'match_loser', matchLabel: m1.labelForPlaceholder() },
+            placeholderAway: { type: 'match_loser', matchLabel: m2.labelForPlaceholder() },
+            homeSourceMatchId: m1.id,
+            awaySourceMatchId: m2.id,
+            status: 'scheduled',
+            homeGroup: null,
+            awayGroup: null,
+          })
+        );
         nextRound.push(next);
       } else {
         nextRound.push(next);
@@ -459,14 +470,22 @@ function linkFollowers(firstRoundMatches, bracketSize, hasThird) {
 
 function nextRoundKeyOf(round) {
   switch (round) {
-    case 'R64': return 'R32';
-    case 'R32': return 'R16';
-    case 'R16': return 'QF';
-    case 'QF':  return 'SF';
-    case 'SF':  return 'F';
-    case 'F':   return null;
-    case '3RD': return null;
-    default:    return null;
+    case 'R64':
+      return 'R32';
+    case 'R32':
+      return 'R16';
+    case 'R16':
+      return 'QF';
+    case 'QF':
+      return 'SF';
+    case 'SF':
+      return 'F';
+    case 'F':
+      return null;
+    case '3RD':
+      return null;
+    default:
+      return null;
   }
 }
 
@@ -475,7 +494,7 @@ function patchLabel(m) {
     m.labelForPlaceholder = function () {
       const r = roundShort(m.round);
       if (m.round === '3RD') return 'Spiel um Platz 3';
-      if (m.round === 'F')   return 'Finale';
+      if (m.round === 'F') return 'Finale';
       if (r) return `${r} ${m.bracketPos}`;
       return 'Spiel';
     };
@@ -485,10 +504,15 @@ function patchLabel(m) {
 
 function roundShort(round) {
   switch (round) {
-    case 'R32': return 'SF';
-    case 'R16': return 'AF';
-    case 'QF':  return 'VF';
-    case 'SF':  return 'HF';
-    default:    return null;
+    case 'R32':
+      return 'SF';
+    case 'R16':
+      return 'AF';
+    case 'QF':
+      return 'VF';
+    case 'SF':
+      return 'HF';
+    default:
+      return null;
   }
 }

@@ -115,11 +115,19 @@ describe('applySpielplanFilter', () => {
   // scrollen musste, und eine Dublette zur Gruppen-Ansicht.
   const offenesGruppenspiel = makeMatch({ id: 'g-offen', isGroupMatch: true, isFinished: false });
   const beendetesGruppenspiel = makeMatch({
-    id: 'g-done', isGroupMatch: true, isFinished: true, scoreHome: 3, scoreAway: 1,
+    id: 'g-done',
+    isGroupMatch: true,
+    isFinished: true,
+    scoreHome: 3,
+    scoreAway: 1,
   });
   const laufendesKo = makeMatch({ id: 'ko-live', isKoMatch: true, isLive: true });
   const beendetesKo = makeMatch({
-    id: 'ko-done', isKoMatch: true, isFinished: true, scoreHome: 2, scoreAway: 0,
+    id: 'ko-done',
+    isKoMatch: true,
+    isFinished: true,
+    scoreHome: 2,
+    scoreAway: 0,
   });
   const alle = [offenesGruppenspiel, beendetesGruppenspiel, laufendesKo, beendetesKo];
 
@@ -150,8 +158,9 @@ describe('applySpielplanFilter', () => {
     // Ohne sie könnte ein Spiel in keinem Chip auftauchen und wäre nur noch
     // über „Alle" zu finden — schlimmer als ein fehlender Filter, weil man
     // es nicht bemerkt.
-    const teile = ['offen', 'laeuft', 'beendet']
-      .flatMap((f) => applySpielplanFilter(alle, f).map((m) => m.id));
+    const teile = ['offen', 'laeuft', 'beendet'].flatMap((f) =>
+      applySpielplanFilter(alle, f).map((m) => m.id)
+    );
     expect(teile.sort()).toEqual(alle.map((m) => m.id).sort());
     expect(new Set(teile).size).toBe(teile.length);
   });
@@ -187,7 +196,10 @@ describe('renderFilterChips', () => {
   });
 
   it('rendert KEINE Gruppen- oder Phasenfilter mehr', () => {
-    const groups = [{ id: 'g1', key: 'A' }, { id: 'g2', key: 'B' }];
+    const groups = [
+      { id: 'g1', key: 'A' },
+      { id: 'g2', key: 'B' },
+    ];
     const mitGruppen = [
       makeMatch({ id: 'm1', groupId: 'g1' }),
       makeMatch({ id: 'm2', groupId: 'g2' }),
@@ -219,20 +231,19 @@ describe('renderFilterChips', () => {
 
   it('genau EIN Chip ist aktiv', () => {
     const html = renderFilterChips(matches, [], 'laeuft');
-    expect((html.match(/is-active/g) || [])).toHaveLength(1);
+    expect(html.match(/is-active/g) || []).toHaveLength(1);
     expect(html).toMatch(/data-filter="laeuft"[^>]*aria-pressed="true"/);
-    expect((html.match(/aria-pressed="true"/g) || [])).toHaveLength(1);
+    expect(html.match(/aria-pressed="true"/g) || []).toHaveLength(1);
   });
 
   it('ein unbekannter Filter faellt auf „Alle" zurueck, nicht auf gar keinen', () => {
     const html = renderFilterChips(matches, [], 'g:A');
-    expect((html.match(/is-active/g) || [])).toHaveLength(1);
+    expect(html.match(/is-active/g) || []).toHaveLength(1);
     expect(html).toMatch(/data-filter="alle"[^>]*aria-pressed="true"/);
   });
 
   it('null/undefined Matches rendert ohne Crash', () => {
     expect(() => renderFilterChips(null, [], 'alle')).not.toThrow();
-
 
     expect(() => renderFilterChips(undefined, [], 'alle')).not.toThrow();
   });
@@ -251,7 +262,7 @@ describe('renderMatchCard', () => {
     const html = renderMatchCard(m, true);
     expect(html).toContain('data-match-id="m-1"');
     expect(html).toContain('t-match--done');
-        // Geschuetztes Leerzeichen zwischen "Platte" und der Nummer
+    // Geschuetztes Leerzeichen zwischen "Platte" und der Nummer
     // (2026-08-26, Fund von Jonas am iPhone SE): die Meta-Zeile darf
     // umbrechen, damit lange Feldnamen nicht abgeschnitten werden — sie
     // hat das genutzt und die Nummer auf eine eigene Zeile geschoben.
@@ -271,10 +282,14 @@ describe('renderMatchCard', () => {
     expect(html).toContain('data-area="away-score">1<');
     expect(html).not.toContain('3 : 1');
     // Heim hat gewonnen (3 > 1)
-    expect(html).toMatch(/<div class="t-match-team is-winner">[^<]*<i class="t-dot"[^>]*><\/i><span class="name">Heim<\/span><\/div>/);
+    expect(html).toMatch(
+      /<div class="t-match-team is-winner">[^<]*<i class="t-dot"[^>]*><\/i><span class="name">Heim<\/span><\/div>/
+    );
     // A2 Redesign: beide Teams haben jetzt den Dot LINKS (Indikator),
     // einheitlich — auch Away, kein nachgestellter Dot mehr.
-    expect(html).toMatch(/<div class="t-match-team right"><i class="t-dot"[^>]*><\/i><span class="name">Gast<\/span><\/div>/);
+    expect(html).toMatch(
+      /<div class="t-match-team right"><i class="t-dot"[^>]*><\/i><span class="name">Gast<\/span><\/div>/
+    );
   });
 
   it('Auswärts-Sieger wird rechts hervorgehoben', () => {
@@ -343,13 +358,19 @@ describe('renderMatchCard', () => {
   });
 
   it('Member + beendet → Text "Beendet" (kein Button)', () => {
-    const html = renderMatchCard(makeMatch({ isFinished: true, scoreHome: 3, scoreAway: 1 }), false);
+    const html = renderMatchCard(
+      makeMatch({ isFinished: true, scoreHome: 3, scoreAway: 1 }),
+      false
+    );
     expect(html).toContain('>Beendet</span>');
     expect(html).not.toContain('data-action="enter-result"');
   });
 
   it('Member + !beendet + m.sub → zeigt sub-Text', () => {
-    const html = renderMatchCard(makeMatch({ isFinished: false, sub: 'Gruppenspiel A · 1. Spieltag' }), false);
+    const html = renderMatchCard(
+      makeMatch({ isFinished: false, sub: 'Gruppenspiel A · 1. Spieltag' }),
+      false
+    );
     expect(html).toContain('Gruppenspiel A · 1. Spieltag');
     expect(html).not.toContain('data-action="enter-result"');
   });
@@ -431,11 +452,7 @@ describe('renderMatchList', () => {
   });
 
   it('n Matches → n Match-Karten (Admin: Button enthält auch data-match-id)', () => {
-    const matches = [
-      makeMatch({ id: 'm1' }),
-      makeMatch({ id: 'm2' }),
-      makeMatch({ id: 'm3' }),
-    ];
+    const matches = [makeMatch({ id: 'm1' }), makeMatch({ id: 'm2' }), makeMatch({ id: 'm3' })];
     const html = renderMatchList(matches, true);
     // Pro Karte: 1x am .t-match + 1x am Enter-Result-Button = 2
     expect((html.match(/data-match-id=/g) || []).length).toBe(6);
@@ -484,7 +501,12 @@ describe('renderAsideNext', () => {
 describe('renderAsideTables', () => {
   it('Plattenbelegung: nächste 6 offenen Spiele mit field', () => {
     const matches = Array.from({ length: 8 }, (_, i) =>
-      makeMatch({ id: `m${i}`, isFinished: false, field: (i % 3) + 1, scheduledTime: `${10 + i}:00` })
+      makeMatch({
+        id: `m${i}`,
+        isFinished: false,
+        field: (i % 3) + 1,
+        scheduledTime: `${10 + i}:00`,
+      })
     );
     const html = renderAsideTables(matches);
     expect(html).toContain('<ul class="t-aside-list">');
@@ -539,13 +561,68 @@ describe('renderBestThirdsTable — Hint-Text (P6)', () => {
   // weniger verwirrend als ein bedingter Text.
 
   const mixedRows = [
-    { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
-    { name: 'B1', groupKey: 'B', played: 2, won: 1, drawn: 1, lost: 0, goalsFor: 4, goalsAgainst: 2, points: 4, qualifies: true },
+    {
+      name: 'A1',
+      groupKey: 'A',
+      played: 3,
+      won: 2,
+      drawn: 0,
+      lost: 1,
+      goalsFor: 6,
+      goalsAgainst: 4,
+      points: 6,
+      qualifies: true,
+    },
+    {
+      name: 'B1',
+      groupKey: 'B',
+      played: 2,
+      won: 1,
+      drawn: 1,
+      lost: 0,
+      goalsFor: 4,
+      goalsAgainst: 2,
+      points: 4,
+      qualifies: true,
+    },
   ];
   const equalRows = [
-    { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
-    { name: 'B1', groupKey: 'B', played: 3, won: 1, drawn: 1, lost: 1, goalsFor: 5, goalsAgainst: 4, points: 4, qualifies: false },
-    { name: 'C1', groupKey: 'C', played: 3, won: 0, drawn: 2, lost: 1, goalsFor: 3, goalsAgainst: 5, points: 2, qualifies: false },
+    {
+      name: 'A1',
+      groupKey: 'A',
+      played: 3,
+      won: 2,
+      drawn: 0,
+      lost: 1,
+      goalsFor: 6,
+      goalsAgainst: 4,
+      points: 6,
+      qualifies: true,
+    },
+    {
+      name: 'B1',
+      groupKey: 'B',
+      played: 3,
+      won: 1,
+      drawn: 1,
+      lost: 1,
+      goalsFor: 5,
+      goalsAgainst: 4,
+      points: 4,
+      qualifies: false,
+    },
+    {
+      name: 'C1',
+      groupKey: 'C',
+      played: 3,
+      won: 0,
+      drawn: 2,
+      lost: 1,
+      goalsFor: 3,
+      goalsAgainst: 5,
+      points: 2,
+      qualifies: false,
+    },
   ];
 
   it('mixedGroupSizes zeigt IMMER den kompakten Hinweis "Gewertet wird nach Punkten pro Spiel."', () => {
@@ -571,7 +648,18 @@ describe('renderBestThirdsTable — Spalten-Markup (P2)', () => {
   // + CSS-Container-Query, die unkritische Spalten ausblendet.
 
   const rows = [
-    { name: 'A1', groupKey: 'A', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 6, goalsAgainst: 4, points: 6, qualifies: true },
+    {
+      name: 'A1',
+      groupKey: 'A',
+      played: 3,
+      won: 2,
+      drawn: 0,
+      lost: 1,
+      goalsFor: 6,
+      goalsAgainst: 4,
+      points: 6,
+      qualifies: true,
+    },
   ];
 
   it('jedes TH (außer Team) hat data-col-Attribut', () => {
@@ -602,8 +690,20 @@ describe('renderBestThirdsTable — Spalten-Markup (P2)', () => {
     expect(cols.length).toBe(10);
     // Ausblendbare Spalten (CSS-seitig): played, won, drawn, lost, score
     // Sichtbare: pl, group, points (+ Team als auto)
-    const thCols = (html.match(/<th[^>]*data-col="([^"]+)"/g) || []).map((s) => s.match(/data-col="([^"]+)"/)[1]);
-    expect(thCols).toEqual(['pl', 'group', 'played', 'won', 'drawn', 'lost', 'score', 'diff', 'points']);
+    const thCols = (html.match(/<th[^>]*data-col="([^"]+)"/g) || []).map(
+      (s) => s.match(/data-col="([^"]+)"/)[1]
+    );
+    expect(thCols).toEqual([
+      'pl',
+      'group',
+      'played',
+      'won',
+      'drawn',
+      'lost',
+      'score',
+      'diff',
+      'points',
+    ]);
   });
 });
 
@@ -629,12 +729,22 @@ describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => 
 
   const sample = {
     qualifyCount: 1,
-    rows: [{
-      teamId: 't1', name: 'Team X', groupKey: 'A',
-      played: 3, won: 2, drawn: 0, lost: 1,
-      goalsFor: 12, goalsAgainst: 10, goalDiff: 2, points: 6,
-      qualifies: true,
-    }],
+    rows: [
+      {
+        teamId: 't1',
+        name: 'Team X',
+        groupKey: 'A',
+        played: 3,
+        won: 2,
+        drawn: 0,
+        lost: 1,
+        goalsFor: 12,
+        goalsAgainst: 10,
+        goalDiff: 2,
+        points: 6,
+        qualifies: true,
+      },
+    ],
   };
 
   it('Desktop: 10 Colgroup-Spalten', () => {
@@ -653,10 +763,10 @@ describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => 
     // Standings-Tabelle, und Team+Gr. hier ist so breit wie Team+Sp. dort
     // (44+12 = 42+14 = 56). Damit stehen die rechten Kanten beider
     // Tabellen uebereinander. Becher ist mobil seit 26.08. weg.
-    expect(html).toContain('width:14%');  // Pl.
-    expect(html).toContain('width:44%');  // Team
-    expect(html).toContain('width:12%');  // Gr. (ein Buchstabe)
-    expect(html).toContain('width:15%');  // Diff + Pkt.
+    expect(html).toContain('width:14%'); // Pl.
+    expect(html).toContain('width:44%'); // Team
+    expect(html).toContain('width:12%'); // Gr. (ein Buchstabe)
+    expect(html).toContain('width:15%'); // Diff + Pkt.
     // Die alten Werte gehoerten zum verschobenen 7er-Set. Zweimal ist
     // hier inzwischen ein Wert von der Liste geflogen, weil er legitim
     // wurde: 8% am 25.08., 12% am 26.08. (beides die Gruppen-Spalte).

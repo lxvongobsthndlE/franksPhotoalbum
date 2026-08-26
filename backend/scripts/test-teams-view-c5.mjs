@@ -20,13 +20,11 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find((t) => t.type === 'page'
-    && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0 && !page; i < 25; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find((t) => t.type === 'page'
-      && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -45,13 +43,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -62,8 +63,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text
-      + ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -87,7 +87,7 @@ async function runTests() {
   await sleep(800);
 
   for (let i = 0; i < 50; i++) {
-    const ready = (await evalPage(send, () => window.__tReady === true));
+    const ready = await evalPage(send, () => window.__tReady === true);
     if (ready) break;
     await sleep(100);
   }
@@ -110,26 +110,21 @@ async function runTests() {
     summaryText: document.querySelector('.t-teams-summary')?.textContent ?? '',
     summaryState: document.querySelector('.t-teams-summary')?.dataset?.state,
     titleText: document.querySelector('.t-teams-title')?.textContent,
-    firstNameInput: document.querySelector(
-      '.t-teams-row .t-teams-name-input'
-    )?.value,
-    firstColorInput: document.querySelector(
-      '.t-teams-row .t-teams-color-input'
-    )?.value,
-    resetButtons: document.querySelectorAll(
-      '.t-teams-row .t-btn--ghost'
-    ).length,
+    firstNameInput: document.querySelector('.t-teams-row .t-teams-name-input')?.value,
+    firstColorInput: document.querySelector('.t-teams-row .t-teams-color-input')?.value,
+    resetButtons: document.querySelectorAll('.t-teams-row .t-btn--ghost').length,
   }));
-  expect(initial.rows === 12,
-    `12 Teams gerendert (real: ${initial.rows})`);
-  expect(initial.titleText === 'Teams (12)',
-    `Titel "Teams (12)" (real: "${initial.titleText}")`);
-  expect(initial.firstNameInput === 'Rakija Boys',
-    `Erstes Team: "Rakija Boys" (real: "${initial.firstNameInput}")`);
-  expect(/^#[0-9A-F]{6}$/i.test(initial.firstColorInput),
-    `Color-Input hat Wert (real: ${initial.firstColorInput})`);
-  expect(initial.resetButtons === 12,
-    `12 Reset-Buttons (real: ${initial.resetButtons})`);
+  expect(initial.rows === 12, `12 Teams gerendert (real: ${initial.rows})`);
+  expect(initial.titleText === 'Teams (12)', `Titel "Teams (12)" (real: "${initial.titleText}")`);
+  expect(
+    initial.firstNameInput === 'Rakija Boys',
+    `Erstes Team: "Rakija Boys" (real: "${initial.firstNameInput}")`
+  );
+  expect(
+    /^#[0-9A-F]{6}$/i.test(initial.firstColorInput),
+    `Color-Input hat Wert (real: ${initial.firstColorInput})`
+  );
+  expect(initial.resetButtons === 12, `12 Reset-Buttons (real: ${initial.resetButtons})`);
 
   // ----------------------------------------------------------------
   // Test 2: Name ändern + change → PATCH + ✓ + Sammelanzeige OK
@@ -137,9 +132,7 @@ async function runTests() {
   console.log('\n--- Test 2: Name-Change → PATCH → ✓ ---');
 
   await evalPage(send, () => {
-    const input = document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[0];
+    const input = document.querySelectorAll('.t-teams-row .t-teams-name-input')[0];
     input.focus();
     input.value = 'Rakija Boys Neu';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -148,24 +141,19 @@ async function runTests() {
   await sleep(300);
 
   const afterName = await evalPage(send, () => ({
-    rowState: document.querySelector(
-      '.t-teams-row[data-team-id="team-01"]'
-    )?.dataset?.rowState,
-    status: document.querySelector(
-      '.t-teams-row[data-team-id="team-01"] .t-teams-row-status'
-    )?.textContent,
+    rowState: document.querySelector('.t-teams-row[data-team-id="team-01"]')?.dataset?.rowState,
+    status: document.querySelector('.t-teams-row[data-team-id="team-01"] .t-teams-row-status')
+      ?.textContent,
     summaryState: document.querySelector('.t-teams-summary')?.dataset?.state,
     summaryText: document.querySelector('.t-teams-summary')?.textContent,
-    inputValue: document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[0]?.value,
+    inputValue: document.querySelectorAll('.t-teams-row .t-teams-name-input')[0]?.value,
   }));
-  expect(afterName.rowState === 'ok',
-    `Zeile 1: rowState="ok" (real: "${afterName.rowState}")`);
-  expect(afterName.status === '✓',
-    `Zeile 1: Status "✓" (real: "${afterName.status}")`);
-  expect(afterName.inputValue === 'Rakija Boys Neu',
-    `Input zeigt neuen Wert (real: "${afterName.inputValue}")`);
+  expect(afterName.rowState === 'ok', `Zeile 1: rowState="ok" (real: "${afterName.rowState}")`);
+  expect(afterName.status === '✓', `Zeile 1: Status "✓" (real: "${afterName.status}")`);
+  expect(
+    afterName.inputValue === 'Rakija Boys Neu',
+    `Input zeigt neuen Wert (real: "${afterName.inputValue}")`
+  );
 
   // ----------------------------------------------------------------
   // Test 3: Fokus bleibt erhalten
@@ -173,9 +161,7 @@ async function runTests() {
   console.log('\n--- Test 3: Fokus bleibt erhalten ---');
 
   const focusState = await evalPage(send, () => {
-    const input = document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[0];
+    const input = document.querySelectorAll('.t-teams-row .t-teams-name-input')[0];
     return {
       isFocused: document.activeElement === input,
       focusedValue: document.activeElement?.value,
@@ -184,8 +170,10 @@ async function runTests() {
   // Fokus kann nach blur() auch weg sein — wir prüfen, dass die
   // Input-Wert-Stabilität gegeben ist und KEIN Re-Render den DOM
   // neu aufgebaut hat.
-  expect(focusState.focusedValue === 'Rakija Boys Neu' || focusState.isFocused,
-    `Input nicht durch Re-Render ersetzt (focused="${focusState.focusedValue}")`);
+  expect(
+    focusState.focusedValue === 'Rakija Boys Neu' || focusState.isFocused,
+    `Input nicht durch Re-Render ersetzt (focused="${focusState.focusedValue}")`
+  );
 
   // ----------------------------------------------------------------
   // Test 4: Color-Change
@@ -193,21 +181,16 @@ async function runTests() {
   console.log('\n--- Test 4: Color-Change → PATCH ---');
 
   await evalPage(send, () => {
-    const color = document.querySelectorAll(
-      '.t-teams-row .t-teams-color-input'
-    )[1]; // Team 2
+    const color = document.querySelectorAll('.t-teams-row .t-teams-color-input')[1]; // Team 2
     color.value = '#ff00aa';
     color.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await sleep(300);
 
   const afterColor = await evalPage(send, () => ({
-    rowState: document.querySelector(
-      '.t-teams-row[data-team-id="team-02"]'
-    )?.dataset?.rowState,
+    rowState: document.querySelector('.t-teams-row[data-team-id="team-02"]')?.dataset?.rowState,
   }));
-  expect(afterColor.rowState === 'ok',
-    `Zeile 2: rowState="ok" (real: "${afterColor.rowState}")`);
+  expect(afterColor.rowState === 'ok', `Zeile 2: rowState="ok" (real: "${afterColor.rowState}")`);
 
   // ----------------------------------------------------------------
   // Test 5: Zwei schnelle Änderungen am gleichen Team
@@ -217,9 +200,7 @@ async function runTests() {
   console.log('\n--- Test 5: Zwei schnelle Änderungen (kein Überschreiben) ---');
 
   await evalPage(send, () => {
-    const input = document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[2]; // Team 3
+    const input = document.querySelectorAll('.t-teams-row .t-teams-name-input')[2]; // Team 3
     input.focus();
     input.value = 'Kubb Küken A';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -232,17 +213,14 @@ async function runTests() {
   await sleep(500);
 
   const afterDouble = await evalPage(send, () => ({
-    rowState: document.querySelector(
-      '.t-teams-row[data-team-id="team-03"]'
-    )?.dataset?.rowState,
-    finalValue: document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[2]?.value,
+    rowState: document.querySelector('.t-teams-row[data-team-id="team-03"]')?.dataset?.rowState,
+    finalValue: document.querySelectorAll('.t-teams-row .t-teams-name-input')[2]?.value,
   }));
-  expect(afterDouble.finalValue === 'Kubb Küken B',
-    `Letzter Wert gewinnt (real: "${afterDouble.finalValue}")`);
-  expect(afterDouble.rowState === 'ok',
-    `Zeile 3: rowState="ok" (real: "${afterDouble.rowState}")`);
+  expect(
+    afterDouble.finalValue === 'Kubb Küken B',
+    `Letzter Wert gewinnt (real: "${afterDouble.finalValue}")`
+  );
+  expect(afterDouble.rowState === 'ok', `Zeile 3: rowState="ok" (real: "${afterDouble.rowState}")`);
 
   // ----------------------------------------------------------------
   // Test 6: Duplikat-Name → 409 → ⚠ + Rollback des Input-Werts
@@ -255,42 +233,38 @@ async function runTests() {
     return document.querySelectorAll('.t-teams-row .t-teams-name-input')[3]?.value;
   });
 
-  await evalPage(send, (dupName) => {
-    const input = document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[0];
-    input.focus();
-    input.value = dupName;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, team4Name);
+  await evalPage(
+    send,
+    (dupName) => {
+      const input = document.querySelectorAll('.t-teams-row .t-teams-name-input')[0];
+      input.focus();
+      input.value = dupName;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    team4Name
+  );
   await sleep(300);
 
   const afterDup = await evalPage(send, () => ({
-    rowState: document.querySelector(
-      '.t-teams-row[data-team-id="team-01"]'
-    )?.dataset?.rowState,
-    status: document.querySelector(
-      '.t-teams-row[data-team-id="team-01"] .t-teams-row-status'
-    )?.textContent,
-    inputValue: document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[0]?.value,
+    rowState: document.querySelector('.t-teams-row[data-team-id="team-01"]')?.dataset?.rowState,
+    status: document.querySelector('.t-teams-row[data-team-id="team-01"] .t-teams-row-status')
+      ?.textContent,
+    inputValue: document.querySelectorAll('.t-teams-row .t-teams-name-input')[0]?.value,
     summaryState: document.querySelector('.t-teams-summary')?.dataset?.state,
-    retryButtonExists: !!document.querySelector(
-      '.t-teams-summary button'
-    ),
+    retryButtonExists: !!document.querySelector('.t-teams-summary button'),
   }));
-  expect(afterDup.rowState === 'err',
-    `Zeile 1: rowState="err" (real: "${afterDup.rowState}")`);
-  expect(afterDup.status === '⚠',
-    `Zeile 1: Status "⚠" (real: "${afterDup.status}")`);
-  expect(afterDup.inputValue === 'Rakija Boys Neu',
-    `Input zurückgesetzt auf Original (real: "${afterDup.inputValue}")`);
-  expect(afterDup.summaryState === 'err',
-    `Sammelanzeige: state="err" (real: "${afterDup.summaryState}")`);
-  expect(afterDup.retryButtonExists,
-    `Retry-Button sichtbar`);
+  expect(afterDup.rowState === 'err', `Zeile 1: rowState="err" (real: "${afterDup.rowState}")`);
+  expect(afterDup.status === '⚠', `Zeile 1: Status "⚠" (real: "${afterDup.status}")`);
+  expect(
+    afterDup.inputValue === 'Rakija Boys Neu',
+    `Input zurückgesetzt auf Original (real: "${afterDup.inputValue}")`
+  );
+  expect(
+    afterDup.summaryState === 'err',
+    `Sammelanzeige: state="err" (real: "${afterDup.summaryState}")`
+  );
+  expect(afterDup.retryButtonExists, `Retry-Button sichtbar`);
 
   // ----------------------------------------------------------------
   // Test 7: Reset-Button (Farbe zurücksetzen auf null)
@@ -303,12 +277,12 @@ async function runTests() {
   await sleep(200);
 
   const afterReset = await evalPage(send, () => ({
-    rowState: document.querySelector(
-      '.t-teams-row[data-team-id="team-05"]'
-    )?.dataset?.rowState,
+    rowState: document.querySelector('.t-teams-row[data-team-id="team-05"]')?.dataset?.rowState,
   }));
-  expect(afterReset.rowState === 'ok',
-    `Zeile 5 nach Reset: rowState="ok" (real: "${afterReset.rowState}")`);
+  expect(
+    afterReset.rowState === 'ok',
+    `Zeile 5 nach Reset: rowState="ok" (real: "${afterReset.rowState}")`
+  );
 
   // ----------------------------------------------------------------
   // Test 8: Retry-Button — wir provozieren einen zweiten Fehler
@@ -321,15 +295,17 @@ async function runTests() {
     return document.querySelectorAll('.t-teams-row .t-teams-name-input')[0]?.value;
   });
 
-  await evalPage(send, (dupName) => {
-    const input = document.querySelectorAll(
-      '.t-teams-row .t-teams-name-input'
-    )[1];
-    input.focus();
-    input.value = dupName;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, team1Name);
+  await evalPage(
+    send,
+    (dupName) => {
+      const input = document.querySelectorAll('.t-teams-row .t-teams-name-input')[1];
+      input.focus();
+      input.value = dupName;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    team1Name
+  );
   await sleep(300);
 
   // Jetzt den Retry-Button drücken. Aber Achtung: der gleiche Patch
@@ -340,10 +316,11 @@ async function runTests() {
     summaryState: document.querySelector('.t-teams-summary')?.dataset?.state,
     retryButton: !!document.querySelector('.t-teams-summary button'),
   }));
-  expect(beforeRetry.summaryState === 'err',
-    `Vor Retry: state="err" (real: "${beforeRetry.summaryState}")`);
-  expect(beforeRetry.retryButton,
-    `Retry-Button vorhanden`);
+  expect(
+    beforeRetry.summaryState === 'err',
+    `Vor Retry: state="err" (real: "${beforeRetry.summaryState}")`
+  );
+  expect(beforeRetry.retryButton, `Retry-Button vorhanden`);
 
   console.log('\n=== Fertig. Exit-Code:', process.exitCode || 0, '===');
   s.ws.close();

@@ -25,7 +25,7 @@ function seedFromString(str) {
 function mulberry32(seed) {
   let s = seed >>> 0;
   return () => {
-    s = (s + 0x6D2B79F5) >>> 0;
+    s = (s + 0x6d2b79f5) >>> 0;
     let t = s;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -58,14 +58,15 @@ export function distributeTeamsIntoGroups(teams, numGroups, opts = {}) {
   }
   if (teams.length < numGroups) {
     throw new Error(
-      `distributeTeamsIntoGroups: weniger Teams (${teams.length}) als Gruppen (${numGroups})`,
+      `distributeTeamsIntoGroups: weniger Teams (${teams.length}) als Gruppen (${numGroups})`
     );
   }
 
   const method = opts.method ?? 'snake';
-  const seed = typeof opts.seed === 'string'
-    ? seedFromString(opts.seed)
-    : (opts.seed ?? seedFromString('default'));
+  const seed =
+    typeof opts.seed === 'string'
+      ? seedFromString(opts.seed)
+      : (opts.seed ?? seedFromString('default'));
 
   const groups = Array.from({ length: numGroups }, () => []);
 

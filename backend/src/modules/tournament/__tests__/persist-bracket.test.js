@@ -133,15 +133,11 @@ function createMemoryPrisma() {
             (s) => s.tournamentId === where.tournamentId
           );
           const stageIds = new Set(stagesToDelete.map((s) => s.id));
-          const orphanGroups = [...state.groups.values()].filter((g) =>
-            stageIds.has(g.stageId)
-          );
+          const orphanGroups = [...state.groups.values()].filter((g) => stageIds.has(g.stageId));
           const orphanGroupIds = new Set(orphanGroups.map((g) => g.id));
           for (const id of stageIds) state.stages.delete(id);
           for (const id of orphanGroupIds) state.groups.delete(id);
-          state.memberships = state.memberships.filter(
-            (m) => !orphanGroupIds.has(m.groupId)
-          );
+          state.memberships = state.memberships.filter((m) => !orphanGroupIds.has(m.groupId));
           for (const [id, m] of state.matches) {
             if (orphanGroupIds.has(m.groupId) || stageIds.has(m.stageId)) {
               state.matches.delete(id);
@@ -202,11 +198,13 @@ function createMemoryPrisma() {
         return updated;
       },
       findFirst: async ({ where }) => {
-        return [...state.matches.values()].find((m) => {
-          if (where.id && m.id !== where.id) return false;
-          if (where.tournamentId && m.tournamentId !== where.tournamentId) return false;
-          return true;
-        }) ?? null;
+        return (
+          [...state.matches.values()].find((m) => {
+            if (where.id && m.id !== where.id) return false;
+            if (where.tournamentId && m.tournamentId !== where.tournamentId) return false;
+            return true;
+          }) ?? null
+        );
       },
       findMany: async ({ where }) => {
         return [...state.matches.values()].filter((m) => {

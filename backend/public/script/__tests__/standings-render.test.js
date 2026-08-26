@@ -30,20 +30,38 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
         {
           teamId: 't1',
           name: 'Team Alpha',
-          played: 3, won: 3, drawn: 0, lost: 0,
-          goalsFor: 9, goalsAgainst: 2, goalDiff: 7, points: 9,
+          played: 3,
+          won: 3,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 9,
+          goalsAgainst: 2,
+          goalDiff: 7,
+          points: 9,
         },
         {
           teamId: 't2',
           name: 'Team Beta',
-          played: 3, won: 1, drawn: 0, lost: 2,
-          goalsFor: 5, goalsAgainst: 6, goalDiff: -1, points: 3,
+          played: 3,
+          won: 1,
+          drawn: 0,
+          lost: 2,
+          goalsFor: 5,
+          goalsAgainst: 6,
+          goalDiff: -1,
+          points: 3,
         },
         {
           teamId: 't3',
           name: 'Team Gamma',
-          played: 2, won: 0, drawn: 1, lost: 1,
-          goalsFor: 2, goalsAgainst: 8, goalDiff: -6, points: 1,
+          played: 2,
+          won: 0,
+          drawn: 1,
+          lost: 1,
+          goalsFor: 2,
+          goalsAgainst: 8,
+          goalDiff: -6,
+          points: 1,
         },
       ],
     },
@@ -63,7 +81,7 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     const header = headerMatch[0];
     // Reihenfolge der th-Labels (mit Ausrichtungs-Klassen + data-col):
     expect(header).toMatch(
-      /<th class="is-rank"\s+data-col="pl">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-num"\s+data-col="played">Sp\.<\/th>[\s\S]*<th class="is-num"\s+data-col="won">S<\/th>[\s\S]*<th class="is-num"\s+data-col="drawn">U<\/th>[\s\S]*<th class="is-num"\s+data-col="lost">N<\/th>[\s\S]*<th class="is-num"\s+data-col="score">Becher<\/th>[\s\S]*<th class="is-num"\s+data-col="diff">Diff<\/th>[\s\S]*<th class="is-num"\s+data-col="points">Pkt\.<\/th>/,
+      /<th class="is-rank"\s+data-col="pl">Pl\.<\/th>[\s\S]*<th class="is-team">Team<\/th>[\s\S]*<th class="is-num"\s+data-col="played">Sp\.<\/th>[\s\S]*<th class="is-num"\s+data-col="won">S<\/th>[\s\S]*<th class="is-num"\s+data-col="drawn">U<\/th>[\s\S]*<th class="is-num"\s+data-col="lost">N<\/th>[\s\S]*<th class="is-num"\s+data-col="score">Becher<\/th>[\s\S]*<th class="is-num"\s+data-col="diff">Diff<\/th>[\s\S]*<th class="is-num"\s+data-col="points">Pkt\.<\/th>/
     );
   });
 
@@ -138,7 +156,9 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     const html = renderStandingsGroups(fixture, 'Tore');
     expect(html).toMatch(/<th class="is-num"\s+data-col="score">Tore<\/th>/);
     // Sicherstellen: Spalte 3 hat NICHT das Score-Label.
-    expect(html).not.toMatch(/<th class="is-num"\s+data-col="score">Tore<\/th><th class="is-num"\s+data-col="won">S<\/th>/);
+    expect(html).not.toMatch(
+      /<th class="is-num"\s+data-col="score">Tore<\/th><th class="is-num"\s+data-col="won">S<\/th>/
+    );
   });
 
   it('P5 Re-Fix: alle TH/TD außer Team tragen data-col (für mobile Spalten-Hide)', () => {
@@ -164,7 +184,7 @@ describe('renderStandingsGroups — Edge cases', () => {
   it('leere Gruppe rendert nur Tabelle ohne Body', () => {
     const html = renderStandingsGroups(
       [{ groupKey: 'B', groupName: 'Gruppe B', standings: [] }],
-      'Becher',
+      'Becher'
     );
     expect(html).toContain('<tbody></tbody>');
     expect(html).toContain('Gruppe B');
@@ -173,7 +193,7 @@ describe('renderStandingsGroups — Edge cases', () => {
   it('fehlende Felder werden mit 0 ersetzt (nie undefined)', () => {
     const html = renderStandingsGroups(
       [{ groupKey: 'X', standings: [{ teamId: 't1', name: 'Solo' }] }],
-      'Becher',
+      'Becher'
     );
     // Alle numerischen Spalten sollen "0" zeigen, nicht "undefined".
     expect(html).not.toContain('undefined');
@@ -185,7 +205,7 @@ describe('renderStandingsGroups — Edge cases', () => {
   it('Score-Label „Punkte" für sonstige Sportarten', () => {
     const html = renderStandingsGroups(
       [{ groupKey: 'X', standings: [{ teamId: 't1', name: 'A', points: 5 }] }],
-      'Punkte',
+      'Punkte'
     );
     expect(html).toMatch(/<th class="is-num"\s+data-col="score">Punkte<\/th>/);
   });
@@ -198,7 +218,7 @@ describe('renderStandingsGroups — Edge cases', () => {
           standings: [{ teamId: 't1', name: 'Team <script>alert(1)</script>' }],
         },
       ],
-      'Becher',
+      'Becher'
     );
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
@@ -218,14 +238,26 @@ describe('renderStandingsGroups — Edge cases', () => {
 describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => {
   beforeEach(() => setCompactMode(false)); // jeder Test startet mit Desktop
 
-  const sample = [{
-    groupKey: 'A', groupName: 'Gruppe A',
-    standings: [{
-      teamId: 't1', name: 'Team Alpha',
-      played: 3, won: 3, drawn: 0, lost: 0,
-      goalsFor: 12, goalsAgainst: 10, goalDiff: 2, points: 9,
-    }],
-  }];
+  const sample = [
+    {
+      groupKey: 'A',
+      groupName: 'Gruppe A',
+      standings: [
+        {
+          teamId: 't1',
+          name: 'Team Alpha',
+          played: 3,
+          won: 3,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 12,
+          goalsAgainst: 10,
+          goalDiff: 2,
+          points: 9,
+        },
+      ],
+    },
+  ];
 
   it('Desktop-Mode: 9 Colgroup-Spalten (6% + auto + 8% + 7% + 7% + 7% + 12% + 9% + 9%)', () => {
     setCompactMode(false);
@@ -304,54 +336,79 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
 // ─────────────────────────────────────────────────────────────────
 
 describe('renderStandingsGroups — Qualifikationszustaende', () => {
-  const g = (n) => ([{
-    groupKey: 'A', groupName: 'Gruppe A',
-    standings: Array.from({ length: n }, (_, i) => ({
-      teamId: 't' + i, name: 'Team ' + i,
-      played: 3, won: 3 - i, drawn: 0, lost: i,
-      goalsFor: 10 - i, goalsAgainst: i, goalDiff: 10 - 2 * i, points: 9 - 3 * i,
-    })),
-  }]);
+  const g = (n) => [
+    {
+      groupKey: 'A',
+      groupName: 'Gruppe A',
+      standings: Array.from({ length: n }, (_, i) => ({
+        teamId: 't' + i,
+        name: 'Team ' + i,
+        played: 3,
+        won: 3 - i,
+        drawn: 0,
+        lost: i,
+        goalsFor: 10 - i,
+        goalsAgainst: i,
+        goalDiff: 10 - 2 * i,
+        points: 9 - 3 * i,
+      })),
+    },
+  ];
   const rowClasses = (html) =>
     [...html.matchAll(/<tr class="t-standings-row([^"]*)"/g)].map((m) => m[1].trim());
 
   it('qualifyPerGroup=1: nur Platz 1, und der fuehrt', () => {
-    expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 1)))
-      .toEqual(['is-lead', '', '', '']);
+    expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 1))).toEqual(['is-lead', '', '', '']);
   });
 
   it('qualifyPerGroup=2: Platz 1 fuehrt, Platz 2 ist qualifiziert', () => {
-    expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 2)))
-      .toEqual(['is-lead', 'is-qualified', '', '']);
+    expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 2))).toEqual([
+      'is-lead',
+      'is-qualified',
+      '',
+      '',
+    ]);
   });
 
   it('qualifyPerGroup=3: drei Baender, nur das erste in Orange', () => {
-    expect(rowClasses(renderStandingsGroups(g(5), 'Becher', 3)))
-      .toEqual(['is-lead', 'is-qualified', 'is-qualified', '', '']);
+    expect(rowClasses(renderStandingsGroups(g(5), 'Becher', 3))).toEqual([
+      'is-lead',
+      'is-qualified',
+      'is-qualified',
+      '',
+      '',
+    ]);
   });
 
   it('ohne Angabe faellt es auf 2 zurueck — bisheriges Verhalten bleibt', () => {
-    expect(rowClasses(renderStandingsGroups(g(3), 'Becher')))
-      .toEqual(rowClasses(renderStandingsGroups(g(3), 'Becher', 2)));
+    expect(rowClasses(renderStandingsGroups(g(3), 'Becher'))).toEqual(
+      rowClasses(renderStandingsGroups(g(3), 'Becher', 2))
+    );
   });
 
   it('kaputte Konfiguration macht die Tabelle nicht unbrauchbar', () => {
     for (const bad of [0, -1, null, undefined, 'zwei', 2.5]) {
-      expect(rowClasses(renderStandingsGroups(g(3), 'Becher', bad)))
-        .toEqual(['is-lead', 'is-qualified', '']);
+      expect(rowClasses(renderStandingsGroups(g(3), 'Becher', bad))).toEqual([
+        'is-lead',
+        'is-qualified',
+        '',
+      ]);
     }
   });
 
   it('mehr Aufsteiger als Teams: alle tragen ein Band, keine Ausnahme', () => {
-    expect(rowClasses(renderStandingsGroups(g(2), 'Becher', 5)))
-      .toEqual(['is-lead', 'is-qualified']);
+    expect(rowClasses(renderStandingsGroups(g(2), 'Becher', 5))).toEqual([
+      'is-lead',
+      'is-qualified',
+    ]);
   });
 
   it('genau EIN Platz fuehrt, egal wie viele aufsteigen', () => {
     // Orange markiert den Weg zum Titel. Zwei Fuehrende waeren zwei Wege.
     for (const n of [1, 2, 3, 5]) {
-      const leads = rowClasses(renderStandingsGroups(g(6), 'Becher', n))
-        .filter((c) => c.includes('is-lead'));
+      const leads = rowClasses(renderStandingsGroups(g(6), 'Becher', n)).filter((c) =>
+        c.includes('is-lead')
+      );
       expect(leads).toHaveLength(1);
     }
   });

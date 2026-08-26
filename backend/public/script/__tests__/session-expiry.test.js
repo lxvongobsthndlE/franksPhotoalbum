@@ -75,7 +75,12 @@ describe('auth-oidc: ein abgelaufener Refresh meldet, statt zu verschwinden', ()
       }
       if (String(u).includes('/auth/logout')) {
         const koerper = JSON.stringify({ endSessionUrl: 'https://authentik/end' });
-        return { ok: true, status: 200, text: async () => koerper, json: async () => JSON.parse(koerper) };
+        return {
+          ok: true,
+          status: 200,
+          text: async () => koerper,
+          json: async () => JSON.parse(koerper),
+        };
       }
       // Der eigentliche Aufruf: abgelaufener Token.
       return { ok: false, status: 401, text: async () => '', json: async () => ({}) };
@@ -91,10 +96,14 @@ describe('auth-oidc: ein abgelaufener Refresh meldet, statt zu verschwinden', ()
   it('leitet NICHT mehr von selbst um — der Dialog bleibt stehen', async () => {
     const auth = await import('../auth-oidc.js');
     await expect(auth.apiCall('/tournaments/x', 'GET')).rejects.toBeTruthy();
-    expect(globalThis.window.location.href, 'die Seite wurde umgeleitet — die Eingabe ist weg')
-      .toBe('https://app.example/start');
-    expect(gerufeneUrls.some((u) => u.includes('/auth/logout')), 'logout() lief ungefragt')
-      .toBe(false);
+    expect(
+      globalThis.window.location.href,
+      'die Seite wurde umgeleitet — die Eingabe ist weg'
+    ).toBe('https://app.example/start');
+    expect(
+      gerufeneUrls.some((u) => u.includes('/auth/logout')),
+      'logout() lief ungefragt'
+    ).toBe(false);
   });
 
   it('meldet das Sitzungsende an angemeldete Horcher', async () => {
@@ -111,7 +120,9 @@ describe('auth-oidc: ein abgelaufener Refresh meldet, statt zu verschwinden', ()
   it('meldet nur EINMAL, auch wenn mehrere Aufrufe gleichzeitig scheitern', async () => {
     const auth = await import('../auth-oidc.js');
     let n = 0;
-    auth.onSessionExpired(() => { n += 1; });
+    auth.onSessionExpired(() => {
+      n += 1;
+    });
     await Promise.all([
       auth.apiCall('/a', 'GET').catch(() => {}),
       auth.apiCall('/b', 'GET').catch(() => {}),
@@ -130,7 +141,9 @@ describe('auth-oidc: ein abgelaufener Refresh meldet, statt zu verschwinden', ()
   it('abgemeldete Horcher werden nicht mehr gerufen', async () => {
     const auth = await import('../auth-oidc.js');
     let n = 0;
-    const ab = auth.onSessionExpired(() => { n += 1; });
+    const ab = auth.onSessionExpired(() => {
+      n += 1;
+    });
     ab();
     await auth.apiCall('/tournaments/x', 'GET').catch(() => {});
     expect(n).toBe(0);
@@ -151,11 +164,15 @@ describe('auth-oidc: die zwei Stellen aus Punkt 4.2 bleiben repariert', () => {
     let t = null;
     const gehe = (n) => {
       if (!n || typeof n.type !== 'string') return;
-      if (n.type === 'FunctionDeclaration' && n.id?.name === name) { t = n; return; }
+      if (n.type === 'FunctionDeclaration' && n.id?.name === name) {
+        t = n;
+        return;
+      }
       for (const k of Object.keys(n)) {
         if (k === 'start' || k === 'end' || k === 'loc') continue;
         const v = n[k];
-        if (Array.isArray(v)) v.forEach(gehe); else gehe(v);
+        if (Array.isArray(v)) v.forEach(gehe);
+        else gehe(v);
       }
     };
     gehe(ast);
@@ -165,15 +182,18 @@ describe('auth-oidc: die zwei Stellen aus Punkt 4.2 bleiben repariert', () => {
 
   it('refreshAccessToken loggt im Fehlerfall nicht mehr selbst aus', () => {
     const koerper = fn('refreshAccessToken');
-    expect(koerper, 'der Zwangs-Logout ist zurueck — damit ist die Eingabe wieder weg')
-      .not.toContain('await logout()');
+    expect(
+      koerper,
+      'der Zwangs-Logout ist zurueck — damit ist die Eingabe wieder weg'
+    ).not.toContain('await logout()');
     expect(koerper).toContain('notifySessionExpired');
   });
 
   it('der Auto-Refresh-Timer hat ein .catch()', () => {
     const koerper = fn('startTokenRefreshTimer');
-    expect(koerper, 'ohne catch: unbehandelte Rejection plus Zwangs-Abmeldung per Timer')
-      .toMatch(/\.catch\(/);
+    expect(koerper, 'ohne catch: unbehandelte Rejection plus Zwangs-Abmeldung per Timer').toMatch(
+      /\.catch\(/
+    );
   });
 
   it('der Timer setzt nach einem endgueltigen Fehlschlag keinen neuen Timer', () => {
@@ -227,7 +247,7 @@ function ladeEntwurfsHelfer({ store, dialog, jetzt = Date.now() }) {
     'Date',
     'console',
     'Event',
-    `${quelle}\nreturn { stashPendingResultInput, readPendingResultInput, clearPendingResultInput, restorePendingResultInput };`,
+    `${quelle}\nreturn { stashPendingResultInput, readPendingResultInput, clearPendingResultInput, restorePendingResultInput };`
   );
   const fakeDate = { now: () => jetzt };
   const api = factory(
@@ -236,19 +256,34 @@ function ladeEntwurfsHelfer({ store, dialog, jetzt = Date.now() }) {
     (m, k) => toasts.push([m, k]),
     fakeDate,
     { warn() {} },
-    class { constructor(t) { this.type = t; } },
+    class {
+      constructor(t) {
+        this.type = t;
+      }
+    }
   );
   return { ...api, toasts };
 }
 
 /** Fake-Dialog: hidden input ODER select fuer das Spiel, zwei Score-Felder. */
-function fakeDialog({ tournamentId = 'T1', matchId = 'M1', select = null, home = '', away = '' } = {}) {
+function fakeDialog({
+  tournamentId = 'T1',
+  matchId = 'M1',
+  select = null,
+  home = '',
+  away = '',
+} = {}) {
   const felder = {
     '#re-home': { value: home },
     '#re-away': { value: away },
   };
   felder['#re-match-id'] = select
-    ? { tagName: 'SELECT', value: select.value ?? '', options: select.options.map((v) => ({ value: v })), dispatchEvent() {} }
+    ? {
+        tagName: 'SELECT',
+        value: select.value ?? '',
+        options: select.options.map((v) => ({ value: v })),
+        dispatchEvent() {},
+      }
     : { tagName: 'INPUT', value: matchId };
   return {
     dataset: { tournamentId },
@@ -300,7 +335,10 @@ describe('Entwurf des Ergebnis-Dialogs ueberlebt die Neu-Anmeldung', () => {
 
   it('holt NICHTS in ein anderes Turnier', () => {
     const store = fakeStorage();
-    const a = ladeEntwurfsHelfer({ store, dialog: fakeDialog({ tournamentId: 'T1', home: '3', away: '2' }) });
+    const a = ladeEntwurfsHelfer({
+      store,
+      dialog: fakeDialog({ tournamentId: 'T1', home: '3', away: '2' }),
+    });
     a.stashPendingResultInput();
     const fremd = fakeDialog({ tournamentId: 'T2' });
     const b = ladeEntwurfsHelfer({ store, dialog: fremd });
@@ -310,7 +348,10 @@ describe('Entwurf des Ergebnis-Dialogs ueberlebt die Neu-Anmeldung', () => {
 
   it('holt NICHTS in ein anderes vorgegebenes Spiel', () => {
     const store = fakeStorage();
-    const a = ladeEntwurfsHelfer({ store, dialog: fakeDialog({ matchId: 'M1', home: '3', away: '2' }) });
+    const a = ladeEntwurfsHelfer({
+      store,
+      dialog: fakeDialog({ matchId: 'M1', home: '3', away: '2' }),
+    });
     a.stashPendingResultInput();
     const anderes = fakeDialog({ matchId: 'M9' });
     const b = ladeEntwurfsHelfer({ store, dialog: anderes });
@@ -319,7 +360,10 @@ describe('Entwurf des Ergebnis-Dialogs ueberlebt die Neu-Anmeldung', () => {
 
   it('holt NICHTS, wenn das Spiel inzwischen nicht mehr offen ist', () => {
     const store = fakeStorage();
-    const a = ladeEntwurfsHelfer({ store, dialog: fakeDialog({ matchId: 'M1', home: '3', away: '2' }) });
+    const a = ladeEntwurfsHelfer({
+      store,
+      dialog: fakeDialog({ matchId: 'M1', home: '3', away: '2' }),
+    });
     a.stashPendingResultInput();
     const mitAuswahl = fakeDialog({ select: { value: '', options: ['M7', 'M8'] } });
     const b = ladeEntwurfsHelfer({ store, dialog: mitAuswahl });
@@ -328,7 +372,10 @@ describe('Entwurf des Ergebnis-Dialogs ueberlebt die Neu-Anmeldung', () => {
 
   it('waehlt das Spiel im Auswahlfeld, wenn es noch offen ist', () => {
     const store = fakeStorage();
-    const a = ladeEntwurfsHelfer({ store, dialog: fakeDialog({ matchId: 'M1', home: '3', away: '2' }) });
+    const a = ladeEntwurfsHelfer({
+      store,
+      dialog: fakeDialog({ matchId: 'M1', home: '3', away: '2' }),
+    });
     a.stashPendingResultInput();
     const mitAuswahl = fakeDialog({ select: { value: '', options: ['M1', 'M8'] } });
     const b = ladeEntwurfsHelfer({ store, dialog: mitAuswahl });

@@ -187,9 +187,12 @@ export async function regeneriereGruppenphase(tx, tournamentId, engine) {
       .map((m) => new Date(m.scheduledAt).getTime())
       .filter((t) => Number.isFinite(t))
       .sort((a, b) => a - b)[0];
-    const baseDate = fruehester != null
-      ? new Date(fruehester)
-      : (config.baseDate ? new Date(config.baseDate) : new Date('2026-09-05'));
+    const baseDate =
+      fruehester != null
+        ? new Date(fruehester)
+        : config.baseDate
+          ? new Date(config.baseDate)
+          : new Date('2026-09-05');
 
     const geplant = generateSchedule(engineInput, config, baseDate);
     for (const s of geplant) {

@@ -96,9 +96,7 @@ export function generateTournament(input) {
     // übernommen (per ID gemappt). So funktioniert der Pfad
     // "alle Gruppen-Matches finished → re-qualify": die Engine sieht
     // alle als 'finished' und baut das Bracket mit echten Teams.
-    const externalMatchesById = new Map(
-      (input.matches ?? []).map((m) => [String(m.id), m])
-    );
+    const externalMatchesById = new Map((input.matches ?? []).map((m) => [String(m.id), m]));
     for (let g = 0; g < rawGroups.length; g++) {
       const grpTeams = rawGroups[g];
       const grpTeamIds = grpTeams.map((t) => t.id);
@@ -123,7 +121,7 @@ export function generateTournament(input) {
       const { sortedRows, unresolved } = applyTiebreaker(
         standingsRows.map((r) => ({ ...r, name: grpTeams.find((t) => t.id === r.teamId)?.name })),
         input.matches ?? [],
-        config,
+        config
       );
 
       groupStage.push({
@@ -183,9 +181,11 @@ export function generateTournament(input) {
   //   /result: sobald das letzte Gruppen-Match gespeichert wird, ruft
   //   die Route fillKoFromQualifiers() auf und schreibt die jetzt
   //   bekannten Teams in die Slots.
-  const allGroupMatchesFinished = !skipGroups && groupStage.every((g) =>
-    (g.matches ?? []).length > 0 && g.matches.every((m) => m?.status === 'finished')
-  );
+  const allGroupMatchesFinished =
+    !skipGroups &&
+    groupStage.every(
+      (g) => (g.matches ?? []).length > 0 && g.matches.every((m) => m?.status === 'finished')
+    );
 
   let qualify;
   if (skipGroups) {
@@ -213,7 +213,7 @@ export function generateTournament(input) {
           groupStandings: groupStage.map((g) => g.standings),
           groupKeys,
         },
-        config,
+        config
       );
     } else {
       // KO-Bracket bleibt Skelett bis alle Gruppen-Matches beendet sind.
@@ -241,10 +241,7 @@ export function generateTournament(input) {
   }
 
   // Phase 5: Schedule (für alle Spiele: Gruppenphase + KO)
-  const allMatches = [
-    ...groupStage.flatMap((g) => g.matches),
-    ...bracket.matches,
-  ];
+  const allMatches = [...groupStage.flatMap((g) => g.matches), ...bracket.matches];
   const baseDate = input.baseDate ? new Date(input.baseDate) : new Date('2026-09-05');
   const schedule = generateSchedule(allMatches, config, baseDate);
 

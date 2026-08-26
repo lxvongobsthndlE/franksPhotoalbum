@@ -30,9 +30,16 @@ const matchId = 'match-1';
 
 function makeStub(overrides = {}) {
   return {
-    id: tDraftId, groupId: gId, name: 'Mein Turnier',
-    status: 'draft', isPublic: false, publicToken: null,
-    publicRevokedAt: null, logoUrl: null, config: null, startedAt: null,
+    id: tDraftId,
+    groupId: gId,
+    name: 'Mein Turnier',
+    status: 'draft',
+    isPublic: false,
+    publicToken: null,
+    publicRevokedAt: null,
+    logoUrl: null,
+    config: null,
+    startedAt: null,
     group: { id: gId, createdBy: u.admin.id, name: 'G' },
     ...overrides,
   };
@@ -46,11 +53,27 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
     $transaction: vi.fn(async (cb) => {
       return typeof cb === 'function' ? cb(prisma) : cb;
     }),
@@ -78,8 +101,18 @@ function baseStubs(prisma) {
   prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
     if (where.id === tDraftId) return makeStub({ id: tDraftId });
     if (where.id === tGeneratedId) return makeStub({ id: tGeneratedId, status: 'generated' });
-    if (where.id === tStartedId) return makeStub({ id: tStartedId, status: 'group_stage', startedAt: new Date('2026-08-20T10:00:00Z') });
-    if (where.id === tFinishedId) return makeStub({ id: tFinishedId, status: 'finished', startedAt: new Date('2026-08-19T10:00:00Z') });
+    if (where.id === tStartedId)
+      return makeStub({
+        id: tStartedId,
+        status: 'group_stage',
+        startedAt: new Date('2026-08-20T10:00:00Z'),
+      });
+    if (where.id === tFinishedId)
+      return makeStub({
+        id: tFinishedId,
+        status: 'finished',
+        startedAt: new Date('2026-08-19T10:00:00Z'),
+      });
     return null;
   });
   prisma.tournament.findMany.mockResolvedValue([]);
@@ -135,14 +168,19 @@ afterEach(async () => {
 
 const post = (url, body = {}, userId = u.admin.id) =>
   app.inject({
-    method: 'POST', url,
+    method: 'POST',
+    url,
     headers: { 'x-test-user': userId },
     payload: body,
   });
 
 describe('POST /api/tournaments/:id/start', () => {
   it('401 ohne JWT', async () => {
-    const res = await app.inject({ method: 'POST', url: `/api/tournaments/${tGeneratedId}/start`, payload: {} });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tGeneratedId}/start`,
+      payload: {},
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -176,7 +214,11 @@ describe('POST /api/tournaments/:id/start', () => {
 
 describe('POST /api/tournaments/:id/revert-to-draft', () => {
   it('401 / 403', async () => {
-    const r1 = await app.inject({ method: 'POST', url: `/api/tournaments/${tStartedId}/revert-to-draft`, payload: {} });
+    const r1 = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tStartedId}/revert-to-draft`,
+      payload: {},
+    });
     expect(r1.statusCode).toBe(401);
     const r2 = await post(`/api/tournaments/${tStartedId}/revert-to-draft`, {}, u.member.id);
     expect(r2.statusCode).toBe(403);
@@ -222,7 +264,8 @@ describe('POST /api/tournaments/:id/revert-to-draft', () => {
     expect(r1.statusCode).toBe(200);
     // 2) Mock: Status nach start = 'group_stage', startedAt = now
     prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
-      if (where.id === tGeneratedId) return makeStub({ id: tGeneratedId, status: 'group_stage', startedAt: new Date() });
+      if (where.id === tGeneratedId)
+        return makeStub({ id: tGeneratedId, status: 'group_stage', startedAt: new Date() });
       return null;
     });
     // 3) Revert (Läuft → Entwurf)
@@ -230,7 +273,8 @@ describe('POST /api/tournaments/:id/revert-to-draft', () => {
     expect(r2.statusCode).toBe(200);
     // 4) Mock: Status nach revert = 'generated' (für 2. Start), startedAt = null
     prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
-      if (where.id === tGeneratedId) return makeStub({ id: tGeneratedId, status: 'generated', startedAt: null });
+      if (where.id === tGeneratedId)
+        return makeStub({ id: tGeneratedId, status: 'generated', startedAt: null });
       return null;
     });
     // 5) Erneut starten
@@ -238,7 +282,8 @@ describe('POST /api/tournaments/:id/revert-to-draft', () => {
     expect(r3.statusCode).toBe(200);
     // 6) Erneut revert
     prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
-      if (where.id === tGeneratedId) return makeStub({ id: tGeneratedId, status: 'group_stage', startedAt: new Date() });
+      if (where.id === tGeneratedId)
+        return makeStub({ id: tGeneratedId, status: 'group_stage', startedAt: new Date() });
       return null;
     });
     const r4 = await post(`/api/tournaments/${tGeneratedId}/revert-to-draft`, {});
@@ -250,9 +295,17 @@ describe('POST /api/tournaments/:id/revert-to-draft', () => {
 
 describe('POST /api/tournaments/:id/shift-open-matches', () => {
   it('401 / 403', async () => {
-    const r1 = await app.inject({ method: 'POST', url: `/api/tournaments/${tStartedId}/shift-open-matches`, payload: { minutes: 20 } });
+    const r1 = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tStartedId}/shift-open-matches`,
+      payload: { minutes: 20 },
+    });
     expect(r1.statusCode).toBe(401);
-    const r2 = await post(`/api/tournaments/${tStartedId}/shift-open-matches`, { minutes: 20 }, u.member.id);
+    const r2 = await post(
+      `/api/tournaments/${tStartedId}/shift-open-matches`,
+      { minutes: 20 },
+      u.member.id
+    );
     expect(r2.statusCode).toBe(403);
   });
 
@@ -293,9 +346,7 @@ describe('POST /api/tournaments/:id/shift-open-matches', () => {
 
   it('200 negative shift: offene Spiele nach vorn', async () => {
     const base = new Date('2026-08-20T12:00:00Z');
-    prisma.match.findMany.mockResolvedValue([
-      { id: 'm1', scheduledAt: new Date(base.getTime()) },
-    ]);
+    prisma.match.findMany.mockResolvedValue([{ id: 'm1', scheduledAt: new Date(base.getTime()) }]);
     const res = await post(`/api/tournaments/${tStartedId}/shift-open-matches`, { minutes: -30 });
     expect(res.statusCode).toBe(200);
     expect(res.json().shiftedCount).toBe(1);

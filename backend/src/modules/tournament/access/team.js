@@ -19,9 +19,7 @@ export function prepareTeamView(rawTeam) {
     seed: rawTeam.seed ?? null,
     // linkedUserIds sind IDs von Konten — gehören nicht ins öffentliche Anzeigeobjekt.
     // Stufe B (§11) regelt, wer benachrichtigt wird; das ist KEIN Anzeige-Detail.
-    linkedUserIds: Array.isArray(rawTeam.linkedUserIds)
-      ? rawTeam.linkedUserIds.slice()
-      : [],
+    linkedUserIds: Array.isArray(rawTeam.linkedUserIds) ? rawTeam.linkedUserIds.slice() : [],
   };
 }
 

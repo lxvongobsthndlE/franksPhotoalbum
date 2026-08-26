@@ -12,5 +12,7 @@
 //   if (normalizeConfirmName(a) !== normalizeConfirmName(b)) { ... }
 //
 export function normalizeConfirmName(name) {
-  return String(name == null ? '' : name).trim().toLowerCase();
+  return String(name == null ? '' : name)
+    .trim()
+    .toLowerCase();
 }

@@ -4,11 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  prepareTeamView,
-  prepareTeamList,
-  buildTeamLookup,
-} from '../access/team.js';
+import { prepareTeamView, prepareTeamList, buildTeamLookup } from '../access/team.js';
 
 const raw = {
   id: 'team_1',

@@ -70,7 +70,9 @@
    ---------------------------------------------------------------- */
 .t-mod *,
 .t-mod *::before,
-.t-mod *::after { box-sizing: border-box; }
+.t-mod *::after {
+  box-sizing: border-box;
+}
 /* ----------------------------------------------------------------
    DAS BLATT — die einzige erhobene Ebene
    ----------------------------------------------------------------
@@ -110,7 +112,9 @@
   box-shadow: var(--lift);
 }
 .t-mod {
-  margin: 0; padding: 0; min-width: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
   /* Markenuebernahme: das Modul erbt die Schrift NICHT mehr vom Body.
      Der Kommentar am Dateikopf sagt noch "Schriftfamilie vom Body geerbt
      — keine eigene einbinden (Paragraf 8.7)"; diese Regel ist mit dem
@@ -125,8 +129,16 @@
    untereinander, und die Tabelle wirkt wie eine Anzeigetafel statt wie
    ein Formular. */
 .t-mod :is(.t-standings-table, .t-thirds-table) :is(td, th),
-.t-mod :is(.t-match-score, .t-score, .t-match-time, .t-standings-num,
-           .t-thirds-num, .t-standings-rank, .t-thirds-rank) {
+.t-mod
+  :is(
+    .t-match-score,
+    .t-score,
+    .t-match-time,
+    .t-standings-num,
+    .t-thirds-num,
+    .t-standings-rank,
+    .t-thirds-rank
+  ) {
   font-family: var(--f-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -266,7 +278,9 @@
    sind einspaltig, also loest es hier eine Kappung. 880px ist die
    Obergrenze, bei der die neunspaltige Gruppentabelle noch atmet. */
 @container (min-width: 1000px) {
-  .t-view.is-active { max-width: 880px; }
+  .t-view.is-active {
+    max-width: 880px;
+  }
   /* Der Spielplan geht noch eine Stufe enger. Eine Spielkarte ist zwei
      Namen und zwei Ziffern; auf 860px stehen zwischen „Kellerkinder" und
      der „1" acht Zentimeter Nichts. Das ist derselbe Befund wie A2.2 am
@@ -274,7 +288,9 @@
      damals lag die Kappung auf .t-match-rows und wurde mit der Zeitachse
      wieder entfernt. Sie gehoert an die LISTE, nicht an die Zeilen: sonst
      waeren Teams und Ziffern schmal und das Fussband darunter breit. */
-  #t-schedule-list { max-width: 620px; }
+  #t-schedule-list {
+    max-width: 620px;
+  }
 }
 
 /* ----------------------------------------------------------------
@@ -305,7 +321,10 @@
   padding: 0;
   background: transparent;
 }
-.t-mod table { border-collapse: collapse; width: 100%; }
+.t-mod table {
+  border-collapse: collapse;
+  width: 100%;
+}
 /* ----------------------------------------------------------------
    KASKADENKOLLISION Nr. 6 in dieser Datei (aufgeloest 2026-08-25)
    ----------------------------------------------------------------
@@ -376,14 +395,16 @@
    Dass diese Liste jetzt zum dritten Mal waechst, ist das eigentliche
    Signal: JEDER Knopf mit eigener Optik gehoert hier eingetragen, und
    zwar BEVOR man seine Regel schreibt. */
-.t-mod button:where(:not([class*="t-btn"], .t-mod-action, .t-mod-tab, .t-chip, .bracket-tab)) {
+.t-mod button:where(:not([class*='t-btn'], .t-mod-action, .t-mod-tab, .t-chip, .bracket-tab)) {
   font-family: inherit;
   font-size: inherit;
   border: none;
   background: none;
   color: inherit;
 }
-.t-mod input { font-family: inherit; }
+.t-mod input {
+  font-family: inherit;
+}
 
 /* ----------------------------------------------------------------
    APP-GITTER (Modul-Container in der bestehenden App-Seitenleiste)
@@ -425,14 +446,23 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-areas:
-    "logo kicker"
-    "logo titel";
+    'logo kicker'
+    'logo titel';
   column-gap: 13px;
   align-items: center;
 }
-.t-mod-header-inner--logo > .t-mod-logo     { grid-area: logo; }
-.t-mod-header-inner--logo > .t-mod-kicker   { grid-area: kicker; align-self: end; }
-.t-mod-header-inner--logo > .t-mod-titlerow { grid-area: titel; align-self: start; margin-top: 3px; }
+.t-mod-header-inner--logo > .t-mod-logo {
+  grid-area: logo;
+}
+.t-mod-header-inner--logo > .t-mod-kicker {
+  grid-area: kicker;
+  align-self: end;
+}
+.t-mod-header-inner--logo > .t-mod-titlerow {
+  grid-area: titel;
+  align-self: start;
+  margin-top: 3px;
+}
 /* Der Radius ist RELATIV angegeben, damit er bei 26px im Desktop-Kopf
    genauso sitzt wie bei 54px auf dem Druckbogen — ein fester Pixelwert
    waere in der kleinen Groesse fast ein Kreis.
@@ -534,9 +564,13 @@
   margin-bottom: 2px;
   white-space: nowrap;
 }
-.t-mod-nav button:hover { background: var(--surface-alt); }
+.t-mod-nav button:hover {
+  background: var(--surface-alt);
+}
 .t-mod-nav button.is-active {
-  background: var(--accent-soft); color: var(--accent-soft-ink); font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent-soft-ink);
+  font-weight: 600;
 }
 .t-mod-nav .count {
   margin-left: auto;
@@ -608,22 +642,26 @@
 .t-mod-tabs {
   /* SICHTBAR nur < 768px. Auf Desktop versteckt (siehe Media Query). */
   display: none;
-  position: relative;      /* Bug 15 Politur (2026-08-18): Bezugspunkt
+  position: relative; /* Bug 15 Politur (2026-08-18): Bezugspunkt
                                für den rechten Scroll-Fade-Hinweis. */
-  height: 44px;            /* FIXE Höhe, kein min-height */
+  height: 44px; /* FIXE Höhe, kein min-height */
   align-items: center;
   flex-wrap: nowrap;
-  gap: var(--s1);           /* Bug 15: 4px Mindestabstand zwischen Tabs,
+  gap: var(
+    --s1
+  ); /* Bug 15: 4px Mindestabstand zwischen Tabs,
                                damit "Spielplan" und "Übersicht" nicht
                                zusammenkleben. */
-  padding: 0 var(--s3);     /* Bug 15: linker Einzug, damit der erste
+  padding: 0 var(--s3); /* Bug 15: linker Einzug, damit der erste
                                Tab nicht am Viewport-Rand klebt. */
   overflow-x: auto;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   scrollbar-width: none;
 }
-.t-mod-tabs::-webkit-scrollbar { display: none; }
+.t-mod-tabs::-webkit-scrollbar {
+  display: none;
+}
 /* Bug 15 Politur (2026-08-18, User-Punkt 1): Auf Mobile hat die Tab-
    Leiste 8 Einträge, die bei 390px Breite nicht alle passen — sie
    scrollt horizontal, aber der User sieht das nicht (Scrollbar ist
@@ -645,7 +683,7 @@
   width: 32px;
   background: linear-gradient(to right, transparent, var(--surface));
   pointer-events: none;
-  border-bottom: 1px solid var(--line);  /* Border-Bottom mitziehen,
+  border-bottom: 1px solid var(--line); /* Border-Bottom mitziehen,
                                             damit der Fade-Block den
                                             unteren Strich nicht
                                             unterbricht. */
@@ -691,10 +729,14 @@
   }
   /* Fade-Hinweis am rechten Rand ist auf der Bottom-Bar sinnlos —
      wir haben 4 fixe Items, kein Scroll. */
-  .t-mod-tabs::after { display: none; }
+  .t-mod-tabs::after {
+    display: none;
+  }
 
   /* Sidebar aus, Bottom-Bar an — keine zwei parallelen Leisten. */
-  .t-mod-nav { display: none; }
+  .t-mod-nav {
+    display: none;
+  }
 }
 
 /* Hauptbereich: Padding-Bottom für die fixierte Bottom-Bar.
@@ -713,8 +755,12 @@
 /* Bottom-Sheet für „Mehr" (P3, 2026-08-24).
    Slide-up von unten, halbtransparenter Overlay, safe-area-inset-
    bottom für iOS-Notch-Geräte. */
-.t-mod-more-sheet { display: none; }
-.t-mod-more-sheet[data-open="true"] { display: block; }
+.t-mod-more-sheet {
+  display: none;
+}
+.t-mod-more-sheet[data-open='true'] {
+  display: block;
+}
 
 .t-mod-more-overlay {
   position: fixed;
@@ -742,8 +788,12 @@
   overflow-y: auto;
 }
 @keyframes t-sheet-slide-up {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 .t-mod-more-close {
   position: absolute;
@@ -757,7 +807,9 @@
   padding: 4px 8px;
   line-height: 1;
 }
-.t-mod-more-close:hover { color: var(--ink); }
+.t-mod-more-close:hover {
+  color: var(--ink);
+}
 .t-mod-more-title {
   margin: 0 24px 12px 16px;
   padding-right: 32px;
@@ -788,7 +840,9 @@
   cursor: pointer;
   font-family: inherit;
 }
-.t-mod-more-list button:hover { background: var(--surface-alt, rgba(0, 0, 0, 0.04)); }
+.t-mod-more-list button:hover {
+  background: var(--surface-alt, rgba(0, 0, 0, 0.04));
+}
 .t-mod-more-list button.is-active {
   color: var(--accent);
   font-weight: 600;
@@ -799,14 +853,16 @@
   height: 22px;
   color: var(--ink-soft);
 }
-.t-mod-more-list button.is-active svg { color: var(--accent); }
+.t-mod-more-list button.is-active svg {
+  color: var(--accent);
+}
 
 /* P3: Bottom-Bar-Buttons zeigen Icon + Label vertikal.
    Layout kompakt, damit 4 Items auf 360 px passen. */
 .t-mod-tab {
-  flex: 1 1 0;             /* gleichmäßig verteilt, schrumpfbar */
+  flex: 1 1 0; /* gleichmäßig verteilt, schrumpfbar */
   min-width: 0;
-  height: 56px;            /* FIXE Höhe der Bottom-Bar */
+  height: 56px; /* FIXE Höhe der Bottom-Bar */
   padding: 0 var(--s1);
   display: inline-flex;
   flex-direction: column;
@@ -828,7 +884,9 @@
   text-transform: uppercase;
   cursor: pointer;
 }
-.t-mod-tab:hover { color: var(--ink); }
+.t-mod-tab:hover {
+  color: var(--ink);
+}
 /* Der aktive Reiter traegt Farbe, keinen Balken. Die Vorlage kennt in der
    Bodenleiste keinen Strich — das ist die einzige Stelle im Modul, an der
    Orange nicht den Weg zum Titel meint, sondern den Ort. Ein zusaetzlicher
@@ -909,7 +967,9 @@
    Wahrheit — den Block @container (max-width: 600px) weiter oben.
    ---------------------------------------------------------------- */
 @container (min-width: 601px) and (max-width: 767px) {
-  .t-mod-tabs { display: flex; }
+  .t-mod-tabs {
+    display: flex;
+  }
   /* .t-mod-tab ist seit P3 fuer die Bodenleiste gebaut (Spalte, 56px,
      Icon ueber Label). Hier zurueck auf die Zeilenform, die in die
      44px-Leiste passt. Hoehe bewusst NICHT gesetzt — die kommt aus
@@ -928,8 +988,13 @@
     border-top-color: transparent;
     border-bottom-color: var(--accent);
   }
-  .t-mod-tab svg { width: 18px; height: 18px; }
-  .t-mod-tab > span { font-size: 14px; }
+  .t-mod-tab svg {
+    width: 18px;
+    height: 18px;
+  }
+  .t-mod-tab > span {
+    font-size: 14px;
+  }
 }
 
 /* Hauptbereich (mittlere Spalte) */
@@ -961,8 +1026,13 @@
   overflow-x: clip;
   min-width: 0;
 }
-.t-view { display: none; }
-.t-view.is-active { display: block; padding: 0 var(--s5); }
+.t-view {
+  display: none;
+}
+.t-view.is-active {
+  display: block;
+  padding: 0 var(--s5);
+}
 /* Die zwei Ausbrecher. Beide sind in der Vorlage buendig an der
    Blattkante gezeichnet:
      die TABELLEN, weil Rangband und Toenung ueber die volle Breite
@@ -986,11 +1056,19 @@
   margin-inline: calc(-1 * var(--s5));
 }
 .t-view-head {
-  display: flex; align-items: center; gap: var(--s3);
-  margin-bottom: var(--s4); flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+  flex-wrap: wrap;
 }
-.t-view-title { font-size: 20px; font-weight: 600; }
-.t-view-head .spacer { margin-left: auto; }
+.t-view-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+.t-view-head .spacer {
+  margin-left: auto;
+}
 
 /* Kontextspalte (rechte Spalte) */
 .t-mod-aside {
@@ -999,7 +1077,9 @@
   padding: var(--s4);
   overflow: auto;
 }
-.t-aside-block { margin-bottom: var(--s6); }
+.t-aside-block {
+  margin-bottom: var(--s6);
+}
 
 /* ----------------------------------------------------------------
    RESPONSIVE BREAKPOINTS (Spec §8.1) — als CONTAINER QUERIES auf
@@ -1043,7 +1123,9 @@
      horizontale .t-mod-tabs-Leiste die Navigation übernimmt. Hier
      defensiv doppelt setzen (oben ist .t-mod-nav auch display:none
      im globalen Block). */
-  .t-mod-nav { display: none; }
+  .t-mod-nav {
+    display: none;
+  }
   /* Bug 15 (2026-08-18, User-Punkt 3): Header fressst ein Drittel des
      Bildschirms, wenn Logo + Titel + Badge + Buttons alle in einer
      flex-Reihe liegen. Auf Mobile zwei sichtbare Zeilen:
@@ -1056,7 +1138,9 @@
     padding: var(--s3) var(--s4);
     gap: var(--s3);
   }
-  .t-mod-header > .t-logo { flex: 0 0 auto; }
+  .t-mod-header > .t-logo {
+    flex: 0 0 auto;
+  }
   /* Bug 15 (2026-08-18, User-Punkt 3): Auf Mobile fasst der Renderer
      Titel + Badges in einem .t-mod-header-info-Container zusammen.
      Hier: Titel-Text links wächst, Badges rechts. Bei schmalem
@@ -1089,7 +1173,9 @@
      dem Handy — die Infos wandern in die Übersicht (Etappe B.2).
      Hier defensiv display:none, falls die CSS-Spezifität von oben
      (min-width:768px) durch andere Regeln überschrieben wird. */
-  .t-mod-aside { display: none; }
+  .t-mod-aside {
+    display: none;
+  }
   /* P5-Reparatur 2026-08-25: Verschachtelte Scrollcontainer auflösen.
      Auf Mobile wächst .t-mod mit seinem Inhalt mit; #content ist der
      einzige Scroller. overflow: auto auf .t-mod-main / .t-mod-aside
@@ -1100,14 +1186,18 @@
      unverändert. */
   .t-mod-main {
     overflow: visible;
-    overflow-x: clip;       /* §13 P1: Seite darf NIE seitlich scrollen */
+    overflow-x: clip; /* §13 P1: Seite darf NIE seitlich scrollen */
   }
-  .t-mod-aside { overflow: visible; }
+  .t-mod-aside {
+    overflow: visible;
+  }
   /* Hauptbereich etwas knapper padden — auf 390px ist jeder Pixel
      sichtbar. SEITLICH ist er seit der dritten Fassung ohnehin bei 0:
      das Polster traegt .t-view, damit die Tabellen daraus ausbrechen
      koennen. Hier bleibt nur die geringere Hoehe. */
-  .t-mod-main { padding: var(--s4) 0; }
+  .t-mod-main {
+    padding: var(--s4) 0;
+  }
 
   /* ----------------------------------------------------------------
      HIER STAND EINE HOEHEN-KOLLISION (aufgeloest 2026-08-25)
@@ -1158,10 +1248,14 @@
    TITEL / HEADER-ELEMENTE
    ---------------------------------------------------------------- */
 .t-logo {
-  width: 44px; height: 44px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
-  background: var(--ink); color: var(--paper);
-  display: grid; place-items: center; font-weight: 700;
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
   flex: none;
 }
 /* Der Display-Schnitt traegt die Ansicht. 27px ist bewusst gross fuer
@@ -1196,22 +1290,36 @@
   white-space: nowrap;
   flex: none;
 }
-.t-mod-action:hover { color: var(--ink); }
+.t-mod-action:hover {
+  color: var(--ink);
+}
 /* .t-sub bleibt fuer Stellen, die noch einen Untertitel fuehren.
    Im neuen Kopf uebernimmt der Kicker diese Rolle. */
-.t-sub   { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.t-sub {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
 
 /* ----------------------------------------------------------------
    BADGES
    ---------------------------------------------------------------- */
 .t-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 600;
-  background: var(--surface-alt); color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-alt);
+  color: var(--ink-soft);
   white-space: nowrap;
 }
-.t-badge--phase { background: var(--accent-soft); color: var(--accent-soft-ink); }
+.t-badge--phase {
+  background: var(--accent-soft);
+  color: var(--accent-soft-ink);
+}
 
 /* ----------------------------------------------------------------
    BUTTONS — eine Größe + drei Modifiers
@@ -1232,11 +1340,15 @@
    die Segmentpillen und die Kopf-Aktion — im ganzen Modul gibt es nur
    noch diese eine Beschriftungsform fuer Handlungen. */
 .t-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
   padding: 9px 16px;
   border-radius: var(--r-pill);
   font-family: var(--f-cond);
-  font-size: 13px; font-weight: 700;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   border: 1px solid transparent;
@@ -1260,7 +1372,9 @@
    Der Fix steht bewusst bei den Varianten und nicht als
    `.t-btn:not(...)` an der Basis: die Basis-Hover soll fuer den
    Standardknopf weiter gelten. */
-.t-btn:hover { background: var(--surface-alt); }
+.t-btn:hover {
+  background: var(--surface-alt);
+}
 /* KASKADENKOLLISION Nr. 9, gemessen 2026-08-26 im Browser.
    Hier stand `color: var(--accent-ink)`. Dieser Token ist in tokens.css
    NUR in den beiden Dunkel-Bloecken definiert — im Hellmodus gibt es ihn
@@ -1279,11 +1393,14 @@
   color: var(--on-flare);
 }
 .t-btn--primary:hover {
-  background: var(--accent);          /* Nr. 5: Fuellung erneut setzen */
+  background: var(--accent); /* Nr. 5: Fuellung erneut setzen */
   border-color: var(--accent);
   filter: brightness(1.06);
 }
-.t-btn--sm { padding: 6px 12px; font-size: 12px; }
+.t-btn--sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
 .t-btn--ghost {
   border-color: transparent;
   background: transparent;
@@ -1301,7 +1418,9 @@
   border-color: transparent;
   color: #fff;
 }
-.t-btn--onDark:hover { background: rgba(255, 255, 255, 0.20); }
+.t-btn--onDark:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
 
 /* Größerer Modifier für Hero-CTAs — P5-Re-Fix-3 (2026-08-25):
    „K.-o.-Phase starten" sollte visuell wie ein Hauptbutton wirken,
@@ -1315,7 +1434,8 @@
   gap: var(--s3);
 }
 .t-btn--lg .t-btn-icon {
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
   stroke-width: 2.25;
   flex-shrink: 0;
 }
@@ -1330,12 +1450,19 @@
   overflow: hidden;
 }
 .t-card-head {
-  display: flex; align-items: center; gap: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
   padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--line);
 }
-.t-card-title { font-weight: 600; font-size: 15px; }
-.t-card-body  { padding: var(--s4); }
+.t-card-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.t-card-body {
+  padding: var(--s4);
+}
 
 /* P5-Re-Fix-3 (2026-08-25): Hero-CTA-Block „K.-o.-Phase starten".
    Eigene Card unten unter den Gruppentabellen — visuell vom Rest
@@ -1367,12 +1494,14 @@
   max-width: 56ch;
 }
 .t-fill-ko-btn {
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, transparent),
-              0 2px 6px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--accent) 60%, transparent),
+    0 2px 6px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .t-fill-ko-btn:hover {
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 70%, transparent),
-              0 4px 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--accent) 70%, transparent),
+    0 4px 10px color-mix(in srgb, var(--accent) 22%, transparent);
   transform: translateY(-1px);
 }
 .t-fill-ko-btn:disabled {
@@ -1415,9 +1544,14 @@
   color: var(--muted);
   font-size: 12.5px;
   line-height: 1.3;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
-.t-chip:hover { color: var(--ink); }
+.t-chip:hover {
+  color: var(--ink);
+}
 /* Der aktive Chip ist SCHWARZ, nicht orange (Vorlage, Abschnitt 03).
    Vorher stand hier var(--accent). Orange ist im ganzen Modul dem Weg
    zum Titel vorbehalten — ein Filterzustand ist keiner. Wo Orange
@@ -1427,14 +1561,19 @@
   color: var(--panel);
   border-color: var(--ink);
 }
-.t-chip.is-active .count { color: var(--panel); opacity: 0.72; }
+.t-chip.is-active .count {
+  color: var(--panel);
+  opacity: 0.72;
+}
 .t-chip .count {
   margin-left: 6px;
   font-size: 12px;
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
 }
-.t-chip.is-active .count { opacity: 0.9; }
+.t-chip.is-active .count {
+  opacity: 0.9;
+}
 
 /* ----------------------------------------------------------------
    FILTER-DROPDOWN (Etappe A2.6, 2026-08-20)
@@ -1463,10 +1602,15 @@
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.3;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
-.t-filter-trigger:hover { background: var(--paper); }
-.t-filter-trigger[aria-expanded="true"] {
+.t-filter-trigger:hover {
+  background: var(--paper);
+}
+.t-filter-trigger[aria-expanded='true'] {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
@@ -1475,7 +1619,7 @@
   font-size: 11px;
   transition: transform 0.15s;
 }
-.t-filter-trigger[aria-expanded="true"] .t-filter-trigger-caret {
+.t-filter-trigger[aria-expanded='true'] .t-filter-trigger-caret {
   transform: rotate(180deg);
 }
 .t-filter-dropdown {
@@ -1490,7 +1634,9 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   padding: 4px;
 }
-.t-filter-dropdown[hidden] { display: none; }
+.t-filter-dropdown[hidden] {
+  display: none;
+}
 .t-filter-dropdown-inner {
   display: flex;
   flex-direction: column;
@@ -1511,7 +1657,9 @@
   font-size: 13px;
   text-align: left;
 }
-.t-filter-item:hover { background: var(--paper); }
+.t-filter-item:hover {
+  background: var(--paper);
+}
 .t-filter-item.is-active {
   background: var(--accent);
   color: #fff;
@@ -1531,7 +1679,11 @@
   font-style: italic;
   margin: 0;
 }
-.t-hint strong { color: var(--ink); font-style: normal; font-weight: 600; }
+.t-hint strong {
+  color: var(--ink);
+  font-style: normal;
+  font-weight: 600;
+}
 
 /* P1 (2026-08-24): Kompakter Hinweis für Beste-Dritte-Tabelle bei
    mixedGroupSizes. Vorher war der Hint 3 Zeilen kursiv mit Spec-Verweis,
@@ -1572,8 +1724,13 @@
   padding: var(--s2) 0;
   border-bottom: 1px solid var(--line);
 }
-.t-aside-list li:last-child { border-bottom: none; }
-.t-aside-list strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.t-aside-list li:last-child {
+  border-bottom: none;
+}
+.t-aside-list strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Die Mono-Beschriftung der Vorlage (`.glbl`): 10,5px, 0,17em gesperrt,
    in --muted, 22px Luft darueber und 8px darunter. Diese Asymmetrie ist
@@ -1622,7 +1779,7 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--ink-soft);
-  letter-spacing: 0.10em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   margin: 0 0 var(--s3);
 }
@@ -1658,11 +1815,18 @@
 .t-standings-table th.is-rank,
 .t-standings-table th.is-team,
 .t-standings-table .t-standings-rank,
-.t-standings-table .t-standings-team { text-align: left; }
+.t-standings-table .t-standings-team {
+  text-align: left;
+}
 .t-standings-table th.is-num,
-.t-standings-num { text-align: right; }
+.t-standings-num {
+  text-align: right;
+}
 
-.t-standings-rank { color: var(--ink-soft); font-size: 12px; }
+.t-standings-rank {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
 /* Die Differenz traegt KEINE Ampelfarbe mehr (main.css setzte #2e7d32
    und #c62828, zwei hartcodierte Werte ausserhalb der Palette).
    Grund ist die Bedeutungsregel des Artefakts: Gruen heisst in diesem
@@ -1674,7 +1838,9 @@
 .t-standings-table .t-standings-num.is-positive,
 .t-standings-table .t-standings-num.is-negative,
 .t-thirds-table .t-thirds-num.is-positive,
-.t-thirds-table .t-thirds-num.is-negative { color: var(--ink-2); }
+.t-thirds-table .t-thirds-num.is-negative {
+  color: var(--ink-2);
+}
 .t-standings-team {
   font-weight: 500;
   color: var(--ink);
@@ -1682,7 +1848,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.t-standings-num.is-points { font-weight: 700; color: var(--ink); }
+.t-standings-num.is-points {
+  font-weight: 700;
+  color: var(--ink);
+}
 
 /* ----------------------------------------------------------------
    QUALIFIKATION — Markenuebernahme (2026-08-26)
@@ -1711,8 +1880,12 @@
    im Dunkelmodus rgba-Schleier). Sie tragen nichts allein, sie
    verstaerken nur das Band.
    ---------------------------------------------------------------- */
-.t-standings-row.is-lead td      { background: var(--flare-soft); }
-.t-standings-row.is-qualified td { background: var(--qual-soft); }
+.t-standings-row.is-lead td {
+  background: var(--flare-soft);
+}
+.t-standings-row.is-qualified td {
+  background: var(--qual-soft);
+}
 
 /* Das Band. Sitzt auf der Rangzelle, weil die immer die erste ist —
    ein eigenes Element dafuer waere eine Spalte, die nur Farbe traegt. */
@@ -1727,7 +1900,7 @@
    der Karte hoerte es 14px vor dem Rand auf und wirkte wie ein Fleck. */
 .t-standings-row.is-lead .t-standings-rank::before,
 .t-standings-row.is-qualified .t-standings-rank::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 0;
@@ -1735,8 +1908,12 @@
   width: 3px;
   border-radius: 0 3px 3px 0;
 }
-.t-standings-row.is-lead .t-standings-rank::before      { background: var(--flare); }
-.t-standings-row.is-qualified .t-standings-rank::before { background: var(--qual); }
+.t-standings-row.is-lead .t-standings-rank::before {
+  background: var(--flare);
+}
+.t-standings-row.is-qualified .t-standings-rank::before {
+  background: var(--qual);
+}
 /* ABWEICHUNG VOM ARTEFAKT, nachgerechnet.
    Die Vorlage setzt die Rangziffer in der getoenten Zeile auf die
    Signalfarbe (`tbody tr.lead td.pl { color: var(--flare) }`). Gemessen
@@ -1755,7 +1932,9 @@
    4,86 : 1; sie zieht trotzdem mit, damit die beiden Ranghinweise nicht
    verschieden gebaut sind. */
 .t-standings-row.is-lead .t-standings-rank,
-.t-standings-row.is-qualified .t-standings-rank { color: var(--ink); }
+.t-standings-row.is-qualified .t-standings-rank {
+  color: var(--ink);
+}
 
 /* Fusszeile der Gruppenkarte: die Regel steht unter der Tabelle, auf die
    sie sich bezieht — nicht in einem Hilfetext, den niemand oeffnet. */
@@ -1778,7 +1957,11 @@
   color: var(--muted);
   white-space: nowrap;
 }
-.t-standings-foot > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.t-standings-foot > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Aus dem Quadrat wird ein Strich in der Form des Rangbandes: 10x3px mit
    voller Rundung. Ein Quadrat war die einzige Stelle im Modul, an der
    die Legende anders aussah als das, was sie erklaert. */
@@ -1829,14 +2012,18 @@
   gap: 10px;
   transition: background 0.15s ease;
 }
-.t-list-card + .t-list-card { border-top: 1px solid var(--line-soft); }
-.t-list-card:hover { background: var(--raised); }
+.t-list-card + .t-list-card {
+  border-top: 1px solid var(--line-soft);
+}
+.t-list-card:hover {
+  background: var(--raised);
+}
 /* Der Streifen sagt „laeuft gerade". Vorher unterschied nur die Pille
    oben rechts das laufende Turnier von den anderen; jetzt ist es beim
    Ueberfliegen der Liste die erste Information, noch vor dem Namen —
    und es ist Farbe UND Ort, also auch ohne Farbsehen lesbar. */
 .t-list-card:has(> .t-list-card-row > .t-list-card-status--running)::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 0;
@@ -1846,7 +2033,9 @@
   background: var(--live);
 }
 .t-list-card-row {
-  display: flex; align-items: center; gap: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
   flex-wrap: wrap;
 }
 
@@ -1863,11 +2052,15 @@
 
 /* Die ganze Karte ist die Aktion — kein "Öffnen"-Knopf mehr
    (Redesign-Plan §3.3). role=button + tabindex kommen aus dem Renderer. */
-.t-list-card[role="button"] { cursor: pointer; }
-.t-list-card[role="button"]:hover { background: var(--raised); }
+.t-list-card[role='button'] {
+  cursor: pointer;
+}
+.t-list-card[role='button']:hover {
+  background: var(--raised);
+}
 /* Der Ring liegt INNEN: der Block reicht bis an die Blattkante, ein
    aeusserer Ring waere dort halb abgeschnitten. */
-.t-list-card[role="button"]:focus-visible {
+.t-list-card[role='button']:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -1878,7 +2071,8 @@
    damit dasselbe Bild an beiden Orten gleich aussieht — relativer
    Radius, Haarlinien-Ring, vertiefte Flaeche darunter. */
 .t-list-card-logo {
-  width: 44px; height: 44px;
+  width: 44px;
+  height: 44px;
   border-radius: 24%;
   background: var(--sunk);
   border: 1px solid var(--line-soft);
@@ -1886,7 +2080,8 @@
   overflow: hidden;
 }
 .t-list-card-logo img {
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
@@ -1935,8 +2130,9 @@
   color: var(--muted);
 }
 .t-list-card-status::before {
-  content: "";
-  width: 8px; height: 8px;
+  content: '';
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: currentColor;
   opacity: 0.85;
@@ -1949,10 +2145,22 @@
    sie keines mehr. */
 /* --ink-2 statt --muted, aus demselben Grund wie beim Schrittwaehler:
    auf --sunk traegt --muted nur 4,38 : 1, und die Pille ist 11px. */
-.t-list-card-status--draft     { background: var(--sunk);      color: var(--ink-2); }
-.t-list-card-status--ready     { background: var(--sunk);      color: var(--ink-2); }
-.t-list-card-status--running   { background: var(--live-soft); color: var(--live); }
-.t-list-card-status--finished  { background: var(--qual-soft); color: var(--qual); }
+.t-list-card-status--draft {
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+.t-list-card-status--ready {
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+.t-list-card-status--running {
+  background: var(--live-soft);
+  color: var(--live);
+}
+.t-list-card-status--finished {
+  background: var(--qual-soft);
+  color: var(--qual);
+}
 
 /* Kurzinfo — "16 Teams · 4 Gruppen · 12 von 24 Spielen gespielt" */
 .t-list-card-info {
@@ -2016,8 +2224,10 @@
 
 /* Kontextmenü-Icon (⋯) — nur sichtbar wenn als Admin gerendert */
 .t-list-card-menu-btn {
-  width: 32px; height: 32px;
-  display: grid; place-items: center;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
@@ -2056,7 +2266,9 @@
   display: flex;
   flex-direction: column;
 }
-.t-list-card-menu[hidden] { display: none; }
+.t-list-card-menu[hidden] {
+  display: none;
+}
 .t-list-card-menu-item {
   display: flex;
   align-items: center;
@@ -2069,9 +2281,15 @@
   text-align: left;
   white-space: nowrap;
 }
-.t-list-card-menu-item:hover { background: var(--surface-alt); }
-.t-list-card-menu-item.danger { color: var(--danger); }
-.t-list-card-menu-item.danger:hover { background: var(--surface-alt); }
+.t-list-card-menu-item:hover {
+  background: var(--surface-alt);
+}
+.t-list-card-menu-item.danger {
+  color: var(--danger);
+}
+.t-list-card-menu-item.danger:hover {
+  background: var(--surface-alt);
+}
 
 /* View-Header mit Titel + Sub + Aktion (rechts) */
 .t-view-head {
@@ -2081,9 +2299,17 @@
   margin-bottom: var(--s4);
   flex-wrap: wrap;
 }
-.t-view-title { font-size: 20px; font-weight: 600; }
-.t-view-sub { font-size: 13px; color: var(--ink-soft); }
-.t-view-head .spacer { margin-left: auto; }
+.t-view-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+.t-view-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.t-view-head .spacer {
+  margin-left: auto;
+}
 
 /* ----------------------------------------------------------------
    MATCH-KOMPONENTE — drei Größen, identische Klasse
@@ -2155,8 +2381,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "rows"
-    "meta";
+    'rows'
+    'meta';
   gap: 0;
   padding: 0;
   margin: 0 var(--s2) 14px;
@@ -2166,13 +2392,17 @@
   box-shadow: none;
   overflow: hidden;
 }
-.t-match:last-child { margin-bottom: 0; }
+.t-match:last-child {
+  margin-bottom: 0;
+}
 
 /* Der Balken traegt keinen Status mehr — das tut jetzt der Rand der
    Karte. Er bleibt im Markup (der Renderer liefert ihn) und wird
    ausgeblendet, statt ihn aus dem Renderer zu entfernen: eine tote
    Regel ist billiger zurueckzunehmen als ein geloeschtes Element. */
-.t-match-bar { display: none; }
+.t-match-bar {
+  display: none;
+}
 /* ---- Zustaende der Karte — Markenuebernahme Etappe 3 ----
    Der Zustand sitzt jetzt am Rand der Karte und an der Ziffer, nicht
    mehr an einem Balken links. Drei Faelle, drei Mittel:
@@ -2185,8 +2415,12 @@
                Verlierer verblasst. Kein Haken, kein Rand.
      offen     nichts. Eine offene Partie ist der Normalfall und
                braucht keine Auszeichnung. */
-.t-match--done .t-match-team { color: var(--muted); }
-.t-match--done .t-match-team.is-winner { color: var(--ink); }
+.t-match--done .t-match-team {
+  color: var(--muted);
+}
+.t-match--done .t-match-team.is-winner {
+  color: var(--ink);
+}
 /* Die Sieger-Ziffer ist das einzige Orange auf der Karte. Sie steht in
    derselben Zeile wie der Siegername — deshalb ueber den Geschwister-
    Selektor, nicht ueber eine eigene Klasse im Renderer. */
@@ -2275,8 +2509,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "home  home-s"
-    "away  away-s";
+    'home  home-s'
+    'away  away-s';
   align-items: center;
   /* column-gap: 0 mit Absicht. Die Trennlinie zwischen den Teams laeuft
      ueber beide Spalten; eine Luecke dazwischen wuerde sie zerschneiden,
@@ -2288,17 +2522,34 @@
 /* Trennlinie ZWISCHEN den beiden Teams, nicht um sie herum. Sie sagt
    "zwei Parteien", waehrend ein Rahmen nur "ein Kasten" sagt. */
 .t-match-rows > :nth-child(3),
-.t-match-rows > :nth-child(4) { border-top: 1px solid var(--line-soft); }
+.t-match-rows > :nth-child(4) {
+  border-top: 1px solid var(--line-soft);
+}
 /* Vorlage `.mhard .tmr`: 9px 12px. Die Zelle traegt das Polster, nicht
    die Karte — sonst laege die Trennlinie zwischen den Teams nicht auf
    voller Breite. */
-.t-match-rows > * { padding: 9px 0; }
-.t-match-rows > .t-match-team  { padding-left: var(--s3); padding-right: var(--s3); }
-.t-match-rows > .t-match-score { padding-right: var(--s3); }
-.t-match-rows .t-match-team         { grid-area: home; }
-.t-match-rows .t-match-team.right   { grid-area: away; }
-.t-match-rows .t-match-score[data-area="home-score"] { grid-area: home-s; }
-.t-match-rows .t-match-score[data-area="away-score"] { grid-area: away-s; }
+.t-match-rows > * {
+  padding: 9px 0;
+}
+.t-match-rows > .t-match-team {
+  padding-left: var(--s3);
+  padding-right: var(--s3);
+}
+.t-match-rows > .t-match-score {
+  padding-right: var(--s3);
+}
+.t-match-rows .t-match-team {
+  grid-area: home;
+}
+.t-match-rows .t-match-team.right {
+  grid-area: away;
+}
+.t-match-rows .t-match-score[data-area='home-score'] {
+  grid-area: home-s;
+}
+.t-match-rows .t-match-score[data-area='away-score'] {
+  grid-area: away-s;
+}
 
 /* Teams — vertikal gestapelt, jede Zeile bekommt ihren Score rechts. */
 .t-match-team {
@@ -2330,7 +2581,10 @@
 }
 /* Sieger: fetter, nicht farbig. Die Farbe traegt die Ziffer daneben —
    Name UND Zahl in Orange waeren zwei Signale fuer dieselbe Aussage. */
-.t-match-team.is-winner .name { font-weight: 700; color: var(--ink); }
+.t-match-team.is-winner .name {
+  font-weight: 700;
+  color: var(--ink);
+}
 
 /* Farb-Punkt (8px) vor dem Heim-Namen bzw. nach dem Gast-Namen.
    Teams ohne gesetzte Farbe bekommen einen dezenten grauen Punkt. */
@@ -2413,8 +2667,8 @@
   grid-template-columns: 3px minmax(0, 1fr);
   grid-template-rows: auto auto;
   grid-template-areas:
-    "bar rows"
-    "bar rows";
+    'bar rows'
+    'bar rows';
   padding: var(--s2) var(--s3);
   gap: 4px var(--s2);
   font-size: 13px;
@@ -2424,11 +2678,13 @@
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
   grid-template-areas:
-    "home  home-s"
-    "away  away-s";
+    'home  home-s'
+    'away  away-s';
   column-gap: var(--s2);
 }
-.t-match.t-match--compact .t-match-team  { font-size: 13px; }
+.t-match.t-match--compact .t-match-team {
+  font-size: 13px;
+}
 .t-match.t-match--compact .t-match-score {
   font-size: 13px;
   height: 24px;
@@ -2446,10 +2702,20 @@
   margin-bottom: var(--s3);
   gap: 6px var(--s4);
 }
-.t-match.t-match--large:last-child { margin-bottom: 0; }
-.t-match.t-match--large .t-match-meta-ort { font-size: 12px; }
-.t-match.t-match--large .t-match-team       { font-size: 17px; }
-.t-match.t-match--large .t-match-score      { font-size: 22px; height: 40px; min-width: 60px; }
+.t-match.t-match--large:last-child {
+  margin-bottom: 0;
+}
+.t-match.t-match--large .t-match-meta-ort {
+  font-size: 12px;
+}
+.t-match.t-match--large .t-match-team {
+  font-size: 17px;
+}
+.t-match.t-match--large .t-match-score {
+  font-size: 22px;
+  height: 40px;
+  min-width: 60px;
+}
 
 /* Auf <768px Modul-Breite: Action wandert in die oberste Zeile,
    Team+Score-Bereich darunter in voller Breite (max-width weg). */
@@ -2479,16 +2745,24 @@
      Desktop mit derselben Regel. Wer hier wieder ein Grid definiert,
      sollte einen Grund nennen koennen, der bei 1920px nicht auch gilt.
      ---------------------------------------------------------------- */
-  .t-match-score { font-size: 16px; }
+  .t-match-score {
+    font-size: 16px;
+  }
 }
 
 /* ----------------------------------------------------------------
    DOT (klein, 8×8) — wiederverwendbares Indikator-Element.
    Basis-Definition steht oben bei .t-match. Hier nur die Status-Modifier.
    ---------------------------------------------------------------- */
-.t-dot.t-dot--open      { background: var(--open); }
-.t-dot.t-dot--qualified { background: var(--qualified); }
-.t-dot.t-dot--out       { background: var(--out); }
+.t-dot.t-dot--open {
+  background: var(--open);
+}
+.t-dot.t-dot--qualified {
+  background: var(--qualified);
+}
+.t-dot.t-dot--out {
+  background: var(--out);
+}
 
 /* =================================================================
    TURNERBAUM — Etappe B.4 (Bracket-Tab)
@@ -2587,9 +2861,9 @@
   grid-template-columns: 3px minmax(0, 1fr) minmax(36px, auto);
   grid-template-rows: auto auto auto;
   grid-template-areas:
-    "bar home  home-score"
-    "bar away  away-score"
-    "bar meta  meta";
+    'bar home  home-score'
+    'bar away  away-score'
+    'bar meta  meta';
   /* Dritte Fassung: dieselbe Fuellung und dieselbe 12px-Ecke wie die
      Spielkarte im Spielplan — ein Spiel sieht in jeder Ansicht gleich
      aus. Links KEIN Polster: der Zustandsstreifen ist die erste
@@ -2615,7 +2889,7 @@
    der Weg zum Titel sind. In der Gruppenphase bleibt der Streifen weg —
    sonst waere er Dekoration statt Bedeutung." Vorher war er in --line,
    also unsichtbar und ohne Aussage. */
-.t-match--bracket [data-area="bar"] {
+.t-match--bracket [data-area='bar'] {
   /* `display: block` ist Pflicht und keine Redundanz: `.t-match-bar` ist
      seit Etappe 3 global auf `display: none` gesetzt (der Spielplan
      traegt seinen Zustand am Kartenrand, nicht an einem Balken). Ohne
@@ -2630,16 +2904,26 @@
   background: var(--flare);
   border-radius: 0 3px 3px 0;
 }
-.t-match--bracket.t-match--placeholder [data-area="bar"] { background: var(--line); }
-.t-match--bracket [data-area="home"] { grid-area: home; }
-.t-match--bracket [data-area="away"] { grid-area: away; }
-.t-match--bracket [data-area="home-score"] { grid-area: home-score; }
-.t-match--bracket [data-area="away-score"] { grid-area: away-score; }
+.t-match--bracket.t-match--placeholder [data-area='bar'] {
+  background: var(--line);
+}
+.t-match--bracket [data-area='home'] {
+  grid-area: home;
+}
+.t-match--bracket [data-area='away'] {
+  grid-area: away;
+}
+.t-match--bracket [data-area='home-score'] {
+  grid-area: home-score;
+}
+.t-match--bracket [data-area='away-score'] {
+  grid-area: away-score;
+}
 /* Aus dem zentrierten Band mit Trennlinie wird eine Bildunterschrift —
    dieselbe wie unter den Spielkarten im Spielplan: Mono, 10,5px,
    gesperrt, gedaempft, linksbuendig. „Zurueck kommt die Flaeche, nicht
    die Moeblierung darin." */
-.t-match--bracket [data-area="meta"] {
+.t-match--bracket [data-area='meta'] {
   grid-area: meta;
   width: 100%;
   font-family: var(--f-mono);
@@ -2650,16 +2934,16 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.t-match--bracket [data-area="home"],
-.t-match--bracket [data-area="away"] {
+.t-match--bracket [data-area='home'],
+.t-match--bracket [data-area='away'] {
   display: flex;
   align-items: center;
   gap: var(--s2);
   min-width: 0;
   font-size: 13px;
 }
-.t-match--bracket [data-area="home"] .name,
-.t-match--bracket [data-area="away"] .name {
+.t-match--bracket [data-area='home'] .name,
+.t-match--bracket [data-area='away'] .name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -2672,8 +2956,8 @@
    war die Signatur des alten Entwurfs. Wer sie hier stehen laesst,
    bekommt zwei verschiedene Ergebnis-Darstellungen in derselben App,
    je nachdem ob man auf Spielplan oder Baum schaut. */
-.t-match--bracket [data-area="home-score"],
-.t-match--bracket [data-area="away-score"] {
+.t-match--bracket [data-area='home-score'],
+.t-match--bracket [data-area='away-score'] {
   font-family: var(--f-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -2688,8 +2972,8 @@
   line-height: 1.2;
   align-self: center;
 }
-.t-match--bracket [data-area="home-score"].empty,
-.t-match--bracket [data-area="away-score"].empty {
+.t-match--bracket [data-area='home-score'].empty,
+.t-match--bracket [data-area='away-score'].empty {
   color: var(--muted);
   font-weight: 500;
   background: transparent;
@@ -2697,7 +2981,7 @@
 }
 /* Der Sieger traegt Orange — wie im Spielplan, ueber den
    Geschwister-Selektor statt einer eigenen Klasse im Renderer. */
-.t-match--bracket.t-match--done .t-match-team.is-winner + [data-area$="-score"] {
+.t-match--bracket.t-match--done .t-match-team.is-winner + [data-area$='-score'] {
   color: var(--flare);
 }
 .t-match--bracket.t-match--placeholder .name {
@@ -2720,8 +3004,8 @@
   color: var(--ink);
   font-weight: 700;
 }
-.t-match--bracket.t-match--done [data-area="home"]:not(.is-winner) .name,
-.t-match--bracket.t-match--done [data-area="away"]:not(.is-winner) .name {
+.t-match--bracket.t-match--done [data-area='home']:not(.is-winner) .name,
+.t-match--bracket.t-match--done [data-area='away']:not(.is-winner) .name {
   /* siehe .t-match--bracket.t-match--placeholder .name — Modul-Token
      statt globalem --muted. */
   color: var(--ink-soft);
@@ -2730,8 +3014,8 @@
 .t-match--bracket.t-match--done .t-dot:not(.t-dot--placeholder) {
   opacity: 0.5;
 }
-.t-match--bracket.t-match--done [data-area="home"].is-winner .t-dot,
-.t-match--bracket.t-match--done [data-area="away"].is-winner .t-dot {
+.t-match--bracket.t-match--done [data-area='home'].is-winner .t-dot,
+.t-match--bracket.t-match--done [data-area='away'].is-winner .t-dot {
   opacity: 1;
 }
 
@@ -2744,7 +3028,9 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
-.bracket-tabs::-webkit-scrollbar { display: none; }
+.bracket-tabs::-webkit-scrollbar {
+  display: none;
+}
 .bracket-tab {
   flex: 0 0 auto;
   padding: 6px 12px;
@@ -2758,9 +3044,9 @@
   font-family: inherit;
 }
 .bracket-tab.is-active {
-  background: var(--accent, #1D3557);
+  background: var(--accent, #1d3557);
   color: #fff;
-  border-color: var(--accent, #1D3557);
+  border-color: var(--accent, #1d3557);
   font-weight: 600;
 }
 
@@ -2785,14 +3071,18 @@
    Der Wrap selbst ist auf Mobile ohnehin auf die volle Inhaltsbreite
    begrenzt, also muss die Spalte nicht noch zusätzlich schrumpfen. */
 @media (max-width: 767px) {
-  .bracket-tabs { display: flex; }
+  .bracket-tabs {
+    display: flex;
+  }
   /* Die Spaltenueberschrift wiederholt hier den aktiven Reiter: auf
      Mobile ist genau eine Spalte sichtbar, und die Pille darueber sagt
      schon „HALBFINALE". Zweimal derselbe Name untereinander war die
      Beschwerde, die den View-Kopf gekostet hat (Beschwerde 6) — dieselbe
      Doppelung, eine Ansicht weiter. Auf Desktop bleibt sie: dort stehen
      alle Runden nebeneinander und es gibt keine Reiter. */
-  .bracket-col-label { display: none; }
+  .bracket-col-label {
+    display: none;
+  }
   .bracket-wrap {
     scroll-snap-type: x mandatory;
     scroll-padding-left: 0;
@@ -2805,7 +3095,9 @@
     scroll-snap-align: start;
     scroll-snap-stop: always;
   }
-  .bracket-3rd { max-width: 100%; }
+  .bracket-3rd {
+    max-width: 100%;
+  }
 }
 
 /* Sehr schmale Geräte (<= 380px): Cards bleiben auf Bildschirm-Breite,
@@ -2813,15 +3105,15 @@
    Cover, iPhone SE. Beachte: getrennte home-score / away-score (nicht
    kombinierter "score" — der wurde in Bug-16-Nachschlag-3 entfernt). */
 @media (max-width: 380px) {
-  .t-match--bracket [data-area="home-score"],
-  .t-match--bracket [data-area="away-score"] {
+  .t-match--bracket [data-area='home-score'],
+  .t-match--bracket [data-area='away-score'] {
     font-size: 13px;
   }
-  .t-match--bracket [data-area="home"] .name,
-  .t-match--bracket [data-area="away"] .name {
+  .t-match--bracket [data-area='home'] .name,
+  .t-match--bracket [data-area='away'] .name {
     font-size: 12px;
   }
-  .t-match--bracket [data-area="meta"] {
+  .t-match--bracket [data-area='meta'] {
     font-size: 9px;
   }
 }
@@ -2904,7 +3196,9 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
-.t-wizard-progress-list::-webkit-scrollbar { display: none; }
+.t-wizard-progress-list::-webkit-scrollbar {
+  display: none;
+}
 
 .t-wizard-progress-step {
   flex: 0 0 auto;
@@ -3016,8 +3310,12 @@
   display: grid;
   gap: var(--s4);
 }
-.t-wizard-row.two { grid-template-columns: 1fr 1fr; }
-.t-wizard-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.t-wizard-row.two {
+  grid-template-columns: 1fr 1fr;
+}
+.t-wizard-row.three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
 
 /* Eingabefelder tragen ihre Kontur als INNENSCHATTEN auf vertiefter
    Flaeche — dieselbe Machart wie das Score-Feld im Dialog. Das ist die
@@ -3074,7 +3372,9 @@ textarea.t-input {
   border: 1px solid var(--line);
   background: var(--surface);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
   min-width: 0;
 }
 .t-wizard-mode-card:hover:not(:disabled) {
@@ -3173,7 +3473,7 @@ textarea.t-input {
   color: var(--ink);
   cursor: pointer;
 }
-.t-wizard-checkbox-row input[type="checkbox"] {
+.t-wizard-checkbox-row input[type='checkbox'] {
   width: 18px;
   height: 18px;
   accent-color: var(--accent);
@@ -3244,7 +3544,9 @@ textarea.t-input {
      Placeholder nahtlos zwischen die echten Rows rutscht. */
   position: relative;
 }
-.t-wizard-tie-list.is-dragging-active { gap: 0; }
+.t-wizard-tie-list.is-dragging-active {
+  gap: 0;
+}
 .t-wizard-tie-row {
   display: flex;
   align-items: center;
@@ -3258,8 +3560,12 @@ textarea.t-input {
   user-select: none;
   cursor: grab;
 }
-.t-wizard-tie-row:active { cursor: grabbing; }
-.t-wizard-tie-row:last-child { border-bottom: none; }
+.t-wizard-tie-row:active {
+  cursor: grabbing;
+}
+.t-wizard-tie-row:last-child {
+  border-bottom: none;
+}
 .t-wizard-tie-row.is-dragging {
   /* Wird vom JS auf position:absolute gesetzt — hier nur Optik. */
   opacity: 0.55;
@@ -3311,7 +3617,9 @@ textarea.t-input {
   background: var(--surface);
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 .t-wizard-drop:hover {
   border-color: var(--accent);
@@ -3343,7 +3651,9 @@ textarea.t-input {
   gap: var(--s3);
 }
 @media (max-width: 767px) {
-  .t-wizard-teams-paths { grid-template-columns: minmax(0, 1fr); }
+  .t-wizard-teams-paths {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .t-wizard-teams-path {
   display: flex;
@@ -3422,7 +3732,9 @@ textarea.t-input {
      sonst greift der Pointer-Handler nicht. */
   touch-action: none;
 }
-.t-wizard-team-row:last-child { border-bottom: none; }
+.t-wizard-team-row:last-child {
+  border-bottom: none;
+}
 .t-wizard-team-row.is-dragging {
   z-index: 10;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
@@ -3468,7 +3780,9 @@ textarea.t-input {
   /* Touch-Gesten nicht abfangen — DnD lebt davon. */
   touch-action: manipulation;
 }
-.t-wizard-team-name-input:hover { border-color: var(--line); }
+.t-wizard-team-name-input:hover {
+  border-color: var(--line);
+}
 .t-wizard-team-name-input:focus {
   /* Der Fallback #5A8A6B war ausserdem ein Gruenton aus einem fremden
      Set — --accent ist im Modul immer definiert, der Fallback ist weg. */
@@ -3491,9 +3805,9 @@ textarea.t-input {
 .t-wizard-warn {
   padding: var(--s2) var(--s3);
   border-radius: var(--r-btn);
-  background: #FBEFE0;
-  border: 1px solid #E3C99A;
-  color: #6E5118;
+  background: #fbefe0;
+  border: 1px solid #e3c99a;
+  color: #6e5118;
   font-size: 13px;
 }
 
@@ -3525,7 +3839,9 @@ textarea.t-input {
   padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--line);
 }
-.t-wizard-summary-row:last-child { border-bottom: none; }
+.t-wizard-summary-row:last-child {
+  border-bottom: none;
+}
 .t-wizard-summary-row dt {
   font-size: 13px;
   color: var(--ink-soft);
@@ -3613,7 +3929,7 @@ textarea.t-input {
   margin: 0;
   font-size: 13px;
   color: var(--ink-soft);
-  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
 }
 /* Dieselbe Machart wie .t-input: vertiefte Flaeche, Ring als
    Innenschatten. `--r2` kam aus main.css und war hier eine Wette darauf,
@@ -3897,7 +4213,7 @@ textarea.t-input {
  * ---------------------------------------------------------------- */
 .t-teams-view {
   background: var(--surface);
-  border: 1px solid var(--line, #E7DFD2);
+  border: 1px solid var(--line, #e7dfd2);
   border-radius: 12px;
   padding: 16px 20px;
   max-width: 920px;
@@ -3929,17 +4245,17 @@ textarea.t-input {
   background: transparent;
   border: 1px solid transparent;
 }
-.t-teams-summary[data-state="ok"] {
+.t-teams-summary[data-state='ok'] {
   background: rgba(44, 110, 63, 0.08);
   border-color: rgba(44, 110, 63, 0.25);
   color: #2c6e3f;
 }
-.t-teams-summary[data-state="saving"] {
+.t-teams-summary[data-state='saving'] {
   background: rgba(170, 140, 30, 0.08);
   border-color: rgba(170, 140, 30, 0.25);
   color: #8a6a1a;
 }
-.t-teams-summary[data-state="err"] {
+.t-teams-summary[data-state='err'] {
   background: rgba(170, 51, 51, 0.08);
   border-color: rgba(170, 51, 51, 0.3);
   color: #a33;
@@ -3963,18 +4279,18 @@ textarea.t-input {
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
-  border: 1px solid var(--line, #E7DFD2);
+  border: 1px solid var(--line, #e7dfd2);
   border-radius: 8px;
-  background: var(--paper, #FAF7F1);
+  background: var(--paper, #faf7f1);
   transition: border-color 0.15s ease;
 }
-.t-teams-row[data-row-state="saving"] {
+.t-teams-row[data-row-state='saving'] {
   border-color: rgba(170, 140, 30, 0.45);
 }
-.t-teams-row[data-row-state="ok"] {
+.t-teams-row[data-row-state='ok'] {
   border-color: rgba(44, 110, 63, 0.4);
 }
-.t-teams-row[data-row-state="err"] {
+.t-teams-row[data-row-state='err'] {
   border-color: rgba(170, 51, 51, 0.45);
   background: rgba(170, 51, 51, 0.04);
 }
@@ -3986,7 +4302,7 @@ textarea.t-input {
   width: 28px;
   height: 28px;
   background: var(--surface);
-  border: 1px solid var(--line, #E7DFD2);
+  border: 1px solid var(--line, #e7dfd2);
   border-radius: 50%;
   font-size: 0.8rem;
   font-weight: 600;
@@ -4006,7 +4322,7 @@ textarea.t-input {
   width: 36px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--line, #E7DFD2);
+  border: 1px solid var(--line, #e7dfd2);
   border-radius: 6px;
   background: var(--surface);
   cursor: pointer;
@@ -4020,10 +4336,18 @@ textarea.t-input {
   font-size: 1rem;
   font-weight: 700;
 }
-.t-teams-row-status[data-state="ok"] { color: #2c6e3f; }
-.t-teams-row-status[data-state="err"] { color: #a33; }
-.t-teams-row-status[data-state="saving"] { color: #8a6a1a; }
-.t-teams-row-status[data-state="idle"] { color: transparent; }
+.t-teams-row-status[data-state='ok'] {
+  color: #2c6e3f;
+}
+.t-teams-row-status[data-state='err'] {
+  color: #a33;
+}
+.t-teams-row-status[data-state='saving'] {
+  color: #8a6a1a;
+}
+.t-teams-row-status[data-state='idle'] {
+  color: transparent;
+}
 
 /* X-Reset-Button (Farbe zurücksetzen) */
 .t-btn--xs {
@@ -4031,7 +4355,7 @@ textarea.t-input {
   font-size: 0.85rem;
   line-height: 1.4;
   border-radius: 999px;
-  border: 1px solid var(--line, #E7DFD2);
+  border: 1px solid var(--line, #e7dfd2);
   background: var(--surface);
   color: var(--ink-soft);
   cursor: pointer;
@@ -4049,7 +4373,9 @@ textarea.t-input {
   .t-teams-row {
     grid-template-columns: 28px minmax(0, 1fr) auto;
   }
-  .t-teams-row-status { display: none; }
+  .t-teams-row-status {
+    display: none;
+  }
 }
 
 /* ----------------------------------------------------------------
@@ -4059,10 +4385,14 @@ textarea.t-input {
 .t-rules-paragraphs p {
   margin: 0 0 1em;
   line-height: 1.55;
-  color: var(--ink, #1F1B16);
+  color: var(--ink, #1f1b16);
 }
-.t-rules-paragraphs p:last-child { margin-bottom: 0; }
-.t-rules-paragraphs br { line-height: 1.55; }
+.t-rules-paragraphs p:last-child {
+  margin-bottom: 0;
+}
+.t-rules-paragraphs br {
+  line-height: 1.55;
+}
 
 .t-rules-textarea {
   width: 100%;
@@ -4072,16 +4402,16 @@ textarea.t-input {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
-  border: 1px solid var(--line, #E7DFD2);
+  border: 1px solid var(--line, #e7dfd2);
   border-radius: 8px;
   background: var(--surface);
-  color: var(--ink, #1F1B16);
+  color: var(--ink, #1f1b16);
   box-sizing: border-box;
 }
 .t-rules-textarea:focus {
-  outline: 2px solid var(--accent, #B85C2C);
+  outline: 2px solid var(--accent, #b85c2c);
   outline-offset: 1px;
-  border-color: var(--accent, #B85C2C);
+  border-color: var(--accent, #b85c2c);
 }
 .t-rules-meta {
   display: flex;
@@ -4089,7 +4419,9 @@ textarea.t-input {
   gap: var(--s3, 12px);
   margin-top: var(--s3, 12px);
 }
-.t-rules-meta .spacer { margin-left: auto; }
+.t-rules-meta .spacer {
+  margin-left: auto;
+}
 .t-rules-meta > span {
   font-size: 12px;
   color: var(--ink-soft);
@@ -4134,20 +4466,22 @@ textarea.t-input {
   border: 1px solid transparent;
   border-radius: 0;
   position: relative;
-  touch-action: pan-y;          /* vertikalen Scroll erlauben, horizontales DnD blockieren */
+  touch-action: pan-y; /* vertikalen Scroll erlauben, horizontales DnD blockieren */
   user-select: none;
 }
-.t-team-row + .t-team-row { border-top-color: var(--line-soft); }
+.t-team-row + .t-team-row {
+  border-top-color: var(--line-soft);
+}
 .t-team-row.is-dragging {
   z-index: 10;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   cursor: grabbing;
   background: var(--surface);
 }
 .t-team-row--placeholder {
-  border: 1px dashed var(--line, #E5DED5);
+  border: 1px dashed var(--line, #e5ded5);
   background: transparent;
-  visibility: hidden;             /* Platzhalter hält die Höhe, ist unsichtbar */
+  visibility: hidden; /* Platzhalter hält die Höhe, ist unsichtbar */
 }
 .t-team-drag-handle {
   display: inline-flex;
@@ -4161,7 +4495,10 @@ textarea.t-input {
   cursor: grab;
   border-radius: 4px;
 }
-.t-team-drag-handle:hover { background: var(--line, #E5DED5); color: var(--ink, #1B1B1F); }
+.t-team-drag-handle:hover {
+  background: var(--line, #e5ded5);
+  color: var(--ink, #1b1b1f);
+}
 .t-team-drag-handle.is-readonly {
   cursor: default;
   /* Member-View: kein Glyph (Renderer lässt das Zeichen weg), nur Platzhalter */
@@ -4175,34 +4512,34 @@ textarea.t-input {
   justify-content: center;
   font-size: 13px;
   font-weight: 600;
-  background: var(--line, #E5DED5);
-  color: var(--ink, #1B1B1F);
+  background: var(--line, #e5ded5);
+  color: var(--ink, #1b1b1f);
   flex-shrink: 0;
 }
 .t-team-name {
   font-size: 15px;
   font-weight: 500;
-  color: var(--ink, #1B1B1F);
+  color: var(--ink, #1b1b1f);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .t-teams-list.is-draggable .t-team-name {
-  cursor: pointer;                /* Editier-Hinweis via Cursor + Edit-Hint-Text */
+  cursor: pointer; /* Editier-Hinweis via Cursor + Edit-Hint-Text */
   border-bottom: 1px dashed transparent;
 }
 .t-teams-list.is-draggable .t-team-row:hover .t-team-name {
-  border-bottom-color: var(--line, #E5DED5);
+  border-bottom-color: var(--line, #e5ded5);
 }
 .t-team-name-input {
   font-size: 15px;
   font-weight: 500;
-  color: var(--ink, #1B1B1F);
+  color: var(--ink, #1b1b1f);
   width: 100%;
   min-width: 0;
   padding: 4px 6px;
-  border: 1px solid var(--accent, #1D3557);
+  border: 1px solid var(--accent, #1d3557);
   border-radius: 4px;
   background: var(--surface);
   font-family: inherit;
@@ -4246,11 +4583,11 @@ textarea.t-input {
   border: 0;
   border-radius: 0;
   padding: var(--s2) 0 var(--s2) var(--s3);
-  font-style: normal;             /* Override für t-hint italic */
+  font-style: normal; /* Override für t-hint italic */
   margin-bottom: var(--s3);
 }
 .t-hint--info::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 0;
@@ -4280,8 +4617,14 @@ textarea.t-input {
     padding-top: 11px;
     padding-bottom: 11px;
   }
-  .t-team-name { font-size: 14px; }
-  .t-team-marker { width: 24px; height: 24px; font-size: 12px; }
+  .t-team-name {
+    font-size: 14px;
+  }
+  .t-team-marker {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
 }
 
 /* === Etappe B.7 — Einstellungen-Tab ============================== */
@@ -4346,7 +4689,9 @@ textarea.t-input {
   padding: 12px var(--s4);
   min-width: 0;
 }
-.t-list-row + .t-list-row { border-top: 1px solid var(--line-soft); }
+.t-list-row + .t-list-row {
+  border-top: 1px solid var(--line-soft);
+}
 .t-list-label {
   min-width: 0;
   font-weight: 500;
@@ -4367,7 +4712,9 @@ textarea.t-input {
   font-size: 13px;
   color: var(--ink-2);
 }
-.t-list-chevron { color: var(--muted); }
+.t-list-chevron {
+  color: var(--muted);
+}
 
 /* Statuskarte am Kopf des Tabs. Das Band links ist Teal, weil sie sagt
    "laeuft gerade" — dieselbe Bedeutung wie am Rand der laufenden
@@ -4443,7 +4790,11 @@ textarea.t-input {
   text-transform: uppercase;
   margin: 0;
 }
-.t-danger-zone-body { display: flex; flex-direction: column; gap: var(--s2); }
+.t-danger-zone-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
 .t-danger-zone-actions {
   display: flex;
   gap: var(--s2);
@@ -4496,8 +4847,12 @@ textarea.t-input {
   color: var(--ink-soft);
   transition: transform 0.15s ease;
 }
-.t-settings-section[data-collapsed="true"] .t-settings-section-body { display: none; }
-.t-settings-section[data-collapsed="true"] .t-settings-section-toggle { transform: rotate(-90deg); }
+.t-settings-section[data-collapsed='true'] .t-settings-section-body {
+  display: none;
+}
+.t-settings-section[data-collapsed='true'] .t-settings-section-toggle {
+  transform: rotate(-90deg);
+}
 .t-settings-section:first-child .t-settings-section-header {
   border-top: 1px solid var(--line, #e5e2da);
 }
@@ -4535,7 +4890,9 @@ textarea.t-input {
   gap: var(--s2, 8px);
   flex: 1 1 200px;
 }
-.t-shift-minutes { width: 90px; }
+.t-shift-minutes {
+  width: 90px;
+}
 .t-reschedule-form {
   display: flex;
   flex-direction: column;
@@ -4585,9 +4942,20 @@ textarea.t-input {
   gap: var(--s3, 12px);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
 }
-.t-pick-team-modal-card h3 { margin: 0; font-size: 14px; }
-.t-pick-team-radios { display: flex; flex-direction: column; gap: var(--s2, 8px); }
-.t-pick-team-actions { display: flex; gap: var(--s2, 8px); justify-content: flex-end; }
+.t-pick-team-modal-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.t-pick-team-radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+}
+.t-pick-team-actions {
+  display: flex;
+  gap: var(--s2, 8px);
+  justify-content: flex-end;
+}
 
 /* === Groups-Board (DnD) ========================================== */
 .t-groups-board {
@@ -4659,7 +5027,7 @@ textarea.t-input {
 .t-group-team-card.is-dragging {
   position: fixed;
   z-index: 100;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   cursor: grabbing;
   pointer-events: none;
   width: var(--card-width, 180px);
@@ -4717,9 +5085,15 @@ textarea.t-input {
   color: var(--ink);
   width: auto;
 }
-.t-match-edit-field { width: 56px; text-align: center; }
+.t-match-edit-field {
+  width: 56px;
+  text-align: center;
+}
 .t-match-edit-time:disabled,
-.t-match-edit-field:disabled { opacity: 0.5; cursor: not-allowed; }
+.t-match-edit-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .t-schedule-edit-bar {
   display: flex;
   gap: var(--s3);
@@ -4803,7 +5177,10 @@ textarea.t-input {
   color: var(--ink);
   min-width: 0;
 }
-.t-field-name:disabled { opacity: 0.5; cursor: not-allowed; }
+.t-field-name:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .t-fields-editor-actions {
   display: flex;
   gap: var(--s2);
@@ -4822,12 +5199,27 @@ textarea.t-input {
 
 /* === Etappe B.7 — Mobile ========================================= */
 @media (max-width: 600px) {
-  .t-groups-board { grid-template-columns: 1fr; }
-  .t-schedule-edit-bar { flex-direction: column; align-items: stretch; }
-  .t-schedule-edit-config { flex-wrap: wrap; }
-  .t-fields-list { grid-template-columns: 1fr; }
-  .t-settings-actions { flex-direction: column; align-items: stretch; }
-  .t-danger-zone-actions { flex-direction: column; align-items: stretch; }
+  .t-groups-board {
+    grid-template-columns: 1fr;
+  }
+  .t-schedule-edit-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .t-schedule-edit-config {
+    flex-wrap: wrap;
+  }
+  .t-fields-list {
+    grid-template-columns: 1fr;
+  }
+  .t-settings-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .t-danger-zone-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 /* ================================================================
@@ -4909,7 +5301,9 @@ textarea.t-input {
    seiner Definitionsstelle nachgezogen ist, bekommt der Dialog hier
    den Modul-Radius — nicht als zweite Wahrheit, sondern als die
    richtige: --r-card ist der Radius jeder Karte im Modul. */
-.t-dialog-host .t-confirm-dialog { border-radius: var(--r-card); }
+.t-dialog-host .t-confirm-dialog {
+  border-radius: var(--r-card);
+}
 
 /* ----------------------------------------------------------------
    DIALOG-KARTE
@@ -4953,16 +5347,21 @@ textarea.t-input {
 /* Zwei Klassen, damit die Regel gegen `.t-mod button` (Zeile 217)
    ankommt — sonst fiele die Farbe auf `inherit` zurück. */
 .t-dialog .t-dialog-close {
-  width: 32px; height: 32px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--r-btn);
   color: var(--ink-soft);
   background: transparent;
   border: none;
-  display: grid; place-items: center;
+  display: grid;
+  place-items: center;
   font-size: 16px;
   flex: none;
 }
-.t-dialog .t-dialog-close:hover { background: var(--surface-alt); color: var(--ink); }
+.t-dialog .t-dialog-close:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
+}
 
 .t-dialog-body {
   padding: var(--s4) var(--s5) 6px;
@@ -4981,7 +5380,9 @@ textarea.t-input {
   gap: 9px;
   padding: var(--s3) var(--s5) var(--s5);
 }
-.t-dialog-foot > .t-btn { flex: 1; }
+.t-dialog-foot > .t-btn {
+  flex: 1;
+}
 
 /* Die graue Zeile mit Runde, Zeit und Platte — das Spiel steht damit
    genau einmal im Dialog, nicht zusätzlich in einer Vorschau-Box. */
@@ -4994,10 +5395,14 @@ textarea.t-input {
   color: var(--muted);
   margin: 0;
 }
-.t-dialog-subline:empty { display: none; }
+.t-dialog-subline:empty {
+  display: none;
+}
 
 /* Auswahlfeld, wenn kein Spiel vorgegeben ist */
-.t-field { margin-bottom: var(--s4); }
+.t-field {
+  margin-bottom: var(--s4);
+}
 .t-field-label {
   display: block;
   font-size: 12px;
@@ -5087,7 +5492,10 @@ textarea.t-input {
   -webkit-appearance: none;
   margin: 0;
 }
-.t-score-entry-input { -moz-appearance: textfield; appearance: textfield; }
+.t-score-entry-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 
 /* ---- Auf dem Handy fährt der Dialog von unten ein ----
    Nur der Ergebnis-Dialog: er ist der einzige, den man während eines
@@ -5106,15 +5514,28 @@ textarea.t-input {
     padding-bottom: env(safe-area-inset-bottom);
     animation: t-dialog-up 0.2s ease;
   }
-  .t-score-entry-row { grid-template-columns: minmax(0, 1fr) 96px; }
-  .t-score-entry-input { height: 56px; font-size: 26px; }
+  .t-score-entry-row {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+  .t-score-entry-input {
+    height: 56px;
+    font-size: 26px;
+  }
 }
 @keyframes t-dialog-up {
-  from { transform: translateY(24px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .t-dialog { animation: none; }
+  .t-dialog {
+    animation: none;
+  }
 }
 
 /* ================================================================
@@ -5186,18 +5607,18 @@ textarea.t-input {
      Der Selektor traegt [data-theme=dark] mit, weil der Dunkel-Block
      oben (0,2,0) sonst gewinnt. */
   .t-mod,
-  [data-theme="dark"] .t-mod {
-    --paper: #FFFFFF;
-    --surface: #FFFFFF;
-    --surface-alt: #FFFFFF;
+  [data-theme='dark'] .t-mod {
+    --paper: #ffffff;
+    --surface: #ffffff;
+    --surface-alt: #ffffff;
     --ink: #000000;
-    --ink-soft: #3A3A3A;
+    --ink-soft: #3a3a3a;
     --line: #999999;
     --accent: #000000;
-    --accent-soft: #FFFFFF;
+    --accent-soft: #ffffff;
     --accent-ink: #000000;
     --accent-soft-ink: #000000;
-    --board: #FFFFFF;
+    --board: #ffffff;
     --board-ink: #000000;
     --board-dim: #555555;
     --open: #000000;
@@ -5208,7 +5629,7 @@ textarea.t-input {
     --danger: #000000;
     --danger-ink: #000000;
     --warn: #000000;
-    --warn-soft: #FFFFFF;
+    --warn-soft: #ffffff;
   }
 
   /* ---- Modul-Rahmen: alle Scroll- und Hoehenklammern loesen -------
@@ -5223,7 +5644,9 @@ textarea.t-input {
     overflow: visible;
     background: #fff;
   }
-  .t-shell { display: block; }
+  .t-shell {
+    display: block;
+  }
   .t-mod-main,
   .t-mod-aside {
     display: block;
@@ -5261,18 +5684,24 @@ textarea.t-input {
   }
 
   /* ---- Die drei fachlichen Ansichten, jede auf eigener Seite ----- */
-  .t-view { display: none !important; }
-  .t-view[data-view="spielplan"],
-  .t-view[data-view="gruppen"],
-  .t-view[data-view="baum"] {
+  .t-view {
+    display: none !important;
+  }
+  .t-view[data-view='spielplan'],
+  .t-view[data-view='gruppen'],
+  .t-view[data-view='baum'] {
     display: block !important;
     break-before: page;
   }
   /* Die erste gedruckte Ansicht faengt keinen Seitenumbruch an. */
-  .t-view[data-view="spielplan"] { break-before: auto; }
+  .t-view[data-view='spielplan'] {
+    break-before: auto;
+  }
 
   /* Leere Lazy-Mounts nicht als leere Seite drucken (Entscheid 1). */
-  .t-view:has(> [data-tab-body]:empty) { display: none !important; }
+  .t-view:has(> [data-tab-body]:empty) {
+    display: none !important;
+  }
 
   /* ---- Kopf ------------------------------------------------------ */
   .t-mod-header {
@@ -5323,19 +5752,38 @@ textarea.t-input {
     background: none !important;
     border-left: 3px dotted #000;
   }
-  .t-match--live .t-match-bar { border-left-style: double; border-left-width: 4px; }
-  .t-match--done .t-match-bar { border-left-style: solid; }
-  .t-match--live .t-match-meta-ort::after { content: " · laeuft"; font-weight: 700; }
-  .t-match--done .t-match-team { color: #000; }
-  .t-match { background: none; border-bottom: 1px solid #ccc; }
-  .t-match-action-text { display: inline; font-size: 10pt; }
+  .t-match--live .t-match-bar {
+    border-left-style: double;
+    border-left-width: 4px;
+  }
+  .t-match--done .t-match-bar {
+    border-left-style: solid;
+  }
+  .t-match--live .t-match-meta-ort::after {
+    content: ' · laeuft';
+    font-weight: 700;
+  }
+  .t-match--done .t-match-team {
+    color: #000;
+  }
+  .t-match {
+    background: none;
+    border-bottom: 1px solid #ccc;
+  }
+  .t-match-action-text {
+    display: inline;
+    font-size: 10pt;
+  }
 
   .t-badge {
     background: none !important;
     color: #000 !important;
     border: 1px solid #000;
   }
-  .t-dot { border: 1px solid #000; background: none !important; }
+  .t-dot {
+    border: 1px solid #000;
+    background: none !important;
+  }
 
   /* ---- Anzeigetafel umdrehen (Entscheid 3) ----------------------- */
   .t-match-score {
@@ -5345,7 +5793,9 @@ textarea.t-input {
   }
   /* (2026-08-26) Der gestrichelte Umriss ist mit der Anzeigetafel
      entfallen; auf Papier blieb sonst ein leeres Kaestchen stehen. */
-  .t-match-score.empty { border: 0; }
+  .t-match-score.empty {
+    border: 0;
+  }
 
   /* ---- Tabellen lesbar auf Papier -------------------------------- */
   .t-standings-table,
@@ -5380,13 +5830,20 @@ textarea.t-input {
     border: 1px solid #000;
     color: #000 !important;
   }
-  .t-thirds-row.is-out { opacity: 1; font-style: italic; }
+  .t-thirds-row.is-out {
+    opacity: 1;
+    font-style: italic;
+  }
 
   /* ---- Fokusringe und Animationen gehoeren nicht auf Papier ------ */
-  .t-mod :focus-visible { outline: none; }
-  .t-mod * { animation: none !important; transition: none !important; }
+  .t-mod :focus-visible {
+    outline: none;
+  }
+  .t-mod * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
-
 
 /* ----------------------------------------------------------------
    SEGMENT-LEISTE — Markenuebernahme Etappe 2
@@ -5426,7 +5883,9 @@ textarea.t-input {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.t-seg > button:hover { color: var(--ink); }
+.t-seg > button:hover {
+  color: var(--ink);
+}
 .t-seg > button.is-active {
   background: var(--panel);
   color: var(--ink);
@@ -5447,7 +5906,9 @@ textarea.t-input {
   scrollbar-width: none;
   padding-bottom: 2px;
 }
-.t-filter-row::-webkit-scrollbar { display: none; }
+.t-filter-row::-webkit-scrollbar {
+  display: none;
+}
 .t-filter-chip {
   flex: 0 0 auto;
   display: inline-flex;
@@ -5477,7 +5938,10 @@ textarea.t-input {
   border-color: var(--ink);
   color: var(--panel);
 }
-.t-filter-chip.is-active .t-filter-n { color: var(--panel); opacity: 0.72; }
+.t-filter-chip.is-active .t-filter-n {
+  color: var(--panel);
+  opacity: 0.72;
+}
 
 /* Der Kicker darf UMBRECHEN — bis zu zwei Zeilen, dann kuerzt er.
    Vorher stand hier `white-space: nowrap`, und der laengste Kicker des
@@ -5497,7 +5961,6 @@ textarea.t-input {
   overflow: hidden;
 }
 
-
 /* ----------------------------------------------------------------
    FARBPUNKTE VOR DEN TEAMNAMEN — Markenuebernahme Etappe 3
    ----------------------------------------------------------------
@@ -5511,7 +5974,9 @@ textarea.t-input {
    Teamfarbe als Inline-Style und wird von applyPropagatedMatches
    angefasst. Eine tote CSS-Regel ist billiger zurueckzunehmen als ein
    geloeschtes Element mit Logik daran. */
-.t-match .t-match-team > .t-dot { display: none; }
+.t-match .t-match-team > .t-dot {
+  display: none;
+}
 
 /* Aktionszeile der Karte: eigene Zeile unter der Meta, rechtsbuendig.
    Sie traegt entweder den Admin-Knopf ("Ergebnis erfassen") oder den
@@ -5528,7 +5993,9 @@ textarea.t-input {
   min-width: 0;
   flex: none;
 }
-.t-match-action:empty { display: none; }
+.t-match-action:empty {
+  display: none;
+}
 /* Der Mitglieder-Text ist Zustand, kein Knopf — also dieselbe Sprache
    wie die Meta-Zeile darueber. */
 .t-match-action > span,
@@ -5565,7 +6032,9 @@ textarea.t-input {
   padding: 0 var(--s2);
   font-family: var(--f-mono);
 }
-.t-zeitmarke:first-child { margin-top: 0; }
+.t-zeitmarke:first-child {
+  margin-top: 0;
+}
 .t-zeitmarke-zeit {
   font-size: 13px;
   font-weight: 600;
@@ -5590,7 +6059,9 @@ textarea.t-input {
   text-transform: uppercase;
   color: var(--muted);
 }
-.t-zeitmarke.is-next .t-zeitmarke-zustand { color: var(--flare); }
+.t-zeitmarke.is-next .t-zeitmarke-zustand {
+  color: var(--flare);
+}
 .t-dot-flare {
   width: 7px;
   height: 7px;
@@ -5627,7 +6098,9 @@ textarea.t-input {
    gesperrt, kein Behaelter, aktiv tintengefuellt. Vorher stand hier
    Archivo 600 in 14px mit Rahmen — auf 390px passten drei Runden damit
    nicht nebeneinander und die dritte war abgeschnitten. */
-.bracket-tabs { display: flex; }
+.bracket-tabs {
+  display: flex;
+}
 .bracket-tab {
   display: inline-flex;
   align-items: baseline;
@@ -5643,7 +6116,9 @@ textarea.t-input {
   text-transform: uppercase;
   color: var(--muted);
 }
-.bracket-tab:hover { color: var(--ink); }
+.bracket-tab:hover {
+  color: var(--ink);
+}
 .bracket-tab-stand {
   font-family: var(--f-mono);
   font-size: 11.5px;
@@ -5658,24 +6133,34 @@ textarea.t-input {
   border-color: var(--ink);
   color: var(--panel);
 }
-.bracket-tab.is-active .bracket-tab-stand { color: var(--panel); opacity: 0.68; }
+.bracket-tab.is-active .bracket-tab-stand {
+  color: var(--panel);
+  opacity: 0.68;
+}
 
 /* Gefahrenzone: Karmin am Rand und in der Kopfzeile. Sie ist der einzige
    Bereich, der eine eigene Farbe traegt — alles andere in den
    Einstellungen ist neutral, damit dieser eine Block auffaellt, ohne
    dass man ihn suchen muss. */
-.t-settings-section.t-danger-zone { border-color: var(--danger); }
+.t-settings-section.t-danger-zone {
+  border-color: var(--danger);
+}
 .t-settings-section.t-danger-zone .t-settings-section-header {
   background: var(--panel);
   border-bottom-color: var(--danger);
 }
-.t-settings-section.t-danger-zone .t-settings-section-title { color: var(--danger); }
+.t-settings-section.t-danger-zone .t-settings-section-title {
+  color: var(--danger);
+}
 
 /* Zuschauer-Link: die Zeile aus der Nachbar-Session trug ein Inline-Flex
    am Eingabefeld, weil tournament.css waehrend ihres Baus umgebaut wurde
    (bewusst kein neues CSS von dort). Die Klasse holt das nach — das
    Inline-Style darf beim naechsten Anfassen des Blocks raus. */
-.t-settings-actions > .t-input { flex: 1; min-width: 0; }
+.t-settings-actions > .t-input {
+  flex: 1;
+  min-width: 0;
+}
 
 /* Teamname im Ergebnis-Dialog: Display-Schnitt wie auf der Karte, damit
    man dieselbe Partie wiedererkennt, die man angetippt hat. */
@@ -5699,16 +6184,26 @@ textarea.t-input {
   letter-spacing: -0.018em;
   color: var(--ink);
 }
-.t-confirm-message { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+.t-confirm-message {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
 /* Die Zahl im Satz ist der Punkt: "10 erfasste Ergebnisse gehen
    verloren" bremst, "Bist du sicher?" nicht. Deshalb traegt sie die
    Tinte und das Gewicht, waehrend der Rest des Satzes zurueckhaengt. */
-.t-confirm-message strong { color: var(--ink); font-weight: 600; }
+.t-confirm-message strong {
+  color: var(--ink);
+  font-weight: 600;
+}
 .t-confirm-expected,
 .t-confirm-input {
   font-family: var(--f-mono);
 }
-.t-confirm-expected { font-size: 12.5px; color: var(--muted); }
+.t-confirm-expected {
+  font-size: 12.5px;
+  color: var(--muted);
+}
 .t-confirm-input {
   border-radius: var(--r-btn);
   background: var(--raised);
@@ -5718,7 +6213,11 @@ textarea.t-input {
 /* Der Platzhalter zeigt denselben Gedankenstrich wie die Karte — leer
    heisst "noch kein Ergebnis", und das soll im Dialog genauso aussehen
    wie in der Liste. Ein leeres Feld sagt es auch, aber undeutlicher. */
-.t-score-entry-input::placeholder { color: var(--muted); opacity: 1; font-weight: 500; }
+.t-score-entry-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+  font-weight: 500;
+}
 
 /* Der Dialog-Kopf traegt jetzt zwei Zeilen links und den Schliessen-
    Knopf rechts. Vorher lag die Subline im Body und las sich wie eine
@@ -5726,8 +6225,15 @@ textarea.t-input {
    bevor der Titel sagt "was tun wir" — dieselbe Rangfolge wie die
    Kopfzeile des Moduls. `order: -1` an der Subline ist damit
    gegenstandslos, sie steht ohnehin zuerst im Markup. */
-.t-dialog-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.t-dialog-head-text .t-dialog-subline { order: 0; }
+.t-dialog-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.t-dialog-head-text .t-dialog-subline {
+  order: 0;
+}
 
 /* ================================================================
    DRUCKBOEGEN — Markenuebernahme Etappe 9
@@ -5742,7 +6248,11 @@ textarea.t-input {
    Farben und keine Tokens — die einzige Stelle im Modul, an der das
    richtig ist.
    ================================================================ */
-.t-druck { display: flex; flex-direction: column; gap: var(--s5); }
+.t-druck {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
 .t-bogen {
   background: #fff;
   color: #111;
@@ -5759,14 +6269,19 @@ textarea.t-input {
   margin: 0 auto;
   padding: 26px 24px;
   border-radius: 2px;
-  box-shadow: 0 2px 4px rgba(11,11,12,.10), 0 20px 48px rgba(11,11,12,.16);
+  box-shadow:
+    0 2px 4px rgba(11, 11, 12, 0.1),
+    0 20px 48px rgba(11, 11, 12, 0.16);
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow: visible;
   font-family: var(--f-body);
 }
-.t-bogen--quer { min-height: 707px; max-width: 1000px; }
+.t-bogen--quer {
+  min-height: 707px;
+  max-width: 1000px;
+}
 .t-bogen-kopf {
   display: flex;
   align-items: flex-end;
@@ -5822,10 +6337,26 @@ textarea.t-input {
   line-height: 1.5;
   color: #555;
 }
-.t-bogen-koerper { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-.t-bogen-raster { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; align-content: start; }
-.t-bogen-baum { justify-content: center; }
-.t-bogen-baum svg { width: 100%; height: auto; }
+.t-bogen-koerper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.t-bogen-raster {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  align-content: start;
+}
+.t-bogen-baum {
+  justify-content: center;
+}
+.t-bogen-baum svg {
+  width: 100%;
+  height: auto;
+}
 .t-bogen-abschnitt {
   font-family: var(--f-mono);
   font-size: 8.5px;
@@ -5851,19 +6382,41 @@ table.t-bogen-tab th {
   font-weight: 500;
   padding: 4px 4px;
 }
-table.t-bogen-tab td { padding: 5px 4px; border-top: 1px solid #e4e4e4; }
-table.t-bogen-tab .l { text-align: left; }
-table.t-bogen-tab .r { text-align: right; }
-table.t-bogen-tab .nm { font-family: var(--f-disp); font-size: 11px; font-weight: 600; }
+table.t-bogen-tab td {
+  padding: 5px 4px;
+  border-top: 1px solid #e4e4e4;
+}
+table.t-bogen-tab .l {
+  text-align: left;
+}
+table.t-bogen-tab .r {
+  text-align: right;
+}
+table.t-bogen-tab .nm {
+  font-family: var(--f-disp);
+  font-size: 11px;
+  font-weight: 600;
+}
 /* Rang als GRAUWERT plus Legende, nicht als Farbe: ein
    Schwarz-Weiss-Drucker macht Orange und Gruen zum selben Grau. */
-table.t-bogen-tab tr.lead td { background: #ececea; }
-table.t-bogen-tab tr.qual td { background: #f6f6f5; }
-table.t-bogen-tab td.pl { color: #111; }
+table.t-bogen-tab tr.lead td {
+  background: #ececea;
+}
+table.t-bogen-tab tr.qual td {
+  background: #f6f6f5;
+}
+table.t-bogen-tab td.pl {
+  color: #111;
+}
 table.t-bogen-tab tr.lead td.pl,
-table.t-bogen-tab tr.qual td.pl { font-weight: 700; }
+table.t-bogen-tab tr.qual td.pl {
+  font-weight: 700;
+}
 /* Das Eintragefeld: der Grund, warum ein Bogen kein Bildschirmfoto ist. */
-table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
+table.t-bogen-tab td.offen {
+  color: #999;
+  letter-spacing: 0.06em;
+}
 .t-bogen-legende {
   display: flex;
   gap: 14px;
@@ -5876,12 +6429,15 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 }
 .t-bogen-legende b {
   display: inline-block;
-  width: 8px; height: 8px;
+  width: 8px;
+  height: 8px;
   border: 1px solid #111;
   margin-right: 5px;
   vertical-align: -1px;
 }
-.t-bogen-legende b.voll { background: #111; }
+.t-bogen-legende b.voll {
+  background: #111;
+}
 .t-bogen-fuss {
   margin-top: auto;
   border-top: 1px solid #bbb;
@@ -5896,15 +6452,53 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   color: #666;
 }
 /* SVG-Klassen des Baum-Bogens */
-.t-bogen-baum .rl { font-family: var(--f-mono); font-size: 9px; letter-spacing: 1.6px; fill: #666; }
-.t-bogen-baum .tn { font-family: var(--f-disp); font-size: 11px; font-weight: 600; fill: #111; }
-.t-bogen-baum .tp { font-family: var(--f-disp); font-size: 11px; font-weight: 500; fill: #999; }
-.t-bogen-baum .sc { font-family: var(--f-mono); font-size: 10px; font-weight: 600; fill: #111; }
-.t-bogen-baum .bx  { fill: none; stroke: #111; stroke-width: 1; }
-.t-bogen-baum .bxo { fill: none; stroke: #bbb; stroke-width: 1; stroke-dasharray: 4 3; }
-.t-bogen-baum .cn  { fill: none; stroke: #aaa; stroke-width: 1; }
-.t-bogen-baum .flare   { stroke: #BF4413; stroke-width: 1.4; }
-.t-bogen-baum .flare-t { fill: #BF4413; }
+.t-bogen-baum .rl {
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  fill: #666;
+}
+.t-bogen-baum .tn {
+  font-family: var(--f-disp);
+  font-size: 11px;
+  font-weight: 600;
+  fill: #111;
+}
+.t-bogen-baum .tp {
+  font-family: var(--f-disp);
+  font-size: 11px;
+  font-weight: 500;
+  fill: #999;
+}
+.t-bogen-baum .sc {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 600;
+  fill: #111;
+}
+.t-bogen-baum .bx {
+  fill: none;
+  stroke: #111;
+  stroke-width: 1;
+}
+.t-bogen-baum .bxo {
+  fill: none;
+  stroke: #bbb;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.t-bogen-baum .cn {
+  fill: none;
+  stroke: #aaa;
+  stroke-width: 1;
+}
+.t-bogen-baum .flare {
+  stroke: #bf4413;
+  stroke-width: 1.4;
+}
+.t-bogen-baum .flare-t {
+  fill: #bf4413;
+}
 
 /* ---- Was beim Drucken passiert ----
    Die Boegen sind das EINZIGE, was aufs Papier kommt: die App wird
@@ -5918,7 +6512,10 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    eine Gruppentabelle, die ueber den Seitenrand faellt, ist auf Papier
    unbrauchbar. */
 @media print {
-  .t-druck { display: block; gap: 0; }
+  .t-druck {
+    display: block;
+    gap: 0;
+  }
   .t-bogen {
     box-shadow: none;
     border-radius: 0;
@@ -5930,16 +6527,26 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
     break-after: page;
     page-break-after: always;
   }
-  .t-bogen:last-child { break-after: auto; page-break-after: auto; }
+  .t-bogen:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
   .t-bogen-gruppe,
-  .t-bogen-tab tr { break-inside: avoid; page-break-inside: avoid; }
-  .t-bogen-baum svg { max-height: 96vh; }
+  .t-bogen-tab tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .t-bogen-baum svg {
+    max-height: 96vh;
+  }
   /* Der Bogen ersetzt die Ansicht: alles andere im Modul bleibt drin. */
   .t-mod > .t-mod-header,
   .t-mod > .t-mod-tabs,
   .t-mod .t-mod-nav,
   .t-mod .t-mod-aside,
-  .t-mod .t-mod-more-sheet { display: none !important; }
+  .t-mod .t-mod-more-sheet {
+    display: none !important;
+  }
 }
 
 /* ----------------------------------------------------------------
@@ -5991,9 +6598,14 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   box-shadow: none;
   overflow: visible;
 }
-.t-mod-main .t-card > .t-card-body { padding-left: 0; padding-right: 0; }
+.t-mod-main .t-card > .t-card-body {
+  padding-left: 0;
+  padding-right: 0;
+}
 .t-standings-karte > .t-card-body,
-.t-thirds-card > .t-card-body { padding: 0; }
+.t-thirds-card > .t-card-body {
+  padding: 0;
+}
 
 /* Die eine Huelle, die bleibt — und zwar in der Sprache dieser Fassung:
    „K.-o.-Phase starten" ist der naechste Schritt und muss sich vom Rest
@@ -6005,7 +6617,7 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   border: 0;
 }
 .t-mod-main .t-card.t-fill-ko-card::before {
-  content: "";
+  content: '';
   position: absolute;
   left: calc(-1 * var(--s5));
   top: 0;
@@ -6039,11 +6651,15 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 .t-standings-table th:first-child,
 .t-standings-table td:first-child,
 .t-thirds-table th:first-child,
-.t-thirds-table td:first-child { padding-left: var(--s5); }
+.t-thirds-table td:first-child {
+  padding-left: var(--s5);
+}
 .t-standings-table th:last-child,
 .t-standings-table td:last-child,
 .t-thirds-table th:last-child,
-.t-thirds-table td:last-child { padding-right: var(--s5); }
+.t-thirds-table td:last-child {
+  padding-right: var(--s5);
+}
 
 /* Trennung ZWISCHEN Zeilen statt UNTER jeder Zeile: die letzte Zeile
    bekommt sonst einen Strich ins Leere, und ohne Huelle sieht der aus
@@ -6051,11 +6667,17 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    Die Kopfzeile behaelt ihre Linie darunter — sie trennt zwei
    verschiedene Dinge, nicht zwei gleiche. */
 .t-standings-table td,
-.t-thirds-table td { border-bottom: 0; }
+.t-thirds-table td {
+  border-bottom: 0;
+}
 .t-standings-table tbody tr + tr td,
-.t-thirds-table tbody tr + tr td { border-top: 1px solid var(--line-soft); }
+.t-thirds-table tbody tr + tr td {
+  border-top: 1px solid var(--line-soft);
+}
 .t-standings-table thead th,
-.t-thirds-table thead th { border-bottom: 1px solid var(--line-soft); }
+.t-thirds-table thead th {
+  border-bottom: 1px solid var(--line-soft);
+}
 
 .t-standings-head {
   display: flex;
@@ -6083,7 +6705,9 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   border-radius: 2px;
   background: var(--line);
 }
-.t-standings-prog > i.is-done { background: var(--qual); }
+.t-standings-prog > i.is-done {
+  background: var(--qual);
+}
 
 /* ----------------------------------------------------------------
    STATUSGRUPPEN DER TURNIERLISTE — Nacharbeit 2026-08-26, Beschwerde 5
@@ -6200,11 +6824,15 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 }
 /* Die Zahl darf schrumpfen, die Beschriftung nicht: "OFFEN" ohne Zahl
    ist noch ein Filter, eine Zahl ohne Wort ist nichts. */
-.t-chips > .t-chip > .count { flex: none; }
+.t-chips > .t-chip > .count {
+  flex: none;
+}
 /* Der inaktive Chip bleibt reiner Text (Vorlage, Abschnitt 03) — aber
    sein Feld ist jetzt breit genug, dass man es treffen kann, ohne es zu
    sehen. Die Tuchfuehlung beim Ueberfahren zeigt, wie weit es reicht. */
-.t-chips > .t-chip:not(.is-active):hover { background: var(--sunk); }
+.t-chips > .t-chip:not(.is-active):hover {
+  background: var(--sunk);
+}
 
 /* ----------------------------------------------------------------
    DER RAHMEN, IN DEM DAS MODUL SITZT — Beschwerde 1
@@ -6272,7 +6900,9 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
      als `.t-mod-header-inner--logo { column-gap: 13px }` und setzte den
      Spaltenabstand bei gleicher Spezifitaet mit auf Null — gemessen
      klebte der Kicker mit 0px am Logo. Gemeint war nur die Zeile. */
-  .t-mod-header-inner { row-gap: 0; }
+  .t-mod-header-inner {
+    row-gap: 0;
+  }
   .t-title {
     font-size: 21px;
     line-height: 1.15;
@@ -6390,7 +7020,9 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   box-shadow: var(--shadow-s);
   overflow: hidden;
 }
-.t-lst--danger { border-color: var(--danger); }
+.t-lst--danger {
+  border-color: var(--danger);
+}
 
 /* ---- Eine Zeile ---- */
 .t-lrow {
@@ -6399,7 +7031,7 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   justify-content: space-between;
   gap: var(--s3);
   padding: 13px var(--s4);
-  min-height: 52px;          /* Daumenflaeche, nicht Zierrat */
+  min-height: 52px; /* Daumenflaeche, nicht Zierrat */
   width: 100%;
   text-align: left;
   background: none;
@@ -6407,11 +7039,22 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   font: inherit;
   color: inherit;
 }
-.t-lrow + .t-lrow { border-top: 1px solid var(--line-soft); }
-button.t-lrow { cursor: pointer; }
-button.t-lrow:hover { background: var(--raised); }
-button.t-lrow:disabled { cursor: default; opacity: 0.45; }
-button.t-lrow:disabled:hover { background: none; }
+.t-lrow + .t-lrow {
+  border-top: 1px solid var(--line-soft);
+}
+button.t-lrow {
+  cursor: pointer;
+}
+button.t-lrow:hover {
+  background: var(--raised);
+}
+button.t-lrow:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+button.t-lrow:disabled:hover {
+  background: none;
+}
 
 .t-lrow-lb {
   min-width: 0;
@@ -6447,10 +7090,18 @@ button.t-lrow:disabled:hover { background: none; }
 /* Handlungszeile: die Beschriftung IST die Handlung, deshalb traegt sie
    die Farbe. Kein zusaetzlicher Knopf in der Zeile — das waere ein
    Bedienelement in einem Bedienelement. */
-.t-lrow--action .t-lrow-lb { color: var(--flare); font-weight: 600; }
-.t-lrow--danger .t-lrow-lb { color: var(--danger); font-weight: 600; }
+.t-lrow--action .t-lrow-lb {
+  color: var(--flare);
+  font-weight: 600;
+}
+.t-lrow--danger .t-lrow-lb {
+  color: var(--danger);
+  font-weight: 600;
+}
 .t-lrow--action:disabled .t-lrow-lb,
-.t-lrow--danger:disabled .t-lrow-lb { color: var(--muted); }
+.t-lrow--danger:disabled .t-lrow-lb {
+  color: var(--muted);
+}
 
 /* ---- Stepper: −  Wert  + ---- */
 .t-step {
@@ -6477,9 +7128,18 @@ button.t-lrow:disabled:hover { background: none; }
   cursor: pointer;
   font-family: var(--f-body);
 }
-.t-step-btn:hover { background: var(--panel); color: var(--ink); }
-.t-step-btn:disabled { opacity: 0.35; cursor: default; }
-.t-step-btn:disabled:hover { background: none; color: var(--ink-2); }
+.t-step-btn:hover {
+  background: var(--panel);
+  color: var(--ink);
+}
+.t-step-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.t-step-btn:disabled:hover {
+  background: none;
+  color: var(--ink-2);
+}
 /* Das Feld in der Mitte ist ein echtes Eingabefeld: steppen ist der
    schnelle Weg, tippen der genaue. Es sieht aber nicht wie ein Formular
    aus, sondern wie der Wert, der es ist. */
@@ -6497,8 +7157,15 @@ button.t-lrow:disabled:hover { background: none; }
   -moz-appearance: textfield;
 }
 .t-step-wert::-webkit-outer-spin-button,
-.t-step-wert::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.t-step-wert:focus-visible { outline: 2px solid var(--flare); outline-offset: 2px; border-radius: 4px; }
+.t-step-wert::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.t-step-wert:focus-visible {
+  outline: 2px solid var(--flare);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 /* --ink-2 statt --muted: der Schrittwaehler sitzt auf --sunk, und dort
    traegt --muted gemessen nur 4,38 : 1 (12px, also gilt 4,5). Auf dem
    Blatt waere derselbe Ton mit 5,08 : 1 in Ordnung — die vertiefte
@@ -6512,8 +7179,12 @@ button.t-lrow:disabled:hover { background: none; }
 
 /* Abstand zwischen den Gruppen — dieselbe Rolle wie zwischen den
    Gruppentabellen: sie zeigt, wo ein Thema endet. */
-.t-lst + .t-grp-lbl { margin-top: var(--s5); }
-.t-settings-grid > .t-hint { margin-top: calc(var(--s1) * -1); }
+.t-lst + .t-grp-lbl {
+  margin-top: var(--s5);
+}
+.t-settings-grid > .t-hint {
+  margin-top: calc(var(--s1) * -1);
+}
 
 /* ================================================================
    ABSCHNITT 06 — DIE LISTEN VERLIEREN IHRE HUELLEN
@@ -6549,8 +7220,13 @@ button.t-lrow:disabled:hover { background: none; }
    getan: gemessen kam padding-left mit 16px an, obwohl an dieser Stelle
    `padding: 22px 0 8px` stand. Wer diese Klasse anfasst, fasst sie
    DORT an. */
-.t-settings-section:first-child .t-settings-section-header { border-top: 0; }
-.t-settings-section-header:focus-visible { background: none; outline-offset: -2px; }
+.t-settings-section:first-child .t-settings-section-header {
+  border-top: 0;
+}
+.t-settings-section-header:focus-visible {
+  background: none;
+  outline-offset: -2px;
+}
 .t-settings-section-header .t-settings-section-title,
 .t-settings-section-title {
   font-family: var(--f-mono);
@@ -6560,16 +7236,23 @@ button.t-lrow:disabled:hover { background: none; }
   text-transform: uppercase;
   color: var(--muted);
 }
-.t-settings-section-toggle { color: var(--line); }
+.t-settings-section-toggle {
+  color: var(--line);
+}
 /* Der Koerper braucht kein eigenes Polster mehr: die Zeilen bringen
    ihres mit, und seitlich polstert die Ansicht. */
-.t-settings-section-body { padding: 0; gap: var(--s3); }
+.t-settings-section-body {
+  padding: 0;
+  gap: var(--s3);
+}
 /* Der Abstand zwischen den Abschnitten steckt jetzt IN der Beschriftung
    (22px darueber, 8px darunter) — genau da, wo die Vorlage ihn hat. Ein
    zusaetzlicher Flex-Abstand von 20px kam obendrauf und riss die Liste
    auseinander: zwischen zwei zugeklappten Zeilen standen gemessen 50px
    Leere. Die Asymmetrie ist der Punkt, nicht die Summe. */
-.t-settings-grid { gap: 0; }
+.t-settings-grid {
+  gap: 0;
+}
 
 /* Die Zeile selbst holt sich die volle Blattbreite und gibt das Polster
    innen zurueck — dasselbe Muster wie bei den Tabellen. Damit laufen
@@ -6611,11 +7294,17 @@ button.t-lrow:disabled:hover { background: none; }
   background: none;
   padding: 0;
 }
-.t-settings-section.t-danger-zone .t-settings-section-header { background: none; }
-.t-settings-section.t-danger-zone .t-settings-section-title { color: var(--danger); }
-.t-lrow--danger { position: relative; }
+.t-settings-section.t-danger-zone .t-settings-section-header {
+  background: none;
+}
+.t-settings-section.t-danger-zone .t-settings-section-title {
+  color: var(--danger);
+}
+.t-lrow--danger {
+  position: relative;
+}
 .t-lrow--danger::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 0;
@@ -6639,7 +7328,7 @@ button.t-lrow:disabled:hover { background: none; }
   box-shadow: none;
 }
 .t-status-card::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 0;
@@ -6655,7 +7344,9 @@ button.t-lrow:disabled:hover { background: none; }
   border: 0;
   border-radius: var(--r-pill);
 }
-.t-step-btn { border-radius: var(--r-pill); }
+.t-step-btn {
+  border-radius: var(--r-pill);
+}
 
 /* ----------------------------------------------------------------
    FILTER ALS AUSWAHLFELD — dritte Fassung, Entscheid Jonas 2026-08-26
@@ -6717,7 +7408,11 @@ button.t-lrow:disabled:hover { background: none; }
   color: var(--ink);
   cursor: pointer;
 }
-.t-filter-select:focus-visible { outline: 2px solid var(--flare); outline-offset: 4px; border-radius: 4px; }
+.t-filter-select:focus-visible {
+  outline: 2px solid var(--flare);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
 .t-filter-pfeil {
   flex: none;
   color: var(--muted);
@@ -6763,7 +7458,9 @@ button.t-lrow:disabled:hover { background: none; }
 /* Die Listenkarte bekommt ihre Tiefe zurueck. --shadow-s war definiert
    und ungenutzt; auf cremefarbenem Grund waere er ohnehin unsichtbar
    gewesen, auf #E4E4E2 traegt er. */
-.t-list-card { box-shadow: var(--shadow-s); }
+.t-list-card {
+  box-shadow: var(--shadow-s);
+}
 
 /* Der Logo-Platzhalter war ein schwarzer Klotz von 56px — die Regel
    stammt aus der Zeit, als --ink ein weiches Braun war. Mit der neuen
@@ -6822,9 +7519,15 @@ button.t-lrow:disabled:hover { background: none; }
   cursor: pointer;
   text-align: left;
 }
-.t-settings-section-header:hover { background: none; }
-.t-settings-section-header:hover .t-settings-section-title { color: var(--ink-2); }
-.t-danger-zone .t-settings-section-title { color: var(--danger); }
+.t-settings-section-header:hover {
+  background: none;
+}
+.t-settings-section-header:hover .t-settings-section-title {
+  color: var(--ink-2);
+}
+.t-danger-zone .t-settings-section-title {
+  color: var(--danger);
+}
 .t-settings-section-toggle {
   flex: none;
   color: var(--muted);
@@ -6845,7 +7548,9 @@ button.t-lrow:disabled:hover { background: none; }
   border-radius: 0;
   box-shadow: none;
 }
-.t-settings-section-body > .t-hint { padding: var(--s2) 0; }
+.t-settings-section-body > .t-hint {
+  padding: var(--s2) 0;
+}
 
 /* ----------------------------------------------------------------
    SPIELPLAN-LEISTE — Filter und Aktion in EINER Zeile
@@ -6883,7 +7588,10 @@ button.t-lrow:disabled:hover { background: none; }
 
    Ab 520px Container passen beide nebeneinander; dort ist Platz genug,
    dass die Chips ihre Beschriftung behalten. */
-.t-spielplan-leiste { flex-wrap: wrap; row-gap: var(--s2); }
+.t-spielplan-leiste {
+  flex-wrap: wrap;
+  row-gap: var(--s2);
+}
 .t-spielplan-leiste > .t-toolbar {
   flex: 1 1 100%;
   min-width: 0;
@@ -6893,7 +7601,9 @@ button.t-lrow:disabled:hover { background: none; }
   margin-left: auto;
 }
 @container (min-width: 520px) {
-  .t-spielplan-leiste > .t-toolbar { flex: 1 1 auto; }
+  .t-spielplan-leiste > .t-toolbar {
+    flex: 1 1 auto;
+  }
 }
 
 /* Hier stand eine Regel, die den Knopf unter 380px auf VOLLE Breite
@@ -6919,7 +7629,9 @@ button.t-lrow:disabled:hover { background: none; }
    kein Filter mehr. 11.5px ist die Untergrenze, bei der Archivo Narrow
    in Versalien noch sauber steht. */
 @container (max-width: 360px) {
-  .t-chips { gap: 4px; }
+  .t-chips {
+    gap: 4px;
+  }
   .t-chips > .t-chip {
     /* Zurueck auf natuerliche Breiten: gleich breite Felder sind Luxus
        und brauchen Luft. Auf 320px Geraetebreite kuerzten mit `1 1 0`
@@ -6932,5 +7644,7 @@ button.t-lrow:disabled:hover { background: none; }
     font-size: 11.5px;
     letter-spacing: 0.03em;
   }
-  .t-chips > .t-chip > .count { font-size: 10.5px; }
+  .t-chips > .t-chip > .count {
+    font-size: 10.5px;
+  }
 }

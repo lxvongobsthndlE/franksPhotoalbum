@@ -81,8 +81,8 @@ export function sortMatchesBySchedule(matches) {
     if (!aHas && !bHas) return 0;
     if (a.scheduledAt < b.scheduledAt) return -1;
     if (a.scheduledAt > b.scheduledAt) return 1;
-    const af = (typeof a?.field === 'number') ? a.field : Number.POSITIVE_INFINITY;
-    const bf = (typeof b?.field === 'number') ? b.field : Number.POSITIVE_INFINITY;
+    const af = typeof a?.field === 'number' ? a.field : Number.POSITIVE_INFINITY;
+    const bf = typeof b?.field === 'number' ? b.field : Number.POSITIVE_INFINITY;
     return af - bf;
   });
 }
@@ -121,13 +121,18 @@ export function applySpielplanFilter(matches, filter) {
   // umbenennen haette jeden gespeicherten Filterzustand ungueltig gemacht,
   // ohne dass ein Nutzer etwas davon haette.
   switch (filter) {
-    case 'alle': return matches;
-    case 'offen': return matches.filter((m) => !m?.isFinished && !m?.isLive);
-    case 'laeuft': return matches.filter((m) => m?.isLive === true);
-    case 'beendet': return matches.filter((m) => m?.isFinished);
+    case 'alle':
+      return matches;
+    case 'offen':
+      return matches.filter((m) => !m?.isFinished && !m?.isLive);
+    case 'laeuft':
+      return matches.filter((m) => m?.isLive === true);
+    case 'beendet':
+      return matches.filter((m) => m?.isFinished);
     // Unbekannter Filter zeigt ALLES, nie eine leere Liste: eine leere
     // Ansicht sieht aus wie „keine Spiele" und nicht wie „kaputter Filter".
-    default: return matches;
+    default:
+      return matches;
   }
 }
 
@@ -176,16 +181,17 @@ export function renderFilterChips(matches, groups, currentFilter) {
   ];
 
   const aktiv = chips.some((c) => c.id === currentFilter) ? currentFilter : 'alle';
-  return `<div class="t-chips" role="group" aria-label="Spiele filtern">${
-    chips.map((c) => {
+  return `<div class="t-chips" role="group" aria-label="Spiele filtern">${chips
+    .map((c) => {
       const an = c.id === aktiv;
-      return `<button type="button" class="t-chip${an ? ' is-active' : ''}"`
-        + ` data-filter="${esc(c.id)}" aria-pressed="${an ? 'true' : 'false'}">`
-        + `${esc(c.label)} <span class="count">${c.count}</span></button>`;
-    }).join('')
-  }</div>`;
+      return (
+        `<button type="button" class="t-chip${an ? ' is-active' : ''}"` +
+        ` data-filter="${esc(c.id)}" aria-pressed="${an ? 'true' : 'false'}">` +
+        `${esc(c.label)} <span class="count">${c.count}</span></button>`
+      );
+    })
+    .join('')}</div>`;
 }
-
 
 /**
  * Rendert eine Match-Karte in Normal-Größe (Spielplan-Liste).
@@ -223,12 +229,8 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   // Das laufende Spiel steht ausserhalb der Zeitachse und hat keine
   // Uhrzeit — es ist jetzt. Sein Fussband sagt deshalb "Laeuft" und
   // dahinter die Platte, sonst waere nicht ablesbar, WO es laeuft.
-  const tableStr = m?.field != null
-    ? resolveFieldName(m.field, fieldsConfig)
-    : '';
-  const ortTeile = m?.isLive
-    ? ['Läuft', tableStr]
-    : [m?.label || '', tableStr];
+  const tableStr = m?.field != null ? resolveFieldName(m.field, fieldsConfig) : '';
+  const ortTeile = m?.isLive ? ['Läuft', tableStr] : [m?.label || '', tableStr];
   const metaOrt = ortTeile.filter(Boolean).join(' · ');
 
   // Etappe B.7: Im Edit-Modus Inputs für Zeit (HH:MM) und Platte rendern.
@@ -236,7 +238,7 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   const isKo = !!m?.isKo || m?.stageType === 'ko';
   const editDisabled = !!(isEdit && (isKo || !!m?.isFinished));
 
-  const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
+  const dotStyle = (color) => (color ? `background:${esc(color)}` : 'background:var(--line)');
   const homeDot = `<i class="t-dot" style="${dotStyle(homeColor)}" aria-hidden="true"></i>`;
   const awayDot = `<i class="t-dot" style="${dotStyle(awayColor)}" aria-hidden="true"></i>`;
 
@@ -255,7 +257,8 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
     const btnLabel = m?.isFinished ? 'Erneut' : 'Ergebnis';
     actionHtml = `<div class="t-match-action"><button type="button" class="t-btn t-btn--ghost t-btn--sm" data-action="enter-result" data-match-id="${esc(m?.id)}">${btnLabel}</button></div>`;
   } else if (m?.isFinished) {
-    actionHtml = '<div class="t-match-action"><span class="t-match-action-text">Beendet</span></div>';
+    actionHtml =
+      '<div class="t-match-action"><span class="t-match-action-text">Beendet</span></div>';
   } else if (m?.sub) {
     actionHtml = `<div class="t-match-action"><span class="t-match-action-text">${esc(m.sub)}</span></div>`;
   } else {
@@ -272,9 +275,12 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   // Im Bearbeiten-Modus treten an seine Stelle die zwei Eingabefelder.
   let metaHtml;
   if (isEdit) {
-    const hh = m?.scheduledTime && /^\d{2}:\d{2}$/.test(m.scheduledTime)
-      ? m.scheduledTime
-      : (m?.scheduledAt ? new Date(m.scheduledAt).toISOString().slice(11, 16) : '');
+    const hh =
+      m?.scheduledTime && /^\d{2}:\d{2}$/.test(m.scheduledTime)
+        ? m.scheduledTime
+        : m?.scheduledAt
+          ? new Date(m.scheduledAt).toISOString().slice(11, 16)
+          : '';
     const fieldVal = m?.field != null ? String(m.field) : '';
     metaHtml = `
       <div class="t-match-meta t-match-meta--edit">
@@ -345,12 +351,10 @@ export function applyPropagatedMatches(propagatedMatches) {
   let patched = 0;
   for (const m of propagatedMatches) {
     if (!m?.id) continue;
-    const card = document.querySelector(
-      `.t-match[data-match-id="${cssEscape(String(m.id))}"]`
-    );
+    const card = document.querySelector(`.t-match[data-match-id="${cssEscape(String(m.id))}"]`);
     if (!card) continue; // Match ist im aktuellen Filter nicht sichtbar
-                        // → kein Patch nötig, Re-Render würde es auch
-                        // nicht zeigen (Filter exkludiert es).
+    // → kein Patch nötig, Re-Render würde es auch
+    // nicht zeigen (Filter exkludiert es).
     // Teamnamen + Dots.
     const homeTeam = card.querySelector('.t-match-team:not(.right)');
     const awayTeam = card.querySelector('.t-match-team.right');
@@ -394,7 +398,7 @@ export function renderMatchCardCompact(m) {
   const homeScoreText = hasScore ? String(m.scoreHome) : '–';
   const awayScoreText = hasScore ? String(m.scoreAway) : '–';
   const scoreClass = hasScore ? 't-match-score' : 't-match-score empty';
-  const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
+  const dotStyle = (color) => (color ? `background:${esc(color)}` : 'background:var(--line)');
   const homeDot = `<i class="t-dot" style="${dotStyle(homeColor)}" aria-hidden="true"></i>`;
   const awayDot = `<i class="t-dot" style="${dotStyle(awayColor)}" aria-hidden="true"></i>`;
   return `
@@ -521,12 +525,14 @@ export function renderAsideTables(matches, limit = 6) {
   if (!upcoming.length) {
     return '<p class="t-hint">Keine Platten verplant.</p>';
   }
-  const items = upcoming.map((m) => {
-    const home = m?.home?.name || 'offen';
-    const away = m?.away?.name || 'offen';
-    const time = m?.scheduledTime || '–';
-    return `<li><strong>Platte ${esc(m.field)}</strong> · ${esc(time)} · ${esc(home)} vs ${esc(away)}</li>`;
-  }).join('');
+  const items = upcoming
+    .map((m) => {
+      const home = m?.home?.name || 'offen';
+      const away = m?.away?.name || 'offen';
+      const time = m?.scheduledTime || '–';
+      return `<li><strong>Platte ${esc(m.field)}</strong> · ${esc(time)} · ${esc(home)} vs ${esc(away)}</li>`;
+    })
+    .join('');
   return `<ul class="t-aside-list">${items}</ul>`;
 }
 
@@ -695,11 +701,12 @@ function renderColgroup(widths) {
 // Viewport-Breite statt der Modulbreite.
 const TMOD_MEASURE_SELECTOR = '.t-mod:not(.t-dialog-host)';
 
-let tModCompactMode = null;       // null = noch nicht gemessen
-let tModResizeObserver = null;    // ein Observer für die ganze App-Lifetime
+let tModCompactMode = null; // null = noch nicht gemessen
+let tModResizeObserver = null; // ein Observer für die ganze App-Lifetime
 
 function detectCompactModeFromTMod() {
-  const mod = typeof document !== 'undefined' ? document.querySelector(TMOD_MEASURE_SELECTOR) : null;
+  const mod =
+    typeof document !== 'undefined' ? document.querySelector(TMOD_MEASURE_SELECTOR) : null;
   if (mod) return mod.getBoundingClientRect().width <= 600;
   return typeof window !== 'undefined' && window.innerWidth <= 660;
 }
@@ -740,10 +747,12 @@ export function ensureTModResizeObserver(onChange) {
       const newCompact = e.contentRect.width <= 600;
       if (newCompact === tModCompactMode) continue; // nur Crossings
       // Scroll-Position retten (User-Hinweis: nicht oben landen)
-      const content = typeof document !== 'undefined'
-        ? document.getElementById('content') : null;
-      const savedScroll = content ? content.scrollTop
-        : (typeof window !== 'undefined' ? window.scrollY : 0);
+      const content = typeof document !== 'undefined' ? document.getElementById('content') : null;
+      const savedScroll = content
+        ? content.scrollTop
+        : typeof window !== 'undefined'
+          ? window.scrollY
+          : 0;
       tModCompactMode = newCompact;
       if (typeof onChange === 'function') onChange();
       // Nach Paint: Scroll wiederherstellen
@@ -806,9 +815,7 @@ export function detachTModResizeObserver() {
 export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
   // Defensiv: kaputte/fehlende Konfiguration darf die Tabelle nicht
   // unbrauchbar machen — im Zweifel faerben wir wie bisher zwei Plaetze.
-  const advance = Number.isInteger(qualifyPerGroup) && qualifyPerGroup > 0
-    ? qualifyPerGroup
-    : 2;
+  const advance = Number.isInteger(qualifyPerGroup) && qualifyPerGroup > 0 ? qualifyPerGroup : 2;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
   // Beschwerde 2 (2026-08-26) und ihre RUECKNAHME am selben Tag.
   //
@@ -832,7 +839,7 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
         .map((s, i) => {
           const gf = s.goalsFor ?? 0;
           const ga = s.goalsAgainst ?? 0;
-          const gd = s.goalDiff ?? (gf - ga);
+          const gd = s.goalDiff ?? gf - ga;
           const rank = i + 1;
           // Markenuebernahme (2026-08-26): zwei Zustaende statt drei.
           //
@@ -856,7 +863,9 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
           const cls = [
             rank === 1 ? 'is-lead' : '',
             rank > 1 && rank <= advance ? 'is-qualified' : '',
-          ].filter(Boolean).join(' ');
+          ]
+            .filter(Boolean)
+            .join(' ');
           return `<tr class="t-standings-row${cls ? ' ' + cls : ''}">
             <td class="t-standings-rank" data-col="pl">${i + 1}.</td>
             <td class="t-standings-team">${esc(s.name || s.teamId || '—')}</td>
@@ -938,11 +947,12 @@ function renderStandingsFoot(g, advance) {
   // "6 von 6 Spielen" sind zusammen 44 Zeichen und brechen um — im
   // Screenshot ueber zwei Zeilen, was nach Fehler aussieht statt nach
   // Absicht. "steigen auf" sagt dasselbe in acht Zeichen weniger.
-  const regel = advance >= teams
-    ? 'Alle steigen auf'
-    : advance === 1
-      ? 'Platz 1 steigt auf'
-      : `Plätze 1–${advance} steigen auf`;
+  const regel =
+    advance >= teams
+      ? 'Alle steigen auf'
+      : advance === 1
+        ? 'Platz 1 steigt auf'
+        : `Plätze 1–${advance} steigen auf`;
 
   // Der Stand steht seit 2026-08-26 im Tabellenkopf, nicht mehr hier —
   // die Vorlage trennt das: oben WIE WEIT, unten NACH WELCHER REGEL.
@@ -954,12 +964,13 @@ function renderStandingsFoot(g, advance) {
   // Gruppe als ganze gewinnt nichts. Hier zeigt der Streifen deshalb
   // gespielt gegen offen. Lieber eine ehrliche Aussage als eine
   // huebsche, die keine ist.
-  const segmente = gesamt > 0
-    ? `<span class="t-standings-prog" aria-hidden="true">${
-        Array.from({ length: gesamt }, (_, i) =>
-          `<i${i < gespielt ? ' class="is-done"' : ''}></i>`).join('')
-      }</span>`
-    : '';
+  const segmente =
+    gesamt > 0
+      ? `<span class="t-standings-prog" aria-hidden="true">${Array.from(
+          { length: gesamt },
+          (_, i) => `<i${i < gespielt ? ' class="is-done"' : ''}></i>`
+        ).join('')}</span>`
+      : '';
 
   return `<div class="t-standings-foot">
     <span><span class="t-foot-mark" aria-hidden="true"></span>${esc(regel)}</span>
@@ -1004,7 +1015,7 @@ export function renderBestThirdsTable(bestThirds) {
       const qualifies = r.qualifies === true;
       const gf = r.goalsFor ?? 0;
       const ga = r.goalsAgainst ?? 0;
-      const gd = r.goalDiff ?? (gf - ga);
+      const gd = r.goalDiff ?? gf - ga;
       return `<tr class="t-thirds-row${qualifies ? ' is-qualified' : ' is-out'}">
         <td class="t-thirds-rank"  data-col="pl">${i + 1}.</td>
         <td class="t-thirds-team">${esc(r.name || r.teamId || '—')}</td>
@@ -1074,7 +1085,13 @@ export function renderBestThirdsTable(bestThirds) {
 // Muss identisch sein mit backend/src/modules/tournament/engine/schedule.js
 // Falls das Backend weitere Runden hinzufügt → hier ergänzen + Test anpassen.
 const KO_ROUND_ORDER = {
-  R64: 0, R32: 1, R16: 2, QF: 3, SF: 4, '3RD': 5, F: 6,
+  R64: 0,
+  R32: 1,
+  R16: 2,
+  QF: 3,
+  SF: 4,
+  '3RD': 5,
+  F: 6,
 };
 
 /**
@@ -1152,7 +1169,7 @@ export function renderMatchCardBracket(m, extraStyle = '') {
 
   const meta = m?.isFinished
     ? 'Beendet'
-    : (m?.scheduledTime && typeof m?.field === 'number')
+    : m?.scheduledTime && typeof m?.field === 'number'
       ? `${m.scheduledTime} · Platte ${m.field}`
       : '';
 
@@ -1165,7 +1182,7 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   const homeIsWinner = homeHasScore && awayHasScore && m.scoreHome > m.scoreAway && m.isFinished;
   const awayIsWinner = homeHasScore && awayHasScore && m.scoreAway > m.scoreHome && m.isFinished;
 
-  const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
+  const dotStyle = (color) => (color ? `background:${esc(color)}` : 'background:var(--line)');
   const homeDot = `<i class="t-dot${homeIsPlaceholder ? ' t-dot--placeholder' : ''}" style="${dotStyle(m?.home?.color)}" aria-hidden="true"></i>`;
   const awayDot = `<i class="t-dot${awayIsPlaceholder ? ' t-dot--placeholder' : ''}" style="${dotStyle(m?.away?.color)}" aria-hidden="true"></i>`;
 
@@ -1175,9 +1192,7 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   if (homeIsWinner) classes.push('t-match--home-wins');
   if (awayIsWinner) classes.push('t-match--away-wins');
 
-  const metaHtml = meta
-    ? `<div class="t-match-meta-line" data-area="meta">${esc(meta)}</div>`
-    : '';
+  const metaHtml = meta ? `<div class="t-match-meta-line" data-area="meta">${esc(meta)}</div>` : '';
 
   return `<div class="${classes.join(' ')}" data-match-id="${esc(m?.id ?? '')}"${extraStyle}>
     <div class="t-match-bar" data-area="bar"></div>
@@ -1226,13 +1241,17 @@ export function renderBracket(matches) {
   // Die aktuelle Runde ist die erste, in der noch etwas offen ist.
   const aktuelleRunde = rundenStand.findIndex((r) => r.fertig < r.gesamt);
 
-  const tabsHtml = cols > 1
-    ? `<div class="bracket-tabs">
-        ${rundenStand.map((r, i) =>
-          `<button type="button" class="bracket-tab${i === aktuelleRunde ? ' is-active' : ''}" data-bracket-tab="${esc(r.label)}">${esc(r.label)}<span class="bracket-tab-stand">${r.fertig}/${r.gesamt}</span></button>`
-        ).join('')}
+  const tabsHtml =
+    cols > 1
+      ? `<div class="bracket-tabs">
+        ${rundenStand
+          .map(
+            (r, i) =>
+              `<button type="button" class="bracket-tab${i === aktuelleRunde ? ' is-active' : ''}" data-bracket-tab="${esc(r.label)}">${esc(r.label)}<span class="bracket-tab-stand">${r.fertig}/${r.gesamt}</span></button>`
+          )
+          .join('')}
       </div>`
-    : '';
+      : '';
 
   // Die Miniatur "Der Weg zum Titel" ist am 26.08. auf Entscheid von Jonas
   // entfallen ("das sieht nicht schoen aus"). ABWEICHUNG VON DER VORLAGE:
@@ -1251,27 +1270,29 @@ export function renderBracket(matches) {
   //   3RD-Match (Spiel um Platz 3) liegt INNERHALB der Finale-Spalte als
   //   unterste Card mit kleinem Label darüber. Vorteil: auf Mobile wird
   //   3RD automatisch mit dem F-Tab sichtbar, keine eigene Tab-Bar-Spalte.
-  const colsHtml = winnerBracket.map((r, colIdx) => {
-    const cardsHtml = r.matches.map((m) => renderMatchCardBracket(m)).join('');
-    const isFinalCol = colIdx === winnerBracket.length - 1;
-    const thirdHtml = (isFinalCol && thirdPlace)
-      ? `<div class="bracket-3rd">
+  const colsHtml = winnerBracket
+    .map((r, colIdx) => {
+      const cardsHtml = r.matches.map((m) => renderMatchCardBracket(m)).join('');
+      const isFinalCol = colIdx === winnerBracket.length - 1;
+      const thirdHtml =
+        isFinalCol && thirdPlace
+          ? `<div class="bracket-3rd">
           <div class="bracket-3rd-label">Spiel um Platz 3</div>
           ${renderMatchCardBracket(thirdPlace)}
         </div>`
-      : '';
-    return `<div class="bracket-col" data-bracket-col="${esc(r.label)}">
+          : '';
+      return `<div class="bracket-col" data-bracket-col="${esc(r.label)}">
       <div class="bracket-col-label">${esc(r.label)}</div>
       ${cardsHtml}${thirdHtml}
     </div>`;
-  }).join('');
+    })
+    .join('');
 
   return `${wegHtml}${tabsHtml}
     <div class="bracket-wrap" style="--bracket-cols:${cols}">
       ${colsHtml}
     </div>`;
 }
-
 
 /**
  * Rundennamen fuer die Miniatur kuerzen. "Viertelfinale" braucht unter
@@ -1328,7 +1349,10 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
     modifikator = ' t-status-card--done';
   } else if (isStarted) {
     const seit = t?.tournament?.startedAt
-      ? new Date(t.tournament.startedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+      ? new Date(t.tournament.startedAt).toLocaleTimeString('de-DE', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
       : null;
     kopf = seit ? 'Turnier läuft seit ' + seit : 'Turnier läuft';
   } else if (status === 'draft') {
@@ -1342,17 +1366,33 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
   // Bei einem Entwurf gibt es nichts zu zaehlen. Drei Nullen waeren eine
   // Statistik ueber nichts \u2014 dann lieber nur die Kopfzeile.
   const zahlen = spiele.length
-    ? '<div class="t-status-card-nums">'
-      + '<div><b>' + gespielt + '</b><span>Gespielt</span></div>'
-      + '<div><b>' + offen + '</b><span>Offen</span></div>'
-      + (platten ? '<div><b>' + platten + '</b><span>' + (platten === 1 ? 'Platte' : 'Platten') + '</span></div>' : '')
-      + '</div>'
+    ? '<div class="t-status-card-nums">' +
+      '<div><b>' +
+      gespielt +
+      '</b><span>Gespielt</span></div>' +
+      '<div><b>' +
+      offen +
+      '</b><span>Offen</span></div>' +
+      (platten
+        ? '<div><b>' +
+          platten +
+          '</b><span>' +
+          (platten === 1 ? 'Platte' : 'Platten') +
+          '</span></div>'
+        : '') +
+      '</div>'
     : '';
 
-  return '<div class="t-status-card' + modifikator + '">'
-    + '<div class="t-status-card-head">' + esc(kopf) + '</div>'
-    + zahlen
-    + '</div>';
+  return (
+    '<div class="t-status-card' +
+    modifikator +
+    '">' +
+    '<div class="t-status-card-head">' +
+    esc(kopf) +
+    '</div>' +
+    zahlen +
+    '</div>'
+  );
 }
 
 /* ================================================================
@@ -1413,7 +1453,7 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
  */
 function druckKopf(bogen, t, rechts) {
   const tour = t?.tournament ?? {};
-  const logoUrl = (typeof tour.logoUrl === 'string' && tour.logoUrl) ? tour.logoUrl : null;
+  const logoUrl = typeof tour.logoUrl === 'string' && tour.logoUrl ? tour.logoUrl : null;
   const logoHtml = logoUrl
     ? `<img class="t-bogen-logo" src="${esc(logoUrl)}" alt="" aria-hidden="true">`
     : '';
@@ -1454,37 +1494,47 @@ function renderDruckSpielplan(t) {
   const nachZeit = new Map();
   for (const m of spiele) {
     const zeit = m?.scheduledTime || '';
-    if (!nachZeit.has(zeit)) { const b = { zeit, spiele: [] }; nachZeit.set(zeit, b); bloecke.push(b); }
+    if (!nachZeit.has(zeit)) {
+      const b = { zeit, spiele: [] };
+      nachZeit.set(zeit, b);
+      bloecke.push(b);
+    }
     nachZeit.get(zeit).spiele.push(m);
   }
 
-  const abschnitte = bloecke.map((b) => {
-    const zeilen = b.spiele.map((m) => {
-      const heim = m?.home?.name || '—';
-      const gast = m?.away?.name || '—';
-      const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
-      const ergebnis = hat ? `${m.scoreHome} : ${m.scoreAway}` : '___ : ___';
-      return `<tr>
+  const abschnitte = bloecke
+    .map((b) => {
+      const zeilen = b.spiele
+        .map((m) => {
+          const heim = m?.home?.name || '—';
+          const gast = m?.away?.name || '—';
+          const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
+          const ergebnis = hat ? `${m.scoreHome} : ${m.scoreAway}` : '___ : ___';
+          return `<tr>
         <td class="l">${esc(m?.scheduledTime || '–')}</td>
         <td class="l">${m?.field != null ? esc(String(m.field)) : '–'}</td>
         <td class="l nm">${esc(heim)} — ${esc(gast)}</td>
         <td class="l">${esc(m?.label || '')}</td>
         <td class="r${hat ? '' : ' offen'}">${esc(ergebnis)}</td>
       </tr>`;
-    }).join('');
-    return `<div class="t-bogen-abschnitt">${esc(b.zeit || 'Ohne Termin')}${b.zeit ? ' Uhr' : ''}</div>
+        })
+        .join('');
+      return `<div class="t-bogen-abschnitt">${esc(b.zeit || 'Ohne Termin')}${b.zeit ? ' Uhr' : ''}</div>
       <table class="t-bogen-tab">
         <colgroup><col style="width:12%"><col style="width:10%"><col><col style="width:12%"><col style="width:18%"></colgroup>
         <tbody>${zeilen}</tbody>
       </table>`;
-  }).join('');
+    })
+    .join('');
 
   const tour = t?.tournament ?? {};
   const rechts = [
     tour.startsAt ? new Date(tour.startsAt).toLocaleDateString('de-DE') : '',
     tour.location || '',
     `${spiele.length} Spiele`,
-  ].filter(Boolean).join('<br>');
+  ]
+    .filter(Boolean)
+    .join('<br>');
 
   return `<article class="t-bogen">
     ${druckKopf('Spielplan', t, rechts)}
@@ -1507,13 +1557,16 @@ function renderDruckGruppen(t, qualifyPerGroup) {
   const advance = Number.isInteger(qualifyPerGroup) && qualifyPerGroup > 0 ? qualifyPerGroup : 2;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
 
-  const tabellen = gruppen.map((g) => {
-    const zeilen = (g.standings || []).map((s, i) => {
-      const rang = i + 1;
-      const kl = rang === 1 ? ' class="lead"' : rang <= advance ? ' class="qual"' : '';
-      const gf = s.goalsFor ?? 0, ga = s.goalsAgainst ?? 0;
-      const gd = s.goalDiff ?? (gf - ga);
-      return `<tr${kl}>
+  const tabellen = gruppen
+    .map((g) => {
+      const zeilen = (g.standings || [])
+        .map((s, i) => {
+          const rang = i + 1;
+          const kl = rang === 1 ? ' class="lead"' : rang <= advance ? ' class="qual"' : '';
+          const gf = s.goalsFor ?? 0,
+            ga = s.goalsAgainst ?? 0;
+          const gd = s.goalDiff ?? gf - ga;
+          return `<tr${kl}>
         <td class="l pl">${rang}</td>
         <td class="l nm">${esc(s.name || s.teamId || '—')}</td>
         <td class="r">${s.played ?? 0}</td>
@@ -1524,8 +1577,9 @@ function renderDruckGruppen(t, qualifyPerGroup) {
         <td class="r">${fmtDiff(gd)}</td>
         <td class="r"><b>${s.points ?? 0}</b></td>
       </tr>`;
-    }).join('');
-    return `<div class="t-bogen-gruppe">
+        })
+        .join('');
+      return `<div class="t-bogen-gruppe">
       <div class="t-bogen-abschnitt">${esc(g.groupName || g.groupKey || 'Gruppe')}</div>
       <table class="t-bogen-tab">
         <thead><tr>
@@ -1535,7 +1589,8 @@ function renderDruckGruppen(t, qualifyPerGroup) {
         <tbody>${zeilen}</tbody>
       </table>
     </div>`;
-  }).join('');
+    })
+    .join('');
 
   return `<article class="t-bogen">
     ${druckKopf('Gruppentabellen', t, `${gruppen.length} Gruppen`)}
@@ -1562,23 +1617,32 @@ function renderDruckGruppen(t, qualifyPerGroup) {
  * verdoppelt sich pro Runde — das ist die ganze Rechnung.
  */
 function renderDruckBaum(t) {
-  const spiele = (Array.isArray(t?.matches) ? t.matches : []).filter((m) => m?.isKo || m?.stageType === 'ko');
+  const spiele = (Array.isArray(t?.matches) ? t.matches : []).filter(
+    (m) => m?.isKo || m?.stageType === 'ko'
+  );
   if (!spiele.length) return '';
   const { winnerBracket } = groupMatchesByRound(spiele);
   if (!winnerBracket.length) return '';
 
-  const KB = 190, KH = 34, SPALTE = 232, RAND_X = 8, RAND_Y = 26;
+  const KB = 190,
+    KH = 34,
+    SPALTE = 232,
+    RAND_X = 8,
+    RAND_Y = 26;
   const ersteAnzahl = winnerBracket[0]?.matches?.length || 1;
-  const ABST = 52 + KH;                    // Mittenabstand in Runde 1
+  const ABST = 52 + KH; // Mittenabstand in Runde 1
   const hoehe = RAND_Y + ersteAnzahl * ABST + 20;
   const breite = RAND_X + winnerBracket.length * SPALTE + 150;
 
-  const mittey = (runde, i) => RAND_Y + KH / 2 + (i * ABST * Math.pow(2, runde)) + (Math.pow(2, runde) - 1) * ABST / 2;
+  const mittey = (runde, i) =>
+    RAND_Y + KH / 2 + i * ABST * Math.pow(2, runde) + ((Math.pow(2, runde) - 1) * ABST) / 2;
 
   const teile = [];
   winnerBracket.forEach((r, ri) => {
     const x = RAND_X + ri * SPALTE;
-    teile.push(`<text x="${x}" y="16" class="rl">${esc(String(r.label || '').toUpperCase())}</text>`);
+    teile.push(
+      `<text x="${x}" y="16" class="rl">${esc(String(r.label || '').toUpperCase())}</text>`
+    );
     (r.matches || []).forEach((m, mi) => {
       const cy = mittey(ri, mi);
       const y = cy - KH / 2;
@@ -1609,10 +1673,16 @@ function renderDruckBaum(t) {
   // Titel-Kasten
   const letzteX = RAND_X + (winnerBracket.length - 1) * SPALTE;
   const titelY = mittey(winnerBracket.length - 1, 0);
-  teile.push(`<path d="M${letzteX + KB} ${titelY}h30" class="flare" fill="none" stroke-dasharray="7 5"/>`);
-  teile.push(`<rect x="${letzteX + KB + 34}" y="${titelY - KH / 2}" width="130" height="${KH}" rx="2" class="flare" fill="none"/>`);
+  teile.push(
+    `<path d="M${letzteX + KB} ${titelY}h30" class="flare" fill="none" stroke-dasharray="7 5"/>`
+  );
+  teile.push(
+    `<rect x="${letzteX + KB + 34}" y="${titelY - KH / 2}" width="130" height="${KH}" rx="2" class="flare" fill="none"/>`
+  );
   teile.push(`<text x="${letzteX + KB + 42}" y="${titelY - 4}" class="rl flare-t">SIEGER</text>`);
-  teile.push(`<line x1="${letzteX + KB + 42}" y1="${titelY + 10}" x2="${letzteX + KB + 156}" y2="${titelY + 10}" class="flare"/>`);
+  teile.push(
+    `<line x1="${letzteX + KB + 42}" y1="${titelY + 10}" x2="${letzteX + KB + 156}" y2="${titelY + 10}" class="flare"/>`
+  );
 
   return `<article class="t-bogen t-bogen--quer">
     ${druckKopf('K.-o.-Phase', t, `${winnerBracket.length} Runden`)}
@@ -1680,13 +1750,13 @@ export function serializeTeamsList(teams) {
     const t = teams[i];
     if (t == null) continue;
     const name = String(t.name ?? '').trim() || 'Team';
-    const color = (typeof t.color === 'string' && t.color.trim()) ? t.color.trim() : null;
-    const seed = (typeof t.seed === 'number' && Number.isFinite(t.seed)) ? t.seed : i;
+    const color = typeof t.color === 'string' && t.color.trim() ? t.color.trim() : null;
+    const seed = typeof t.seed === 'number' && Number.isFinite(t.seed) ? t.seed : i;
     out.push({
       id: String(t.id ?? ''),
       name,
       color,
-      logoUrl: (typeof t.logoUrl === 'string' && t.logoUrl) ? t.logoUrl : null,
+      logoUrl: typeof t.logoUrl === 'string' && t.logoUrl ? t.logoUrl : null,
       players: Array.isArray(t.players) ? t.players : null,
       seed,
     });
@@ -1733,28 +1803,31 @@ export function renderTeamsList(teams, opts = {}) {
   // bleibt.
   const editHint = '';
 
-  const rows = items.map((t, idx) => {
-    const initial = String(t.name).trim().charAt(0).toUpperCase() || '?';
-    const colorStyle = t.color ? `background:${esc(t.color)};color:#fff;` : '';
-    const seedLabel = (typeof t.seed === 'number') ? `#${t.seed + 1}` : '';
-    const handle = canEdit
-      ? '<span class="t-team-drag-handle" aria-label="Verschieben" title="Ziehen zum Sortieren">☰</span>'
-      : '<span class="t-team-drag-handle is-readonly" aria-hidden="true"></span>';
-    const row = `<li class="t-team-row${canEdit ? ' is-draggable' : ''}" data-team-id="${esc(t.id)}" data-team-name="${esc(t.name)}" data-seed="${idx}">
+  const rows = items
+    .map((t, idx) => {
+      const initial = String(t.name).trim().charAt(0).toUpperCase() || '?';
+      const colorStyle = t.color ? `background:${esc(t.color)};color:#fff;` : '';
+      const seedLabel = typeof t.seed === 'number' ? `#${t.seed + 1}` : '';
+      const handle = canEdit
+        ? '<span class="t-team-drag-handle" aria-label="Verschieben" title="Ziehen zum Sortieren">☰</span>'
+        : '<span class="t-team-drag-handle is-readonly" aria-hidden="true"></span>';
+      const row = `<li class="t-team-row${canEdit ? ' is-draggable' : ''}" data-team-id="${esc(t.id)}" data-team-name="${esc(t.name)}" data-seed="${idx}">
       ${handle}
       <span class="t-team-marker" style="${colorStyle}" aria-hidden="true">${esc(initial)}</span>
       <span class="t-team-name" data-role="team-name">${esc(t.name)}</span>
       <span class="t-team-seed">${esc(seedLabel)}</span>
       ${editHint}
     </li>`;
-    return row;
-  }).join('');
+      return row;
+    })
+    .join('');
 
-  const hint = !reorderable && isAdmin
-    ? '<p class="t-hint t-hint--info">Die Reihenfolge ist gesperrt, weil der Spielplan bereits generiert wurde.</p>'
-    : (!isAdmin
-      ? '<p class="t-hint t-hint--info">Nur Admins können die Reihenfolge ändern.</p>'
-      : '<p class="t-hint t-team-edit-hint">Klicken zum Umbenennen, ziehen zum Sortieren.</p>');
+  const hint =
+    !reorderable && isAdmin
+      ? '<p class="t-hint t-hint--info">Die Reihenfolge ist gesperrt, weil der Spielplan bereits generiert wurde.</p>'
+      : !isAdmin
+        ? '<p class="t-hint t-hint--info">Nur Admins können die Reihenfolge ändern.</p>'
+        : '<p class="t-hint t-team-edit-hint">Klicken zum Umbenennen, ziehen zum Sortieren.</p>';
 
   return `${hint}<ul class="t-teams-list${canEdit ? ' is-draggable' : ''}" data-role="teams-list">${rows}</ul>`;
 }
@@ -1868,18 +1941,27 @@ function lst(zeilen, gefahr = false) {
  */
 function lrow(o) {
   const {
-    label, sub = '', wert = '', action = null, art = null,
-    chevron = null, disabled = false, titel = '',
+    label,
+    sub = '',
+    wert = '',
+    action = null,
+    art = null,
+    chevron = null,
+    disabled = false,
+    titel = '',
   } = o;
   const klassen = [
     't-lrow',
     art === 'action' ? 't-lrow--action' : '',
     art === 'danger' ? 't-lrow--danger' : '',
-  ].filter(Boolean).join(' ');
-  const zeigePfeil = chevron === null ? (Boolean(action) && !wert) : chevron;
-  const rechts = (wert || zeigePfeil)
-    ? `<span class="t-lrow-vl">${wert}${zeigePfeil ? '<span class="t-chev" aria-hidden="true">›</span>' : ''}</span>`
-    : '';
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const zeigePfeil = chevron === null ? Boolean(action) && !wert : chevron;
+  const rechts =
+    wert || zeigePfeil
+      ? `<span class="t-lrow-vl">${wert}${zeigePfeil ? '<span class="t-chev" aria-hidden="true">›</span>' : ''}</span>`
+      : '';
   const innen = `<span class="t-lrow-lb">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${rechts}`;
   const tAttr = titel ? ` title="${esc(titel)}"` : '';
   if (!action) return `<div class="${klassen}"${tAttr}>${innen}</div>`;
@@ -1949,14 +2031,16 @@ function gruppe(name, titel, zeilen, opts = {}) {
  */
 function stepper({ attr, wert, min, max, schritt = 1, einheit = '', label }) {
   const einheitHtml = einheit ? `<span class="t-step-einheit">${esc(einheit)}</span>` : '';
-  return `<span class="t-step">`
-    + `<button type="button" class="t-step-btn" data-step="-1" aria-label="${esc(label)} verringern">−</button>`
-    + `<input class="t-step-wert" type="number" ${attr}`
-    + ` value="${esc(String(wert))}" min="${min}" max="${max}" step="${schritt}"`
-    + ` inputmode="numeric" aria-label="${esc(label)}">`
-    + einheitHtml
-    + `<button type="button" class="t-step-btn" data-step="1" aria-label="${esc(label)} erhöhen">+</button>`
-    + `</span>`;
+  return (
+    `<span class="t-step">` +
+    `<button type="button" class="t-step-btn" data-step="-1" aria-label="${esc(label)} verringern">−</button>` +
+    `<input class="t-step-wert" type="number" ${attr}` +
+    ` value="${esc(String(wert))}" min="${min}" max="${max}" step="${schritt}"` +
+    ` inputmode="numeric" aria-label="${esc(label)}">` +
+    einheitHtml +
+    `<button type="button" class="t-step-btn" data-step="1" aria-label="${esc(label)} erhöhen">+</button>` +
+    `</span>`
+  );
 }
 
 export function renderEinstellungen(t, opts = {}) {
@@ -1973,22 +2057,29 @@ export function renderEinstellungen(t, opts = {}) {
   // Lock-Status aus dem UMD-Single-Source-of-Truth.
   // Fallback: einfache Inline-Logik, falls locks.js noch nicht geladen
   // ist (z.B. in Tests).
-  const locks = (typeof window !== 'undefined' && window.tournamentLocks)
-    ? window.tournamentLocks
-    : null;
-  const lockState = locks
-    ? locks.lockStateFor({ status, startedAt }, finishedCount)
-    : null;
+  const locks =
+    typeof window !== 'undefined' && window.tournamentLocks ? window.tournamentLocks : null;
+  const lockState = locks ? locks.lockStateFor({ status, startedAt }, finishedCount) : null;
   // canEditTeams.allowed ist false wenn Sperre, dann .reason zeigen.
-  const canEditGroups = lockState ? lockState.canEditGroups : { allowed: !isFinished && !isStarted, reason: null };
-  const canEditFields = lockState ? lockState.canEditFields : { allowed: !isFinished, reason: null };
+  const canEditGroups = lockState
+    ? lockState.canEditGroups
+    : { allowed: !isFinished && !isStarted, reason: null };
+  const canEditFields = lockState
+    ? lockState.canEditFields
+    : { allowed: !isFinished, reason: null };
   const canEditTimes = lockState ? lockState.canEditTimes : { allowed: !isFinished, reason: null };
   const canRedraw = lockState ? lockState.canRedraw : { allowed: !isFinished, reason: null };
-  const canStart = lockState ? lockState.canStart : { allowed: status === 'generated' && !isStarted, reason: null };
+  const canStart = lockState
+    ? lockState.canStart
+    : { allowed: status === 'generated' && !isStarted, reason: null };
   const canRevert = lockState ? lockState.canRevertToDraft : { allowed: false, reason: null };
-  const canEditResults = lockState ? lockState.canEditResults : { allowed: !isFinished, reason: null };
+  const canEditResults = lockState
+    ? lockState.canEditResults
+    : { allowed: !isFinished, reason: null };
   const canShift = lockState ? lockState.canShiftMatches : { allowed: !isFinished, reason: null };
-  const canReschedule = lockState ? lockState.canReschedule : { allowed: !isFinished, reason: null };
+  const canReschedule = lockState
+    ? lockState.canReschedule
+    : { allowed: !isFinished, reason: null };
 
   // Status-aware Default-offen (D6).
   const isDraft = status === 'draft';
@@ -2015,9 +2106,19 @@ export function renderEinstellungen(t, opts = {}) {
 
   // Block 1 — Aktionen
   const actionsBlock = renderActionsBlock({
-    t, isAdmin, isDraft, isGenerated, isRunning, isFinished,
-    canStart, canRevert, canShift, canReschedule, canEditResults,
-    finishedCount, matches,
+    t,
+    isAdmin,
+    isDraft,
+    isGenerated,
+    isRunning,
+    isFinished,
+    canStart,
+    canRevert,
+    canShift,
+    canReschedule,
+    canEditResults,
+    finishedCount,
+    matches,
   });
 
   // Block 2 — Gruppeneinteilung
@@ -2036,24 +2137,27 @@ export function renderEinstellungen(t, opts = {}) {
     isAdmin,
     reorderable: isAdmin && canRedraw.allowed,
   });
-  const redrawButton = isAdmin && canRedraw.allowed
-    ? `<div class="t-settings-actions">
+  const redrawButton =
+    isAdmin && canRedraw.allowed
+      ? `<div class="t-settings-actions">
          <button class="t-btn t-btn--ghost" data-action="redraw-seeding" type="button">Neu auslosen</button>
        </div>
        <div class="t-hint t-hint--info">Mischt nur die Setzreihenfolge (KO-Seed). Die Gruppenzuordnung bleibt unverändert — dafür gibt es „Zufällig verteilen" weiter oben.</div>`
-    : '';
-  const redrawReason = isAdmin && !canRedraw.allowed
-    ? `<div class="t-hint t-hint--info">${esc(canRedraw.reason ?? 'Sperrt, solange das Turnier läuft.')}</div>`
-    : '';
+      : '';
+  const redrawReason =
+    isAdmin && !canRedraw.allowed
+      ? `<div class="t-hint t-hint--info">${esc(canRedraw.reason ?? 'Sperrt, solange das Turnier läuft.')}</div>`
+      : '';
 
   // Block 4 — Spielfelder
   const fieldsEditor = renderFieldsEditor(fields, {
     locked: !canEditFields.allowed,
     isAdmin,
   });
-  const fieldsReason = isAdmin && !canEditFields.allowed
-    ? `<div class="t-hint t-hint--info">${esc(canEditFields.reason ?? 'Spielfelder sind gesperrt.')}</div>`
-    : '';
+  const fieldsReason =
+    isAdmin && !canEditFields.allowed
+      ? `<div class="t-hint t-hint--info">${esc(canEditFields.reason ?? 'Spielfelder sind gesperrt.')}</div>`
+      : '';
 
   // Block 5 — Notfall (2026-08-26, Entscheid Jonas)
   //
@@ -2083,23 +2187,30 @@ export function renderEinstellungen(t, opts = {}) {
     : '';
   // Block 6 — Gefahrenzone
   const dangerZone = isAdmin
-    ? gruppe('danger-zone', 'Gefahrenzone', [
-        lrow({
-          label: 'Alle Ergebnisse löschen',
-          sub: 'Setzt jeden Spielstand zurück. Der Spielplan bleibt.',
-          action: 'reset-results', art: 'danger',
-          disabled: !isFinished,
-          titel: isFinished ? '' : 'Erst möglich, wenn das Turnier abgeschlossen ist.',
-        }),
-        lrow({
-          label: 'Turnier löschen',
-          sub: 'Endgültig. Teams, Spielplan und Ergebnisse sind danach weg.',
-          action: 'delete-tournament', art: 'danger',
-        }),
-      ], {
-        gefahr: true,
-        hinweis: 'Beide Aktionen verlangen den Turniernamen zur Bestätigung.',
-      })
+    ? gruppe(
+        'danger-zone',
+        'Gefahrenzone',
+        [
+          lrow({
+            label: 'Alle Ergebnisse löschen',
+            sub: 'Setzt jeden Spielstand zurück. Der Spielplan bleibt.',
+            action: 'reset-results',
+            art: 'danger',
+            disabled: !isFinished,
+            titel: isFinished ? '' : 'Erst möglich, wenn das Turnier abgeschlossen ist.',
+          }),
+          lrow({
+            label: 'Turnier löschen',
+            sub: 'Endgültig. Teams, Spielplan und Ergebnisse sind danach weg.',
+            action: 'delete-tournament',
+            art: 'danger',
+          }),
+        ],
+        {
+          gefahr: true,
+          hinweis: 'Beide Aktionen verlangen den Turniernamen zur Bestätigung.',
+        }
+      )
     : '';
 
   return `
@@ -2113,12 +2224,16 @@ export function renderEinstellungen(t, opts = {}) {
         </button>
         <div class="t-settings-section-body">
           ${groupsBoard}
-          ${isAdmin && canEditGroups.allowed
-            ? '<div class="t-hint t-hint--info">Achtung: Die Match-Paarungen wurden bei der Generierung festgelegt. DnD ändert nur die Anzeige der Gruppentabellen — die Spielpaarungen bleiben gleich.</div>'
-            : ''}
-          ${isAdmin && !canEditGroups.allowed
-            ? `<div class="t-hint t-hint--info">${esc(canEditGroups.reason ?? 'Gruppeneinteilung ist gesperrt.')}</div>`
-            : ''}
+          ${
+            isAdmin && canEditGroups.allowed
+              ? '<div class="t-hint t-hint--info">Achtung: Die Match-Paarungen wurden bei der Generierung festgelegt. DnD ändert nur die Anzeige der Gruppentabellen — die Spielpaarungen bleiben gleich.</div>'
+              : ''
+          }
+          ${
+            isAdmin && !canEditGroups.allowed
+              ? `<div class="t-hint t-hint--info">${esc(canEditGroups.reason ?? 'Gruppeneinteilung ist gesperrt.')}</div>`
+              : ''
+          }
         </div>
       </section>
       <section class="t-settings-section" data-section="seeding" data-collapsed="${!defaultOpen.seeding}">
@@ -2139,9 +2254,11 @@ export function renderEinstellungen(t, opts = {}) {
         </button>
         <div class="t-settings-section-body">
           ${fieldsEditor}
-          ${canEditFields.allowed
-            ? '<div class="t-hint t-hint--info">Spielfeld-Namen erscheinen auf Ausdruck und Beamer. Auch in laufenden Turnieren noch änderbar (z.B. „Platte 3" → „Beach Court").</div>'
-            : ''}
+          ${
+            canEditFields.allowed
+              ? '<div class="t-hint t-hint--info">Spielfeld-Namen erscheinen auf Ausdruck und Beamer. Auch in laufenden Turnieren noch änderbar (z.B. „Platte 3" → „Beach Court").</div>'
+              : ''
+          }
           ${fieldsReason}
         </div>
       </section>
@@ -2332,9 +2449,19 @@ function renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen }) {
  */
 function renderActionsBlock(ctx) {
   const {
-    t, isAdmin, isDraft, isGenerated, isRunning, isFinished,
-    canStart, canRevert, canShift, canReschedule, canEditResults,
-    finishedCount, matches,
+    t,
+    isAdmin,
+    isDraft,
+    isGenerated,
+    isRunning,
+    isFinished,
+    canStart,
+    canRevert,
+    canShift,
+    canReschedule,
+    canEditResults,
+    finishedCount,
+    matches,
   } = ctx;
   if (!isAdmin) {
     return `
@@ -2348,44 +2475,56 @@ function renderActionsBlock(ctx) {
   // Revert-Banner (D8): wenn draft + matches existieren, war das Turnier
   // schon mal im LÄUFT und wurde zurückgesetzt.
   const hasMatches = Array.isArray(matches) && matches.length > 0;
-  const banner = (isDraft && hasMatches)
-    ? `<div class="t-banner t-banner--warning">
+  const banner =
+    isDraft && hasMatches
+      ? `<div class="t-banner t-banner--warning">
         <strong>Spielplan aus dem letzten Durchlauf noch da.</strong>
         Du kannst Teams und Gruppen ändern. „Zeitplan neu berechnen" passt die Zeiten an, „Turnier starten" behält die alten.
       </div>`
-    : '';
+      : '';
 
   // ── Gruppe 1: Ablauf ─────────────────────────────────────────────
   // Was den Zustand des Turniers ändert. Jede Zeile ist eine Handlung,
   // die Beschriftung trägt die Farbe — kein Knopf in einer Zeile.
   const ablauf = [];
   if (canStart.allowed) {
-    ablauf.push(lrow({
-      label: 'Turnier starten',
-      sub: 'Ab dann zählen Ergebnisse und der Spielplan ist gesperrt.',
-      action: 'start-tournament', art: 'action',
-    }));
+    ablauf.push(
+      lrow({
+        label: 'Turnier starten',
+        sub: 'Ab dann zählen Ergebnisse und der Spielplan ist gesperrt.',
+        action: 'start-tournament',
+        art: 'action',
+      })
+    );
   } else if (isGenerated) {
-    ablauf.push(lrow({
-      label: 'Turnier starten',
-      sub: canStart.reason ?? 'Noch nicht möglich.',
-      action: 'start-tournament', art: 'action', disabled: true,
-      titel: canStart.reason ?? '',
-    }));
+    ablauf.push(
+      lrow({
+        label: 'Turnier starten',
+        sub: canStart.reason ?? 'Noch nicht möglich.',
+        action: 'start-tournament',
+        art: 'action',
+        disabled: true,
+        titel: canStart.reason ?? '',
+      })
+    );
   }
   if (canRevert.allowed) {
-    ablauf.push(lrow({
-      label: 'Zurück zu Entwurf',
-      sub: 'Teams und Gruppen wieder änderbar machen.',
-      action: 'revert-to-draft',
-    }));
+    ablauf.push(
+      lrow({
+        label: 'Zurück zu Entwurf',
+        sub: 'Teams und Gruppen wieder änderbar machen.',
+        action: 'revert-to-draft',
+      })
+    );
   }
   if (!isFinished) {
-    ablauf.push(lrow({
-      label: 'Turnier abschließen',
-      sub: 'Beendet das Turnier. Ergebnisse bleiben erhalten.',
-      action: 'finish-tournament',
-    }));
+    ablauf.push(
+      lrow({
+        label: 'Turnier abschließen',
+        sub: 'Beendet das Turnier. Ergebnisse bleiben erhalten.',
+        action: 'finish-tournament',
+      })
+    );
   }
 
   // ── Gruppe 2: Spielbetrieb ───────────────────────────────────────
@@ -2396,54 +2535,87 @@ function renderActionsBlock(ctx) {
     const duration = t?.tournament?.config?.schedule?.matchDurationMinutes ?? 30;
     const parallelFields = t?.tournament?.config?.schedule?.parallelFields ?? 4;
     const pause = t?.tournament?.config?.schedule?.pauseAfterMatches ?? 0;
-    betrieb.push(lrow({
-      label: 'Spieldauer',
-      wert: stepper({
-        attr: 'data-reschedule-duration', wert: duration,
-        min: 5, max: 240, schritt: 5, einheit: 'min', label: 'Spieldauer',
-      }),
-    }));
+    betrieb.push(
+      lrow({
+        label: 'Spieldauer',
+        wert: stepper({
+          attr: 'data-reschedule-duration',
+          wert: duration,
+          min: 5,
+          max: 240,
+          schritt: 5,
+          einheit: 'min',
+          label: 'Spieldauer',
+        }),
+      })
+    );
     // Pause zwischen zwei Spielen (2026-08-26, Jonas): stand bisher NUR
     // im Wizard. Wer sie am Spieltag aendern wollte — weil die Platten
     // laenger zum Abraeumen brauchen als gedacht —, musste das Turnier
     // neu anlegen. Sie gehoert neben die Spieldauer: beide zusammen
     // ergeben den Abstand zweier Anstoesse (Engine: matchDuration +
     // pauseAfterMatches, engine/schedule.js:122).
-    betrieb.push(lrow({
-      label: 'Pause zwischen Spielen',
-      sub: 'Zählt zur Spieldauer dazu — ergibt den Takt.',
-      wert: stepper({
-        attr: 'data-reschedule-pause', wert: pause,
-        min: 0, max: 60, schritt: 5, einheit: 'min', label: 'Pause zwischen Spielen',
-      }),
-    }));
-    betrieb.push(lrow({
-      label: 'Platten',
-      sub: 'Wie viele Spiele gleichzeitig laufen.',
-      wert: stepper({
-        attr: 'data-reschedule-fields', wert: parallelFields,
-        min: 1, max: 12, schritt: 1, label: 'Platten',
-      }),
-    }));
-    betrieb.push(lrow({
-      label: 'Zeitplan neu berechnen',
-      sub: 'Setzt alle Spielzeiten nach Dauer und Platten neu. Ergebnisse bleiben.',
-      action: 'reschedule-auto', art: 'action',
-    }));
+    betrieb.push(
+      lrow({
+        label: 'Pause zwischen Spielen',
+        sub: 'Zählt zur Spieldauer dazu — ergibt den Takt.',
+        wert: stepper({
+          attr: 'data-reschedule-pause',
+          wert: pause,
+          min: 0,
+          max: 60,
+          schritt: 5,
+          einheit: 'min',
+          label: 'Pause zwischen Spielen',
+        }),
+      })
+    );
+    betrieb.push(
+      lrow({
+        label: 'Platten',
+        sub: 'Wie viele Spiele gleichzeitig laufen.',
+        wert: stepper({
+          attr: 'data-reschedule-fields',
+          wert: parallelFields,
+          min: 1,
+          max: 12,
+          schritt: 1,
+          label: 'Platten',
+        }),
+      })
+    );
+    betrieb.push(
+      lrow({
+        label: 'Zeitplan neu berechnen',
+        sub: 'Setzt alle Spielzeiten nach Dauer und Platten neu. Ergebnisse bleiben.',
+        action: 'reschedule-auto',
+        art: 'action',
+      })
+    );
   }
   if (canShift.allowed && (isRunning || isGenerated || (isDraft && hasMatches))) {
-    betrieb.push(lrow({
-      label: 'Offene Spiele verschieben',
-      sub: 'Nur Spiele, die noch geplant sind.',
-      wert: stepper({
-        attr: 'data-shift-minutes', wert: 0,
-        min: -240, max: 240, schritt: 5, einheit: 'min', label: 'Verschieben um',
-      }),
-    }));
-    betrieb.push(lrow({
-      label: 'Jetzt verschieben',
-      action: 'shift-open', art: 'action',
-    }));
+    betrieb.push(
+      lrow({
+        label: 'Offene Spiele verschieben',
+        sub: 'Nur Spiele, die noch geplant sind.',
+        wert: stepper({
+          attr: 'data-shift-minutes',
+          wert: 0,
+          min: -240,
+          max: 240,
+          schritt: 5,
+          einheit: 'min',
+          label: 'Verschieben um',
+        }),
+      })
+    );
+    betrieb.push(
+      lrow({
+        label: 'Jetzt verschieben',
+        action: 'shift-open',
+        art: 'action',
+      })
+    );
   }
   // „Spielzeiten bearbeiten" ist hier ersatzlos entfallen (2026-08-26,
   // Jonas: „das ist nur eine leere Huelle"). Der Knopf sprang in den
@@ -2455,9 +2627,10 @@ function renderActionsBlock(ctx) {
   // aller Spiele setzt „Zeitplan neu berechnen" weiter oben.
 
   // Der Stand steht einmal, unten, klein — nicht als Kasten mitten drin.
-  const statusHint = finishedCount > 0
-    ? `<div class="t-hint">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.</div>`
-    : '';
+  const statusHint =
+    finishedCount > 0
+      ? `<div class="t-hint">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.</div>`
+      : '';
 
   return `
     ${banner}
@@ -2491,18 +2664,20 @@ export function renderGroupsBoard(groups, teams, opts = {}) {
   }
   const columns = groups
     .map((g) => {
-      const members = (g?.members ?? []).map((m) => {
-        const dotColor = m.color || '#999';
-        // Etappe B.8.1: data-action="select-for-swap" nur für Admin.
-        // Member sehen das Board read-only (kein Action-Attribut).
-        const actionAttr = isAdmin ? 'data-action="select-for-swap"' : '';
-        return `
+      const members = (g?.members ?? [])
+        .map((m) => {
+          const dotColor = m.color || '#999';
+          // Etappe B.8.1: data-action="select-for-swap" nur für Admin.
+          // Member sehen das Board read-only (kein Action-Attribut).
+          const actionAttr = isAdmin ? 'data-action="select-for-swap"' : '';
+          return `
           <li class="t-group-team-card" data-team-id="${esc(m.teamId)}" data-team-name="${esc(m.name ?? '')}" data-team-color="${esc(dotColor)}" data-group-key="${esc(g.key)}" ${actionAttr}>
             <span class="t-group-team-card-dot" style="background:${esc(dotColor)};"></span>
             <span class="t-group-team-card-name">${esc(m.name ?? 'Team')}</span>
           </li>
         `;
-      }).join('');
+        })
+        .join('');
       return `
         <div class="t-groups-column" data-group-key="${esc(g.key)}" data-group-id="${esc(g.id)}">
           <div class="t-groups-column-header">
@@ -2519,19 +2694,29 @@ export function renderGroupsBoard(groups, teams, opts = {}) {
     <div class="t-groups-board" data-role="groups-board" data-group-count="${groupCount}" style="--group-count:${groupCount};">
       ${columns}
     </div>
-    ${isAdmin ? `<div class="t-swap-bar" data-role="swap-bar" hidden>
+    ${
+      isAdmin
+        ? `<div class="t-swap-bar" data-role="swap-bar" hidden>
       <span class="t-swap-bar-label" data-role="swap-bar-label">Tausch:</span>
       <button class="t-btn t-btn--primary" data-action="confirm-swap" type="button" disabled>Tauschen</button>
       <button class="t-btn t-btn--ghost" data-action="cancel-swap" type="button">Abbrechen</button>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
     <div class="t-hint t-hint--info">
-      ${isAdmin
-        ? 'Klicke auf zwei Teams aus verschiedenen Gruppen, um sie zu tauschen — Gruppengrößen bleiben gleich. „Zufällig verteilen" mischt alle neu.'
-        : 'Die Gruppeneinteilung wird vom Turnier verwaltet. „Zufällig verteilen" mischt die Teams neu — Gruppengrößen bleiben gleich.'}
+      ${
+        isAdmin
+          ? 'Klicke auf zwei Teams aus verschiedenen Gruppen, um sie zu tauschen — Gruppengrößen bleiben gleich. „Zufällig verteilen" mischt alle neu.'
+          : 'Die Gruppeneinteilung wird vom Turnier verwaltet. „Zufällig verteilen" mischt die Teams neu — Gruppengrößen bleiben gleich.'
+      }
     </div>
-    ${isAdmin ? `<div class="t-settings-actions">
+    ${
+      isAdmin
+        ? `<div class="t-settings-actions">
       <button class="t-btn t-btn--primary" data-action="randomize-groups" type="button">Zufällig verteilen</button>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
   `;
 }
 
@@ -2552,8 +2737,8 @@ export function serializeGroupsInput(boardEl) {
   const out = [];
   for (const col of columns) {
     const key = col.getAttribute('data-group-key');
-    const teamIds = Array.from(col.querySelectorAll('.t-group-team-card')).map(
-      (card) => card.getAttribute('data-team-id')
+    const teamIds = Array.from(col.querySelectorAll('.t-group-team-card')).map((card) =>
+      card.getAttribute('data-team-id')
     );
     if (teamIds.length === 0) {
       return { ok: false, error: `Gruppe "${key}" hat keine Teams` };
@@ -2579,9 +2764,10 @@ export function serializeGroupsInput(boardEl) {
  */
 export function renderFieldsEditor(fields, opts = {}) {
   const { locked = false, isAdmin = false } = opts;
-  const arr = Array.isArray(fields) && fields.length > 0
-    ? [...fields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    : Array.from({ length: 4 }, (_, i) => ({ name: `Platte ${i + 1}`, order: i }));
+  const arr =
+    Array.isArray(fields) && fields.length > 0
+      ? [...fields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      : Array.from({ length: 4 }, (_, i) => ({ name: `Platte ${i + 1}`, order: i }));
 
   const count = arr.length;
   const rows = arr
@@ -2595,9 +2781,10 @@ export function renderFieldsEditor(fields, opts = {}) {
     )
     .join('');
 
-  const actions = isAdmin && !locked
-    ? '<div class="t-fields-editor-actions"><button class="t-btn t-btn--primary" data-action="save-fields" type="button">Speichern</button><button class="t-btn t-btn--ghost" data-action="reset-fields" type="button">Abbrechen</button></div>'
-    : '';
+  const actions =
+    isAdmin && !locked
+      ? '<div class="t-fields-editor-actions"><button class="t-btn t-btn--primary" data-action="save-fields" type="button">Speichern</button><button class="t-btn t-btn--ghost" data-action="reset-fields" type="button">Abbrechen</button></div>'
+      : '';
 
   const lockHint = locked
     ? '<div class="t-fields-locked-hint">Spielfelder sind nach der Generierung gesperrt — der Ausdruck zeigt die aktuelle Konfiguration.</div>'

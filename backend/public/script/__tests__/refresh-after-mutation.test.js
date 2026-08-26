@@ -65,7 +65,8 @@ function calleeName(node) {
   if (node.type !== 'CallExpression') return null;
   const c = node.callee;
   if (c.type === 'Identifier') return c.name;
-  if (c.type === 'MemberExpression' && !c.computed && c.property.type === 'Identifier') return c.property.name;
+  if (c.type === 'MemberExpression' && !c.computed && c.property.type === 'Identifier')
+    return c.property.name;
   return null;
 }
 
@@ -73,7 +74,8 @@ function calleeName(node) {
 function ladeHelfer() {
   let fnNode = null;
   walk(ast, (n) => {
-    if (n.type === 'FunctionDeclaration' && n.id?.name === 'refreshTournamentAfterMutation') fnNode = n;
+    if (n.type === 'FunctionDeclaration' && n.id?.name === 'refreshTournamentAfterMutation')
+      fnNode = n;
   });
   if (!fnNode) throw new Error('refreshTournamentAfterMutation existiert nicht in main.js');
   const code = src.slice(fnNode.start, fnNode.end);
@@ -82,7 +84,7 @@ function ladeHelfer() {
     'openTournamentInstance',
     'toast',
     'console',
-    `${code}\nreturn refreshTournamentAfterMutation;`,
+    `${code}\nreturn refreshTournamentAfterMutation;`
   );
   return { code, factory };
 }
@@ -92,16 +94,22 @@ describe('refreshTournamentAfterMutation: Nachladen meldet nie einen Mutations-F
 
   it('gibt true zurueck, wenn das Nachladen klappt — und toastet nicht', async () => {
     const toasts = [];
-    const fn = factory(async () => {}, (m, k) => toasts.push([m, k]), { warn() {} });
+    const fn = factory(
+      async () => {},
+      (m, k) => toasts.push([m, k]),
+      { warn() {} }
+    );
     await expect(fn('t1')).resolves.toBe(true);
     expect(toasts).toEqual([]);
   });
 
   it('wirft NICHT, wenn das Nachladen scheitert', async () => {
     const fn = factory(
-      async () => { throw new Error('HTTP 500'); },
+      async () => {
+        throw new Error('HTTP 500');
+      },
       () => {},
-      { warn() {} },
+      { warn() {} }
     );
     await expect(fn('t1')).resolves.toBe(false);
   });
@@ -109,9 +117,11 @@ describe('refreshTournamentAfterMutation: Nachladen meldet nie einen Mutations-F
   it('meldet im Fehlerfall ein ANSICHTS-Problem, kein Speicher-Problem', async () => {
     const toasts = [];
     const fn = factory(
-      async () => { throw new Error('HTTP 500'); },
+      async () => {
+        throw new Error('HTTP 500');
+      },
       (m, k) => toasts.push([m, k]),
-      { warn() {} },
+      { warn() {} }
     );
     await fn('t1');
     expect(toasts).toHaveLength(1);
@@ -126,7 +136,13 @@ describe('refreshTournamentAfterMutation: Nachladen meldet nie einen Mutations-F
 
   it('reicht die Turnier-ID unveraendert an openTournamentInstance durch', async () => {
     const gesehen = [];
-    const fn = factory(async (id) => { gesehen.push(id); }, () => {}, { warn() {} });
+    const fn = factory(
+      async (id) => {
+        gesehen.push(id);
+      },
+      () => {},
+      { warn() {} }
+    );
     await fn('tid-42');
     expect(gesehen).toEqual(['tid-42']);
   });
@@ -140,7 +156,12 @@ describe('refreshTournamentAfterMutation: Nachladen meldet nie einen Mutations-F
 });
 
 // ── Ebene 2: Struktur ────────────────────────────────────────────────
-const MUTATIONS_AUFRUFE = new Set(['apiCall', 'fetchWithAuth', 'uploadFile', 'uploadTournamentMatchPhoto']);
+const MUTATIONS_AUFRUFE = new Set([
+  'apiCall',
+  'fetchWithAuth',
+  'uploadFile',
+  'uploadTournamentMatchPhoto',
+]);
 
 /**
  * Die Regel, ohne Ausnahmeliste:
@@ -169,10 +190,16 @@ function verstoesseIn(baum, datei) {
     let huelle = null;
     for (let i = parents.length - 1; i >= 0; i--) {
       const p = parents[i];
-      if (p.type === 'FunctionDeclaration' && p.id?.name) { huelle = p.id.name; break; }
-      if ((p.type === 'FunctionExpression' || p.type === 'ArrowFunctionExpression')) {
+      if (p.type === 'FunctionDeclaration' && p.id?.name) {
+        huelle = p.id.name;
+        break;
+      }
+      if (p.type === 'FunctionExpression' || p.type === 'ArrowFunctionExpression') {
         const gp = parents[i - 1];
-        if (gp?.type === 'VariableDeclarator' && gp.id?.type === 'Identifier') { huelle = gp.id.name; break; }
+        if (gp?.type === 'VariableDeclarator' && gp.id?.type === 'Identifier') {
+          huelle = gp.id.name;
+          break;
+        }
       }
     }
 
@@ -180,9 +207,17 @@ function verstoesseIn(baum, datei) {
     let innerstes = null;
     for (let i = parents.length - 1; i >= 0; i--) {
       const p = parents[i];
-      if (p.type === 'FunctionDeclaration' || p.type === 'FunctionExpression' || p.type === 'ArrowFunctionExpression') break;
+      if (
+        p.type === 'FunctionDeclaration' ||
+        p.type === 'FunctionExpression' ||
+        p.type === 'ArrowFunctionExpression'
+      )
+        break;
       // Nur der try-Block zaehlt, nicht der catch/finally.
-      if (p.type === 'TryStatement' && parents[i + 1] === p.block) { innerstes = p; break; }
+      if (p.type === 'TryStatement' && parents[i + 1] === p.block) {
+        innerstes = p;
+        break;
+      }
     }
     if (!innerstes) return;
 
@@ -204,13 +239,15 @@ describe('Struktur: kein openTournamentInstance im try einer Mutation', () => {
 
     if (verstoesse.length) {
       throw new Error(
-        'ERFOLG WIRD ALS FEHLER GEMELDET: ' + verstoesse.length + ' Aufruf(e) von ' +
+        'ERFOLG WIRD ALS FEHLER GEMELDET: ' +
+          verstoesse.length +
+          ' Aufruf(e) von ' +
           'openTournamentInstance stehen im try einer Mutation:\n' +
           verstoesse.map((v) => '  - ' + v).join('\n') +
           '\n\nHakt dort nur das Nachladen, laeuft der Mutations-catch an und der ' +
           'Nutzer bekommt „konnte nicht gespeichert werden" auf eine geglueckte ' +
           'Mutation.\nFix: refreshTournamentAfterMutation() benutzen und den Aufruf ' +
-          'HINTER das try/catch der Mutation ziehen.',
+          'HINTER das try/catch der Mutation ziehen.'
       );
     }
     expect(verstoesse).toEqual([]);
@@ -218,7 +255,8 @@ describe('Struktur: kein openTournamentInstance im try einer Mutation', () => {
 
   // Ein Detektor, der nur gruen sein kann, beweist nichts. Die beiden
   // folgenden Proben zeigen, dass die Regel in BEIDE Richtungen greift.
-  const parse = (code) => acorn.parse(code, { ecmaVersion: 2022, sourceType: 'module', locations: true });
+  const parse = (code) =>
+    acorn.parse(code, { ecmaVersion: 2022, sourceType: 'module', locations: true });
 
   it('Mutationsprobe: der alte Bauplan wird erkannt', () => {
     const boese = parse(`

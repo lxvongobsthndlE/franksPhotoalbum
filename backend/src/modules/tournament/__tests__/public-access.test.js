@@ -122,9 +122,7 @@ describe('requirePublicTournament', () => {
   });
 
   it('Entwurf → 404, auch mit gültigem Token (Zusage 2)', async () => {
-    prisma.tournament.findUnique.mockResolvedValue(
-      fakePublicTournament({ status: 'draft' })
-    );
+    prisma.tournament.findUnique.mockResolvedValue(fakePublicTournament({ status: 'draft' }));
     await expect(requirePublicTournament(prisma, VALID)).rejects.toMatchObject({
       statusCode: 404,
     });
@@ -140,9 +138,7 @@ describe('requirePublicTournament', () => {
   });
 
   it('isPublic=false → 404, selbst wenn der Token noch dasteht', async () => {
-    prisma.tournament.findUnique.mockResolvedValue(
-      fakePublicTournament({ isPublic: false })
-    );
+    prisma.tournament.findUnique.mockResolvedValue(fakePublicTournament({ isPublic: false }));
     await expect(requirePublicTournament(prisma, VALID)).rejects.toMatchObject({
       statusCode: 404,
     });

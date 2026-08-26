@@ -261,9 +261,7 @@ describe('PATCH /api/tournaments/:id/teams/:teamId', () => {
 
   it('200 Admin: Name wird aktualisiert, Update wird gerufen', async () => {
     // Reihenfolge: 1. Team-finden → teamA; 2. Duplikat-Suche → null
-    prisma.tournamentTeam.findFirst
-      .mockResolvedValueOnce(teamA)
-      .mockResolvedValueOnce(null);
+    prisma.tournamentTeam.findFirst.mockResolvedValueOnce(teamA).mockResolvedValueOnce(null);
     prisma.tournamentTeam.update.mockResolvedValue({
       ...teamA,
       name: 'Rakija Boys',
@@ -324,9 +322,7 @@ describe('PATCH /api/tournaments/:id/teams/:teamId', () => {
   });
 
   it('200 globaler Admin darf auch patchen', async () => {
-    prisma.tournamentTeam.findFirst
-      .mockResolvedValueOnce(teamA)
-      .mockResolvedValueOnce(null);
+    prisma.tournamentTeam.findFirst.mockResolvedValueOnce(teamA).mockResolvedValueOnce(null);
     prisma.tournamentTeam.update.mockResolvedValue({
       ...teamA,
       name: 'Global-Team',
@@ -342,9 +338,7 @@ describe('PATCH /api/tournaments/:id/teams/:teamId', () => {
   });
 
   it('200 Name + Color zusammen', async () => {
-    prisma.tournamentTeam.findFirst
-      .mockResolvedValueOnce(teamA)
-      .mockResolvedValueOnce(null);
+    prisma.tournamentTeam.findFirst.mockResolvedValueOnce(teamA).mockResolvedValueOnce(null);
     prisma.tournamentTeam.update.mockResolvedValue({
       ...teamA,
       name: 'Rakija Boys',
@@ -381,9 +375,7 @@ describe('PATCH /api/tournaments/:id/teams/:teamId', () => {
   });
 
   it('200 Self-Rename (Team-A zu eigenem Namen) ist erlaubt', async () => {
-    prisma.tournamentTeam.findFirst
-      .mockResolvedValueOnce(teamA)
-      .mockResolvedValueOnce(null); // Duplikat-Suche: id ist not teamA → null
+    prisma.tournamentTeam.findFirst.mockResolvedValueOnce(teamA).mockResolvedValueOnce(null); // Duplikat-Suche: id ist not teamA → null
     prisma.tournamentTeam.update.mockResolvedValue({
       ...teamA,
       name: 'Team 1',
@@ -399,9 +391,7 @@ describe('PATCH /api/tournaments/:id/teams/:teamId', () => {
   });
 
   it('200 Whitespace im name wird getrimmt', async () => {
-    prisma.tournamentTeam.findFirst
-      .mockResolvedValueOnce(teamA)
-      .mockResolvedValueOnce(null);
+    prisma.tournamentTeam.findFirst.mockResolvedValueOnce(teamA).mockResolvedValueOnce(null);
     prisma.tournamentTeam.update.mockResolvedValue({
       ...teamA,
       name: 'Rakija Boys',

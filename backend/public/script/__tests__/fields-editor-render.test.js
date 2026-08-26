@@ -39,10 +39,10 @@ describe('renderFieldsEditor', () => {
   });
 
   it('locked=true: alle Inputs disabled, Lock-Hinweis sichtbar', () => {
-    const html = renderFieldsEditor(
-      [{ id: 'f1', name: 'Platte 1', order: 0 }],
-      { locked: true, isAdmin: true }
-    );
+    const html = renderFieldsEditor([{ id: 'f1', name: 'Platte 1', order: 0 }], {
+      locked: true,
+      isAdmin: true,
+    });
     expect(html).toContain('disabled');
     expect(html).toContain('t-fields-locked-hint');
     expect(html).toContain('Spielfelder sind nach der Generierung gesperrt');
@@ -51,19 +51,19 @@ describe('renderFieldsEditor', () => {
   });
 
   it('isAdmin=false: keine Action-Buttons, Inputs disabled', () => {
-    const html = renderFieldsEditor(
-      [{ id: 'f1', name: 'Platte 1', order: 0 }],
-      { isAdmin: false, locked: false }
-    );
+    const html = renderFieldsEditor([{ id: 'f1', name: 'Platte 1', order: 0 }], {
+      isAdmin: false,
+      locked: false,
+    });
     expect(html).toContain('disabled');
     expect(html).not.toContain('data-action="save-fields"');
   });
 
   it('isAdmin=true + nicht locked: Save + Cancel-Button sichtbar', () => {
-    const html = renderFieldsEditor(
-      [{ id: 'f1', name: 'Platte 1', order: 0 }],
-      { isAdmin: true, locked: false }
-    );
+    const html = renderFieldsEditor([{ id: 'f1', name: 'Platte 1', order: 0 }], {
+      isAdmin: true,
+      locked: false,
+    });
     expect(html).toContain('data-action="save-fields"');
     expect(html).toContain('data-action="reset-fields"');
   });

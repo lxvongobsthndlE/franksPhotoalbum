@@ -33,11 +33,27 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
     $transaction: vi.fn(async (cb) => {
       return typeof cb === 'function' ? cb(prisma) : cb;
     }),
@@ -52,8 +68,14 @@ const tFinishedId = 't-finished';
 
 function makeStub(overrides = {}) {
   return {
-    id: tDraftId, groupId: gId, status: 'draft', isPublic: false,
-    publicToken: null, publicRevokedAt: null, logoUrl: null, config: null,
+    id: tDraftId,
+    groupId: gId,
+    status: 'draft',
+    isPublic: false,
+    publicToken: null,
+    publicRevokedAt: null,
+    logoUrl: null,
+    config: null,
     group: { id: gId, createdBy: u.admin.id, name: 'G' },
     ...overrides,
   };
@@ -79,14 +101,15 @@ function baseStubs(prisma) {
   });
   prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
     if (where.id === tDraftId) return makeStub();
-    if (where.id === tGeneratedId) return makeStub({
-      id: tGeneratedId,
-      status: 'group_stage',
-      // Etappe B.8: startedAt setzt das Turnier in „LÄUFT".
-      // Spielfelder bleiben in LÄUFT editierbar (User kann am Turniertag
-      // z.B. „Platte 3" → „Beach Court" umbenennen).
-      startedAt: new Date('2026-08-20T10:00:00Z'),
-    });
+    if (where.id === tGeneratedId)
+      return makeStub({
+        id: tGeneratedId,
+        status: 'group_stage',
+        // Etappe B.8: startedAt setzt das Turnier in „LÄUFT".
+        // Spielfelder bleiben in LÄUFT editierbar (User kann am Turniertag
+        // z.B. „Platte 3" → „Beach Court" umbenennen).
+        startedAt: new Date('2026-08-20T10:00:00Z'),
+      });
     if (where.id === tFinishedId) return makeStub({ id: tFinishedId, status: 'finished' });
     return null;
   });

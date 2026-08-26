@@ -23,11 +23,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import {
-  TEAM_COLOR_PALETTE,
-  paletteColorFor,
-  nextPaletteColor,
-} from '../team-colors.js';
+import { TEAM_COLOR_PALETTE, paletteColorFor, nextPaletteColor } from '../team-colors.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -46,10 +42,7 @@ describe('Team-Farbpalette — Server-Seite (team-colors.js)', () => {
   });
 
   it('P3: nextPaletteColor überspringt bereits vergebene Farben', () => {
-    const existing = [
-      { color: TEAM_COLOR_PALETTE[0] },
-      { color: TEAM_COLOR_PALETTE[1] },
-    ];
+    const existing = [{ color: TEAM_COLOR_PALETTE[0] }, { color: TEAM_COLOR_PALETTE[1] }];
     expect(nextPaletteColor(existing)).toBe(TEAM_COLOR_PALETTE[2]);
   });
 
@@ -99,16 +92,7 @@ describe('Team-Farbpalette — Parität Frontend ↔ Backend', () => {
     // Wir lesen die JS-Datei und extrahieren die Hex-Werte aus dem
     // Array-Literal. Wir wollen NICHT, dass die Datei ausgeführt wird
     // — nur dass die Hex-Werte Zeichen-für-Zeichen übereinstimmen.
-    const frontendPath = join(
-      here,
-      '..',
-      '..',
-      '..',
-      '..',
-      'public',
-      'script',
-      'tournament.js',
-    );
+    const frontendPath = join(here, '..', '..', '..', '..', 'public', 'script', 'tournament.js');
     const src = readFileSync(frontendPath, 'utf8');
 
     // Suche das `TEAM_COLOR_PALETTE = [ ... ]`-Literal. Wir nehmen den
@@ -120,7 +104,9 @@ describe('Team-Farbpalette — Parität Frontend ↔ Backend', () => {
     const block = src.slice(start + marker.length, end);
 
     // Hex-Werte per Regex extrahieren — Reihenfolge bleibt erhalten.
-    const frontendHex = [...block.matchAll(/'#([0-9A-Fa-f]{6})'/g)].map((m) => '#' + m[1].toUpperCase());
+    const frontendHex = [...block.matchAll(/'#([0-9A-Fa-f]{6})'/g)].map(
+      (m) => '#' + m[1].toUpperCase()
+    );
 
     // Reihenfolge muss identisch sein.
     expect(frontendHex).toEqual(TEAM_COLOR_PALETTE);

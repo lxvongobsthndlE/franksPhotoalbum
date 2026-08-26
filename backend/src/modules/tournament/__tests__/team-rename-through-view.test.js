@@ -48,29 +48,22 @@ function createInMemoryPrisma() {
 
   const handlers = {
     user: {
-      findUnique: async ({ where }) =>
-        tables.user.find((r) => r.id === where.id) || null,
+      findUnique: async ({ where }) => tables.user.find((r) => r.id === where.id) || null,
     },
     group: {
-      findUnique: async ({ where }) =>
-        tables.group.find((r) => r.id === where.id) || null,
+      findUnique: async ({ where }) => tables.group.find((r) => r.id === where.id) || null,
     },
     groupMember: {
       findUnique: async ({ where }) => {
         const { userId, groupId } = where.userId_groupId ?? {};
-        return (
-          tables.groupMember.find(
-            (r) => r.userId === userId && r.groupId === groupId
-          ) || null
-        );
+        return tables.groupMember.find((r) => r.userId === userId && r.groupId === groupId) || null;
       },
     },
     groupDeputy: {
       findUnique: async ({ where }) => null,
     },
     tournament: {
-      findUnique: async ({ where }) =>
-        tables.tournament.find((r) => r.id === where.id) || null,
+      findUnique: async ({ where }) => tables.tournament.find((r) => r.id === where.id) || null,
       findMany: async ({ where } = {}) => {
         let rows = tables.tournament;
         if (where?.groupId) rows = rows.filter((r) => r.groupId === where.groupId);
@@ -83,8 +76,7 @@ function createInMemoryPrisma() {
         return (
           tables.tournamentTeam.find((r) => {
             if (where.id && r.id !== where.id) return false;
-            if (where.tournamentId && r.tournamentId !== where.tournamentId)
-              return false;
+            if (where.tournamentId && r.tournamentId !== where.tournamentId) return false;
             if (where.name?.equals !== undefined) {
               const wanted = where.name.equals.toLowerCase();
               if (r.name.toLowerCase() !== wanted) return false;

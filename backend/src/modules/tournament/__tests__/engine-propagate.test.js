@@ -9,20 +9,46 @@ import { propagateWinner, resetCascade, applyResult } from '../engine/propagate.
 describe('propagateWinner', () => {
   it('wirft wenn Match nicht beendet', () => {
     expect(() =>
-      propagateWinner({ status: 'scheduled', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0 }, []),
+      propagateWinner(
+        { status: 'scheduled', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0 },
+        []
+      )
     ).toThrow();
   });
 
   it('wirft wenn keine Scores', () => {
     expect(() =>
-      propagateWinner({ status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: null, scoreAway: null }, []),
+      propagateWinner(
+        { status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: null, scoreAway: null },
+        []
+      )
     ).toThrow();
   });
 
   it('setzt Sieger in Folgematch home', () => {
     const all = [
-      { id: 'm1', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 2, scoreAway: 0, winnerAdvancesTo: 'm2', loserAdvancesTo: null, homeSeed: 1, awaySeed: 4 },
-      { id: 'm2', status: 'scheduled', teamHome: null, teamAway: null, homeSeed: 1, awaySeed: 2, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'm1',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 2,
+        scoreAway: 0,
+        winnerAdvancesTo: 'm2',
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 4,
+      },
+      {
+        id: 'm2',
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        homeSeed: 1,
+        awaySeed: 2,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const after = propagateWinner(all[0], all);
     const m2 = after.find((m) => m.id === 'm2');
@@ -32,8 +58,28 @@ describe('propagateWinner', () => {
 
   it('setzt Sieger in Folgematch away', () => {
     const all = [
-      { id: 'm1', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 0, scoreAway: 3, winnerAdvancesTo: 'm2', loserAdvancesTo: null, homeSeed: 1, awaySeed: 4 },
-      { id: 'm2', status: 'scheduled', teamHome: null, teamAway: null, homeSeed: 1, awaySeed: 2, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'm1',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 0,
+        scoreAway: 3,
+        winnerAdvancesTo: 'm2',
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 4,
+      },
+      {
+        id: 'm2',
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        homeSeed: 1,
+        awaySeed: 2,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const after = propagateWinner(all[0], all);
     const m2 = after.find((m) => m.id === 'm2');
@@ -43,8 +89,28 @@ describe('propagateWinner', () => {
 
   it('Unentschieden in KO → keine Propagation', () => {
     const all = [
-      { id: 'm1', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 2, scoreAway: 2, winnerAdvancesTo: 'm2', loserAdvancesTo: null, homeSeed: 1, awaySeed: 4 },
-      { id: 'm2', status: 'scheduled', teamHome: null, teamAway: null, homeSeed: 1, awaySeed: 2, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'm1',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 2,
+        scoreAway: 2,
+        winnerAdvancesTo: 'm2',
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 4,
+      },
+      {
+        id: 'm2',
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        homeSeed: 1,
+        awaySeed: 2,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const after = propagateWinner(all[0], all);
     const m2 = after.find((m) => m.id === 'm2');
@@ -54,8 +120,28 @@ describe('propagateWinner', () => {
 
   it('mutiert Eingabe nicht', () => {
     const original = [
-      { id: 'm1', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0, winnerAdvancesTo: 'm2', loserAdvancesTo: null, homeSeed: 1, awaySeed: 4 },
-      { id: 'm2', status: 'scheduled', teamHome: null, teamAway: null, homeSeed: 1, awaySeed: 2, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'm1',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 1,
+        scoreAway: 0,
+        winnerAdvancesTo: 'm2',
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 4,
+      },
+      {
+        id: 'm2',
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        homeSeed: 1,
+        awaySeed: 2,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const snapshot = JSON.parse(JSON.stringify(original));
     propagateWinner(original[0], original);
@@ -74,12 +160,42 @@ describe('resetCascade', () => {
   it('leert nur den Root-Slot im downstream-Match — andere Slots bleiben stehen', () => {
     const all = [
       // root → next1 (winner), SF1 → final (winner).
-      { id: 'root', bracketPos: 1, status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0, winnerAdvancesTo: 'next1', loserAdvancesTo: null },
+      {
+        id: 'root',
+        bracketPos: 1,
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 1,
+        scoreAway: 0,
+        winnerAdvancesTo: 'next1',
+        loserAdvancesTo: null,
+      },
       // next1 hat teamHome='A' (von root) und teamAway='C' (von einem
       // anderen Vormatch). Reset darf nur teamHome leeren.
-      { id: 'next1', bracketPos: 1, status: 'scheduled', teamHome: 'A', teamAway: 'C', scoreHome: null, scoreAway: null, winnerAdvancesTo: 'final', loserAdvancesTo: null },
+      {
+        id: 'next1',
+        bracketPos: 1,
+        status: 'scheduled',
+        teamHome: 'A',
+        teamAway: 'C',
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: null,
+      },
       // final ist noch leer.
-      { id: 'final', bracketPos: 1, status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'final',
+        bracketPos: 1,
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const after = resetCascade('root', all);
     // root unverändert.
@@ -88,7 +204,7 @@ describe('resetCascade', () => {
     // next1: Root-Slot (home) geleert, Away-Slot ('C' von anderem Vormatch) bleibt.
     const n1 = after.find((m) => m.id === 'next1');
     expect(n1.teamHome).toBeNull(); // Root-Slot → geleert
-    expect(n1.teamAway).toBe('C');  // anderer Vormatch → bleibt
+    expect(n1.teamAway).toBe('C'); // anderer Vormatch → bleibt
     expect(n1.status).toBe('scheduled');
     // final: Root-Vom-Root-Transitive hat keinen direkten Slot von root,
     // also unverändert.
@@ -99,9 +215,27 @@ describe('resetCascade', () => {
 
   it('leert beendete downstream-Matches komplett (ihr Score ist ungültig)', () => {
     const all = [
-      { id: 'root', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0, winnerAdvancesTo: 'next1', loserAdvancesTo: null },
+      {
+        id: 'root',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 1,
+        scoreAway: 0,
+        winnerAdvancesTo: 'next1',
+        loserAdvancesTo: null,
+      },
       // next1 ist selbst schon beendet — sein Score muss komplett weg.
-      { id: 'next1', status: 'finished', teamHome: 'A', teamAway: 'X', scoreHome: 2, scoreAway: 1, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'next1',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'X',
+        scoreHome: 2,
+        scoreAway: 1,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const after = resetCascade('root', all);
     const n1 = after.find((m) => m.id === 'next1');
@@ -114,8 +248,30 @@ describe('resetCascade', () => {
 
   it('mutiert Eingabe nicht', () => {
     const original = [
-      { id: 'root', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0, winnerAdvancesTo: 'next', loserAdvancesTo: null, homeSeed: 1, awaySeed: 4 },
-      { id: 'next', status: 'scheduled', teamHome: 'X', teamAway: 'Y', scoreHome: 1, scoreAway: 1, winnerAdvancesTo: null, loserAdvancesTo: null, homeSeed: 1, awaySeed: 2 },
+      {
+        id: 'root',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 1,
+        scoreAway: 0,
+        winnerAdvancesTo: 'next',
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 4,
+      },
+      {
+        id: 'next',
+        status: 'scheduled',
+        teamHome: 'X',
+        teamAway: 'Y',
+        scoreHome: 1,
+        scoreAway: 1,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 2,
+      },
     ];
     const snapshot = JSON.parse(JSON.stringify(original));
     resetCascade('root', original);
@@ -126,9 +282,40 @@ describe('resetCascade', () => {
 describe('applyResult', () => {
   it('kombiniert Reset + Propagation', () => {
     const all = [
-      { id: 'sf1', status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 1, scoreAway: 0, winnerAdvancesTo: 'final', loserAdvancesTo: null, homeSeed: 1, awaySeed: 4 },
-      { id: 'sf2', status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: 'final', loserAdvancesTo: null, homeSeed: 2, awaySeed: 3 },
-      { id: 'final', status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'sf1',
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 1,
+        scoreAway: 0,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: null,
+        homeSeed: 1,
+        awaySeed: 4,
+      },
+      {
+        id: 'sf2',
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: null,
+        homeSeed: 2,
+        awaySeed: 3,
+      },
+      {
+        id: 'final',
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
     const after = applyResult(all[0], all);
     const f = after.find((m) => m.id === 'final');
@@ -144,24 +331,42 @@ describe('applyResult', () => {
   // Heim, einer als Gast.
   it('Bug 6: 2 HFs finished → BEIDE Sieger landen im Finale (Heim + Gast)', () => {
     const sf1Finished = {
-      id: 'sf1', round: 'SF', bracketPos: 1,
-      status: 'finished', teamHome: 'T1', teamAway: 'T2',
-      scoreHome: 2, scoreAway: 1,
-      winnerAdvancesTo: 'final', loserAdvancesTo: null,
+      id: 'sf1',
+      round: 'SF',
+      bracketPos: 1,
+      status: 'finished',
+      teamHome: 'T1',
+      teamAway: 'T2',
+      scoreHome: 2,
+      scoreAway: 1,
+      winnerAdvancesTo: 'final',
+      loserAdvancesTo: null,
     };
     const sf2Finished = {
-      id: 'sf2', round: 'SF', bracketPos: 2,
-      status: 'finished', teamHome: 'T3', teamAway: 'T4',
-      scoreHome: 2, scoreAway: 1,
-      winnerAdvancesTo: 'final', loserAdvancesTo: null,
+      id: 'sf2',
+      round: 'SF',
+      bracketPos: 2,
+      status: 'finished',
+      teamHome: 'T3',
+      teamAway: 'T4',
+      scoreHome: 2,
+      scoreAway: 1,
+      winnerAdvancesTo: 'final',
+      loserAdvancesTo: null,
     };
     const finalBefore = {
-      id: 'final', round: 'F', bracketPos: 1,
-      status: 'scheduled', teamHome: null, teamAway: null,
-      scoreHome: null, scoreAway: null,
+      id: 'final',
+      round: 'F',
+      bracketPos: 1,
+      status: 'scheduled',
+      teamHome: null,
+      teamAway: null,
+      scoreHome: null,
+      scoreAway: null,
       placeholderHome: { type: 'match_winner', matchLabel: 'HF 1' },
       placeholderAway: { type: 'match_winner', matchLabel: 'HF 2' },
-      winnerAdvancesTo: null, loserAdvancesTo: null,
+      winnerAdvancesTo: null,
+      loserAdvancesTo: null,
     };
     const all = [sf1Finished, sf2Finished, finalBefore];
 
@@ -184,36 +389,118 @@ describe('applyResult', () => {
   it('Bug 6: 4 VFs → 2 HFs → Finale (bracketPos-basiertes Mapping)', () => {
     const matches = [
       // Viertelfinale
-      { id: 'qf1', bracketPos: 1, status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 2, scoreAway: 1, winnerAdvancesTo: 'sf1', loserAdvancesTo: null },
-      { id: 'qf2', bracketPos: 2, status: 'finished', teamHome: 'C', teamAway: 'D', scoreHome: 0, scoreAway: 2, winnerAdvancesTo: 'sf1', loserAdvancesTo: null },
-      { id: 'qf3', bracketPos: 3, status: 'finished', teamHome: 'E', teamAway: 'F', scoreHome: 3, scoreAway: 0, winnerAdvancesTo: 'sf2', loserAdvancesTo: null },
-      { id: 'qf4', bracketPos: 4, status: 'finished', teamHome: 'G', teamAway: 'H', scoreHome: 1, scoreAway: 2, winnerAdvancesTo: 'sf2', loserAdvancesTo: null },
+      {
+        id: 'qf1',
+        bracketPos: 1,
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 2,
+        scoreAway: 1,
+        winnerAdvancesTo: 'sf1',
+        loserAdvancesTo: null,
+      },
+      {
+        id: 'qf2',
+        bracketPos: 2,
+        status: 'finished',
+        teamHome: 'C',
+        teamAway: 'D',
+        scoreHome: 0,
+        scoreAway: 2,
+        winnerAdvancesTo: 'sf1',
+        loserAdvancesTo: null,
+      },
+      {
+        id: 'qf3',
+        bracketPos: 3,
+        status: 'finished',
+        teamHome: 'E',
+        teamAway: 'F',
+        scoreHome: 3,
+        scoreAway: 0,
+        winnerAdvancesTo: 'sf2',
+        loserAdvancesTo: null,
+      },
+      {
+        id: 'qf4',
+        bracketPos: 4,
+        status: 'finished',
+        teamHome: 'G',
+        teamAway: 'H',
+        scoreHome: 1,
+        scoreAway: 2,
+        winnerAdvancesTo: 'sf2',
+        loserAdvancesTo: null,
+      },
       // Halbfinale
-      { id: 'sf1', bracketPos: 1, status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: 'final', loserAdvancesTo: null },
-      { id: 'sf2', bracketPos: 2, status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: 'final', loserAdvancesTo: null },
+      {
+        id: 'sf1',
+        bracketPos: 1,
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: null,
+      },
+      {
+        id: 'sf2',
+        bracketPos: 2,
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: null,
+      },
       // Finale
-      { id: 'final', bracketPos: 1, status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'final',
+        bracketPos: 1,
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
 
     // VF1 abschließen → Sieger A geht in sf1.home.
     let state = matches;
-    state = applyResult(state.find((m) => m.id === 'qf1'), state);
+    state = applyResult(
+      state.find((m) => m.id === 'qf1'),
+      state
+    );
     let sf = state.find((m) => m.id === 'sf1');
     expect(sf.teamHome).toBe('A');
 
     // VF2 abschließen → Sieger D geht in sf1.away.
-    state = applyResult(state.find((m) => m.id === 'qf2'), state);
+    state = applyResult(
+      state.find((m) => m.id === 'qf2'),
+      state
+    );
     sf = state.find((m) => m.id === 'sf1');
     expect(sf.teamHome).toBe('A');
     expect(sf.teamAway).toBe('D');
 
     // VF3 abschließen → Sieger E geht in sf2.home.
-    state = applyResult(state.find((m) => m.id === 'qf3'), state);
+    state = applyResult(
+      state.find((m) => m.id === 'qf3'),
+      state
+    );
     const sf2 = state.find((m) => m.id === 'sf2');
     expect(sf2.teamHome).toBe('E');
 
     // VF4 abschließen → Sieger H geht in sf2.away.
-    state = applyResult(state.find((m) => m.id === 'qf4'), state);
+    state = applyResult(
+      state.find((m) => m.id === 'qf4'),
+      state
+    );
     const sf2After = state.find((m) => m.id === 'sf2');
     expect(sf2After.teamHome).toBe('E');
     expect(sf2After.teamAway).toBe('H');
@@ -222,10 +509,50 @@ describe('applyResult', () => {
   // Regression 3RD-Playoff: HFs → Finale (winner) + Spiel um Platz 3 (loser).
   it('Bug 6: HF-Loser → 3RD-Playoff in korrektem Slot', () => {
     const matches = [
-      { id: 'sf1', bracketPos: 1, status: 'finished', teamHome: 'A', teamAway: 'B', scoreHome: 2, scoreAway: 1, winnerAdvancesTo: 'final', loserAdvancesTo: 'third' },
-      { id: 'sf2', bracketPos: 2, status: 'finished', teamHome: 'C', teamAway: 'D', scoreHome: 0, scoreAway: 2, winnerAdvancesTo: 'final', loserAdvancesTo: 'third' },
-      { id: 'final', bracketPos: 1, status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: null, loserAdvancesTo: null },
-      { id: 'third', bracketPos: 1, status: 'scheduled', teamHome: null, teamAway: null, scoreHome: null, scoreAway: null, winnerAdvancesTo: null, loserAdvancesTo: null },
+      {
+        id: 'sf1',
+        bracketPos: 1,
+        status: 'finished',
+        teamHome: 'A',
+        teamAway: 'B',
+        scoreHome: 2,
+        scoreAway: 1,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: 'third',
+      },
+      {
+        id: 'sf2',
+        bracketPos: 2,
+        status: 'finished',
+        teamHome: 'C',
+        teamAway: 'D',
+        scoreHome: 0,
+        scoreAway: 2,
+        winnerAdvancesTo: 'final',
+        loserAdvancesTo: 'third',
+      },
+      {
+        id: 'final',
+        bracketPos: 1,
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
+      {
+        id: 'third',
+        bracketPos: 1,
+        status: 'scheduled',
+        teamHome: null,
+        teamAway: null,
+        scoreHome: null,
+        scoreAway: null,
+        winnerAdvancesTo: null,
+        loserAdvancesTo: null,
+      },
     ];
 
     // SF1: A gewinnt → A in final.home, B in third.home.
@@ -235,7 +562,10 @@ describe('applyResult', () => {
     expect(state.find((m) => m.id === 'third').teamAway).toBeNull();
 
     // SF2: D gewinnt → D in final.away, C in third.away.
-    state = applyResult(state.find((m) => m.id === 'sf2'), state);
+    state = applyResult(
+      state.find((m) => m.id === 'sf2'),
+      state
+    );
     const f = state.find((m) => m.id === 'final');
     const t = state.find((m) => m.id === 'third');
     expect(f.teamHome).toBe('A');

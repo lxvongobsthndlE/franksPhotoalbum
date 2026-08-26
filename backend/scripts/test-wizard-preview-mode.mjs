@@ -20,13 +20,11 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find((t) => t.type === 'page'
-    && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0 && !page; i < 25; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find((t) => t.type === 'page'
-      && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -45,13 +43,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -62,8 +63,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text
-      + ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -87,7 +87,7 @@ async function runTests() {
   await sleep(800);
 
   for (let i = 0; i < 50; i++) {
-    const ready = (await evalPage(send, () => window.__tReady === true));
+    const ready = await evalPage(send, () => window.__tReady === true);
     if (ready) break;
     await sleep(100);
   }
@@ -104,34 +104,38 @@ async function runTests() {
   // Helper: Wizard mit gegebenem State rendern, Preview-Zeilen lesen.
   // ----------------------------------------------------------------
   async function renderWith(stateIn) {
-    return await evalPage(send, (cfg) => {
-      const ROOT = document.getElementById('root');
-      ROOT.innerHTML = '';
-      const state = cfg.state;
-      const w = window.__renderWizardView({
-        initialState: state,
-        onStateChange: () => {},
-        onCancel: () => {},
-      });
-      ROOT.appendChild(w);
-      const rows = Array.from(document.querySelectorAll('.t-wizard-preview-row'));
-      const result = {};
-      for (const r of rows) {
-        const label = r.querySelector('.t-wizard-preview-label')?.textContent;
-        const value = r.querySelector('.t-wizard-preview-value')?.textContent;
-        if (label) result[label] = value;
-      }
-      return {
-        rows: result,
-        // Eindeutige Schlüsselzählung für ASSERT.
-        hasGroupGames: result['Gruppenspiele'] !== undefined,
-        hasKoGames: result['K.-o.-Spiele'] !== undefined,
-        hasQualifiers: result['Qualifikanten'] !== undefined,
-        hasRound: result['Runde'] !== undefined,
-        hasGroups: result['Gruppen'] !== undefined,
-        hasTeams: result['Teams'] !== undefined,
-      };
-    }, { state: stateIn });
+    return await evalPage(
+      send,
+      (cfg) => {
+        const ROOT = document.getElementById('root');
+        ROOT.innerHTML = '';
+        const state = cfg.state;
+        const w = window.__renderWizardView({
+          initialState: state,
+          onStateChange: () => {},
+          onCancel: () => {},
+        });
+        ROOT.appendChild(w);
+        const rows = Array.from(document.querySelectorAll('.t-wizard-preview-row'));
+        const result = {};
+        for (const r of rows) {
+          const label = r.querySelector('.t-wizard-preview-label')?.textContent;
+          const value = r.querySelector('.t-wizard-preview-value')?.textContent;
+          if (label) result[label] = value;
+        }
+        return {
+          rows: result,
+          // Eindeutige Schlüsselzählung für ASSERT.
+          hasGroupGames: result['Gruppenspiele'] !== undefined,
+          hasKoGames: result['K.-o.-Spiele'] !== undefined,
+          hasQualifiers: result['Qualifikanten'] !== undefined,
+          hasRound: result['Runde'] !== undefined,
+          hasGroups: result['Gruppen'] !== undefined,
+          hasTeams: result['Teams'] !== undefined,
+        };
+      },
+      { state: stateIn }
+    );
   }
 
   // ----------------------------------------------------------------
@@ -139,8 +143,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 1: Nur Gruppen, 12 / 3 → 18 Spiele ---');
   {
-    const teams = Array.from({ length: 12 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 12 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'Nur Gruppen',
@@ -149,7 +156,9 @@ async function runTests() {
       numGroups: 3,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -161,16 +170,17 @@ async function runTests() {
       pauseMinutes: 5,
     });
     console.log('  rows:', JSON.stringify(r.rows));
-    expect(r.hasGroupGames,
-      `Gruppenspiele-Zeile vorhanden (Nur Gruppen)`);
-    expect(!r.hasKoGames,
-      `K.-o.-Spiele-Zeile NICHT vorhanden (Nur Gruppen)`);
-    expect(!r.hasQualifiers,
-      `Qualifikanten-Zeile NICHT vorhanden (Nur Gruppen)`);
-    expect(r.rows['Gruppenspiele'] === '18',
-      `Gruppenspiele = 18 (real: "${r.rows['Gruppenspiele']}")`);
-    expect(r.rows['Gesamt']?.startsWith('18 Spiele'),
-      `Gesamt = "18 Spiele ..." (real: "${r.rows['Gesamt']}")`);
+    expect(r.hasGroupGames, `Gruppenspiele-Zeile vorhanden (Nur Gruppen)`);
+    expect(!r.hasKoGames, `K.-o.-Spiele-Zeile NICHT vorhanden (Nur Gruppen)`);
+    expect(!r.hasQualifiers, `Qualifikanten-Zeile NICHT vorhanden (Nur Gruppen)`);
+    expect(
+      r.rows['Gruppenspiele'] === '18',
+      `Gruppenspiele = 18 (real: "${r.rows['Gruppenspiele']}")`
+    );
+    expect(
+      r.rows['Gesamt']?.startsWith('18 Spiele'),
+      `Gesamt = "18 Spiele ..." (real: "${r.rows['Gesamt']}")`
+    );
   }
 
   // ----------------------------------------------------------------
@@ -178,8 +188,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 2: Nur K.-o., 16 Teams → 15 Spiele ---');
   {
-    const teams = Array.from({ length: 16 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 16 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'Nur K.o.',
@@ -188,7 +201,9 @@ async function runTests() {
       numGroups: 2,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -200,20 +215,19 @@ async function runTests() {
       pauseMinutes: 5,
     });
     console.log('  rows:', JSON.stringify(r.rows));
-    expect(!r.hasGroupGames,
-      `Gruppenspiele-Zeile NICHT vorhanden (Nur K.-o.)`);
-    expect(r.hasKoGames,
-      `K.-o.-Spiele-Zeile vorhanden (Nur K.-o.)`);
-    expect(!r.hasGroups,
-      `Gruppen-Zeile NICHT vorhanden (Nur K.-o.)`);
-    expect(!r.hasQualifiers,
-      `Qualifikanten-Zeile NICHT vorhanden (Nur K.-o.)`);
-    expect(r.rows['K.-o.-Spiele'] === '15',
-      `K.-o.-Spiele = 15 (real: "${r.rows['K.-o.-Spiele']}")`);
-    expect(r.rows['Gesamt']?.startsWith('15 Spiele'),
-      `Gesamt = "15 Spiele ..." (real: "${r.rows['Gesamt']}")`);
-    expect(r.rows['Runde'] === 'Achtelfinale',
-      `Runde = Achtelfinale (real: "${r.rows['Runde']}")`);
+    expect(!r.hasGroupGames, `Gruppenspiele-Zeile NICHT vorhanden (Nur K.-o.)`);
+    expect(r.hasKoGames, `K.-o.-Spiele-Zeile vorhanden (Nur K.-o.)`);
+    expect(!r.hasGroups, `Gruppen-Zeile NICHT vorhanden (Nur K.-o.)`);
+    expect(!r.hasQualifiers, `Qualifikanten-Zeile NICHT vorhanden (Nur K.-o.)`);
+    expect(
+      r.rows['K.-o.-Spiele'] === '15',
+      `K.-o.-Spiele = 15 (real: "${r.rows['K.-o.-Spiele']}")`
+    );
+    expect(
+      r.rows['Gesamt']?.startsWith('15 Spiele'),
+      `Gesamt = "15 Spiele ..." (real: "${r.rows['Gesamt']}")`
+    );
+    expect(r.rows['Runde'] === 'Achtelfinale', `Runde = Achtelfinale (real: "${r.rows['Runde']}")`);
   }
 
   // ----------------------------------------------------------------
@@ -221,8 +235,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 3: Nur K.-o., 16 Teams + Platz 3 → 16 ---');
   {
-    const teams = Array.from({ length: 16 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 16 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'K.o. mit Platz 3',
@@ -231,7 +248,9 @@ async function runTests() {
       numGroups: 2,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -242,8 +261,10 @@ async function runTests() {
       matchDuration: 15,
       pauseMinutes: 5,
     });
-    expect(r.rows['K.-o.-Spiele'] === '16',
-      `K.-o.-Spiele = 16 (real: "${r.rows['K.-o.-Spiele']}")`);
+    expect(
+      r.rows['K.-o.-Spiele'] === '16',
+      `K.-o.-Spiele = 16 (real: "${r.rows['K.-o.-Spiele']}")`
+    );
   }
 
   // ----------------------------------------------------------------
@@ -251,8 +272,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 4: Nur K.-o., 12 Teams → 11 Spiele ---');
   {
-    const teams = Array.from({ length: 12 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 12 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'K.o. 12',
@@ -261,7 +285,9 @@ async function runTests() {
       numGroups: 2,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -273,10 +299,14 @@ async function runTests() {
       pauseMinutes: 5,
     });
     console.log('  rows:', JSON.stringify(r.rows));
-    expect(r.rows['K.-o.-Spiele'] === '11',
-      `K.-o.-Spiele = 11 (real: "${r.rows['K.-o.-Spiele']}")`);
-    expect(r.rows['Runde'] === 'Achtelfinale',
-      `Runde = Achtelfinale (12 Teams → 16 Slots, real: "${r.rows['Runde']}")`);
+    expect(
+      r.rows['K.-o.-Spiele'] === '11',
+      `K.-o.-Spiele = 11 (real: "${r.rows['K.-o.-Spiele']}")`
+    );
+    expect(
+      r.rows['Runde'] === 'Achtelfinale',
+      `Runde = Achtelfinale (12 Teams → 16 Slots, real: "${r.rows['Runde']}")`
+    );
   }
 
   // ----------------------------------------------------------------
@@ -284,8 +314,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 5: Gruppen + K.o., 12/3/Top2+2 → 26 ---');
   {
-    const teams = Array.from({ length: 12 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 12 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'Gruppen + K.o.',
@@ -294,7 +327,9 @@ async function runTests() {
       numGroups: 3,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 2,
@@ -306,15 +341,20 @@ async function runTests() {
       pauseMinutes: 5,
     });
     console.log('  rows:', JSON.stringify(r.rows));
-    expect(r.rows['Gruppenspiele'] === '18',
-      `Gruppenspiele = 18 (real: "${r.rows['Gruppenspiele']}")`);
+    expect(
+      r.rows['Gruppenspiele'] === '18',
+      `Gruppenspiele = 18 (real: "${r.rows['Gruppenspiele']}")`
+    );
     // 6 + 2 = 8 Qualifikanten → 8er-Baum = 7 KO + 1 Platz 3 = 8
-    expect(r.rows['K.-o.-Spiele'] === '8',
-      `K.-o.-Spiele = 8 (real: "${r.rows['K.-o.-Spiele']}")`);
-    expect(r.rows['Gesamt']?.startsWith('26 Spiele'),
-      `Gesamt = "26 Spiele ..." (real: "${r.rows['Gesamt']}")`);
-    expect(r.rows['Qualifikanten'] === '8',
-      `Qualifikanten = 8 (real: "${r.rows['Qualifikanten']}")`);
+    expect(r.rows['K.-o.-Spiele'] === '8', `K.-o.-Spiele = 8 (real: "${r.rows['K.-o.-Spiele']}")`);
+    expect(
+      r.rows['Gesamt']?.startsWith('26 Spiele'),
+      `Gesamt = "26 Spiele ..." (real: "${r.rows['Gesamt']}")`
+    );
+    expect(
+      r.rows['Qualifikanten'] === '8',
+      `Qualifikanten = 8 (real: "${r.rows['Qualifikanten']}")`
+    );
   }
 
   // ----------------------------------------------------------------
@@ -323,8 +363,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 6: 16/4/Top2 → 24 + 8 = 32 (User-Kontrolle) ---');
   {
-    const teams = Array.from({ length: 16 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 16 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'User-Kontrolle',
@@ -333,7 +376,9 @@ async function runTests() {
       numGroups: 4,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -345,15 +390,20 @@ async function runTests() {
       pauseMinutes: 5,
     });
     console.log('  rows:', JSON.stringify(r.rows));
-    expect(r.rows['Gruppenspiele'] === '24',
-      `Gruppenspiele = 24 (real: "${r.rows['Gruppenspiele']}")`);
+    expect(
+      r.rows['Gruppenspiele'] === '24',
+      `Gruppenspiele = 24 (real: "${r.rows['Gruppenspiele']}")`
+    );
     // 4*2 = 8 Qualifikanten → 8er-Baum = 7 + 0 = 7
-    expect(r.rows['K.-o.-Spiele'] === '7',
-      `K.-o.-Spiele = 7 (real: "${r.rows['K.-o.-Spiele']}")`);
-    expect(r.rows['Gesamt']?.startsWith('31 Spiele'),
-      `Gesamt = "31 Spiele ..." (real: "${r.rows['Gesamt']}")`);
-    expect(r.rows['Runde'] === 'Viertelfinale',
-      `Runde = Viertelfinale (real: "${r.rows['Runde']}")`);
+    expect(r.rows['K.-o.-Spiele'] === '7', `K.-o.-Spiele = 7 (real: "${r.rows['K.-o.-Spiele']}")`);
+    expect(
+      r.rows['Gesamt']?.startsWith('31 Spiele'),
+      `Gesamt = "31 Spiele ..." (real: "${r.rows['Gesamt']}")`
+    );
+    expect(
+      r.rows['Runde'] === 'Viertelfinale',
+      `Runde = Viertelfinale (real: "${r.rows['Runde']}")`
+    );
   }
 
   // ----------------------------------------------------------------
@@ -363,8 +413,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 7: Endzeit "Nur K.-o.", 16 / 4 Tische ---');
   {
-    const teams = Array.from({ length: 16 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 16 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 3,
       name: 'Endzeit K.o.',
@@ -373,7 +426,9 @@ async function runTests() {
       numGroups: 2,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -385,8 +440,7 @@ async function runTests() {
       pauseMinutes: 5,
     });
     console.log('  rows:', JSON.stringify(r.rows));
-    expect(r.rows['Ende'] === 'ca. 15:20 Uhr',
-      `Ende = ca. 15:20 Uhr (real: "${r.rows['Ende']}")`);
+    expect(r.rows['Ende'] === 'ca. 15:20 Uhr', `Ende = ca. 15:20 Uhr (real: "${r.rows['Ende']}")`);
   }
 
   console.log('\n=== Fertig. Exit-Code:', process.exitCode || 0, '===');

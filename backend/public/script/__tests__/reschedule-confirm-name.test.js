@@ -77,15 +77,26 @@ describe('rescheduleTournament: der Bestaetigungsname ist nie ein Literal', () =
 
   it('kein Aufruf uebergibt einen festen String als Turniernamen', () => {
     const literale = stellen
-      .filter((n) => n.arguments[1] && n.arguments[1].type === 'Literal' && typeof n.arguments[1].value === 'string')
-      .map((n) => `main.js:${n.loc.start.line}  rescheduleTournament(…, ${JSON.stringify(n.arguments[1].value)})`);
+      .filter(
+        (n) =>
+          n.arguments[1] &&
+          n.arguments[1].type === 'Literal' &&
+          typeof n.arguments[1].value === 'string'
+      )
+      .map(
+        (n) =>
+          `main.js:${n.loc.start.line}  rescheduleTournament(…, ${JSON.stringify(n.arguments[1].value)})`
+      );
     if (literale.length) {
       throw new Error(
-        'FALSCHES BESTAETIGUNGSWORT: ' + literale.length + ' Aufruf(e) geben einen ' +
-          'festen String als Turniernamen:\n' + literale.map((l) => '  - ' + l).join('\n') +
+        'FALSCHES BESTAETIGUNGSWORT: ' +
+          literale.length +
+          ' Aufruf(e) geben einen ' +
+          'festen String als Turniernamen:\n' +
+          literale.map((l) => '  - ' + l).join('\n') +
           '\n\nDer Wert landet als `expectedName` im Bestaetigungsdialog. Sind Spiele ' +
           'beendet, muss der Nutzer genau diesen String tippen — statt des ' +
-          'Turniernamens, den der Dialog ihm ansagt.',
+          'Turniernamens, den der Dialog ihm ansagt.'
       );
     }
     expect(literale).toEqual([]);

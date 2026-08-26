@@ -29,17 +29,8 @@
  */
 
 import { resolvePlaceholder } from './placeholder.js';
-import {
-  matchStatusLabel,
-  stageTypeLabel,
-  roundLabel,
-} from './status.js';
-import {
-  formatMatchTime,
-  formatTime,
-  formatWeekdayDate,
-  formatDuration,
-} from './time.js';
+import { matchStatusLabel, stageTypeLabel, roundLabel } from './status.js';
+import { formatMatchTime, formatTime, formatWeekdayDate, formatDuration } from './time.js';
 
 function safeNumber(n) {
   return typeof n === 'number' && Number.isFinite(n) ? n : null;
@@ -62,7 +53,7 @@ export function buildMatchLabel(rawMatch, ctx) {
   const bracketPos = safeNumber(rawMatch.bracketPos);
 
   if (round === '3RD') return 'Spiel um Platz 3';
-  if (round === 'F')   return 'Finale';
+  if (round === 'F') return 'Finale';
 
   if (round && bracketPos != null) {
     const prefix = roundShortLabel(round);
@@ -79,12 +70,18 @@ export function buildMatchLabel(rawMatch, ctx) {
 // "VF 1" statt "Viertelfinale 1" — Spec §8.6: kurze Labels im UI.
 function roundShortLabel(round) {
   switch (round) {
-    case 'R32': return 'SF';
-    case 'R16': return 'AF';
-    case 'QF':  return 'VF';
-    case 'SF':  return 'HF';
-    case 'F':   return 'F';
-    default:    return null;
+    case 'R32':
+      return 'SF';
+    case 'R16':
+      return 'AF';
+    case 'QF':
+      return 'VF';
+    case 'SF':
+      return 'HF';
+    case 'F':
+      return 'F';
+    default:
+      return null;
   }
 }
 
@@ -146,10 +143,20 @@ export function prepareMatchView(rawMatch, ctx = {}) {
   const singleDay = options.singleDay !== false; // Default: eintägig
   const ko = isKoMatch(stage?.type);
 
-  const home = buildSlot('home', rawMatch.teamHome, rawMatch.teamAway,
-    rawMatch.placeholderHome, teams);
-  const away = buildSlot('away', rawMatch.teamHome, rawMatch.teamAway,
-    rawMatch.placeholderAway, teams);
+  const home = buildSlot(
+    'home',
+    rawMatch.teamHome,
+    rawMatch.teamAway,
+    rawMatch.placeholderHome,
+    teams
+  );
+  const away = buildSlot(
+    'away',
+    rawMatch.teamHome,
+    rawMatch.teamAway,
+    rawMatch.placeholderAway,
+    teams
+  );
   const homeTeamDto = safeGet(teams, rawMatch.teamHome);
   const awayTeamDto = safeGet(teams, rawMatch.teamAway);
 

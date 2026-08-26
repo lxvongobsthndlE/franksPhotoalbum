@@ -32,18 +32,21 @@ async function attachToPage() {
   // Wir erwarten, dass Edge schon offen ist und /screen-b-preview.html
   // geladen hat. Wir suchen das passende Target.
   let targets = await getTargets();
-  let page = targets.find(t => t.type === 'page' && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   if (!page) {
     // Vielleicht lädt es noch — bis zu 5 s warten.
     for (let i = 0; i < 25 && !page; i++) {
       await sleep(200);
       targets = await getTargets();
-      page = targets.find(t => t.type === 'page' && t.url.includes('screen-b-preview'));
+      page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
     }
   }
   if (!page) throw new Error('kein Edge-Target mit screen-b-preview.html');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((res, rej) => { ws.addEventListener('open', res); ws.addEventListener('error', rej); });
+  await new Promise((res, rej) => {
+    ws.addEventListener('open', res);
+    ws.addEventListener('error', rej);
+  });
   let id = 0;
   const pending = new Map();
   ws.addEventListener('message', (m) => {
@@ -74,8 +77,7 @@ async function evalInPage(s, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text +
-                    ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -115,7 +117,7 @@ async function runTests() {
   console.log('\n--- Test 1: Footer in Step 1 reagiert auf Eingabe ---');
 
   // Preview startet auf Step 3 (PREPOPULATED) — wir resetten auf Step 1.
-  await evalPage( () => {
+  await evalPage(() => {
     const r = document.querySelector('.t-wizard');
     r._state.step = 1;
     r._state.name = '';
@@ -124,83 +126,90 @@ async function runTests() {
   await sleep(200);
 
   // Wizard steht jetzt auf Step 1 (initialer Zustand).
-  const nextBtn1 = await evalPage( () => {
+  const nextBtn1 = await evalPage(() => {
     const b = document.querySelector('[data-t-wizard-next="true"]');
     if (!b) return null;
     return { exists: true, disabled: b.disabled, text: b.textContent };
   });
   expect(nextBtn1 !== null, 'Weiter-Button existiert in Step 1');
-  expect(nextBtn1 && nextBtn1.disabled === true,
-    'Weiter ist initial disabled (kein Name → ok=false)');
+  expect(
+    nextBtn1 && nextBtn1.disabled === true,
+    'Weiter ist initial disabled (kein Name → ok=false)'
+  );
 
-  const hint1 = await evalPage( () => {
+  const hint1 = await evalPage(() => {
     const h = document.querySelector('[data-t-wizard-next-hint="true"]');
     if (!h) return null;
     return { hidden: h.hidden, text: h.textContent, role: h.getAttribute('role') };
   });
-  expect(hint1 && !hint1.hidden,
-    'Hint ist initial sichtbar (zeigt, welche Angabe fehlt)');
-  expect(hint1 && hint1.text === 'Bitte einen Turniernamen eingeben.',
-    'Hint-Text nennt das fehlende Feld');
-  expect(hint1 && hint1.role === 'status',
-    'Hint hat role="status" (Screenreader-freundlich)');
+  expect(hint1 && !hint1.hidden, 'Hint ist initial sichtbar (zeigt, welche Angabe fehlt)');
+  expect(
+    hint1 && hint1.text === 'Bitte einen Turniernamen eingeben.',
+    'Hint-Text nennt das fehlende Feld'
+  );
+  expect(hint1 && hint1.role === 'status', 'Hint hat role="status" (Screenreader-freundlich)');
 
   // Eingabe simulieren — 'Sommer-Cup' in das Turniername-Feld.
   // Wir schreiben direkt in die input.value und dispatchen input-Event.
-  const focusBefore = await evalPage( () => {
+  const focusBefore = await evalPage(() => {
     const a = document.activeElement;
     return a ? a.id || a.tagName : null;
   });
 
-  await evalPage( () => {
-    const i = document.querySelector('input[id$="-name"]') ||
-              document.querySelector('input[type="text"]');
+  await evalPage(() => {
+    const i =
+      document.querySelector('input[id$="-name"]') || document.querySelector('input[type="text"]');
     i.focus();
     i.value = 'Sommer-Cup 2026';
     i.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await sleep(50);
 
-  const focusAfter = await evalPage( () => {
+  const focusAfter = await evalPage(() => {
     const a = document.activeElement;
     return a ? a.id || a.tagName : null;
   });
-  expect(focusBefore !== focusAfter || focusAfter.includes('name') || focusAfter.includes('input'),
-    `Fokus nach Tipp erhalten (war: ${focusBefore}, ist: ${focusAfter})`);
+  expect(
+    focusBefore !== focusAfter || focusAfter.includes('name') || focusAfter.includes('input'),
+    `Fokus nach Tipp erhalten (war: ${focusBefore}, ist: ${focusAfter})`
+  );
 
-  const nextBtn2 = await evalPage( () => {
+  const nextBtn2 = await evalPage(() => {
     const b = document.querySelector('[data-t-wizard-next="true"]');
     return b ? { disabled: b.disabled, text: b.textContent } : null;
   });
-  expect(nextBtn2 && nextBtn2.disabled === false,
-    'Weiter ist nach Eingabe aktiv (Footer-Live-Update via input-Listener)');
+  expect(
+    nextBtn2 && nextBtn2.disabled === false,
+    'Weiter ist nach Eingabe aktiv (Footer-Live-Update via input-Listener)'
+  );
 
-  const hint2 = await evalPage( () => {
+  const hint2 = await evalPage(() => {
     const h = document.querySelector('[data-t-wizard-next-hint="true"]');
     return h ? { hidden: h.hidden, text: h.textContent } : null;
   });
-  expect(hint2 && hint2.hidden,
-    'Hint ist nach gültiger Eingabe versteckt (nicht nur disabled)');
+  expect(hint2 && hint2.hidden, 'Hint ist nach gültiger Eingabe versteckt (nicht nur disabled)');
 
   // Re-Test: Name wieder leeren — Hint muss wiederkommen.
-  await evalPage( () => {
-    const i = document.querySelector('input[id$="-name"]') ||
-              document.querySelector('input[type="text"]');
+  await evalPage(() => {
+    const i =
+      document.querySelector('input[id$="-name"]') || document.querySelector('input[type="text"]');
     i.value = '';
     i.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await sleep(50);
-  const hint3 = await evalPage( () => {
+  const hint3 = await evalPage(() => {
     const h = document.querySelector('[data-t-wizard-next-hint="true"]');
     return h ? { hidden: h.hidden, text: h.textContent } : null;
   });
-  expect(hint3 && !hint3.hidden && hint3.text === 'Bitte einen Turniernamen eingeben.',
-    'Hint kommt bei leerem Feld zurück');
+  expect(
+    hint3 && !hint3.hidden && hint3.text === 'Bitte einen Turniernamen eingeben.',
+    'Hint kommt bei leerem Feld zurück'
+  );
 
   // Re-Befüllen für nachfolgende Tests.
-  await evalPage( () => {
-    const i = document.querySelector('input[id$="-name"]') ||
-              document.querySelector('input[type="text"]');
+  await evalPage(() => {
+    const i =
+      document.querySelector('input[id$="-name"]') || document.querySelector('input[type="text"]');
     i.value = 'Sommer-Cup 2026';
     i.dispatchEvent(new Event('input', { bubbles: true }));
   });
@@ -213,15 +222,19 @@ async function runTests() {
 
   // Mock auf "results" umstellen und in Step 5 springen.
   // Wir gehen über ALLE Steps bis Step 5, damit der State passt.
-  await evalPage( () => {
-    const sel = document.querySelector('select#mockMode, select[name="mockMode"]') ||
-                document.querySelector('select');
-    if (sel) { sel.value = 'results'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  await evalPage(() => {
+    const sel =
+      document.querySelector('select#mockMode, select[name="mockMode"]') ||
+      document.querySelector('select');
+    if (sel) {
+      sel.value = 'results';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   });
   await sleep(100);
 
   // Wizard auf Step 5.
-  await evalPage( () => {
+  await evalPage(() => {
     const r = document.querySelector('.t-wizard');
     r._state.step = 5;
     r._rerender();
@@ -229,27 +242,27 @@ async function runTests() {
   await sleep(300);
 
   // "Turnier generieren" klicken.
-  await evalPage( () => {
+  await evalPage(() => {
     const btn = document.querySelector('.t-wizard-summary-cta button, .t-wizard-footer button');
     if (btn) btn.click();
   });
   await sleep(400);
 
   // Confirm-Dialog sollte offen sein.
-  const dialogOpen = await evalPage( () => {
+  const dialogOpen = await evalPage(() => {
     return !!document.querySelector('.t-dialog-backdrop, .t-confirm-backdrop, [role="dialog"]');
   });
   expect(dialogOpen, 'Confirm-Dialog ist nach 409 offen');
 
   // Abbrechen-Button klicken.
-  await evalPage( () => {
+  await evalPage(() => {
     const dialog = document.querySelector('[role="dialog"]');
     const cancel = dialog && dialog.querySelector('button:not(.t-btn--danger)');
     if (cancel) cancel.click();
   });
   await sleep(200);
 
-  const dialogClosed = await evalPage( () => {
+  const dialogClosed = await evalPage(() => {
     return !document.querySelector('[role="dialog"]');
   });
   expect(dialogClosed, 'Dialog ist nach Abbrechen geschlossen');
@@ -260,20 +273,20 @@ async function runTests() {
   console.log('\n--- Test 3: Confirm-Dialog Enter-Taste ---');
 
   // Erneut auf Step 5 und "Generieren" klicken → 409.
-  await evalPage( () => {
+  await evalPage(() => {
     const r = document.querySelector('.t-wizard');
     r._state.step = 5;
     r._rerender();
   });
   await sleep(300);
-  await evalPage( () => {
+  await evalPage(() => {
     const btn = document.querySelector('.t-wizard-summary-cta button, .t-wizard-footer button');
     if (btn) btn.click();
   });
   await sleep(400);
 
   // Bestätigungs-Input finden, korrekten Namen tippen, Enter drücken.
-  await evalPage( () => {
+  await evalPage(() => {
     const dialog = document.querySelector('[role="dialog"]');
     const input = dialog && dialog.querySelector('input[type="text"]');
     if (input) {
@@ -284,27 +297,33 @@ async function runTests() {
   });
   await sleep(50);
 
-  const okButtonAfterTyping = await evalPage( () => {
+  const okButtonAfterTyping = await evalPage(() => {
     const dialog = document.querySelector('[role="dialog"]');
     const okBtn = dialog && dialog.querySelector('button.t-btn--danger, button.t-btn--primary');
     return okBtn ? { disabled: okBtn.disabled, text: okBtn.textContent } : null;
   });
-  expect(okButtonAfterTyping && okButtonAfterTyping.disabled === false,
-    'OK-Button aktiv nach Eingabe des korrekten Namens (lowercase, geteilter Vergleich)');
+  expect(
+    okButtonAfterTyping && okButtonAfterTyping.disabled === false,
+    'OK-Button aktiv nach Eingabe des korrekten Namens (lowercase, geteilter Vergleich)'
+  );
 
   // Enter drücken.
-  await evalPage( () => {
+  await evalPage(() => {
     const dialog = document.querySelector('[role="dialog"]');
     const input = dialog && dialog.querySelector('input[type="text"]');
     if (input) {
-      input.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'Enter', bubbles: true, cancelable: true,
-      }));
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          bubbles: true,
+          cancelable: true,
+        })
+      );
     }
   });
   await sleep(400);
 
-  const dialogEnterClosed = await evalPage( () => {
+  const dialogEnterClosed = await evalPage(() => {
     return !document.querySelector('[role="dialog"]');
   });
   expect(dialogEnterClosed, 'Dialog ist nach Enter-Bestätigung geschlossen');
@@ -317,7 +336,7 @@ async function runTests() {
   process.exit(process.exitCode || 0);
 }
 
-runTests().catch(e => {
+runTests().catch((e) => {
   console.error('Test-Lauf abgebrochen:', e);
   process.exit(2);
 });

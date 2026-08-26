@@ -79,12 +79,7 @@ const FRONTEND_DIR = path.resolve(__dirname, '..');
 const ATTRS = ['tab-body', 'role', 'action'];
 
 // DOM-Methoden, deren erstes Argument ein CSS-Selektor ist.
-const SELECTOR_METHODS = new Set([
-  'querySelector',
-  'querySelectorAll',
-  'closest',
-  'matches',
-]);
+const SELECTOR_METHODS = new Set(['querySelector', 'querySelectorAll', 'closest', 'matches']);
 
 // ── Allowlist: NICHT BEURTEILBAR ─────────────────────────────────────
 // Nur für Fälle, die der Detektor prinzipiell nicht entscheiden kann.
@@ -219,7 +214,7 @@ const SELECTOR_ATTR_RE = new RegExp(
   '\\[\\s*data-(' +
     ATTRS.join('|') +
     ')\\s*(?:([~^$*|]?=)\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\]\\s"\']+)))?\\s*[iIsS]?\\s*\\]',
-  'g',
+  'g'
 );
 
 function selectorAttrValues(selector) {
@@ -251,13 +246,13 @@ function selectorAttrValues(selector) {
 // bestätigte jeder Selektor sich selbst.
 const MARKUP_ATTR_RE = new RegExp(
   '(^|[^\\[\\w-])data-(' + ATTRS.join('|') + ')\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\')',
-  'g',
+  'g'
 );
 
 // Erkennt ein Markup-Attribut, dessen Wert interpoliert wird: das Quasi
 // endet mit `data-action="` und der Wert kommt aus einem `${…}`.
 const MARKUP_ATTR_DYNAMIC_RE = new RegExp(
-  '(^|[^\\[\\w-])data-(' + ATTRS.join('|') + ')\\s*=\\s*["\']?$',
+  '(^|[^\\[\\w-])data-(' + ATTRS.join('|') + ')\\s*=\\s*["\']?$'
 );
 
 function markupAttrValues(text) {
@@ -436,10 +431,7 @@ function analyzeAll() {
         return;
       }
       // (e) Handler-Beleg: `action === 'refill'`, `case 'keep':`
-      if (
-        node.type === 'BinaryExpression' &&
-        ['===', '==', '!==', '!='].includes(node.operator)
-      ) {
+      if (node.type === 'BinaryExpression' && ['===', '==', '!==', '!='].includes(node.operator)) {
         for (const side of [node.left, node.right]) {
           const v = staticString(side);
           if (v !== null) comparedLiterals.add(v);
@@ -583,11 +575,14 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
           u.attr === attr &&
           !renderedSet.has(u.value) &&
           !ALLOW_SELECTOR_WITHOUT_MARKUP.has(attr + ':' + u.value) &&
-          !BASELINE_TOTE_SELEKTOREN.has(attr + ':' + u.value),
+          !BASELINE_TOTE_SELEKTOREN.has(attr + ':' + u.value)
       );
       if (dead.length) {
         const lines = dead
-          .map((u) => '  - [data-' + u.attr + '="' + u.value + '"]  ' + u.file + ':' + u.line + ':' + u.col)
+          .map(
+            (u) =>
+              '  - [data-' + u.attr + '="' + u.value + '"]  ' + u.file + ':' + u.line + ':' + u.col
+          )
           .join('\n');
         throw new Error(
           'TOTER SELEKTOR: ' +
@@ -601,7 +596,7 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
             'Fix: Selektor auf das tatsächlich ausgegebene Attribut ziehen ODER ' +
             'das Attribut im Renderer ergänzen.\n' +
             'Ausgegeben werden aktuell: ' +
-            ([...renderedSet].sort().join(', ') || '(nichts)'),
+            ([...renderedSet].sort().join(', ') || '(nichts)')
         );
       }
       expect(dead).toEqual([]);
@@ -623,7 +618,9 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
       if (!nochGesucht) {
         erledigt.push('  - ' + key + ' — Selektor existiert nicht mehr. Zeile streichen.');
       } else if (inzwischenAusgegeben) {
-        erledigt.push('  - ' + key + ' — wird inzwischen ausgegeben, also repariert. Zeile streichen.');
+        erledigt.push(
+          '  - ' + key + ' — wird inzwischen ausgegeben, also repariert. Zeile streichen.'
+        );
       }
       expect(typeof grund).toBe('string');
     }
@@ -634,7 +631,7 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
           ' Eintrag/Einträge in BASELINE_TOTE_SELEKTOREN sind erledigt:\n' +
           erledigt.join('\n') +
           '\n\nDas ist eine gute Nachricht — bitte die betreffende(n) Zeile(n) ' +
-          'aus der Baseline entfernen, damit die Ratsche zuschnappt.',
+          'aus der Baseline entfernen, damit die Ratsche zuschnappt.'
       );
     }
     expect(erledigt).toEqual([]);
@@ -650,7 +647,7 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
       return;
     }
     const handledBySelector = new Set(
-      A.selectorUses.filter((u) => u.attr === 'action').map((u) => u.value),
+      A.selectorUses.filter((u) => u.attr === 'action').map((u) => u.value)
     );
     // Bewusst nur `renderedMarkup`, nicht `renderedDom`: ein in JS
     // gebautes Element bekommt seinen Handler direkt an die Referenz.
@@ -660,7 +657,7 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
           !handledBySelector.has(v) &&
           !A.comparedLiterals.has(v) &&
           !A.keyLiterals.has(v) &&
-          !ALLOW_MARKUP_WITHOUT_HANDLER.has('action:' + v),
+          !ALLOW_MARKUP_WITHOUT_HANDLER.has('action:' + v)
       )
       .sort();
     if (orphans.length) {
@@ -672,7 +669,7 @@ describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () 
           '\n\nDer Knopf steht im DOM und tut beim Klick nichts. Genau das war ' +
           '„Abbrechen" im Spielfelder-Editor (Commit c922144).\n' +
           'Fix: Handler ergänzen (Selektor, dataset.action-Vergleich oder ' +
-          'case-Zweig) ODER den Knopf nicht rendern.',
+          'case-Zweig) ODER den Knopf nicht rendern.'
       );
     }
     expect(orphans).toEqual([]);

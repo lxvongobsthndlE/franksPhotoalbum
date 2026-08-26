@@ -58,16 +58,12 @@ function createMemoryPrisma({ failOn = null } = {}) {
           );
           const stageIds = new Set(stagesToDelete.map((s) => s.id));
           // Gruppen mit gleicher stageId löschen.
-          const orphanGroups = [...state.groups.values()].filter((g) =>
-            stageIds.has(g.stageId)
-          );
+          const orphanGroups = [...state.groups.values()].filter((g) => stageIds.has(g.stageId));
           const orphanGroupIds = new Set(orphanGroups.map((g) => g.id));
           for (const id of stageIds) state.stages.delete(id);
           for (const id of orphanGroupIds) state.groups.delete(id);
           // Memberships mit groupId in den orphan-Gruppen.
-          state.memberships = state.memberships.filter(
-            (m) => !orphanGroupIds.has(m.groupId)
-          );
+          state.memberships = state.memberships.filter((m) => !orphanGroupIds.has(m.groupId));
           // Matches mit groupId in den orphan-Gruppen ODER mit stageId.
           for (const [id, m] of state.matches) {
             if (orphanGroupIds.has(m.groupId) || stageIds.has(m.stageId)) {
@@ -336,9 +332,9 @@ describe('persistGenerated — Happy Path', () => {
 describe('persistGenerated — Rollback', () => {
   it('Group-Create wirft → keine Stages, keine Groups, keine Memberships', async () => {
     const { prisma, state } = createMemoryPrisma({ failOn: 'group_' });
-    await expect(
-      persistGenerated(prisma, 't-1', buildFixtureGen())
-    ).rejects.toThrow(/Group-Create/);
+    await expect(persistGenerated(prisma, 't-1', buildFixtureGen())).rejects.toThrow(
+      /Group-Create/
+    );
 
     // deleteMany wurde zwar im Tx-Callback aufgerufen (VOR dem Fehler),
     // aber Postgres macht ein ROLLBACK — die deleteMany-Schreibwirkung
@@ -351,9 +347,9 @@ describe('persistGenerated — Rollback', () => {
 
   it('Membership-Create wirft → nachfolgende Group wird NICHT mehr persistiert', async () => {
     const { prisma, state } = createMemoryPrisma({ failOn: 'memberships' });
-    await expect(
-      persistGenerated(prisma, 't-1', buildFixtureGen())
-    ).rejects.toThrow(/Membership-Create/);
+    await expect(persistGenerated(prisma, 't-1', buildFixtureGen())).rejects.toThrow(
+      /Membership-Create/
+    );
 
     expect([...state.stages.values()]).toHaveLength(0);
     expect([...state.groups.values()]).toHaveLength(0);
@@ -363,9 +359,9 @@ describe('persistGenerated — Rollback', () => {
 
   it('Match-Create wirft → alle Groups und Memberships verschwinden', async () => {
     const { prisma, state } = createMemoryPrisma({ failOn: 'matches' });
-    await expect(
-      persistGenerated(prisma, 't-1', buildFixtureGen())
-    ).rejects.toThrow(/Match-Create/);
+    await expect(persistGenerated(prisma, 't-1', buildFixtureGen())).rejects.toThrow(
+      /Match-Create/
+    );
 
     expect([...state.stages.values()]).toHaveLength(0);
     expect([...state.groups.values()]).toHaveLength(0);
@@ -376,9 +372,7 @@ describe('persistGenerated — Rollback', () => {
   it('nach Fehlschlag: erneuter Happy-Path-Aufruf ist möglich', async () => {
     // 1. Versuch scheitert.
     const mem1 = createMemoryPrisma({ failOn: 'matches' });
-    await expect(
-      persistGenerated(mem1.prisma, 't-1', buildFixtureGen())
-    ).rejects.toThrow();
+    await expect(persistGenerated(mem1.prisma, 't-1', buildFixtureGen())).rejects.toThrow();
 
     // 2. Versuch in einer frischen TX (gleicher Prisma-Client simuliert DB).
     const mem2 = createMemoryPrisma();

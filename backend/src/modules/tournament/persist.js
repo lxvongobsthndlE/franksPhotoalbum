@@ -202,25 +202,19 @@ export async function persistGenerated(prisma, tournamentId, gen) {
       }
 
       const koRows = bracket.matches.map((m) => {
-        const winnerTarget = m.winnerAdvancesTo
-          ? idMap.get(m.winnerAdvancesTo) ?? null
-          : null;
-        const loserTarget = m.loserAdvancesTo
-          ? idMap.get(m.loserAdvancesTo) ?? null
-          : null;
+        const winnerTarget = m.winnerAdvancesTo ? (idMap.get(m.winnerAdvancesTo) ?? null) : null;
+        const loserTarget = m.loserAdvancesTo ? (idMap.get(m.loserAdvancesTo) ?? null) : null;
 
         if (m.winnerAdvancesTo && !winnerTarget) {
-          // eslint-disable-next-line no-console
           console.warn(
             `[persistGenerated] KO-Match ${m.id} (${m.round}/${m.bracketPos}) ` +
-              `verweist auf unbekanntes winnerAdvancesTo ${m.winnerAdvancesTo}`,
+              `verweist auf unbekanntes winnerAdvancesTo ${m.winnerAdvancesTo}`
           );
         }
         if (m.loserAdvancesTo && !loserTarget) {
-          // eslint-disable-next-line no-console
           console.warn(
             `[persistGenerated] KO-Match ${m.id} (${m.round}/${m.bracketPos}) ` +
-              `verweist auf unbekanntes loserAdvancesTo ${m.loserAdvancesTo}`,
+              `verweist auf unbekanntes loserAdvancesTo ${m.loserAdvancesTo}`
           );
         }
 
@@ -268,10 +262,7 @@ export async function persistGenerated(prisma, tournamentId, gen) {
 export async function cascadeResetMatches(prisma, rootMatchId) {
   const all = await prisma.match.findMany({
     where: {
-      OR: [
-        { winnerAdvancesTo: rootMatchId },
-        { loserAdvancesTo: rootMatchId },
-      ],
+      OR: [{ winnerAdvancesTo: rootMatchId }, { loserAdvancesTo: rootMatchId }],
     },
     select: { id: true },
   });

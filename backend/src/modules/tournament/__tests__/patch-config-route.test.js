@@ -174,7 +174,10 @@ describe('PATCH /api/tournaments/:id mit gültiger config', () => {
     expect(updateArg.data.config).toBeDefined();
     expect(updateArg.data.config.pointsPerWin).toBe(3);
     expect(updateArg.data.config.tiebreakers).toEqual([
-      'points', 'goalDiff', 'goalsFor', 'headToHead',
+      'points',
+      'goalDiff',
+      'goalsFor',
+      'headToHead',
     ]);
     expect(updateArg.data.config.schedule.startTime).toBe('10:00');
   });
@@ -453,9 +456,7 @@ describe('PATCH /api/tournaments/:id mit Grunddaten-Feldern', () => {
     });
     expect(res.statusCode).toBe(200);
     const arg = prisma.tournament.update.mock.calls[0][0];
-    expect(arg.data.tableLabels).toEqual([
-      'Platte 1', 'Platte 2', 'Platte 3', 'Platte 4',
-    ]);
+    expect(arg.data.tableLabels).toEqual(['Platte 1', 'Platte 2', 'Platte 3', 'Platte 4']);
   });
 
   it('tableLabels null löscht die Liste', async () => {

@@ -35,18 +35,25 @@ class FakeNode {
     this.dataset = {};
     this.attrs = {};
     this.disabled = false;
-    this.style = new Proxy({}, {
-      set: (target, prop, value) => {
-        target[prop] = value;
-        return true;
-      },
-      get: (target, prop) => target[prop] || '',
-    });
+    this.style = new Proxy(
+      {},
+      {
+        set: (target, prop, value) => {
+          target[prop] = value;
+          return true;
+        },
+        get: (target, prop) => target[prop] || '',
+      }
+    );
     this._listeners = {};
     this._textContent = '';
   }
-  setAttribute(k, v) { this.attrs[k] = v; }
-  getAttribute(k) { return this.attrs[k]; }
+  setAttribute(k, v) {
+    this.attrs[k] = v;
+  }
+  getAttribute(k) {
+    return this.attrs[k];
+  }
   appendChild(child) {
     if (child && typeof child === 'object') {
       this.children.push(child);
@@ -81,8 +88,13 @@ class FakeNode {
     if (this.children.length === 0) return this._textContent;
     return this.children.map((c) => c.textContent || '').join('');
   }
-  set innerHTML(v) { this._innerHTML = v; this.children = []; }
-  get innerHTML() { return this._innerHTML || ''; }
+  set innerHTML(v) {
+    this._innerHTML = v;
+    this.children = [];
+  }
+  get innerHTML() {
+    return this._innerHTML || '';
+  }
   // Click-Dispatch für die Tests.
   click() {
     const fns = this._listeners.click || [];
@@ -129,7 +141,9 @@ function installDomStub() {
   };
   return {
     created,
-    restore: () => { globalThis.document = origDoc; },
+    restore: () => {
+      globalThis.document = origDoc;
+    },
   };
 }
 
@@ -142,9 +156,15 @@ function installGlobals() {
   globalThis.window.removeEventListener = () => {};
   globalThis.localStorage = {
     _data: {},
-    getItem(k) { return this._data[k] || null; },
-    setItem(k, v) { this._data[k] = String(v); },
-    removeItem(k) { delete this._data[k]; },
+    getItem(k) {
+      return this._data[k] || null;
+    },
+    setItem(k, v) {
+      this._data[k] = String(v);
+    },
+    removeItem(k) {
+      delete this._data[k];
+    },
   };
   globalThis.fetch = vi.fn(async () => ({
     ok: true,
@@ -154,9 +174,7 @@ function installGlobals() {
   }));
 }
 
-import {
-  renderWizardView,
-} from '../tournament.js';
+import { renderWizardView } from '../tournament.js';
 
 describe('Wizard Progress — klickbare abgeschlossene Schritte (Issue 4)', () => {
   let dom;
@@ -288,6 +306,9 @@ describe('Wizard Progress — klickbare abgeschlossene Schritte (Issue 4)', () =
     step3Btn.click();
     // step bleibt gleich, aber rerender feuert (harmloser Re-Render)
     expect(root._state.step).toBe(3);
-    expect(rerenderCount, `rerenderCount=${rerenderCount}, listeners=${(step3Btn._listeners.click || []).length}`).toBeGreaterThanOrEqual(1);
+    expect(
+      rerenderCount,
+      `rerenderCount=${rerenderCount}, listeners=${(step3Btn._listeners.click || []).length}`
+    ).toBeGreaterThanOrEqual(1);
   });
 });

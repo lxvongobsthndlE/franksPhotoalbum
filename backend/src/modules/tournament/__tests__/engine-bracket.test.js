@@ -69,12 +69,7 @@ describe('§6.3.2-Referenztest', () => {
 // ---------------------------------------------------------------------------
 describe('buildBracket — Standard-Paarungen', () => {
   it('4 Teams → SF (Bracket-Größe 4)', () => {
-    const qs = [
-      q(1, 'A1', 'A'),
-      q(2, 'B1', 'B'),
-      q(3, 'A2', 'A'),
-      q(4, 'B2', 'B'),
-    ];
+    const qs = [q(1, 'A1', 'A'), q(2, 'B1', 'B'), q(3, 'A2', 'A'), q(4, 'B2', 'B')];
     const { matches, bracketSize } = buildBracket(qs);
     expect(bracketSize).toBe(4);
     const sfMatches = matches.filter((m) => m.round === 'SF');
@@ -134,8 +129,14 @@ describe('buildBracket — Folge-Matches', () => {
   it('QF-Sieger verweisen auf SF', () => {
     // 8 Teams: erste Runde = QF, Sieger daraus gehen ins SF (Platzhalter)
     const qs = [
-      q(1, 'A1', 'A'), q(2, 'B1', 'B'), q(3, 'C1', 'C'), q(4, 'A2', 'A'),
-      q(5, 'B2', 'B'), q(6, 'C2', 'C'), q(7, 'A3', 'A'), q(8, 'B3', 'B'),
+      q(1, 'A1', 'A'),
+      q(2, 'B1', 'B'),
+      q(3, 'C1', 'C'),
+      q(4, 'A2', 'A'),
+      q(5, 'B2', 'B'),
+      q(6, 'C2', 'C'),
+      q(7, 'A3', 'A'),
+      q(8, 'B3', 'B'),
     ];
     const { matches } = buildBracket(qs);
     const sf = matches.filter((m) => m.round === 'SF').sort((a, b) => a.bracketPos - b.bracketPos);
@@ -144,10 +145,7 @@ describe('buildBracket — Folge-Matches', () => {
   });
 
   it('SF-Sieger verweisen auf F', () => {
-    const qs = [
-      q(1, 'A1', 'A'), q(2, 'B1', 'B'),
-      q(3, 'A2', 'A'), q(4, 'B2', 'B'),
-    ];
+    const qs = [q(1, 'A1', 'A'), q(2, 'B1', 'B'), q(3, 'A2', 'A'), q(4, 'B2', 'B')];
     const { matches } = buildBracket(qs);
     const f = matches.find((m) => m.round === 'F');
     expect(f.placeholderHome.type).toBe('match_winner');
@@ -170,10 +168,7 @@ describe('buildBracket — Folge-Matches', () => {
 // ---------------------------------------------------------------------------
 describe('buildBracket — Spiel um Platz 3', () => {
   it('4 Teams + hasThirdPlacePlayoff → 3RD-Match existiert', () => {
-    const qs = [
-      q(1, 'A1', 'A'), q(2, 'B1', 'B'),
-      q(3, 'A2', 'A'), q(4, 'B2', 'B'),
-    ];
+    const qs = [q(1, 'A1', 'A'), q(2, 'B1', 'B'), q(3, 'A2', 'A'), q(4, 'B2', 'B')];
     const { matches } = buildBracket(qs, { hasThirdPlacePlayoff: true });
     const third = matches.find((m) => m.round === '3RD');
     expect(third).toBeDefined();
@@ -183,8 +178,14 @@ describe('buildBracket — Spiel um Platz 3', () => {
 
   it('8 Teams ohne hasThirdPlacePlayoff → kein 3RD', () => {
     const qs = [
-      q(1, 'A1', 'A'), q(2, 'B1', 'B'), q(3, 'C1', 'C'), q(4, 'A2', 'A'),
-      q(5, 'B2', 'B'), q(6, 'C2', 'C'), q(7, 'A3', 'A'), q(8, 'B3', 'B'),
+      q(1, 'A1', 'A'),
+      q(2, 'B1', 'B'),
+      q(3, 'C1', 'C'),
+      q(4, 'A2', 'A'),
+      q(5, 'B2', 'B'),
+      q(6, 'C2', 'C'),
+      q(7, 'A3', 'A'),
+      q(8, 'B3', 'B'),
     ];
     const { matches } = buildBracket(qs);
     expect(matches.find((m) => m.round === '3RD')).toBeUndefined();
@@ -197,8 +198,14 @@ describe('buildBracket — Spiel um Platz 3', () => {
 describe('buildBracket — Same-Group-Konfliktauflösung', () => {
   it('kein Konflikt wenn jedes Paar unterschiedliche Gruppen hat', () => {
     const qs = [
-      q(1, 'A1', 'A'), q(2, 'B1', 'B'), q(3, 'C1', 'C'), q(4, 'A2', 'A'),
-      q(5, 'B2', 'B'), q(6, 'C2', 'C'), q(7, 'A3', 'A'), q(8, 'B3', 'B'),
+      q(1, 'A1', 'A'),
+      q(2, 'B1', 'B'),
+      q(3, 'C1', 'C'),
+      q(4, 'A2', 'A'),
+      q(5, 'B2', 'B'),
+      q(6, 'C2', 'C'),
+      q(7, 'A3', 'A'),
+      q(8, 'B3', 'B'),
     ];
     const { unresolvedConflicts } = buildBracket(qs);
     expect(unresolvedConflicts).toHaveLength(0);

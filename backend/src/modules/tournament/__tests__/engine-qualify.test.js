@@ -39,14 +39,35 @@ describe('qualifyAndSeed', () => {
   it('+ 2 beste Dritte', () => {
     const input = {
       groupStandings: [
-        [{ teamId: 'A1' }, { teamId: 'A2' }, { teamId: 'A3', played: 3, points: 4, goalsFor: 4, goalsAgainst: 2, goalDiff: 2 }],
-        [{ teamId: 'B1' }, { teamId: 'B2' }, { teamId: 'B3', played: 3, points: 3, goalsFor: 2, goalsAgainst: 2, goalDiff: 0 }],
-        [{ teamId: 'C1' }, { teamId: 'C2' }, { teamId: 'C3', played: 3, points: 1, goalsFor: 1, goalsAgainst: 5, goalDiff: -4 }],
+        [
+          { teamId: 'A1' },
+          { teamId: 'A2' },
+          { teamId: 'A3', played: 3, points: 4, goalsFor: 4, goalsAgainst: 2, goalDiff: 2 },
+        ],
+        [
+          { teamId: 'B1' },
+          { teamId: 'B2' },
+          { teamId: 'B3', played: 3, points: 3, goalsFor: 2, goalsAgainst: 2, goalDiff: 0 },
+        ],
+        [
+          { teamId: 'C1' },
+          { teamId: 'C2' },
+          { teamId: 'C3', played: 3, points: 1, goalsFor: 1, goalsAgainst: 5, goalDiff: -4 },
+        ],
       ],
       groupKeys: ['A', 'B', 'C'],
     };
     const r = qualifyAndSeed(input, { qualifyPerGroup: 2, bestThirds: 2 });
-    expect(r.qualifiers.map((q) => q.teamId)).toEqual(['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'A3', 'B3']);
+    expect(r.qualifiers.map((q) => q.teamId)).toEqual([
+      'A1',
+      'A2',
+      'B1',
+      'B2',
+      'C1',
+      'C2',
+      'A3',
+      'B3',
+    ]);
     expect(r.qualifiers.map((q) => q.seed)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(r.bestThirdsUsed.map((t) => t.teamId)).toEqual(['A3', 'B3']);
   });

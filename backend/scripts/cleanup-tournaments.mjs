@@ -84,10 +84,9 @@ async function main() {
   try {
     // 1) Existiert die Gruppe überhaupt? Sonst „group not found"
     //    statt „0 Turniere" (Verwechslungsgefahr).
-    const groupRes = await client.query(
-      'SELECT id, name, "createdAt" FROM "Group" WHERE id = $1',
-      [groupId]
-    );
+    const groupRes = await client.query('SELECT id, name, "createdAt" FROM "Group" WHERE id = $1', [
+      groupId,
+    ]);
     if (groupRes.rowCount === 0) {
       console.error(`\nKeine Gruppe mit ID "${groupId}" gefunden.`);
       console.error('Verfügbare Gruppen:');
@@ -124,8 +123,12 @@ async function main() {
     }
 
     console.log('\nInventur:');
-    console.log('  erstellt                  | status    | name                                | teams | stages | matches | id');
-    console.log('  --------------------------+-----------+-------------------------------------+-------+--------+---------+--------------');
+    console.log(
+      '  erstellt                  | status    | name                                | teams | stages | matches | id'
+    );
+    console.log(
+      '  --------------------------+-----------+-------------------------------------+-------+--------+---------+--------------'
+    );
     for (const row of tournamentsRes.rows) {
       console.log(
         `  ${fmtDate(row.createdAt)} | ${(row.status || '–').padEnd(9)} | ${(row.name || '–').slice(0, 35).padEnd(35)} | ${String(row.teams).padStart(5)} | ${String(row.stages).padStart(6)} | ${String(row.matches).padStart(7)} | ${row.id}`

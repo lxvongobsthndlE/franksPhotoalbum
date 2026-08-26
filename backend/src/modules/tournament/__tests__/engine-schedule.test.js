@@ -39,10 +39,7 @@ describe('generateSchedule', () => {
   });
 
   it('weist scheduledAt und field zu', () => {
-    const matches = [
-      m('m1', 'A', 'B', { groupKey: 'A' }),
-      m('m2', 'C', 'D', { groupKey: 'A' }),
-    ];
+    const matches = [m('m1', 'A', 'B', { groupKey: 'A' }), m('m2', 'C', 'D', { groupKey: 'A' })];
     const sched = generateSchedule(matches, baseConfig, baseDate);
     for (const s of sched) {
       expect(s.scheduledAt).toBeInstanceOf(Date);
@@ -52,7 +49,7 @@ describe('generateSchedule', () => {
 
   it('§10.9: deterministisch — 2 Aufrufe identisch', () => {
     const matches = Array.from({ length: 6 }, (_, i) =>
-      m(`m${i + 1}`, `H${i + 1}`, `A${i + 1}`, { groupKey: String.fromCharCode(65 + (i % 3)) }),
+      m(`m${i + 1}`, `H${i + 1}`, `A${i + 1}`, { groupKey: String.fromCharCode(65 + (i % 3)) })
     );
     const a = generateSchedule(matches, baseConfig, baseDate);
     const b = generateSchedule(matches, baseConfig, baseDate);
@@ -74,10 +71,7 @@ describe('generateSchedule', () => {
   });
 
   it('parallelFields = 2 → field rotiert', () => {
-    const matches = [
-      m('m1', 'A', 'B', { groupKey: 'A' }),
-      m('m2', 'C', 'D', { groupKey: 'B' }),
-    ];
+    const matches = [m('m1', 'A', 'B', { groupKey: 'A' }), m('m2', 'C', 'D', { groupKey: 'B' })];
     const cfg = { ...baseConfig, schedule: { ...baseConfig.schedule, parallelFields: 2 } };
     const sched = generateSchedule(matches, cfg, baseDate);
     expect(new Set(sched.map((s) => s.field)).size).toBeGreaterThanOrEqual(1);
@@ -89,11 +83,11 @@ describe('generateSchedule', () => {
     // Input-Liste zuerst steht.
     const matches = [
       m('ko1', 'A1', 'B3', { stageType: 'ko', round: 'QF', bracketPos: 1 }),
-      m('g1',  'A',  'B',  { stageType: 'group', groupKey: 'A', roundNumber: 1, bracketPos: 1 }),
+      m('g1', 'A', 'B', { stageType: 'group', groupKey: 'A', roundNumber: 1, bracketPos: 1 }),
     ];
     const sched = generateSchedule(matches, baseConfig, baseDate);
     const ko = sched.find((s) => s.id === 'ko1');
-    const g  = sched.find((s) => s.id === 'g1');
+    const g = sched.find((s) => s.id === 'g1');
     expect(g.scheduledAt.getTime()).toBeLessThan(ko.scheduledAt.getTime());
   });
 
@@ -184,9 +178,15 @@ describe('generateSchedule', () => {
     ];
     const sched = generateSchedule(matches, baseConfig, baseDate);
     const byId = new Map(sched.map((s) => [s.id, s]));
-    expect(byId.get('r16_1').scheduledAt.getTime()).toBeLessThan(byId.get('qf1').scheduledAt.getTime());
-    expect(byId.get('qf1').scheduledAt.getTime()).toBeLessThan(byId.get('sf1').scheduledAt.getTime());
-    expect(byId.get('sf1').scheduledAt.getTime()).toBeLessThan(byId.get('f1').scheduledAt.getTime());
+    expect(byId.get('r16_1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('qf1').scheduledAt.getTime()
+    );
+    expect(byId.get('qf1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('sf1').scheduledAt.getTime()
+    );
+    expect(byId.get('sf1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('f1').scheduledAt.getTime()
+    );
   });
 });
 
@@ -229,17 +229,27 @@ describe('Runden laufen nacheinander, nicht gleichzeitig', () => {
     schedule: {
       matchDurationMinutes: 10,
       pauseAfterMatches: 5,
-      parallelFields: 4,   // bewusst mehr Plätze als Spiele pro Runde
+      parallelFields: 4, // bewusst mehr Plätze als Spiele pro Runde
       startTime: '10:00',
     },
   };
   const ko = (id, round, pos) => ({
-    id, teamHome: null, teamAway: null, stageType: 'ko', round, bracketPos: pos,
+    id,
+    teamHome: null,
+    teamAway: null,
+    stageType: 'ko',
+    round,
+    bracketPos: pos,
   });
   const baum = [
-    ko('qf1', 'QF', 1), ko('qf2', 'QF', 2), ko('qf3', 'QF', 3), ko('qf4', 'QF', 4),
-    ko('sf1', 'SF', 1), ko('sf2', 'SF', 2),
-    ko('p3', '3RD', 1), ko('fin', 'F', 1),
+    ko('qf1', 'QF', 1),
+    ko('qf2', 'QF', 2),
+    ko('qf3', 'QF', 3),
+    ko('qf4', 'QF', 4),
+    ko('sf1', 'SF', 1),
+    ko('sf2', 'SF', 2),
+    ko('p3', '3RD', 1),
+    ko('fin', 'F', 1),
   ];
 
   it('vier freie Plätze verführen nicht dazu, VF und HF zusammenzulegen', () => {
@@ -269,9 +279,9 @@ describe('Runden laufen nacheinander, nicht gleichzeitig', () => {
     const kaputt = [
       { ...ko('qf1', 'QF', 1), scheduledAt: t('2026-09-05T12:00:00Z'), field: 1 },
       { ...ko('sf1', 'SF', 1), scheduledAt: t('2026-09-05T12:00:00Z'), field: 2 },
-      { ...ko('fin', 'F', 1),  scheduledAt: t('2026-09-05T11:45:00Z'), field: 3 },
+      { ...ko('fin', 'F', 1), scheduledAt: t('2026-09-05T11:45:00Z'), field: 3 },
     ];
-    expect(detectScheduleConflicts(kaputt)).toEqual([]);   // Plätze sind frei
+    expect(detectScheduleConflicts(kaputt)).toEqual([]); // Plätze sind frei
     const gruende = detectRoundOverlaps(kaputt).map((v) => v.reason);
     expect(gruende).toContain('round_overlap');
     expect(gruende).toContain('round_out_of_order');
@@ -283,28 +293,36 @@ describe('Runden laufen nacheinander, nicht gleichzeitig', () => {
     // ALLE betroffenen Spiele auf demselben Anstoß. Unbekannt heißt
     // jetzt „Reihenfolge geraten", nicht mehr „alles gleichzeitig".
     const fremd = [
-      ko('a1', 'ACHTELFINALE', 1), ko('a2', 'ACHTELFINALE', 2),
+      ko('a1', 'ACHTELFINALE', 1),
+      ko('a2', 'ACHTELFINALE', 2),
       ko('b1', 'ZWISCHENRUNDE', 1),
     ];
     const sched = generateSchedule(fremd, koCfg, baseDate);
     const at = (id) => sched.find((m) => m.id === id).scheduledAt.getTime();
     expect(at('b1')).not.toBe(at('a1'));
-    expect(at('a1')).toBe(at('a2'));   // gleiche Runde bleibt parallel
+    expect(at('a1')).toBe(at('a2')); // gleiche Runde bleibt parallel
   });
 
   it('Gruppen-Spieltage bleiben getrennt: erst Spieltag 1 aller Gruppen', () => {
     const g = (id, gk, rn, home, away) => ({
-      id, teamHome: home, teamAway: away, stageType: 'group',
-      groupKey: gk, roundNumber: rn, bracketPos: 1,
+      id,
+      teamHome: home,
+      teamAway: away,
+      stageType: 'group',
+      groupKey: gk,
+      roundNumber: rn,
+      bracketPos: 1,
     });
     const matches = [
-      g('a1', 'A', 1, 't1', 't2'), g('a2', 'A', 2, 't1', 't3'),
-      g('b1', 'B', 1, 't5', 't6'), g('b2', 'B', 2, 't5', 't7'),
+      g('a1', 'A', 1, 't1', 't2'),
+      g('a2', 'A', 2, 't1', 't3'),
+      g('b1', 'B', 1, 't5', 't6'),
+      g('b2', 'B', 2, 't5', 't7'),
     ];
     const sched = generateSchedule(matches, koCfg, baseDate);
     const at = (id) => sched.find((m) => m.id === id).scheduledAt.getTime();
-    expect(at('b1')).toBe(at('a1'));                 // Spieltag 1 parallel
-    expect(at('a2')).toBeGreaterThan(at('b1'));      // Spieltag 2 danach
+    expect(at('b1')).toBe(at('a1')); // Spieltag 1 parallel
+    expect(at('a2')).toBeGreaterThan(at('b1')); // Spieltag 2 danach
     expect(at('b2')).toBe(at('a2'));
   });
 });
@@ -335,10 +353,22 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
   });
 
   const konstellationen = [
-    [1, 4, 1], [1, 5, 1], [1, 6, 1], [1, 8, 1],
-    [2, 4, 1], [2, 4, 2], [3, 4, 2], [4, 4, 2],
-    [2, 5, 2], [4, 5, 3], [2, 6, 2], [3, 5, 2],
-    [4, 4, 4], [6, 4, 3], [8, 4, 4], [2, 8, 2],
+    [1, 4, 1],
+    [1, 5, 1],
+    [1, 6, 1],
+    [1, 8, 1],
+    [2, 4, 1],
+    [2, 4, 2],
+    [3, 4, 2],
+    [4, 4, 2],
+    [2, 5, 2],
+    [4, 5, 3],
+    [2, 6, 2],
+    [3, 5, 2],
+    [4, 4, 4],
+    [6, 4, 3],
+    [8, 4, 4],
+    [2, 8, 2],
   ];
 
   for (const [gruppen, teams, felder] of konstellationen) {
@@ -358,7 +388,14 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
     //
     // Nur gerade Teamzahlen: bei ungerader pausiert je Runde ein Team
     // (BYE), sein Abstand ist dann 2S und das ist kein Mangel.
-    for (const [gruppen, teams, felder] of [[2, 4, 2], [3, 4, 2], [4, 4, 2], [8, 4, 4], [2, 6, 2], [2, 8, 2]]) {
+    for (const [gruppen, teams, felder] of [
+      [2, 4, 2],
+      [3, 4, 2],
+      [4, 4, 2],
+      [8, 4, 4],
+      [2, 6, 2],
+      [2, 8, 2],
+    ]) {
       const spiele = gruppenSpiele(gruppen, teams);
       const spieleJeRunde = spiele.length / (teams - 1);
       const S = Math.ceil(spieleJeRunde / felder);
@@ -386,13 +423,19 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
     // keine Panne, und deshalb steht sie in der Config und nicht im Code.
     const spiele = gruppenSpiele(1, 4);
     const ohneRuhe = {
-      schedule: { matchDurationMinutes: 15, parallelFields: 1, startTime: '10:00', slotMinutes: 15, minRestSlots: 0 },
+      schedule: {
+        matchDurationMinutes: 15,
+        parallelFields: 1,
+        startTime: '10:00',
+        slotMinutes: 15,
+        minRestSlots: 0,
+      },
     };
     const dicht = scheduleMetrics(generateSchedule(spiele, ohneRuhe, baseDate));
     const locker = scheduleMetrics(generateSchedule(spiele, cfg(1), baseDate));
 
     expect(dicht.leerSlots).toBe(0);
-    expect(dicht.slots).toBe(6);          // 6 Spiele, 6 Slots, kein Leerlauf
+    expect(dicht.slots).toBe(6); // 6 Spiele, 6 Slots, kein Leerlauf
     expect(dicht.backToBack).toBeGreaterThan(0);
 
     // Mit Mindestruhe kostet dieselbe Gruppe zwei Slots mehr — bei 4 Teams
@@ -407,8 +450,9 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
     const spiele = gruppenSpiele(3, 5);
     const a = generateSchedule(spiele, cfg(2), baseDate);
     const b = generateSchedule(spiele, cfg(2), baseDate);
-    expect(a.map((x) => `${x.id}@${x.scheduledAt?.getTime()}#${x.field}`))
-      .toEqual(b.map((x) => `${x.id}@${x.scheduledAt?.getTime()}#${x.field}`));
+    expect(a.map((x) => `${x.id}@${x.scheduledAt?.getTime()}#${x.field}`)).toEqual(
+      b.map((x) => `${x.id}@${x.scheduledAt?.getTime()}#${x.field}`)
+    );
   });
 });
 
@@ -434,7 +478,7 @@ describe('scheduleMetrics', () => {
     const k = scheduleMetrics(plan, { slotMinutes: 15 });
     expect(k.backToBack).toBe(0);
     expect(k.abstandMin).toBe(2);
-    expect(k.slots).toBe(3);       // 10:00, (10:15 leer), 10:30
+    expect(k.slots).toBe(3); // 10:00, (10:15 leer), 10:30
     expect(k.slotMinuten).toBe(15);
   });
 

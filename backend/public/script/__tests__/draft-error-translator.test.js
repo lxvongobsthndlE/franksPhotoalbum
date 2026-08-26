@@ -31,7 +31,9 @@ describe('translateDraftError — Netzwerk', () => {
   });
 
   it('NetworkError → gleiche Übersetzung', () => {
-    const msg = translateDraftError(errWithMessage('NetworkError when attempting to fetch resource'));
+    const msg = translateDraftError(
+      errWithMessage('NetworkError when attempting to fetch resource')
+    );
     expect(msg).toMatch(/Keine Verbindung/);
   });
 });

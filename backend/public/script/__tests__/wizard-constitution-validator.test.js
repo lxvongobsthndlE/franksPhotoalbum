@@ -49,24 +49,33 @@ describe('validateConstitution — Spec §9', () => {
 
     it('8 Teams / 2 Gruppen / Top 2 = sauberes 4er-KO (Halbfinale)', () => {
       const r = validateConstitution(
-        makeState({ teams: Array.from({ length: 8 }, (_, i) => ({ name: `T${i}` })),
-                    numGroups: 2, advancePerGroup: 2 })
+        makeState({
+          teams: Array.from({ length: 8 }, (_, i) => ({ name: `T${i}` })),
+          numGroups: 2,
+          advancePerGroup: 2,
+        })
       );
       expect(r.level).toBe('ok');
     });
 
     it('10 Teams / 2 Gruppen à 5 / Top 2 = sauberes 4er-KO', () => {
       const r = validateConstitution(
-        makeState({ teams: Array.from({ length: 10 }, (_, i) => ({ name: `T${i}` })),
-                    numGroups: 2, advancePerGroup: 2 })
+        makeState({
+          teams: Array.from({ length: 10 }, (_, i) => ({ name: `T${i}` })),
+          numGroups: 2,
+          advancePerGroup: 2,
+        })
       );
       expect(r.level).toBe('ok');
     });
 
     it('reines K.-o. (ko_only) mit 6 Teams ist OK', () => {
       const r = validateConstitution(
-        makeState({ mode: 'ko_only', numGroups: 1,
-                    teams: Array.from({ length: 6 }, (_, i) => ({ name: `T${i}` })) })
+        makeState({
+          mode: 'ko_only',
+          numGroups: 1,
+          teams: Array.from({ length: 6 }, (_, i) => ({ name: `T${i}` })),
+        })
       );
       // numGroups wird für ko_only ignoriert; das wäre ein „ungültiger"
       // State, aber ko_only kümmert sich nicht um Gruppen. Mit 6 Teams
@@ -79,8 +88,11 @@ describe('validateConstitution — Spec §9', () => {
 
     it('groups_only mit 1 Gruppe = Ligamodus (§9.7), kein KO', () => {
       const r = validateConstitution(
-        makeState({ mode: 'groups_only', numGroups: 1,
-                    teams: Array.from({ length: 6 }, (_, i) => ({ name: `T${i}` })) })
+        makeState({
+          mode: 'groups_only',
+          numGroups: 1,
+          teams: Array.from({ length: 6 }, (_, i) => ({ name: `T${i}` })),
+        })
       );
       // Sollte nur die Info-Message SINGLE_GROUP_NO_KO haben, kein block.
       expect(r.level).not.toBe('block');
@@ -145,15 +157,11 @@ describe('validateConstitution — Spec §9', () => {
     });
 
     it('nur 1 Team → block', () => {
-      const r = validateConstitution(
-        makeState({ teams: [{ name: 'Lonely' }] })
-      );
+      const r = validateConstitution(makeState({ teams: [{ name: 'Lonely' }] }));
       expect(r.level).toBe('block');
       // Bei 1 Team ist groups_ko mit 4 Gruppen automatisch unsinnig,
       // egal welche Quali-Konfig.
-      expect(r.messages.some((m) =>
-        m.severity === 'error'
-      )).toBe(true);
+      expect(r.messages.some((m) => m.severity === 'error')).toBe(true);
     });
 
     it('KO-Modus mit 1 Team → block (KO_WITH_ONE_TEAM)', () => {

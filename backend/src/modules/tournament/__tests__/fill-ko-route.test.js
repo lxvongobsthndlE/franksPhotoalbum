@@ -35,11 +35,27 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
   };
   prisma.$transaction = vi.fn(async (cb) => {
     return typeof cb === 'function' ? cb(prisma) : cb;
@@ -237,9 +253,7 @@ describe('POST /api/tournaments/:id/fill-ko (P3 Fallback)', () => {
       expect(res.json().ok).toBe(true);
     } else {
       expect(res.json().error).toBe('fill_ko_failed');
-      expect(['no_teams', 'no_groups', 'not_enough_qualifiers']).toContain(
-        res.json().reason
-      );
+      expect(['no_teams', 'no_groups', 'not_enough_qualifiers']).toContain(res.json().reason);
     }
   });
 

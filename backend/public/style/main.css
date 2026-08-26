@@ -37,7 +37,7 @@
      Wert wird dunkler (3.95 -> 5.48 auf Weiss), der Rand also
      kontrastreicher. Ein Aufteilen in zwei Tokens ist deshalb nicht
      noetig -- ein Tausch genuegt. */
-  --muted: #70685F;
+  --muted: #70685f;
   --muted2: #bdb4ac;
   --shadow: 0 1px 8px rgba(40, 25, 15, 0.06), 0 2px 20px rgba(40, 25, 15, 0.04);
   --shadow2: 0 4px 24px rgba(40, 25, 15, 0.1), 0 1px 4px rgba(40, 25, 15, 0.05);
@@ -71,7 +71,7 @@
          auf --card    #242220 -> 5.20:1
      Bemessen ist der Wert am dunklen --card, nicht am --bg -- Karten
      sind die haeufigste Flaeche unter gedaempftem Text. */
-  --muted: #9C9289;
+  --muted: #9c9289;
   --muted2: #5a544e;
   --shadow: 0 1px 8px rgba(0, 0, 0, 0.2), 0 2px 20px rgba(0, 0, 0, 0.15);
   --shadow2: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.15);
@@ -93,7 +93,8 @@
 }
 [data-theme='dark'] .cloud {
   display: none;
-}@media (hover: hover) {
+}
+@media (hover: hover) {
   [data-theme='dark'] .p-card:hover .p-thumb img.loaded,
   [data-theme='dark'] .p-card:hover .p-thumb .p-thumb-vid.loaded {
     filter: blur(2px) brightness(0.5);
@@ -286,7 +287,8 @@ button.tournament-header-btn {
 
 .tournament-grid-columns-single {
   grid-template-columns: minmax(280px, 1fr);
-}@media (max-width: 420px) {
+}
+@media (max-width: 420px) {
   .tournament-meta-pill {
     font-size: 10px;
     padding: 2px 6px;
@@ -2479,7 +2481,8 @@ button.tournament-header-btn {
 .select-wrap {
   position: relative;
   display: inline-flex;
-}@media (max-width: 900px) {
+}
+@media (max-width: 900px) {
   .select-wrap select {
     color: transparent;
     width: 85px;
@@ -2980,7 +2983,8 @@ button.tournament-header-btn {
 .p-card.visible {
   opacity: 1;
   transform: translateY(0);
-}@media (hover: hover) {
+}
+@media (hover: hover) {
   .p-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 32px rgba(15, 25, 40, 0.14);
@@ -3051,7 +3055,8 @@ button.tournament-header-btn {
   letter-spacing: 0.02em;
   z-index: 3;
   pointer-events: none;
-}@media (hover: hover) {
+}
+@media (hover: hover) {
   .p-card:hover .p-thumb img.loaded,
   .p-card:hover .p-thumb .p-thumb-vid.loaded {
     transform: scale(1.08);
@@ -4201,7 +4206,8 @@ button.tournament-header-btn {
 /* ── BOTTOM NAV GONE ── */
 #bottom-nav {
   display: none !important;
-}@media (max-width: 900px) {
+}
+@media (max-width: 900px) {
   .hamburger-btn {
     display: flex;
   }
@@ -4658,7 +4664,8 @@ button.tournament-header-btn {
   animation:
     fadeIn 0.3s ease,
     fadeOut 0.3s ease 2s forwards;
-}@media (max-width: 900px) {
+}
+@media (max-width: 900px) {
   .lb-bg.lb-fullview .lb-img-side {
     padding: calc(12px + env(safe-area-inset-top)) 8px 12px;
   }
@@ -5297,7 +5304,8 @@ button.tournament-header-btn {
 .inline-help-tip:focus-visible .inline-help-pop {
   opacity: 1;
   visibility: visible;
-}@media (max-width: 640px) {
+}
+@media (max-width: 640px) {
   .grid.feed-grid {
     max-width: 100%;
   }
@@ -5495,7 +5503,8 @@ button.tournament-header-btn {
   gap: 14px;
   max-height: min(720px, calc(100vh - 40px));
   overflow: hidden;
-}@media (min-width: 900px) {
+}
+@media (min-width: 900px) {
   .tournament-detail-dlg {
     /* Auf Desktop darf sie breiter werden, damit Bracket-Formulare
        und Drag&Drop-Listen gut lesbar bleiben. */
@@ -5636,7 +5645,9 @@ button.tournament-header-btn {
   color: inherit;
   min-width: 0;
 }
-.t-team-name-input:hover { border-color: var(--border); }
+.t-team-name-input:hover {
+  border-color: var(--border);
+}
 .t-team-name-input:focus {
   border-color: var(--accent);
   background: var(--bg-1);
@@ -5659,7 +5670,9 @@ button.tournament-header-btn {
   font-size: 13px;
 }
 .t-standings-table col,
-.t-thirds-table col { box-sizing: border-box; }
+.t-thirds-table col {
+  box-sizing: border-box;
+}
 .t-standings-table th,
 .t-standings-table td,
 .t-thirds-table th,
@@ -5667,11 +5680,11 @@ button.tournament-header-btn {
   padding: 6px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border);
-  white-space: nowrap;            /* P2 (2026-08-24): kein Wort-Umbruch in
+  white-space: nowrap; /* P2 (2026-08-24): kein Wort-Umbruch in
                                      schmalen %-Spalten — sonst laufen die
                                      Überschriften GRUPPE/SP. zu GRUSPE ineinander. */
   overflow: hidden;
-  text-overflow: ellipsis;        /* lange Werte als … kürzen statt umbrechen */
+  text-overflow: ellipsis; /* lange Werte als … kürzen statt umbrechen */
 }
 .t-standings-table th,
 .t-thirds-table th {
@@ -5716,9 +5729,13 @@ button.tournament-header-btn {
   text-align: left;
 }
 .t-standings-table .t-standings-num.is-positive,
-.t-thirds-table .t-thirds-num.is-positive { color: #2e7d32; }
+.t-thirds-table .t-thirds-num.is-positive {
+  color: #2e7d32;
+}
 .t-standings-table .t-standings-num.is-negative,
-.t-thirds-table .t-thirds-num.is-negative { color: #c62828; }
+.t-thirds-table .t-thirds-num.is-negative {
+  color: #c62828;
+}
 .t-standings-table .t-standings-num.is-points,
 .t-thirds-table .t-thirds-num.is-points {
   font-weight: 700;
@@ -5730,10 +5747,16 @@ button.tournament-header-btn {
    alte Instanzen ohne colgroup bleiben diese Werte aktiv. Pl. + Mark
    schmal, Team groß, Gruppe mittig, Zahlenspalten gleich verteilt. */
 .t-standings-table .t-standings-rank,
-.t-thirds-table .t-thirds-rank { width: 44px; }
-.t-thirds-table .t-thirds-group { width: 64px; }
+.t-thirds-table .t-thirds-rank {
+  width: 44px;
+}
+.t-thirds-table .t-thirds-group {
+  width: 64px;
+}
 .t-standings-table .t-standings-num,
-.t-thirds-table .t-thirds-num { width: 8%; }
+.t-thirds-table .t-thirds-num {
+  width: 8%;
+}
 
 /* P2 (2026-08-24) — Schmale Modul-Breite (Mobile): 5 unkritische
    Spalten der Dritten-Tabelle ausblenden, damit die wichtigen Werte
@@ -5761,7 +5784,9 @@ button.tournament-header-btn {
      Passend dazu THIRDS_COL_WIDTHS_MOBILE in spielplan-helpers.js —
      wer hier eine Spalte zusaetzlich versteckt oder wieder einblendet,
      MUSS dort die Breitenliste mitziehen. */
-  .t-thirds-table .t-thirds-team { font-size: 13px; }
+  .t-thirds-table .t-thirds-team {
+    font-size: 13px;
+  }
 }
 
 /* P5 Re-Fix (2026-08-25, User-Browser-Test): Statt Card-Layout (das
@@ -5851,14 +5876,14 @@ button.tournament-header-btn {
      Die Breitenliste STANDINGS_COL_WIDTHS_MOBILE in spielplan-helpers.js
      ist mitgezogen — beide sind EIN Paar, sonst verschieben sich alle
      folgenden Spalten um eins. */
-  .t-standings-table th[data-col="score"],
-  .t-standings-table th[data-col="won"],
-  .t-standings-table th[data-col="drawn"],
-  .t-standings-table th[data-col="lost"],
-  .t-standings-table td[data-col="score"],
-  .t-standings-table td[data-col="won"],
-  .t-standings-table td[data-col="drawn"],
-  .t-standings-table td[data-col="lost"] {
+  .t-standings-table th[data-col='score'],
+  .t-standings-table th[data-col='won'],
+  .t-standings-table th[data-col='drawn'],
+  .t-standings-table th[data-col='lost'],
+  .t-standings-table td[data-col='score'],
+  .t-standings-table td[data-col='won'],
+  .t-standings-table td[data-col='drawn'],
+  .t-standings-table td[data-col='lost'] {
     display: none;
   }
 
@@ -5870,16 +5895,16 @@ button.tournament-header-btn {
      25.08. aufgeloest worden (siehe Kommentar im 430er-Block oben).
      Die Spaltenzahl haengt an THIRDS_COL_WIDTHS_MOBILE in
      spielplan-helpers.js — beide muessen zusammen geaendert werden. */
-  .t-thirds-table th[data-col="score"],
-  .t-thirds-table th[data-col="played"],
-  .t-thirds-table th[data-col="won"],
-  .t-thirds-table th[data-col="drawn"],
-  .t-thirds-table th[data-col="lost"],
-  .t-thirds-table td[data-col="score"],
-  .t-thirds-table td[data-col="played"],
-  .t-thirds-table td[data-col="won"],
-  .t-thirds-table td[data-col="drawn"],
-  .t-thirds-table td[data-col="lost"] {
+  .t-thirds-table th[data-col='score'],
+  .t-thirds-table th[data-col='played'],
+  .t-thirds-table th[data-col='won'],
+  .t-thirds-table th[data-col='drawn'],
+  .t-thirds-table th[data-col='lost'],
+  .t-thirds-table td[data-col='score'],
+  .t-thirds-table td[data-col='played'],
+  .t-thirds-table td[data-col='won'],
+  .t-thirds-table td[data-col='drawn'],
+  .t-thirds-table td[data-col='lost'] {
     display: none;
   }
 
@@ -5914,7 +5939,7 @@ button.tournament-header-btn {
    in die Rank-Zelle, damit die Tabelle dieselbe Spalten-Aufteilung
    wie die Gruppen-Tabelle hat (Bug 14: konsistente Spaltenanzahl). */
 .t-thirds-row.is-qualified .t-thirds-rank::after {
-  content: " ✓";
+  content: ' ✓';
   margin-left: 4px;
   font-weight: 700;
   color: #2e7d32;
@@ -5928,7 +5953,9 @@ button.tournament-header-btn {
    Renderer nutzt jetzt dieselben Spalten wie die normale Gruppentabelle
    (Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.) plus
    eine Quali-Markierung rechts. */
-.t-thirds-card { margin-top: 14px; }
+.t-thirds-card {
+  margin-top: 14px;
+}
 .t-thirds-title {
   font-size: 13px;
   margin: 0 0 10px 0;
@@ -5950,9 +5977,15 @@ button.tournament-header-btn {
   color: var(--muted);
   text-align: left;
 }
-.t-thirds-table .t-thirds-team { font-weight: 500; }
-.t-thirds-row.is-qualified { background: rgba(46, 125, 50, 0.06); }
-.t-thirds-row.is-out { opacity: 0.55; }
+.t-thirds-table .t-thirds-team {
+  font-weight: 500;
+}
+.t-thirds-row.is-qualified {
+  background: rgba(46, 125, 50, 0.06);
+}
+.t-thirds-row.is-out {
+  opacity: 0.55;
+}
 
 /* Match-Result-Modal: Heim vs Gast Header */
 .t-result-header {
@@ -6008,7 +6041,6 @@ button.tournament-header-btn {
    TOURNAMENT PHASE 3 — Tabs, Modern Bracket, Drag&Drop, Podium
    ════════════════════════════════════════════════════════════════════ */
 
-
 /* Toolbar (innerhalb der Tabs) */
 .t-toolbar {
   display: flex;
@@ -6052,12 +6084,21 @@ button.tournament-header-btn {
   max-width: 1800px;
   margin: 0 auto;
   padding: clamp(8px, 1.5vw, 24px);
-}@media (max-width: 767px) {
-  .t-shell { grid-template-columns: 1fr; }
-}@media (min-width: 768px) and (max-width: 1199px) {
-  .t-shell { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}@media (min-width: 1200px) {
-  .t-shell { grid-template-columns: 220px minmax(0, 1fr) 280px; }
+}
+@media (max-width: 767px) {
+  .t-shell {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  .t-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (min-width: 1200px) {
+  .t-shell {
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+  }
 }
 
 /* Hier stand bis 2026-08-25 ein Deklarationsblock OHNE Selektor
@@ -6095,7 +6136,9 @@ button.tournament-header-btn {
   border-bottom: 1px dashed var(--border);
   color: var(--muted);
 }
-.t-match-audit li:last-child { border-bottom: none; }
+.t-match-audit li:last-child {
+  border-bottom: none;
+}
 .t-match-photos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -6141,15 +6184,25 @@ button.tournament-header-btn {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-.t-match-card[role="button"] { cursor: pointer; }
-.t-match-card[role="button"]:hover { background: var(--bg-3); }
-.t-match-card.is-completed { border-color: #c8e6c9; }
+.t-match-card[role='button'] {
+  cursor: pointer;
+}
+.t-match-card[role='button']:hover {
+  background: var(--bg-3);
+}
+.t-match-card.is-completed {
+  border-color: #c8e6c9;
+}
 .t-match-card.is-live {
   border-color: #ef5350;
   box-shadow: 0 0 0 1px rgba(239, 83, 80, 0.3);
 }
-.t-match-home { text-align: right; }
-.t-match-away { text-align: left; }
+.t-match-home {
+  text-align: right;
+}
+.t-match-away {
+  text-align: left;
+}
 .t-match-score {
   font-weight: 700;
   padding: 2px 8px;
@@ -6187,7 +6240,7 @@ button.tournament-header-btn {
      App-Tokens; [data-theme=dark] muss mitgenannt werden, weil der
      Dunkel-Block ganz oben dieselbe Spezifitaet hat. */
   :root,
-  [data-theme="dark"] {
+  [data-theme='dark'] {
     --bg: #ffffff;
     --surface: #ffffff;
     --card: #ffffff;
@@ -6195,7 +6248,7 @@ button.tournament-header-btn {
     --border2: #666666;
     --text: #000000;
     --text2: #222222;
-    --muted: #3A3A3A;
+    --muted: #3a3a3a;
     --muted2: #666666;
     --shadow: none;
     --shadow2: none;

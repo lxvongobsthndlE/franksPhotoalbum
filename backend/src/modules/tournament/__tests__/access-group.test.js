@@ -4,11 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  prepareGroupView,
-  prepareGroupList,
-  prepareStandings,
-} from '../access/group.js';
+import { prepareGroupView, prepareGroupList, prepareStandings } from '../access/group.js';
 import { buildTeamLookup } from '../access/team.js';
 
 const rawTeams = [
@@ -31,9 +27,16 @@ const rawGroups = [
     ],
     matches: [
       {
-        id: 'm1', tournamentId: 't', stageId: 's_group', groupId: 'gA',
-        teamHome: 'tA', teamAway: 'tB', bracketPos: 1,
-        scoreHome: 2, scoreAway: 1, status: 'finished',
+        id: 'm1',
+        tournamentId: 't',
+        stageId: 's_group',
+        groupId: 'gA',
+        teamHome: 'tA',
+        teamAway: 'tB',
+        bracketPos: 1,
+        scoreHome: 2,
+        scoreAway: 1,
+        status: 'finished',
       },
     ],
   },
@@ -72,7 +75,7 @@ describe('prepareGroupView', () => {
       ...rawGroups[0],
       memberships: [
         { id: 'm1', groupId: 'gA', teamId: 'tA', position: 1 },
-        { id: 'mx', groupId: 'gA', teamId: 'tC' },  // keine position
+        { id: 'mx', groupId: 'gA', teamId: 'tC' }, // keine position
         { id: 'm2', groupId: 'gA', teamId: 'tB', position: 2 },
       ],
     };
@@ -91,7 +94,10 @@ describe('prepareGroupView', () => {
 
   it('Mitglied ohne Team-Lookup zeigt "—"', () => {
     const g = {
-      id: 'g', stageId: 's', key: 'X', name: null,
+      id: 'g',
+      stageId: 's',
+      key: 'X',
+      name: null,
       memberships: [{ id: 'm', groupId: 'g', teamId: 'unknown', position: 1 }],
       matches: [],
     };
@@ -107,10 +113,13 @@ describe('prepareGroupList', () => {
   });
 
   it('mehrere Gruppen', () => {
-    const list = prepareGroupList([
-      { id: 'gA', stageId: 's', key: 'A', memberships: [], matches: [] },
-      { id: 'gB', stageId: 's', key: 'B', memberships: [], matches: [] },
-    ], { teams });
+    const list = prepareGroupList(
+      [
+        { id: 'gA', stageId: 's', key: 'A', memberships: [], matches: [] },
+        { id: 'gB', stageId: 's', key: 'B', memberships: [], matches: [] },
+      ],
+      { teams }
+    );
     expect(list.map((g) => g.key)).toEqual(['A', 'B']);
   });
 });
@@ -121,9 +130,42 @@ describe('prepareGroupList', () => {
 
 describe('prepareStandings', () => {
   const raw = [
-    { teamId: 'tA', played: 2, won: 2, drawn: 0, lost: 0, goalsFor: 5, goalsAgainst: 1, goalDiff: 4, points: 6, rank: 1 },
-    { teamId: 'tB', played: 2, won: 1, drawn: 0, lost: 1, goalsFor: 3, goalsAgainst: 3, goalDiff: 0, points: 3, rank: 2 },
-    { teamId: 'tC', played: 2, won: 0, drawn: 0, lost: 2, goalsFor: 1, goalsAgainst: 5, goalDiff: -4, points: 0, rank: 3 },
+    {
+      teamId: 'tA',
+      played: 2,
+      won: 2,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 5,
+      goalsAgainst: 1,
+      goalDiff: 4,
+      points: 6,
+      rank: 1,
+    },
+    {
+      teamId: 'tB',
+      played: 2,
+      won: 1,
+      drawn: 0,
+      lost: 1,
+      goalsFor: 3,
+      goalsAgainst: 3,
+      goalDiff: 0,
+      points: 3,
+      rank: 2,
+    },
+    {
+      teamId: 'tC',
+      played: 2,
+      won: 0,
+      drawn: 0,
+      lost: 2,
+      goalsFor: 1,
+      goalsAgainst: 5,
+      goalDiff: -4,
+      points: 0,
+      rank: 3,
+    },
   ];
 
   it('null/undefined → []', () => {
@@ -151,7 +193,19 @@ describe('prepareStandings', () => {
 
   it('tiebreakerNote + unresolved werden propagiert', () => {
     const rows = prepareStandings([
-      { teamId: 'tA', played: 1, won: 0, drawn: 1, lost: 0, goalsFor: 2, goalsAgainst: 2, points: 1, rank: 1, tiebreakerNote: 'Losentscheid', unresolved: true },
+      {
+        teamId: 'tA',
+        played: 1,
+        won: 0,
+        drawn: 1,
+        lost: 0,
+        goalsFor: 2,
+        goalsAgainst: 2,
+        points: 1,
+        rank: 1,
+        tiebreakerNote: 'Losentscheid',
+        unresolved: true,
+      },
     ]);
     expect(rows[0].tiebreakerNote).toBe('Losentscheid');
     expect(rows[0].unresolved).toBe(true);
@@ -159,7 +213,16 @@ describe('prepareStandings', () => {
 
   it('rank Default = idx + 1', () => {
     const rows = prepareStandings([
-      { teamId: 'tA', played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 },
+      {
+        teamId: 'tA',
+        played: 0,
+        won: 0,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        points: 0,
+      },
     ]);
     expect(rows[0].rank).toBe(1);
   });

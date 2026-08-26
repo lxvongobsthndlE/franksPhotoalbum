@@ -45,7 +45,10 @@ const t = {
     config: { fields: [], schedule: { matchDurationMinutes: 30, parallelFields: 4 } },
   },
   groups: [{ id: 'g1', key: 'A', name: 'Gruppe A' }],
-  teams: [{ id: 't1', name: 'Team 1' }, { id: 't2', name: 'Team 2' }],
+  teams: [
+    { id: 't1', name: 'Team 1' },
+    { id: 't2', name: 'Team 2' },
+  ],
   matches: [{ id: 'm1', isFinished: false }],
 };
 const html = () => renderEinstellungen(t, { isAdmin: true, finishedCount: 0 });
@@ -53,7 +56,8 @@ const html = () => renderEinstellungen(t, { isAdmin: true, finishedCount: 0 });
 /** Alle Abschnitte samt ihrem Rumpf aus dem HTML schneiden. */
 function abschnitte(quelltext) {
   const raus = [];
-  const re = /<section class="([^"]*)"[^>]*data-section="([^"]+)"[^>]*data-collapsed="([^"]+)"[^>]*>/g;
+  const re =
+    /<section class="([^"]*)"[^>]*data-section="([^"]+)"[^>]*data-collapsed="([^"]+)"[^>]*>/g;
   let m;
   while ((m = re.exec(quelltext)) !== null) {
     const ab = quelltext.slice(m.index, quelltext.indexOf('</section>', m.index));
@@ -68,20 +72,25 @@ describe('Einstellungen: einklappbar', () => {
     // `btn.closest('.t-settings-section')` — ein Abschnitt ohne diese
     // Klasse ist ein toter Kopf.
     const gesucht = MAIN.match(/closest\('([^']*t-settings-section[^']*)'\)/);
-    expect(gesucht, 'Der Handler sucht nicht mehr nach .t-settings-section — dann muss dieser Test nachziehen').toBeTruthy();
+    expect(
+      gesucht,
+      'Der Handler sucht nicht mehr nach .t-settings-section — dann muss dieser Test nachziehen'
+    ).toBeTruthy();
 
     const alle = abschnitte(html());
     expect(alle.length, 'gar keine Abschnitte gefunden').toBeGreaterThan(5);
     for (const a of alle) {
-      expect(a.klassen, `Abschnitt "${a.name}" trägt die Handler-Klasse nicht`)
-        .toContain('t-settings-section');
+      expect(a.klassen, `Abschnitt "${a.name}" trägt die Handler-Klasse nicht`).toContain(
+        't-settings-section'
+      );
     }
   });
 
   it('jeder Abschnitt hat einen Kopf MIT data-action="toggle-section"', () => {
     for (const a of abschnitte(html())) {
-      expect(a.inhalt, `Abschnitt "${a.name}" hat keinen Umschalt-Kopf`)
-        .toContain('data-action="toggle-section"');
+      expect(a.inhalt, `Abschnitt "${a.name}" hat keinen Umschalt-Kopf`).toContain(
+        'data-action="toggle-section"'
+      );
     }
   });
 

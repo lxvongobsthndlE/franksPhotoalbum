@@ -136,9 +136,10 @@ async function buildApp(prisma) {
 
 let prisma, app;
 beforeEach(async () => {
-  prisma = (await import('../index.js')).prisma === undefined
-    ? createLocalMockPrisma()
-    : createLocalMockPrisma();
+  prisma =
+    (await import('../index.js')).prisma === undefined
+      ? createLocalMockPrisma()
+      : createLocalMockPrisma();
   baseStubs(prisma);
   app = await buildApp(prisma);
 });
@@ -155,11 +156,28 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn(), create: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+      create: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn(), update: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
     $transaction: vi.fn(async (cb) => {
       return typeof cb === 'function' ? cb(prisma) : cb;
     }),
@@ -185,9 +203,12 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
   const cases = [
     {
       label: 'POST / (Turnier anlegen)',
-      req: () => memberRequest('POST', '/api/tournaments', {
-        groupId: gId, name: 'Neues Turnier', mode: 'groups_ko',
-      }),
+      req: () =>
+        memberRequest('POST', '/api/tournaments', {
+          groupId: gId,
+          name: 'Neues Turnier',
+          mode: 'groups_ko',
+        }),
     },
     {
       label: 'PATCH /:id (Meta/Config)',
@@ -203,7 +224,8 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     },
     {
       label: 'PATCH /:id/teams/:tid (Team-Rename/Farbe)',
-      req: () => memberRequest('PATCH', `/api/tournaments/${tDraftId}/teams/${teamId}`, { name: 'T1' }),
+      req: () =>
+        memberRequest('PATCH', `/api/tournaments/${tDraftId}/teams/${teamId}`, { name: 'T1' }),
     },
     {
       label: 'DELETE /:id/teams/:tid (Team löschen)',
@@ -211,7 +233,8 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     },
     {
       label: 'PATCH /:id/teams/reorder (Setzreihenfolge)',
-      req: () => memberRequest('PATCH', `/api/tournaments/${tDraftId}/teams/reorder`, { order: [] }),
+      req: () =>
+        memberRequest('PATCH', `/api/tournaments/${tDraftId}/teams/reorder`, { order: [] }),
     },
     {
       label: 'PATCH /:id/groups (Manuelle Gruppenzuordnung)',
@@ -231,19 +254,27 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     },
     {
       label: 'POST /:id/reset-results (Alle Ergebnisse löschen)',
-      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/reset-results`, {
-        confirmTournamentName: 'Mein Turnier',
-      }),
+      req: () =>
+        memberRequest('POST', `/api/tournaments/${tDraftId}/reset-results`, {
+          confirmTournamentName: 'Mein Turnier',
+        }),
     },
     {
       label: 'PATCH /:id/fields (Spielfeld-Konfiguration)',
-      req: () => memberRequest('PATCH', `/api/tournaments/${tDraftId}/fields`, { fields: [{ name: 'Platte 1', order: 0 }] }),
+      req: () =>
+        memberRequest('PATCH', `/api/tournaments/${tDraftId}/fields`, {
+          fields: [{ name: 'Platte 1', order: 0 }],
+        }),
     },
     {
       label: 'POST /:id/generate (Spielplan generieren)',
-      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/generate`, {
-        numGroups: 2, groupSize: 4, mode: 'groups_ko', teams: [],
-      }),
+      req: () =>
+        memberRequest('POST', `/api/tournaments/${tDraftId}/generate`, {
+          numGroups: 2,
+          groupSize: 4,
+          mode: 'groups_ko',
+          teams: [],
+        }),
     },
     {
       label: 'POST /:id/reschedule (Zeitplan neu terminieren)',
@@ -255,9 +286,11 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     },
     {
       label: 'POST /:id/matches/:mid/result (Ergebnis eintragen)',
-      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/matches/${matchId}/result`, {
-        scoreHome: 3, scoreAway: 1,
-      }),
+      req: () =>
+        memberRequest('POST', `/api/tournaments/${tDraftId}/matches/${matchId}/result`, {
+          scoreHome: 3,
+          scoreAway: 1,
+        }),
     },
     // Etappe B.8: drei neue Lebenszyklus-Routes.
     {
@@ -270,7 +303,8 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     },
     {
       label: 'POST /:id/shift-open-matches (Offene Spiele verschieben)',
-      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/shift-open-matches`, { minutes: 20 }),
+      req: () =>
+        memberRequest('POST', `/api/tournaments/${tDraftId}/shift-open-matches`, { minutes: 20 }),
     },
     {
       label: 'POST /:id/balance-shuffle-groups (Zufällig verteilen, Größen-Konstanz)',
@@ -278,9 +312,10 @@ describe('Audit: jede Turnier-Schreib-Route lehnt Members mit 403 ab', () => {
     },
     {
       label: 'POST /:id/groups/swaps (Paar-Tausch, Etappe B.8.1)',
-      req: () => memberRequest('POST', `/api/tournaments/${tDraftId}/groups/swaps`, {
-        swaps: [['team-a', 'team-b']],
-      }),
+      req: () =>
+        memberRequest('POST', `/api/tournaments/${tDraftId}/groups/swaps`, {
+          swaps: [['team-a', 'team-b']],
+        }),
     },
     {
       label: 'POST /:id/logo (Logo-Upload)',

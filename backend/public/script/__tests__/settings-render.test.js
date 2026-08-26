@@ -64,9 +64,9 @@ describe('renderEinstellungen', () => {
       expect(i, name + ' fehlt ganz').toBeGreaterThan(-1);
     }
     for (let k = 1; k < orte.length; k++) {
-      expect(
-        orte[k][1], orte[k][0] + ' steht vor ' + orte[k - 1][0],
-      ).toBeGreaterThan(orte[k - 1][1]);
+      expect(orte[k][1], orte[k][0] + ' steht vor ' + orte[k - 1][0]).toBeGreaterThan(
+        orte[k - 1][1]
+      );
     }
   });
 
@@ -144,7 +144,14 @@ describe('renderEinstellungen', () => {
     // Etappe B.8 Spielfeld-Lock: editable in draft / generated / group_stage,
     // erst in finished read-only. Vorher (B.7) war die Regel `status !== 'draft'`,
     // das sperrte die Spielfelder fälschlich direkt nach Generate.
-    const tRunning = { ...tDraft, tournament: { ...tDraft.tournament, status: 'group_stage', startedAt: new Date().toISOString() } };
+    const tRunning = {
+      ...tDraft,
+      tournament: {
+        ...tDraft.tournament,
+        status: 'group_stage',
+        startedAt: new Date().toISOString(),
+      },
+    };
     const htmlRunning = renderEinstellungen(tRunning, { isAdmin: true, finishedCount: 0 });
     expect(htmlRunning).not.toContain('Spielfelder sind nach der Generierung gesperrt');
 
@@ -202,7 +209,11 @@ describe('renderEinstellungen', () => {
     // rendert keinen Zufällig-Button (oder zumindest keinen Save-Button).
     const tRunning = {
       ...tDraft,
-      tournament: { ...tDraft.tournament, status: 'group_stage', startedAt: new Date().toISOString() },
+      tournament: {
+        ...tDraft.tournament,
+        status: 'group_stage',
+        startedAt: new Date().toISOString(),
+      },
     };
     const html = renderEinstellungen(tRunning, { isAdmin: true, finishedCount: 0 });
     // Save ist garantiert raus.
@@ -270,7 +281,8 @@ describe('renderEinstellungen', () => {
 describe('renderEinstellungen — Statuskarte', () => {
   const mitSpielen = (n, fertig, extra = {}) => ({
     tournament: { id: 't1', name: 'Test', status: 'generated', ...extra },
-    teams: [], groups: [],
+    teams: [],
+    groups: [],
     matches: Array.from({ length: n }, (_, i) => ({ id: 'm' + i, isFinished: i < fertig })),
   });
 
@@ -299,7 +311,10 @@ describe('renderEinstellungen — Statuskarte', () => {
   it('Entwurf ohne Spiele zeigt KEINE Zahlen', () => {
     // Drei Nullen sind eine Statistik ueber nichts und sehen aus wie ein
     // Fehler. Lieber nur die Kopfzeile.
-    const html = renderEinstellungen(mitSpielen(0, 0, { status: 'draft' }), { isAdmin: true, finishedCount: 0 });
+    const html = renderEinstellungen(mitSpielen(0, 0, { status: 'draft' }), {
+      isAdmin: true,
+      finishedCount: 0,
+    });
     expect(html).not.toContain('t-status-card-nums');
   });
 
@@ -328,7 +343,13 @@ describe('renderEinstellungen — Statuskarte', () => {
   });
 
   it('Gespielt plus Offen ergibt immer die Gesamtzahl', () => {
-    for (const [n, f] of [[0, 0], [1, 0], [1, 1], [18, 10], [7, 7]]) {
+    for (const [n, f] of [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [18, 10],
+      [7, 7],
+    ]) {
       const t = mitSpielen(n, f, { startedAt: '2026-04-18T13:00:00.000Z' });
       const html = renderEinstellungen(t, { isAdmin: true, finishedCount: f });
       if (n === 0) continue;
@@ -363,7 +384,7 @@ describe('renderEinstellungen — Spielbetrieb', () => {
   it('zeigt einen Stepper fuer die Pause mit dem gespeicherten Wert', () => {
     const html = renderEinstellungen(
       laufend({ matchDurationMinutes: 20, pauseAfterMatches: 5, parallelFields: 2 }),
-      { isAdmin: true, finishedCount: 0 },
+      { isAdmin: true, finishedCount: 0 }
     );
     expect(html).toContain('data-reschedule-pause');
     const m = html.match(/data-reschedule-pause value="(\d+)"/);

@@ -43,11 +43,13 @@ describe('validateConfigPatch — Smoke', () => {
 
 describe('validateConfigPatch — Whitelist', () => {
   it('Unbekannte Schlüssel werden verworfen, bekannte übernommen', () => {
-    const r = ok(validateConfigPatch({
-      pointsPerWin: 5,
-      totallyUnknown: 'value',
-      anotherJunk: { nested: true },
-    }));
+    const r = ok(
+      validateConfigPatch({
+        pointsPerWin: 5,
+        totallyUnknown: 'value',
+        anotherJunk: { nested: true },
+      })
+    );
     expect(r.pointsPerWin).toBe(5);
     expect('totallyUnknown' in r).toBe(false);
     expect('anotherJunk' in r).toBe(false);
@@ -93,31 +95,39 @@ describe('validateConfigPatch — Punkte', () => {
 
 describe('validateConfigPatch — Tiebreaker', () => {
   it('Volle Liste gültig', () => {
-    const r = ok(validateConfigPatch({
-      tiebreakers: ['points', 'goalDiff', 'headToHead'],
-    }));
+    const r = ok(
+      validateConfigPatch({
+        tiebreakers: ['points', 'goalDiff', 'headToHead'],
+      })
+    );
     expect(r.tiebreakers).toEqual(['points', 'goalDiff', 'headToHead']);
   });
 
   it('Unbekanntes Kriterium abgelehnt', () => {
-    const r = fail(validateConfigPatch({
-      tiebreakers: ['points', 'goalDiff', 'geheimesKriterium'],
-    }));
+    const r = fail(
+      validateConfigPatch({
+        tiebreakers: ['points', 'goalDiff', 'geheimesKriterium'],
+      })
+    );
     expect(r.field).toBe('tiebreakers');
     expect(r.message).toMatch(/geheimesKriterium/);
   });
 
   it('goalsAgainst ist erlaubt (Spec §5.4: „wenigste Gegentore")', () => {
-    const r = ok(validateConfigPatch({
-      tiebreakers: ['points', 'goalDiff', 'goalsAgainst'],
-    }));
+    const r = ok(
+      validateConfigPatch({
+        tiebreakers: ['points', 'goalDiff', 'goalsAgainst'],
+      })
+    );
     expect(r.tiebreakers).toContain('goalsAgainst');
   });
 
   it('lottery ist KEIN Tiebreaker-Kriterium (Losentscheid gehört ins UI, §13.7)', () => {
-    const r = fail(validateConfigPatch({
-      tiebreakers: ['points', 'lottery'],
-    }));
+    const r = fail(
+      validateConfigPatch({
+        tiebreakers: ['points', 'lottery'],
+      })
+    );
     expect(r.field).toBe('tiebreakers');
     expect(r.message).toMatch(/lottery/);
   });
@@ -127,9 +137,11 @@ describe('validateConfigPatch — Tiebreaker', () => {
   });
 
   it('Duplikate abgelehnt', () => {
-    const r = fail(validateConfigPatch({
-      tiebreakers: ['points', 'goalDiff', 'points'],
-    }));
+    const r = fail(
+      validateConfigPatch({
+        tiebreakers: ['points', 'goalDiff', 'points'],
+      })
+    );
     expect(r.field).toBe('tiebreakers');
     expect(r.message).toMatch(/doppelt/);
   });
@@ -212,9 +224,11 @@ describe('validateConfigPatch — schedule', () => {
   });
 
   it('Unbekannte schedule-Felder werden verworfen', () => {
-    const r = ok(validateConfigPatch({
-      schedule: { parallelFields: 2, totallyUnknown: 'x' },
-    }));
+    const r = ok(
+      validateConfigPatch({
+        schedule: { parallelFields: 2, totallyUnknown: 'x' },
+      })
+    );
     expect(r.schedule.parallelFields).toBe(2);
     expect('totallyUnknown' in r.schedule).toBe(false);
   });

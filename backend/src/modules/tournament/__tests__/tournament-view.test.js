@@ -7,11 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  prepareTournamentView,
-  sportScoreLabel,
-  sportScoreShort,
-} from '../access/tournament.js';
+import { prepareTournamentView, sportScoreLabel, sportScoreShort } from '../access/tournament.js';
 
 function rawTournament(overrides = {}) {
   return {
@@ -78,9 +74,11 @@ describe('prepareTournamentView — Grunddaten', () => {
   });
 
   it('tableLabels wird als Array durchgereicht', () => {
-    const v = prepareTournamentView(rawTournament({
-      tableLabels: ['Platte 1', 'Platte 2'],
-    }));
+    const v = prepareTournamentView(
+      rawTournament({
+        tableLabels: ['Platte 1', 'Platte 2'],
+      })
+    );
     expect(v.tableLabels).toEqual(['Platte 1', 'Platte 2']);
   });
 
@@ -90,9 +88,11 @@ describe('prepareTournamentView — Grunddaten', () => {
   });
 
   it('tableLabels ungültig (kein Array) → null', () => {
-    const v = prepareTournamentView(rawTournament({
-      tableLabels: 'Platte 1',
-    }));
+    const v = prepareTournamentView(
+      rawTournament({
+        tableLabels: 'Platte 1',
+      })
+    );
     expect(v.tableLabels).toBe(null);
   });
 });

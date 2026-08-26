@@ -48,7 +48,7 @@ const helferQuelle = `${schneide('runGuardedAction')}\n${schneide('wireGuardedCl
 // eslint-disable-next-line no-new-func
 const ladeHelfer = new Function(
   'console',
-  `${helferQuelle}\nreturn { runGuardedAction, wireGuardedClick };`,
+  `${helferQuelle}\nreturn { runGuardedAction, wireGuardedClick };`
 );
 const { runGuardedAction, wireGuardedClick } = ladeHelfer({ error() {} });
 
@@ -59,10 +59,18 @@ function fakeKnopf({ disabled = false } = {}) {
     dataset: {},
     disabled,
     attrs: {},
-    setAttribute(k, v) { this.attrs[k] = v; },
-    removeAttribute(k) { delete this.attrs[k]; },
-    addEventListener(typ, fn) { if (typ === 'click') listener.push(fn); },
-    klick() { for (const fn of listener) fn({ type: 'click' }); },
+    setAttribute(k, v) {
+      this.attrs[k] = v;
+    },
+    removeAttribute(k) {
+      delete this.attrs[k];
+    },
+    addEventListener(typ, fn) {
+      if (typ === 'click') listener.push(fn);
+    },
+    klick() {
+      for (const fn of listener) fn({ type: 'click' });
+    },
   };
 }
 
@@ -76,7 +84,9 @@ describe('runGuardedAction: der zweite Klick faellt auf den Boden', () => {
     let loesen;
     const handler = async () => {
       laeuft += 1;
-      await new Promise((r) => { loesen = r; });
+      await new Promise((r) => {
+        loesen = r;
+      });
       fertig += 1;
     };
     const a = runGuardedAction(btn, handler);
@@ -92,7 +102,13 @@ describe('runGuardedAction: der zweite Klick faellt auf den Boden', () => {
   it('sperrt den Knopf waehrend des Laufs und markiert ihn als beschaeftigt', async () => {
     const btn = fakeKnopf();
     let loesen;
-    const lauf = runGuardedAction(btn, () => new Promise((r) => { loesen = r; }));
+    const lauf = runGuardedAction(
+      btn,
+      () =>
+        new Promise((r) => {
+          loesen = r;
+        })
+    );
     await spaeter();
     expect(btn.disabled).toBe(true);
     expect(btn.dataset.busy).toBe('1');
@@ -105,7 +121,11 @@ describe('runGuardedAction: der zweite Klick faellt auf den Boden', () => {
 
   it('gibt den Knopf auch frei, wenn der Handler wirft', async () => {
     const btn = fakeKnopf();
-    await expect(runGuardedAction(btn, async () => { throw new Error('409'); })).rejects.toThrow('409');
+    await expect(
+      runGuardedAction(btn, async () => {
+        throw new Error('409');
+      })
+    ).rejects.toThrow('409');
     expect(btn.disabled).toBe(false);
     expect(btn.dataset.busy).toBeUndefined();
   });
@@ -120,15 +140,21 @@ describe('runGuardedAction: der zweite Klick faellt auf den Boden', () => {
 
   it('ohne Knopf (delegierter Fall ohne Treffer) laeuft der Handler trotzdem', async () => {
     let n = 0;
-    await runGuardedAction(null, async () => { n += 1; });
+    await runGuardedAction(null, async () => {
+      n += 1;
+    });
     expect(n).toBe(1);
   });
 
   it('nach dem Lauf ist der Knopf wieder klickbar — die Sperre ist keine Einbahnstrasse', async () => {
     const btn = fakeKnopf();
     let n = 0;
-    await runGuardedAction(btn, async () => { n += 1; });
-    await runGuardedAction(btn, async () => { n += 1; });
+    await runGuardedAction(btn, async () => {
+      n += 1;
+    });
+    await runGuardedAction(btn, async () => {
+      n += 1;
+    });
     expect(n).toBe(2);
   });
 });
@@ -138,7 +164,12 @@ describe('wireGuardedClick: derselbe Schutz am Listener', () => {
     const btn = fakeKnopf();
     let n = 0;
     let loesen;
-    wireGuardedClick(btn, async () => { n += 1; await new Promise((r) => { loesen = r; }); });
+    wireGuardedClick(btn, async () => {
+      n += 1;
+      await new Promise((r) => {
+        loesen = r;
+      });
+    });
     btn.klick();
     btn.klick();
     await spaeter();
@@ -151,7 +182,9 @@ describe('wireGuardedClick: derselbe Schutz am Listener', () => {
     const btn = fakeKnopf();
     const fehler = [];
     const { wireGuardedClick: wgc } = ladeHelfer({ error: (...a) => fehler.push(a) });
-    wgc(btn, async () => { throw new Error('kaputt'); });
+    wgc(btn, async () => {
+      throw new Error('kaputt');
+    });
     btn.klick();
     await spaeter();
     expect(fehler).toHaveLength(1);
@@ -190,8 +223,10 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
       const i = zeilen.findIndex((l) => l.includes(`querySelector('[data-action="${action}"]')`));
       expect(i, `Verdrahtung fuer ${action} nicht gefunden`).toBeGreaterThan(-1);
       const fenster = zeilen.slice(i, i + 6).join('\n');
-      expect(fenster, `${action} (main.js:${i + 1}) haengt noch an addEventListener statt an wireGuardedClick`)
-        .toContain(`wireGuardedClick(${variable},`);
+      expect(
+        fenster,
+        `${action} (main.js:${i + 1}) haengt noch an addEventListener statt an wireGuardedClick`
+      ).toContain(`wireGuardedClick(${variable},`);
       expect(fenster).not.toContain(`${variable}.addEventListener('click'`);
     });
   }
@@ -214,7 +249,6 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
     return koerper.includes(`${variable}.disabled = true;`);
   };
 
-
   it('kein mutierender Knopf im Einstellungen-Tab haengt ungeschuetzt an addEventListener', () => {
     // Gegenprobe zur Liste oben: wir suchen das ALTE Muster im Bereich
     // von wireEinstellungen. Findet sich dort ein
@@ -224,7 +258,10 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
     expect(start).toBeGreaterThan(-1);
     let ende = zeilen.length;
     for (let k = start + 1; k < zeilen.length; k++) {
-      if (/^function |^async function /.test(zeilen[k])) { ende = k; break; }
+      if (/^function |^async function /.test(zeilen[k])) {
+        ende = k;
+        break;
+      }
     }
     const durchgerutscht = [];
     for (let k = start; k < ende; k++) {
@@ -233,6 +270,8 @@ describe('Abdeckung: jede mutierende Aktion haengt am Helfer', () => {
       if (hatEigeneSperre(m[1], k)) continue;
       durchgerutscht.push(`main.js:${k + 1}  ${zeilen[k].trim()}`);
     }
-    expect(durchgerutscht, 'ungeschuetzte Klick-Handler:\n' + durchgerutscht.join('\n')).toEqual([]);
+    expect(durchgerutscht, 'ungeschuetzte Klick-Handler:\n' + durchgerutscht.join('\n')).toEqual(
+      []
+    );
   });
 });

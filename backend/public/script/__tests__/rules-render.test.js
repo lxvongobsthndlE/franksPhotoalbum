@@ -34,9 +34,7 @@ describe('renderRulesParagraphs', () => {
   });
 
   it('Mischung: Absätze UND Zeilenumbrüche', () => {
-    const html = renderRulesParagraphs(
-      'Regel 1\nFortsetzung\n\nRegel 2\n\nRegel 3',
-    );
+    const html = renderRulesParagraphs('Regel 1\nFortsetzung\n\nRegel 2\n\nRegel 3');
     expect(html).toContain('<p>Regel 1<br>Fortsetzung</p>');
     expect(html).toContain('<p>Regel 2</p>');
     expect(html).toContain('<p>Regel 3</p>');

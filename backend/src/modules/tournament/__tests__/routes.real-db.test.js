@@ -57,9 +57,7 @@ const hasDb = !!TEST_DB_URL;
 const suite = hasDb ? describe : describe.skip;
 
 if (!hasDb) {
-  console.warn(
-    '[routes.real-db-test] DATABASE_URL_TEST nicht gesetzt — Suite wird geskippt.'
-  );
+  console.warn('[routes.real-db-test] DATABASE_URL_TEST nicht gesetzt — Suite wird geskippt.');
 }
 
 let prisma;
@@ -193,9 +191,9 @@ suite('Real-DB: POST /api/tournaments/:id/matches/:matchId/result', () => {
         where: { id: 'irrelevant-id' }, // würde 404 werfen — aber wir wollen den "Unknown argument"-Fehler davor
         data: {
           scoreHome: 2,
-          winnerTeamId: 'team-x',     // Schema-Geist!
-          isDraw: false,              // Schema-Geist!
-          completedAt: new Date(),    // Schema-Geist!
+          winnerTeamId: 'team-x', // Schema-Geist!
+          isDraw: false, // Schema-Geist!
+          completedAt: new Date(), // Schema-Geist!
         },
       });
     } catch (err) {
@@ -207,7 +205,9 @@ suite('Real-DB: POST /api/tournaments/:id/matches/:matchId/result', () => {
     // Fehler IST — nicht den exakten Code, weil der sich zwischen
     // Prisma-Versionen unterscheidet.
     const msg = String(threw?.message || threw);
-    expect(msg.toLowerCase()).toMatch(/winnerteamid|isdraw|completedat|unknown argument|unknown field/);
+    expect(msg.toLowerCase()).toMatch(
+      /winnerteamid|isdraw|completedat|unknown argument|unknown field/
+    );
   });
 
   // ─────────────────────────────────────────────────────────────────

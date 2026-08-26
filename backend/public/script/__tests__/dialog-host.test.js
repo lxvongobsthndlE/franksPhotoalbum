@@ -101,16 +101,16 @@ describe('Enter speichert', () => {
   });
 
   it('Shift+Enter bleibt frei', () => {
-    expect(
-      isDialogSubmitKey({ key: 'Enter', shiftKey: true, target: { tagName: 'INPUT' } }),
-    ).toBe(false);
+    expect(isDialogSubmitKey({ key: 'Enter', shiftKey: true, target: { tagName: 'INPUT' } })).toBe(
+      false
+    );
   });
 
   it('Strg/Alt/Meta+Enter speichern nicht', () => {
     for (const mod of ['ctrlKey', 'altKey', 'metaKey']) {
-      expect(
-        isDialogSubmitKey({ key: 'Enter', [mod]: true, target: { tagName: 'INPUT' } }),
-      ).toBe(false);
+      expect(isDialogSubmitKey({ key: 'Enter', [mod]: true, target: { tagName: 'INPUT' } })).toBe(
+        false
+      );
     }
   });
 
@@ -182,17 +182,17 @@ describe('Fokus-Rückkehr zum Auslöser', () => {
 describe('Alle drei body-Dialoge erben die Turnier-Tokens', () => {
   it('Ergebnis-Dialog (main.js) nutzt DIALOG_HOST_CLASS', () => {
     expect(mainJs).toMatch(
-      /dlg\.id = 'result-entry-modal';[\s\S]{0,200}dlg\.className = `\$\{DIALOG_HOST_CLASS\}/,
+      /dlg\.id = 'result-entry-modal';[\s\S]{0,200}dlg\.className = `\$\{DIALOG_HOST_CLASS\}/
     );
     // Kein handgeschriebenes 'dlg-bg' mehr an dieser Stelle.
     expect(mainJs).not.toMatch(
-      /dlg\.id = 'result-entry-modal';[\s\S]{0,200}dlg\.className = 'dlg-bg';/,
+      /dlg\.id = 'result-entry-modal';[\s\S]{0,200}dlg\.className = 'dlg-bg';/
     );
   });
 
   it('Lösch-Bestätigung (tournament.js) nutzt DIALOG_TOKEN_CLASSES', () => {
     expect(tournamentJs).toMatch(
-      /backdrop\.className = `t-confirm-backdrop \$\{DIALOG_TOKEN_CLASSES\}`/,
+      /backdrop\.className = `t-confirm-backdrop \$\{DIALOG_TOKEN_CLASSES\}`/
     );
   });
 
@@ -242,7 +242,7 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
 
   it('die Lösch-Bestätigung bekommt einen Radius, obwohl --r3 im Modul fehlt', () => {
     expect(tournamentCss).toMatch(
-      /\.t-dialog-host \.t-confirm-dialog \{ border-radius: var\(--r-card\); \}/,
+      /\.t-dialog-host \.t-confirm-dialog \{\s*border-radius: var\(--r-card\);\s*\}/
     );
   });
 
@@ -258,11 +258,9 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     // bei Knöpfen OHNE eigene Optik. `t-btn` muss in der Ausnahmeliste
     // stehen — weitere Einträge sind erlaubt (2026-08-26: .t-mod-action,
     // .t-mod-tab, .t-chip kamen als Kollision Nr. 7 dazu).
-    const schnitt = tournamentCss.match(
-      /\.t-mod button:where\(:not\(([^)]*)\)\)\s*\{([^}]*)\}/,
-    );
+    const schnitt = tournamentCss.match(/\.t-mod button:where\(:not\(([^)]*)\)\)\s*\{([^}]*)\}/);
     expect(schnitt, 'Der geschnittene Reset fehlt ganz').toBeTruthy();
-    expect(schnitt[1]).toContain('[class*="t-btn"]');
+    expect(schnitt[1]).toMatch(/\[class\*=['"]t-btn['"]\]/);
 
     // Die eigentliche Gefahr dieser Ausnahmeliste: wer eine Komponente
     // austrägt, nimmt ihr auch `font-family: inherit` weg. Ohne eigene
@@ -273,14 +271,12 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     if (/font-family/.test(schnitt[2])) {
       const ausnahmen = [...schnitt[1].matchAll(/\.([a-z0-9-]+)/g)].map((m) => m[1]);
       for (const klasse of ausnahmen) {
-        const regel = tournamentCss.match(
-          new RegExp('^\\.' + klasse + ' \\{[^}]*\\}', 'm'),
-        );
+        const regel = tournamentCss.match(new RegExp('^\\.' + klasse + ' \\{[^}]*\\}', 'm'));
         expect(regel, `.${klasse} ist ausgetragen, hat aber gar keine Regel`).toBeTruthy();
         expect(
           regel[0],
           `.${klasse} ist aus dem Reset ausgetragen, führt aber keine eigene font-family — ` +
-            'sie fällt damit auf die Browser-Schrift zurück.',
+            'sie fällt damit auf die Browser-Schrift zurück.'
         ).toMatch(/font-family:/);
       }
     }
@@ -301,8 +297,7 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
       const re = new RegExp(`\.t-btn--${variant}:hover \{[^}]*\}`, 'm');
       const block = tournamentCss.match(re);
       expect(block, `.t-btn--${variant}:hover fehlt`).toBeTruthy();
-      expect(block[0], `.t-btn--${variant}:hover setzt kein background`)
-        .toMatch(/background:/);
+      expect(block[0], `.t-btn--${variant}:hover setzt kein background`).toMatch(/background:/);
     }
   });
 
@@ -333,7 +328,7 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     // `[data-theme='dark']` im Fließtext und läge sonst davor.
     const hellAb = 0;
     const systemAb = tokensCss.search(/^@media \(prefers-color-scheme: dark\)/m);
-    const attributAb = tokensCss.search(/^\[data-theme='dark'\] /m);
+    const attributAb = tokensCss.search(/^\[data-theme='dark'\][\s,]/m);
     expect(systemAb).toBeGreaterThan(hellAb);
     expect(attributAb).toBeGreaterThan(systemAb);
     const bloecke = {
@@ -351,6 +346,6 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
   it('der Bottom-Sheet gilt nur für den Ergebnis-Dialog, nicht für jede Bestätigung', () => {
     expect(tournamentCss).toMatch(/\.t-dialog-host--sheet \{\s*align-items: flex-end/);
     // Keine unbedingte flex-end-Regel auf allen Hosts.
-    expect(tournamentCss).not.toMatch(/^\s*\.t-dialog-host \{ align-items: flex-end/m);
+    expect(tournamentCss).not.toMatch(/^\s*\.t-dialog-host \{\s*align-items: flex-end/m);
   });
 });

@@ -32,11 +32,27 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
     $transaction: vi.fn(async (cb) => {
       return typeof cb === 'function' ? cb(prisma) : cb;
     }),
@@ -75,16 +91,28 @@ function baseStubs(prisma) {
   prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
     if (where.id === tDraftId) {
       return {
-        id: tDraftId, groupId: gId, status: 'draft', isPublic: false,
-        publicToken: null, publicRevokedAt: null, logoUrl: null, config: null,
+        id: tDraftId,
+        groupId: gId,
+        status: 'draft',
+        isPublic: false,
+        publicToken: null,
+        publicRevokedAt: null,
+        logoUrl: null,
+        config: null,
         name: 'Mein Turnier',
         group: { id: gId, createdBy: u.admin.id, name: 'G' },
       };
     }
     if (where.id === tLockedId) {
       return {
-        id: tLockedId, groupId: gId, status: 'group_stage', isPublic: false,
-        publicToken: null, publicRevokedAt: null, logoUrl: null, config: null,
+        id: tLockedId,
+        groupId: gId,
+        status: 'group_stage',
+        isPublic: false,
+        publicToken: null,
+        publicRevokedAt: null,
+        logoUrl: null,
+        config: null,
         // Etappe B.8: startedAt ist der Lock-Trigger. „LÄUFT" =
         // startedAt gesetzt + status != 'finished'.
         startedAt: new Date('2026-08-20T10:00:00Z'),

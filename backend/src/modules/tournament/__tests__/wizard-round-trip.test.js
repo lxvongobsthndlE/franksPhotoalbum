@@ -463,9 +463,18 @@ describe('Wizard → DB → DTO Round-Trip (12 Teams, alle Optionen)', () => {
     expect(body.teams).toHaveLength(12);
     // Platzhalternamen sind gültige Namen — keine Sonderbehandlung.
     expect(body.teams.map((t) => t.name).sort()).toEqual([
-      'Team 1', 'Team 10', 'Team 11', 'Team 12',
-      'Team 2', 'Team 3', 'Team 4', 'Team 5',
-      'Team 6', 'Team 7', 'Team 8', 'Team 9',
+      'Team 1',
+      'Team 10',
+      'Team 11',
+      'Team 12',
+      'Team 2',
+      'Team 3',
+      'Team 4',
+      'Team 5',
+      'Team 6',
+      'Team 7',
+      'Team 8',
+      'Team 9',
     ]);
   });
 
@@ -488,15 +497,16 @@ describe('Wizard → DB → DTO Round-Trip (12 Teams, alle Optionen)', () => {
     const updateArgs = prisma.tournament.update.mock.calls[0][0];
     expect(updateArgs.data.location).toBe('Vereinsheim');
     expect(updateArgs.data.sport).toBe('becher');
-    expect(updateArgs.data.tableLabels).toEqual([
-      'Theke', 'DJ-Pult', 'Ecke-links', 'Ecke-rechts',
-    ]);
+    expect(updateArgs.data.tableLabels).toEqual(['Theke', 'DJ-Pult', 'Ecke-links', 'Ecke-rechts']);
     expect(updateArgs.data.config.distribution).toBe('snake');
     expect(updateArgs.data.config.pointsPerWin).toBe(2);
     expect(updateArgs.data.config.pointsPerDraw).toBe(1);
     expect(updateArgs.data.config.pointsPerLoss).toBe(0);
     expect(updateArgs.data.config.tiebreakers).toEqual([
-      'points', 'goalDiff', 'headToHead', 'wins',
+      'points',
+      'goalDiff',
+      'headToHead',
+      'wins',
     ]);
     expect(updateArgs.data.config.qualifyPerGroup).toBe(2);
     expect(updateArgs.data.config.bestThirds).toBe(2);
@@ -594,9 +604,18 @@ describe('Wizard → DB → DTO Round-Trip (12 Teams, alle Optionen)', () => {
     expect(dto.teams).toHaveLength(12);
     const teamNames = dto.teams.map((t) => t.name).sort();
     expect(teamNames).toEqual([
-      'Team 1', 'Team 10', 'Team 11', 'Team 12',
-      'Team 2', 'Team 3', 'Team 4', 'Team 5',
-      'Team 6', 'Team 7', 'Team 8', 'Team 9',
+      'Team 1',
+      'Team 10',
+      'Team 11',
+      'Team 12',
+      'Team 2',
+      'Team 3',
+      'Team 4',
+      'Team 5',
+      'Team 6',
+      'Team 7',
+      'Team 8',
+      'Team 9',
     ]);
     // Jedes Team hat eine ID bekommen (sonst könnten wir später nicht löschen).
     for (const t of dto.teams) {
@@ -667,9 +686,7 @@ describe('Wizard → DB → DTO Round-Trip (12 Teams, alle Optionen)', () => {
     // PATCH muss mode an Prisma weitergegeben haben — sonst hat der
     // Server das Feld verschluckt und der Header bleibt falsch.
     const lastUpdate =
-      prisma.tournament.update.mock.calls[
-        prisma.tournament.update.mock.calls.length - 1
-      ][0];
+      prisma.tournament.update.mock.calls[prisma.tournament.update.mock.calls.length - 1][0];
     expect(lastUpdate.data.mode).toBe('ko_only');
 
     // DTO nach /generate enthält den gewechselten Modus.
@@ -717,9 +734,7 @@ describe('Wizard → DB → DTO Round-Trip (12 Teams, alle Optionen)', () => {
     expect(res.statusCode).toBe(200);
 
     const lastUpdate =
-      prisma.tournament.update.mock.calls[
-        prisma.tournament.update.mock.calls.length - 1
-      ][0];
+      prisma.tournament.update.mock.calls[prisma.tournament.update.mock.calls.length - 1][0];
     expect(lastUpdate.data.config.numGroups).toBe(2);
   });
 

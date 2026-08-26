@@ -79,7 +79,12 @@ describe('Renderer-Ebene: isAdmin=false darf KEIN mutierendes data-action enthal
     const all = ['spielplan', 'gruppen', 'baum', 'teams', 'regeln', 'drucken', 'einstellungen'];
     expect(filterMemberViews({ allViews: all, isAdmin: true })).toEqual(all);
     expect(filterMemberViews({ allViews: all, isAdmin: false })).toEqual([
-      'spielplan', 'gruppen', 'baum', 'teams', 'regeln', 'drucken',
+      'spielplan',
+      'gruppen',
+      'baum',
+      'teams',
+      'regeln',
+      'drucken',
     ]);
   });
 });
@@ -120,10 +125,9 @@ describe('Sanity: isAdmin=true DARF mutierende Actions enthalten', () => {
     const chrome = mainSrc.slice(mainSrc.indexOf('const T_VIEW_CHROME'));
     const regelnBlock = chrome.slice(chrome.indexOf('regeln:'), chrome.indexOf('drucken:'));
     expect(regelnBlock, 'Regelwerk-Aktion fehlt im Modulkopf').toContain('Bearbeiten');
-    expect(
-      regelnBlock,
-      'Die Regelwerk-Aktion im Modulkopf hat KEINE Rollenpruefung mehr',
-    ).toMatch(/wenn:\s*\(t\)\s*=>\s*t\.isAdmin\s*===\s*true/);
+    expect(regelnBlock, 'Die Regelwerk-Aktion im Modulkopf hat KEINE Rollenpruefung mehr').toMatch(
+      /wenn:\s*\(t\)\s*=>\s*t\.isAdmin\s*===\s*true/
+    );
   });
   it('Einstellungen-Section: sichtbar für Admins', () => {
     const html = renderEinstellungenSection({ isAdmin: true });
@@ -218,9 +222,10 @@ describe('Source-Scan: jedes mutierende data-action in main.js / spielplan-helpe
             // wie `data-action="${isAdmin ? 'X' : ''}"`.
             const isAdminRe = /\bisAdmin\b/;
             const gated = isAdminRe.test(ctxNoComments);
-            expect(gated,
+            expect(
+              gated,
               `data-action="${action}" in ${fileName}:${hitIdx + 1} ` +
-              `ist NICHT isAdmin-gegated — Kontext:\n${ctx}`
+                `ist NICHT isAdmin-gegated — Kontext:\n${ctx}`
             ).toBe(true);
           }
         });

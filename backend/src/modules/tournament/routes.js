@@ -111,12 +111,7 @@ export default async function tournamentRoutes(fastify) {
         return reply.code(403).send({ error: 'Kein Mitglied dieser Gruppe' });
       }
 
-      const ctx = await buildTournamentListContext(
-        fastify.prisma,
-        groupId,
-        user,
-        admin
-      );
+      const ctx = await buildTournamentListContext(fastify.prisma, groupId, user, admin);
       return ctx;
     } catch (err) {
       return handleError(reply, err, 'Liste laden fehlgeschlagen');
@@ -126,15 +121,8 @@ export default async function tournamentRoutes(fastify) {
   // GET /api/tournaments/:id — Detail (Pflicht-Test 3+4)
   fastify.get('/:id', async (request, reply) => {
     try {
-      const auth = await requireTournamentRead(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        auth.tournament.id
-      );
+      const auth = await requireTournamentRead(request, fastify.prisma, request.params.id);
+      const view = await buildTournamentViewContext(fastify.prisma, auth.tournament.id);
       return {
         tournament: view.tournament,
         teams: view.teams,
@@ -169,14 +157,8 @@ export default async function tournamentRoutes(fastify) {
   // in dieselben Daten gibt — und dass dieser hier der engere ist.
   fastify.get('/public/:token', async (request, reply) => {
     try {
-      const ctx = await requirePublicTournament(
-        fastify.prisma,
-        request.params.token
-      );
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const ctx = await requirePublicTournament(fastify.prisma, request.params.token);
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
 
       // Tabellen gleich mitliefern. Der angemeldete Client holt sie über
       // eine zweite Route (/:id/standings); für einen Zuschauer am
@@ -217,10 +199,7 @@ export default async function tournamentRoutes(fastify) {
   // gültig war, während die Ansicht schon 404 gibt.
   fastify.get('/public/:token/qr.svg', async (request, reply) => {
     try {
-      const ctx = await requirePublicTournament(
-        fastify.prisma,
-        request.params.token
-      );
+      const ctx = await requirePublicTournament(fastify.prisma, request.params.token);
       const svg = buildQrSvg(buildPublicUrl(request, ctx.tournament.publicToken));
       reply.header('Content-Type', 'image/svg+xml; charset=utf-8');
       // Der QR ändert sich nur, wenn der Token wechselt — und dann ist es
@@ -241,11 +220,7 @@ export default async function tournamentRoutes(fastify) {
   // zurück (idempotent, damit ein Doppelklick keinen Link ungültig macht).
   fastify.post('/:id/public', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       // Entwürfe sind nicht öffentlich — dieselbe Regel wie im Lesepfad,
       // hier nur früher und mit einer Begründung, die der Admin lesen kann.
@@ -259,22 +234,16 @@ export default async function tournamentRoutes(fastify) {
       }
 
       const alreadyLive =
-        ctx.tournament.isPublic &&
-        ctx.tournament.publicToken &&
-        !ctx.tournament.publicRevokedAt;
+        ctx.tournament.isPublic && ctx.tournament.publicToken && !ctx.tournament.publicRevokedAt;
 
-      const token = alreadyLive
-        ? ctx.tournament.publicToken
-        : createPublicToken();
+      const token = alreadyLive ? ctx.tournament.publicToken : createPublicToken();
 
       const updated = await fastify.prisma.tournament.update({
         where: { id: ctx.tournament.id },
         data: {
           isPublic: true,
           publicToken: token,
-          publicEnabledAt: alreadyLive
-            ? ctx.tournament.publicEnabledAt
-            : new Date(),
+          publicEnabledAt: alreadyLive ? ctx.tournament.publicEnabledAt : new Date(),
           publicRevokedAt: null,
         },
         select: { publicToken: true, publicEnabledAt: true },
@@ -303,11 +272,7 @@ export default async function tournamentRoutes(fastify) {
   // von selbst zurücknimmt, ist keiner.
   fastify.delete('/:id/public', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       await fastify.prisma.tournament.update({
         where: { id: ctx.tournament.id },
@@ -338,11 +303,7 @@ export default async function tournamentRoutes(fastify) {
   // werden verworfen, Wertebereiche geprüft, ungültige Werte → 400.
   fastify.patch('/:id', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       const body = request.body ?? {};
       const data = {};
@@ -368,8 +329,7 @@ export default async function tournamentRoutes(fastify) {
         if (!ALLOWED_MODES.includes(body.mode)) {
           return reply.code(400).send({
             error: 'invalid_mode',
-            message:
-              'mode muss einer von ' + ALLOWED_MODES.join(', ') + ' sein.',
+            message: 'mode muss einer von ' + ALLOWED_MODES.join(', ') + ' sein.',
             field: 'mode',
           });
         }
@@ -434,8 +394,7 @@ export default async function tournamentRoutes(fastify) {
             if (typeof label !== 'string' || label.trim() === '') {
               return reply.code(400).send({
                 error: 'invalid_tableLabels',
-                message:
-                  `tableLabels[${i}] muss ein nicht-leerer String sein.`,
+                message: `tableLabels[${i}] muss ein nicht-leerer String sein.`,
                 field: 'tableLabels',
               });
             }
@@ -493,9 +452,7 @@ export default async function tournamentRoutes(fastify) {
           });
         }
         if (Object.keys(v.value).length > 0) {
-          const onlySchedule =
-            Object.keys(v.value).length === 1 &&
-            'schedule' in v.value;
+          const onlySchedule = Object.keys(v.value).length === 1 && 'schedule' in v.value;
           if (!onlySchedule) {
             const finishedCount = await fastify.prisma.match.count({
               where: {
@@ -538,16 +495,12 @@ export default async function tournamentRoutes(fastify) {
         }
       }
 
-      // eslint-disable-next-line no-unused-vars
       const tournament = await fastify.prisma.tournament.update({
         where: { id: ctx.tournament.id },
         data,
       });
       // Konsistente Antwort: DTO statt Roh-Row.
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return { tournament: view.tournament };
     } catch (err) {
       return handleError(reply, err, 'Update fehlgeschlagen');
@@ -567,11 +520,7 @@ export default async function tournamentRoutes(fastify) {
   // noch keine Ergebnisse eingetragen haben kann.
   fastify.delete('/:id', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const finishedCount = await fastify.prisma.match.count({
         where: { tournamentId: ctx.tournament.id, status: 'finished' },
       });
@@ -607,11 +556,7 @@ export default async function tournamentRoutes(fastify) {
   // Body: { names: string[] } — eine Zeile pro Team.
   fastify.post('/:id/teams', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       // Etappe B.8: Teams add ist nur erlaubt in ENTWURF oder BEREIT
       // (startedAt === null). In LÄUFT ist die Struktur eingefroren.
       const teamsLock = canEdit(ctx.tournament, 0, 'teams');
@@ -650,10 +595,7 @@ export default async function tournamentRoutes(fastify) {
           // keine Farbe zuweisen.
           continue;
         }
-        const color = nextPaletteColor([
-          ...existingTeams,
-          ...colorAssignments,
-        ]);
+        const color = nextPaletteColor([...existingTeams, ...colorAssignments]);
         colorAssignments.push({ name, color });
         newTeamsData.push({ tournamentId: ctx.tournament.id, name, color });
       }
@@ -684,11 +626,7 @@ export default async function tournamentRoutes(fastify) {
   // DELETE /api/tournaments/:id/teams/:teamId
   fastify.delete('/:id/teams/:teamId', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       // Etappe B.8: Teams remove ist nur erlaubt in ENTWURF oder BEREIT.
       const teamsLock = canEdit(ctx.tournament, 0, 'teams');
       if (!teamsLock.allowed) {
@@ -724,11 +662,7 @@ export default async function tournamentRoutes(fastify) {
   // Antwort: aktualisierter Team-DTO (id, name, color, seed).
   fastify.patch('/:id/teams/:teamId', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const body = request.body || {};
       const patch = {};
 
@@ -833,11 +767,7 @@ export default async function tournamentRoutes(fastify) {
   // Antwort: { ok: true, teams: TeamDTO[] } mit aktualisierten seeds.
   fastify.patch('/:id/teams/reorder', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const { order } = request.body ?? {};
       if (!Array.isArray(order) || order.length === 0) {
         return reply.code(400).send({
@@ -930,11 +860,7 @@ export default async function tournamentRoutes(fastify) {
   //         unverändert (alle Memberships entweder neu oder alt).
   fastify.patch('/:id/groups', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const body = request.body ?? {};
       const incoming = body.groups;
 
@@ -1039,10 +965,7 @@ export default async function tournamentRoutes(fastify) {
         }
       });
 
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return {
         ok: true,
         groups: view.groups,
@@ -1067,11 +990,7 @@ export default async function tournamentRoutes(fastify) {
   //     inkonsistente Slot-Belegung erzeugen (Bug 6-Lektion).
   fastify.post('/:id/redraw', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       const finishedCount = await fastify.prisma.match.count({
         where: { tournamentId: ctx.tournament.id, status: 'finished' },
@@ -1125,10 +1044,7 @@ export default async function tournamentRoutes(fastify) {
         )
       );
 
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return {
         ok: true,
         teams: view.teams,
@@ -1181,11 +1097,7 @@ export default async function tournamentRoutes(fastify) {
   // Bestätigung mit dem Turniernamen davor (§13.10).
   fastify.post('/:id/balance-shuffle-groups', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       // Lock (Etappe B.8): Gruppen-Mapping ist in LÄUFT eingefroren.
       const finishedCount = await fastify.prisma.match.count({
@@ -1235,9 +1147,7 @@ export default async function tournamentRoutes(fastify) {
       }
 
       // 4) In Chunks der ursprünglichen Gruppengrößen aufschneiden.
-      const groupSizes = groups.map(
-        (g) => memberships.filter((m) => m.groupId === g.id).length
-      );
+      const groupSizes = groups.map((g) => memberships.filter((m) => m.groupId === g.id).length);
       if (groupSizes.reduce((a, b) => a + b, 0) !== shuffled.length) {
         // Defensive — sollte nie passieren (group_.memberships + flat list
         // sind per Konstrukt identisch), aber falls doch: Serverfehler.
@@ -1306,10 +1216,7 @@ export default async function tournamentRoutes(fastify) {
       });
 
       // Antwort: frische View.
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return {
         ok: true,
         shuffledTeamCount: shuffled.length,
@@ -1341,11 +1248,7 @@ export default async function tournamentRoutes(fastify) {
   // Daten).
   fastify.post('/:id/groups/swaps', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       const body = request.body ?? {};
       const swaps = Array.isArray(body.swaps) ? body.swaps : null;
@@ -1482,10 +1385,7 @@ export default async function tournamentRoutes(fastify) {
       });
 
       // Antwort: frische View.
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return {
         ok: true,
         swapCount: swaps.length,
@@ -1514,11 +1414,7 @@ export default async function tournamentRoutes(fastify) {
   // Atomar: $transaction. detectScheduleConflicts aus engine/schedule.js.
   fastify.patch('/:id/schedule', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const body = request.body ?? {};
       const updates = body.updates;
 
@@ -1568,7 +1464,8 @@ export default async function tournamentRoutes(fastify) {
         if (m.stage?.type && m.stage.type !== 'group') {
           return reply.code(409).send({
             error: 'ko_match_not_editable',
-            message: 'KO-Matches werden über die Generierung verwaltet — bitte Turnier neu generieren.',
+            message:
+              'KO-Matches werden über die Generierung verwaltet — bitte Turnier neu generieren.',
             matchId: u.matchId,
           });
         }
@@ -1642,10 +1539,7 @@ export default async function tournamentRoutes(fastify) {
         updates.map((u) => {
           const data = {};
           if (u.scheduledAt !== undefined) {
-            data.scheduledAt =
-              u.scheduledAt === null
-                ? null
-                : new Date(Date.parse(u.scheduledAt));
+            data.scheduledAt = u.scheduledAt === null ? null : new Date(Date.parse(u.scheduledAt));
           }
           if (u.field !== undefined) {
             data.field = u.field;
@@ -1657,10 +1551,7 @@ export default async function tournamentRoutes(fastify) {
         })
       );
 
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return { ok: true, matches: view.matches };
     } catch (err) {
       return handleError(reply, err, 'Spielplan-Edit fehlgeschlagen');
@@ -1677,11 +1568,7 @@ export default async function tournamentRoutes(fastify) {
   // und als „schon abgeschlossen" anzeigen).
   fastify.post('/:id/finish', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       if (ctx.tournament.status === 'finished') {
         return reply.code(409).send({
           error: 'tournament_already_finished',
@@ -1708,11 +1595,7 @@ export default async function tournamentRoutes(fastify) {
   // generieren.
   fastify.post('/:id/reset-results', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const finishedCount = await fastify.prisma.match.count({
         where: { tournamentId: ctx.tournament.id, status: 'finished' },
       });
@@ -1753,10 +1636,7 @@ export default async function tournamentRoutes(fastify) {
         });
       });
 
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return {
         ok: true,
         resetCount: finishedCount,
@@ -1775,11 +1655,7 @@ export default async function tournamentRoutes(fastify) {
   // KO-Matches noch leer sind.
   fastify.post('/:id/fill-ko', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const config = mergeConfig(ctx.tournament.config ?? {});
       // Bug-Fix (2026-08-25): Vorher `config.mode` — `config` ist die
       // Engine-Config-Spalte (JSON, KEIN mode-Feld). mode lebt als
@@ -1818,9 +1694,7 @@ export default async function tournamentRoutes(fastify) {
         });
       }
 
-      const result = await fastify.prisma.$transaction(async (tx) =>
-        fillKoFromQualifiers(tx, ctx)
-      );
+      const result = await fastify.prisma.$transaction(async (tx) => fillKoFromQualifiers(tx, ctx));
       if (!result.filled) {
         return reply.code(409).send({
           error: 'fill_ko_failed',
@@ -1828,10 +1702,7 @@ export default async function tournamentRoutes(fastify) {
           reason: result.reason ?? 'unknown',
         });
       }
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
       return {
         ok: true,
         updatedCount: result.updatedCount,
@@ -1862,11 +1733,7 @@ export default async function tournamentRoutes(fastify) {
   // null gesetzt (Warning).
   fastify.patch('/:id/fields', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const body = request.body ?? {};
       const incoming = body.fields;
 
@@ -1916,7 +1783,12 @@ export default async function tournamentRoutes(fastify) {
           });
         }
         seenNames.add(name);
-        if (typeof f.order !== 'number' || !Number.isInteger(f.order) || f.order < 0 || f.order >= incoming.length) {
+        if (
+          typeof f.order !== 'number' ||
+          !Number.isInteger(f.order) ||
+          f.order < 0 ||
+          f.order >= incoming.length
+        ) {
           return reply.code(400).send({
             error: 'fields_order_invalid',
             message: `Feld "${name}" hat eine ungültige order (0..${incoming.length - 1}).`,
@@ -1995,11 +1867,7 @@ export default async function tournamentRoutes(fastify) {
   // Antwort: DTO via buildTournamentViewContext — keine Roh-Rows.
   fastify.post('/:id/generate', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       // Status 'finished' ist endgültig — auch mit Bestätigung gesperrt.
       if (ctx.tournament.status === 'finished') {
@@ -2038,10 +1906,7 @@ export default async function tournamentRoutes(fastify) {
         // exakte Schreibweise trifft. Ein Vertipper im Namen
         // ("Sommer-Cup 2025" statt "Sommer-Cup 2026") fängt diese
         // Bedingung weiterhin ab.
-        if (
-          normalizeConfirmName(confirmName) !==
-          normalizeConfirmName(ctx.tournament.name)
-        ) {
+        if (normalizeConfirmName(confirmName) !== normalizeConfirmName(ctx.tournament.name)) {
           return reply.code(400).send({
             error: 'confirmation_mismatch',
             message: 'Der eingegebene Name stimmt nicht mit dem Turniernamen überein.',
@@ -2072,18 +1937,13 @@ export default async function tournamentRoutes(fastify) {
       // öffentlich, sondern Admin-only (requireTournamentWrite
       // oben). Trotzdem Validierung, weil ungültige Werte sonst
       // die Engine in einen Fehlerzustand bringen würden.
-      const ALLOWED_MODES_FOR_GENERATE = [
-        'groups_ko', 'groups_only', 'ko_only', 'double_elim',
-      ];
+      const ALLOWED_MODES_FOR_GENERATE = ['groups_ko', 'groups_only', 'ko_only', 'double_elim'];
       let mode = ctx.tournament.mode;
       if (request.body?.mode !== undefined) {
         if (!ALLOWED_MODES_FOR_GENERATE.includes(request.body.mode)) {
           return reply.code(400).send({
             error: 'invalid_mode',
-            message:
-              'mode muss einer von ' +
-              ALLOWED_MODES_FOR_GENERATE.join(', ') +
-              ' sein.',
+            message: 'mode muss einer von ' + ALLOWED_MODES_FOR_GENERATE.join(', ') + ' sein.',
             field: 'mode',
           });
         }
@@ -2103,11 +1963,7 @@ export default async function tournamentRoutes(fastify) {
       });
 
       // Engine-Output in EINER Transaktion persistieren (persist.js).
-      const persistResult = await persistGenerated(
-        fastify.prisma,
-        ctx.tournament.id,
-        gen
-      );
+      const persistResult = await persistGenerated(fastify.prisma, ctx.tournament.id, gen);
 
       // Status auf 'generated' (§1.2: macht das Turnier für Mitglieder
       // sichtbar). Wenn vorher schon 'group_stage' war und wir neu
@@ -2126,10 +1982,7 @@ export default async function tournamentRoutes(fastify) {
       });
 
       // DTO-Antwort statt Roh-Counts.
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
 
       const warnings = [];
       if (hasResults) warnings.push('results_deleted');
@@ -2182,11 +2035,7 @@ export default async function tournamentRoutes(fastify) {
   // und ohne `warnings` (wir verändern nur scheduledAt/field).
   fastify.post('/:id/reschedule', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       // 'finished' ist endgültig.
       if (ctx.tournament.status === 'finished') {
@@ -2223,8 +2072,7 @@ export default async function tournamentRoutes(fastify) {
         const confirmName = request.body?.confirmTournamentName;
         if (
           typeof confirmName !== 'string' ||
-          normalizeConfirmName(confirmName) !==
-            normalizeConfirmName(ctx.tournament.name)
+          normalizeConfirmName(confirmName) !== normalizeConfirmName(ctx.tournament.name)
         ) {
           return reply.code(409).send({
             error: 'results_present',
@@ -2323,10 +2171,7 @@ export default async function tournamentRoutes(fastify) {
       }
 
       // Antwort: frischer View (Renderer soll die neue Liste anzeigen).
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        ctx.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
 
       return reply.send({
         tournament: view.tournament,
@@ -2361,19 +2206,16 @@ export default async function tournamentRoutes(fastify) {
   //   - startedAt !== null → 409 tournament_already_started
   fastify.post('/:id/start', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const startCheck = canStartTournament(ctx.tournament);
       if (!startCheck.allowed) {
         // startedAt hat Vorrang vor status — wenn bereits gestartet,
         // ist es immer "already_started", auch wenn der Status wieder
         // auf "generated" zurückspringen würde.
-        const code = ctx.tournament.startedAt !== null
-          ? 'tournament_already_started'
-          : 'tournament_not_generated';
+        const code =
+          ctx.tournament.startedAt !== null
+            ? 'tournament_already_started'
+            : 'tournament_not_generated';
         return reply.code(409).send({
           error: code,
           message: startCheck.reason,
@@ -2406,11 +2248,7 @@ export default async function tournamentRoutes(fastify) {
   //     mit needsConfirmation + confirmTournamentName (§13.10).
   fastify.post('/:id/revert-to-draft', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const finishedCount = await fastify.prisma.match.count({
         where: { tournamentId: ctx.tournament.id, status: 'finished' },
       });
@@ -2432,9 +2270,10 @@ export default async function tournamentRoutes(fastify) {
         } else {
           // startedAt === null oder status === 'finished' (selten).
           return reply.code(409).send({
-            error: ctx.tournament.status === 'finished'
-              ? 'tournament_finished'
-              : 'tournament_not_started',
+            error:
+              ctx.tournament.status === 'finished'
+                ? 'tournament_finished'
+                : 'tournament_not_started',
             message: revertCheck.reason,
             status: ctx.tournament.status,
           });
@@ -2463,11 +2302,7 @@ export default async function tournamentRoutes(fastify) {
   //   - minutes ungültig → 400 invalid_minutes
   fastify.post('/:id/shift-open-matches', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       if (ctx.tournament.status === 'finished') {
         return reply.code(409).send({
           error: 'tournament_finished',
@@ -2476,12 +2311,7 @@ export default async function tournamentRoutes(fastify) {
         });
       }
       const minutes = Number(request.body?.minutes);
-      if (
-        !Number.isFinite(minutes) ||
-        minutes === 0 ||
-        minutes < -1440 ||
-        minutes > 1440
-      ) {
+      if (!Number.isFinite(minutes) || minutes === 0 || minutes < -1440 || minutes > 1440) {
         return reply.code(400).send({
           error: 'invalid_minutes',
           message: 'minutes muss eine Zahl ungleich 0 sein, im Bereich ±1440 (24 Stunden).',
@@ -2536,11 +2366,7 @@ export default async function tournamentRoutes(fastify) {
   // Body: nichts. Antwort: `{ updatedCount }`.
   fastify.post('/:id/teams/backfill-colors', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       const teams = await fastify.prisma.tournamentTeam.findMany({
         where: { tournamentId: ctx.tournament.id },
@@ -2572,17 +2398,10 @@ export default async function tournamentRoutes(fastify) {
   // GET /api/tournaments/:id/standings
   fastify.get('/:id/standings', async (request, reply) => {
     try {
-      const auth = await requireTournamentRead(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const auth = await requireTournamentRead(request, fastify.prisma, request.params.id);
 
       // Lookups bauen, dann pro Gruppe die Engine rufen.
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        auth.tournament.id
-      );
+      const view = await buildTournamentViewContext(fastify.prisma, auth.tournament.id);
       const config = mergeConfig(auth.tournament.config ?? {});
       const teamsById = new Map(view.teams.map((t) => [t.id, t]));
 
@@ -2591,12 +2410,10 @@ export default async function tournamentRoutes(fastify) {
         // Roh-Matches mit DB-Feldern für Engine holen.
         const rawGroupRows = view._lookups.groupsLookup.get(g.id);
         const rawMatches = rawGroupRows?.matches ?? [];
-        const standings = buildStandingsForGroup(
-          rawMatches,
-          teamIds,
-          config,
-          { computeStandings, applyTiebreaker }
-        );
+        const standings = buildStandingsForGroup(rawMatches, teamIds, config, {
+          computeStandings,
+          applyTiebreaker,
+        });
         // Aufgelöste Teamnamen einsetzen.
         return {
           groupId: g.id,
@@ -2671,10 +2488,8 @@ export default async function tournamentRoutes(fastify) {
       const allMatches = view.matches;
       const koMatches = allMatches.filter((m) => m.isKoMatch);
       const groupMatches = allMatches.filter((m) => m.isGroupMatch);
-      const allGroupsFinished = groupMatches.length > 0
-        && groupMatches.every((m) => m.isFinished);
-      const slotIsEmpty = (slot) =>
-        !slot || slot.kind === 'placeholder' || slot.teamId == null;
+      const allGroupsFinished = groupMatches.length > 0 && groupMatches.every((m) => m.isFinished);
+      const slotIsEmpty = (slot) => !slot || slot.kind === 'placeholder' || slot.teamId == null;
       const bracketHasPlaceholders = koMatches.some(
         (m) => slotIsEmpty(m.home) || slotIsEmpty(m.away)
       );
@@ -2705,15 +2520,8 @@ export default async function tournamentRoutes(fastify) {
   // GET /api/tournaments/:id/schedule — alle Spiele (Gruppe + KO)
   fastify.get('/:id/schedule', async (request, reply) => {
     try {
-      const auth = await requireTournamentRead(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        auth.tournament.id
-      );
+      const auth = await requireTournamentRead(request, fastify.prisma, request.params.id);
+      const view = await buildTournamentViewContext(fastify.prisma, auth.tournament.id);
       return { matches: view.matches };
     } catch (err) {
       return handleError(reply, err, 'Spielplan laden fehlgeschlagen');
@@ -2739,28 +2547,19 @@ export default async function tournamentRoutes(fastify) {
   // Button wurde NIE angezeigt, obwohl die Phase füllbar war.
   fastify.get('/:id/bracket', async (request, reply) => {
     try {
-      const auth = await requireTournamentRead(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
-      const view = await buildTournamentViewContext(
-        fastify.prisma,
-        auth.tournament.id
-      );
+      const auth = await requireTournamentRead(request, fastify.prisma, request.params.id);
+      const view = await buildTournamentViewContext(fastify.prisma, auth.tournament.id);
       const allMatches = view.matches;
       const koMatches = allMatches.filter((m) => m.isKoMatch);
       const groupMatches = allMatches.filter((m) => m.isGroupMatch);
-      const allGroupsFinished = groupMatches.length > 0
-        && groupMatches.every((m) => m.isFinished);
+      const allGroupsFinished = groupMatches.length > 0 && groupMatches.every((m) => m.isFinished);
       // DTO-Shape: teamHome/teamAway sind NICHT direkt im DTO — die
       // Teams leben unter home/away (kind=team vs kind=placeholder).
       // Ein Slot ist "leer", wenn home ODER away fehlt ODER als
       // placeholder markiert ist (dann hat auch kein teamId). Wir
       // prüfen alle drei Fälle, weil das DTO bei teamId=null + placeholder=
       // null ein home/away === null liefert.
-      const slotIsEmpty = (slot) =>
-        !slot || slot.kind === 'placeholder' || slot.teamId == null;
+      const slotIsEmpty = (slot) => !slot || slot.kind === 'placeholder' || slot.teamId == null;
       const bracketHasPlaceholders = koMatches.some(
         (m) => slotIsEmpty(m.home) || slotIsEmpty(m.away)
       );
@@ -2796,11 +2595,7 @@ export default async function tournamentRoutes(fastify) {
     });
 
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
       const { scoreHome, scoreAway } = request.body ?? {};
       if (!Number.isInteger(scoreHome) || !Number.isInteger(scoreAway)) {
         log('validate:fail scores-not-integer', { scoreHome, scoreAway });
@@ -2902,11 +2697,7 @@ export default async function tournamentRoutes(fastify) {
           // Für KO-Propagation brauchen wir den Sieger. Aus den Scores
           // ableiten — NICHT aus der DB lesen.
           const winnerTeamId =
-            scoreHome > scoreAway
-              ? match.teamHome
-              : scoreAway > scoreHome
-                ? match.teamAway
-                : null;
+            scoreHome > scoreAway ? match.teamHome : scoreAway > scoreHome ? match.teamAway : null;
           if (winnerTeamId) {
             // allMatches INNERHALB der Transaktion lesen, damit
             // eventuelle konkurrierende Writes sichtbar sind.
@@ -2974,10 +2765,7 @@ export default async function tournamentRoutes(fastify) {
         // aktualisieren kann, ohne die ganze View neu zu fetchen.
         // (Bug 2026-08-17: vorher waren das nur IDs, Frontend musste
         // openTournamentInstance() neu laden — spürbare Verzögerung.)
-        const view = await buildTournamentViewContext(
-          tx,
-          ctx.tournament.id
-        );
+        const view = await buildTournamentViewContext(tx, ctx.tournament.id);
         updatedDto = view.matches.find((m) => m.id === match.id);
         propagatedDtos = propagated
           .map((id) => view.matches.find((m) => m.id === id))
@@ -3015,8 +2803,7 @@ export default async function tournamentRoutes(fastify) {
               firstMatchup: koFillResult.firstMatchup ?? null,
             }
           : { filled: false, reason: koFillResult?.reason ?? null },
-        bracketWasAlreadyFilled:
-          !koFillFilled && koFillResult?.reason === 'bracket_already_filled',
+        bracketWasAlreadyFilled: !koFillFilled && koFillResult?.reason === 'bracket_already_filled',
       };
     } catch (err) {
       log('error', err?.message || err);
@@ -3043,11 +2830,7 @@ export default async function tournamentRoutes(fastify) {
   // POST /api/tournaments/:id/logo — Multipart-Upload, Admin-only.
   fastify.post('/:id/logo', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       const data = await request.file();
       if (!data) {
@@ -3065,12 +2848,7 @@ export default async function tournamentRoutes(fastify) {
 
       // Vorhandenes Logo ersetzen — wir nutzen einen deterministischen
       // Key, also reicht putObject (überschreibt).
-      await uploadTournamentLogo(
-        buffer,
-        outMime,
-        ctx.tournament.id,
-        'logo'
-      );
+      await uploadTournamentLogo(buffer, outMime, ctx.tournament.id, 'logo');
 
       const logoUrl = `/api/tournaments/${ctx.tournament.id}/logo`;
       await fastify.prisma.tournament.update({
@@ -3087,11 +2865,7 @@ export default async function tournamentRoutes(fastify) {
   // DELETE /api/tournaments/:id/logo — Admin-only. Räumt MinIO + DB.
   fastify.delete('/:id/logo', async (request, reply) => {
     try {
-      const ctx = await requireTournamentWrite(
-        request,
-        fastify.prisma,
-        request.params.id
-      );
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
 
       await deleteTournamentAsset(ctx.tournament.id, 'logo');
       await fastify.prisma.tournament.update({
@@ -3115,7 +2889,13 @@ export default async function tournamentRoutes(fastify) {
     try {
       const tournament = await fastify.prisma.tournament.findUnique({
         where: { id: request.params.id },
-        select: { id: true, status: true, isPublic: true, publicToken: true, publicRevokedAt: true },
+        select: {
+          id: true,
+          status: true,
+          isPublic: true,
+          publicToken: true,
+          publicRevokedAt: true,
+        },
       });
       if (!tournament) {
         return reply.code(404).send({ error: 'Turnier nicht gefunden' });
@@ -3254,8 +3034,7 @@ async function maybeFillKoFromGroupFinish(tx, ctx, justSavedMatch) {
     select: { id: true, teamHome: true, teamAway: true },
   });
   const bracketAlreadyFilled =
-    koMatches.length > 0 &&
-    koMatches.every((m) => m.teamHome && m.teamAway);
+    koMatches.length > 0 && koMatches.every((m) => m.teamHome && m.teamAway);
   if (bracketAlreadyFilled) {
     return { filled: false, reason: 'bracket_already_filled' };
   }
@@ -3322,9 +3101,9 @@ async function fillKoFromQualifiers(tx, ctx) {
   });
   if (groupsRaw.length < 1) return { filled: false, reason: 'no_groups' };
 
-  const sortedGroups = groupsRaw.slice().sort((a, b) =>
-    String(a.key || '').localeCompare(String(b.key || ''))
-  );
+  const sortedGroups = groupsRaw
+    .slice()
+    .sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
   const groupKeys = sortedGroups.map((g) => g.key);
 
   // P3 (2026-08-24): Wir laden Matches MIT der Stage-Relation, damit wir
@@ -3340,14 +3119,12 @@ async function fillKoFromQualifiers(tx, ctx) {
     // `memberships` (Schema-Mapping: group_memberships). Jede Membership
     // hält eine teamId und (per include) das aufgelöste Team-Objekt.
     const memberTeamIds = g.memberships.map((m) => m.teamId);
-    const rawGroupRows = allMatches.filter(
-      (m) => m.groupId === g.id && m.stage?.type === 'group'
-    );
+    const rawGroupRows = allMatches.filter((m) => m.groupId === g.id && m.stage?.type === 'group');
     const standings = computeStandings(memberTeamIds, rawGroupRows, config);
     const { sortedRows } = applyTiebreaker(
       standings.map((r) => ({ ...r, name: teams.find((t) => t.id === r.teamId)?.name })),
       rawGroupRows,
-      config,
+      config
     );
     return sortedRows;
   });
@@ -3377,7 +3154,7 @@ async function fillKoFromQualifiers(tx, ctx) {
     // Schreiben in die DB schreibt. Ohne diesen Fix war die Suche
     // immer leer und updatedCount blieb 0.
     const dbMatch = existingKo.find(
-      (m) => m.round === fresh.round && m.bracketPos === fresh.bracketPos,
+      (m) => m.round === fresh.round && m.bracketPos === fresh.bracketPos
     );
     if (!dbMatch) continue;
     // BUGFIX 2026-08-25: homeSeed, awaySeed, homeGroup und awayGroup sind

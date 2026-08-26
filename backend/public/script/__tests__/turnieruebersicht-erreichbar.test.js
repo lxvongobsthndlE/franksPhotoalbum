@@ -52,9 +52,7 @@ function funktionsRumpf(signatur) {
  *  jemand die Herleitung im Code aufschreibt — genau das ist am 25.08. an
  *  einer anderen Stelle dieses Repos passiert. */
 function nurCode(quelle) {
-  return quelle
-    .split('\n')
-    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+  return quelle.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
 }
 
 describe('Kein Auto-Sprung: die Uebersicht ueberspringt sich nicht selbst', () => {
@@ -75,11 +73,12 @@ describe('Kein Auto-Sprung: die Uebersicht ueberspringt sich nicht selbst', () =
   });
 
   it('loadTournamentInstances oeffnet kein Turnier von sich aus', () => {
-    const ruft = nurCode(funktionsRumpf('async function loadTournamentInstances'))
-      .filter((l) => /openTournamentInstance\s*\(/.test(l));
+    const ruft = nurCode(funktionsRumpf('async function loadTournamentInstances')).filter((l) =>
+      /openTournamentInstance\s*\(/.test(l)
+    );
     expect(
       ruft,
-      'Die Listen-Ladefunktion oeffnet wieder selbst ein Turnier:\n' + ruft.join('\n'),
+      'Die Listen-Ladefunktion oeffnet wieder selbst ein Turnier:\n' + ruft.join('\n')
     ).toEqual([]);
   });
 
@@ -87,11 +86,12 @@ describe('Kein Auto-Sprung: die Uebersicht ueberspringt sich nicht selbst', () =
     // Die Uebersicht ist der Ort, an dem ein Turnier ANGELEGT wird — sie hat
     // eine Aufgabe, die von ihrer Fuellung unabhaengig ist. Eine Ansicht
     // danach zu bemessen, wie voll sie ist, uebersieht, was sie sonst traegt.
-    const verzweigt = nurCode(funktionsRumpf('async function loadTournamentInstances'))
-      .filter((l) => /\.length\s*===\s*1/.test(l));
+    const verzweigt = nurCode(funktionsRumpf('async function loadTournamentInstances')).filter(
+      (l) => /\.length\s*===\s*1/.test(l)
+    );
     expect(
       verzweigt,
-      'Es wird wieder auf „genau ein Turnier" verzweigt:\n' + verzweigt.join('\n'),
+      'Es wird wieder auf „genau ein Turnier" verzweigt:\n' + verzweigt.join('\n')
     ).toEqual([]);
   });
 
@@ -116,7 +116,7 @@ describe('Ausgang aus dem Turnier: Desktop-Seitenleiste', () => {
       const html = renderDetailSidebar({ isAdmin });
       expect(
         findDataActions(html).has('back'),
-        `Seitenleiste ohne Ausgang (isAdmin=${isAdmin}).`,
+        `Seitenleiste ohne Ausgang (isAdmin=${isAdmin}).`
       ).toBe(true);
     }
   });
@@ -144,7 +144,9 @@ describe('Der Erstellen-Weg haengt am Modul, nicht an einer Ansicht', () => {
   });
 
   it('Mitglieder bekommen ihn nicht — POST /api/tournaments antwortet ihnen 403', () => {
-    expect(findDataActions(renderDetailSidebar({ isAdmin: false })).has('new-tournament')).toBe(false);
+    expect(findDataActions(renderDetailSidebar({ isAdmin: false })).has('new-tournament')).toBe(
+      false
+    );
   });
 
   it('das mobile Mehr-Blatt traegt beide Wege — dort ist die Seitenleiste aus', () => {
@@ -156,7 +158,7 @@ describe('Der Erstellen-Weg haengt am Modul, nicht an einer Ansicht', () => {
     expect(sheet).toContain('data-action="back"');
     expect(sheet).toContain('data-action="new-tournament"');
     expect(sheet, 'Der Erstellen-Weg im Sheet ist nicht isAdmin-gegated').toMatch(
-      /isAdmin\s*\?[\s\S]*new-tournament/,
+      /isAdmin\s*\?[\s\S]*new-tournament/
     );
   });
 
@@ -168,7 +170,7 @@ describe('Der Erstellen-Weg haengt am Modul, nicht an einer Ansicht', () => {
     const block = mainSrc.slice(ab, mainSrc.indexOf('openTournamentWizard()', ab) + 30);
     expect(block).toContain('switchToTournamentInstances()');
     expect(block.indexOf('switchToTournamentInstances')).toBeLessThan(
-      block.indexOf('openTournamentWizard'),
+      block.indexOf('openTournamentWizard')
     );
   });
 });

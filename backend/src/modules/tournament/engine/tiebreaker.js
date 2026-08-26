@@ -20,12 +20,12 @@
 import { computeHeadToHeadSubTable } from './standings.js';
 
 const TIEBREAKER_FIELDS = {
-  points:    (row) => row.points ?? 0,
-  goalDiff:  (row) => row.goalDiff ?? 0,
-  goalsFor:  (row) => row.goalsFor ?? 0,
+  points: (row) => row.points ?? 0,
+  goalDiff: (row) => row.goalDiff ?? 0,
+  goalsFor: (row) => row.goalsFor ?? 0,
   goalsAgainst: (row) => -(row.goalsAgainst ?? 0), // weniger ist besser
   headToHead: (row) => row.h2hPoints ?? 0,
-  wins:      (row) => row.won ?? 0,
+  wins: (row) => row.won ?? 0,
 };
 
 /**
@@ -43,7 +43,7 @@ export function applyTiebreaker(standingsRows, finishedMatches, config) {
   // Head-to-Head-Punkte in jede Row injizieren (falls als Tiebreaker gewünscht)
   const h2hRows = computeHeadToHeadSubTable(
     standingsRows.map((r) => r.teamId),
-    finishedMatches,
+    finishedMatches
   );
   const h2hPoints = new Map(h2hRows.map((r) => [r.teamId, r.points]));
 
@@ -59,12 +59,7 @@ export function applyTiebreaker(standingsRows, finishedMatches, config) {
 
   // Iterative Auflösung der Tie-Gruppen per Head-to-Head.
   // maxDepth = Anzahl Tie-Gruppen, die wir per H2H aufzulösen versuchen.
-  const { sortedRows, unresolved } = resolveTieGroups(
-    sorted,
-    order,
-    finishedMatches,
-    maxDepth,
-  );
+  const { sortedRows, unresolved } = resolveTieGroups(sorted, order, finishedMatches, maxDepth);
 
   return { sortedRows, unresolved };
 }
@@ -129,7 +124,7 @@ function resolveTieGroups(sorted, order, finishedMatches, maxDepth) {
     if (order.includes('headToHead')) {
       const subRows = computeHeadToHeadSubTable(
         front.map((r) => r.teamId),
-        finishedMatches,
+        finishedMatches
       );
       const h2hMap = new Map(subRows.map((r) => [r.teamId, r]));
 

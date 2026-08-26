@@ -36,10 +36,7 @@ const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const FRONTEND_DIR = path.resolve(__dirname, '..');
 
-const FILES = [
-  path.join(FRONTEND_DIR, 'tournament.js'),
-  path.join(FRONTEND_DIR, 'main.js'),
-];
+const FILES = [path.join(FRONTEND_DIR, 'tournament.js'), path.join(FRONTEND_DIR, 'main.js')];
 
 // Wir suchen ZEICHEN-SEQUENZEN die darauf hindeuten, dass "Wizard"
 // als USER-SICHTBARER Text (String-Literal oder Template-Literal) oder
@@ -76,7 +73,11 @@ function isClassOrHook(line, match) {
   // Log-Tags
   if (/console\.(warn|log|error|info)\(['"`]\[wizard\]/.test(line)) return true;
   // Code-Identifer (renderWizardView, ensureDraftPromise, etc.)
-  if (/renderWizardView|renderWizardProgress|renderWizardStep|renderWizardFooter|renderWizardPreview|renderWizardForm|renderWizardStep1Grunddaten|renderWizardStep2Teams|renderWizardStep3Modus|renderWizardStep4Qualifikation|renderWizardStep5Zusammenfassung|teardownWizard|wizardMounted|WIZARD_HOST_CLASS|tournament-wizard-modal/.test(line)) {
+  if (
+    /renderWizardView|renderWizardProgress|renderWizardStep|renderWizardFooter|renderWizardPreview|renderWizardForm|renderWizardStep1Grunddaten|renderWizardStep2Teams|renderWizardStep3Modus|renderWizardStep4Qualifikation|renderWizardStep5Zusammenfassung|teardownWizard|wizardMounted|WIZARD_HOST_CLASS|tournament-wizard-modal/.test(
+      line
+    )
+  ) {
     // Aber: dieser Match darf NICHT in einem String-Literal stehen,
     // das User sichtbar wäre. Wir verfeinern unten.
     return false;
@@ -99,7 +100,9 @@ function isInUserVisibleString(line) {
   const before = line.slice(0, wizIdx);
   // Zähle öffnende und schließende Quotes (einfach + doppelt + backtick)
   // vor dem Wizard. Wenn die Anzahl ungerade ist, sind wir IN einem String.
-  let inSingle = false, inDouble = false, inBacktick = false;
+  let inSingle = false,
+    inDouble = false,
+    inBacktick = false;
   for (let i = 0; i < before.length; i++) {
     const c = before[i];
     if (c === "'" && !inDouble && !inBacktick) inSingle = !inSingle;
@@ -136,9 +139,9 @@ describe('Issue 5 — "Wizard" darf nicht in user-sichtbarem Text auftauchen', (
           .join('\n');
         throw new Error(
           `${fileName}: ${violations.length} Stelle(n), an denen "Wizard" ` +
-          `als user-sichtbarer Text vorkommt:\n${sample}\n\n` +
-          `Fix: "Wizard" → "Turnier-Erstellung" (Vorgang) oder ` +
-          `"Turnier erstellen" (Aktion) ersetzen.`,
+            `als user-sichtbarer Text vorkommt:\n${sample}\n\n` +
+            `Fix: "Wizard" → "Turnier-Erstellung" (Vorgang) oder ` +
+            `"Turnier erstellen" (Aktion) ersetzen.`
         );
       }
       expect(violations).toEqual([]);

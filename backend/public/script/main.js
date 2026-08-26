@@ -651,8 +651,8 @@ const ICON_SHRINK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none"
 // Standardgroesse — 300x150 statt 15x15.
 const ICON_MODULE_TOURNAMENT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`;
 
-const ICON_TAB_GAMES   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg>`;                                                                       // list-checks
-const ICON_TAB_GROUPS  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>`;                                                                     // table-2
+const ICON_TAB_GAMES = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg>`; // list-checks
+const ICON_TAB_GROUPS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>`; // table-2
 // ICON_TAB_BRACKET dient doppelt: als Reiter fuer "Der Weg zum Titel"
 // UND als Symbol des Moduls in der Seitenleiste. Dort stand bis zum
 // 26.08. ein Emoji (🏆) — als einziger Eintrag der Leiste, alle anderen
@@ -666,19 +666,19 @@ const ICON_TAB_GROUPS  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 // Nebenwirkung, die den Ausschlag gab: ein SVG nimmt currentColor an und
 // wird im aktiven Zustand orange wie die uebrigen Eintraege. Ein Emoji
 // bleibt immer bunt und ignoriert den Nachtmodus.
-const ICON_TAB_BRACKET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`;                                                                              // git-fork
-const ICON_TAB_MORE    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`;                                                                                                       // more-horizontal
+const ICON_TAB_BRACKET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`; // git-fork
+const ICON_TAB_MORE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`; // more-horizontal
 
 // Sheet-Item-Icons (Bottom-Sheet "Mehr"). Selbe Größe/Stil wie Tab-Icons,
 // ebenfalls Lucide.
-const ICON_SHEET_TEAMS      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>`;     // users
-const ICON_SHEET_THIRDS     = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`;       // trophy
-const ICON_SHEET_RULES      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>`;                                  // book-open
-const ICON_SHEET_PRINT      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`;                                                          // printer
-const ICON_SHEET_SETTINGS   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`; // settings
-const ICON_SHEET_BACK       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;                                                                                   // arrow-left
-const ICON_SHEET_NEU        = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`;                                                                                                       // plus
-const ICON_RELOAD       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>`;  // rotate-cw
+const ICON_SHEET_TEAMS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>`; // users
+const ICON_SHEET_THIRDS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`; // trophy
+const ICON_SHEET_RULES = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>`; // book-open
+const ICON_SHEET_PRINT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`; // printer
+const ICON_SHEET_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`; // settings
+const ICON_SHEET_BACK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`; // arrow-left
+const ICON_SHEET_NEU = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`; // plus
+const ICON_RELOAD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>`; // rotate-cw
 
 // ── TOAST NOTIFICATIONS ─────────────────────────────────
 function toast(msg, type = 'info') {
@@ -821,13 +821,7 @@ async function handleSessionExpired() {
     const text = gesichert
       ? 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Deine eingetippten Werte sind gesichert: sie stehen weiter im Dialog und kommen nach dem Anmelden von selbst zurueck.'
       : 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Was du bereits gespeichert hast, ist sicher. Melde dich neu an, um weiterzuarbeiten.';
-    const ok = await showConfirmDlg(
-      'Anmeldung abgelaufen',
-      text,
-      'Neu anmelden',
-      'Spaeter',
-      false,
-    );
+    const ok = await showConfirmDlg('Anmeldung abgelaufen', text, 'Neu anmelden', 'Spaeter', false);
     if (ok) await forceReauth();
   } finally {
     sessionExpiredDialogOffen = false;
@@ -2378,10 +2372,7 @@ function renderTournamentHeaderActions() {
   const uploadBtn = $('upload-btn');
   if (!uploadBtn) return;
 
-  const existingActionButtons = [
-    'tournament-refresh-btn',
-    'tournament-new-instance-btn',
-  ];
+  const existingActionButtons = ['tournament-refresh-btn', 'tournament-new-instance-btn'];
   for (const id of existingActionButtons) {
     const existing = document.getElementById(id);
     if (existing) existing.remove();
@@ -2396,7 +2387,8 @@ function renderTournamentHeaderActions() {
   // „ein Turnier ist offen", und dann traegt der Modulkopf seine eigene
   // Aktion. Zwei Aktionsleisten uebereinander gibt es in der Vorlage nicht.
   const detailOffen = activeTournamentInstance !== null && activeTournamentInstance !== undefined;
-  const isInstancesView = normalizeTournamentView(curTournamentView) === 'instances' && !detailOffen;
+  const isInstancesView =
+    normalizeTournamentView(curTournamentView) === 'instances' && !detailOffen;
 
   // Rechte-Prüfung, 26.08.2026: „Turnier erstellen" ist eine Admin-Aktion
   // (POST /api/tournaments antwortet Mitgliedern mit 403). Der Knopf hing
@@ -2429,20 +2421,22 @@ function renderTournamentHeaderActions() {
           onClick: () => loadActiveTournamentView(true),
         },
         ...(darfErstellen
-          ? [{
-            // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
-            // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
-            // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
-            //
-            // 2026-08-26: Der Knopf steht nur noch in der UEBERSICHT, nie
-            // in einem geoeffneten Turnier — Jonas: „lieber turnier
-            // erstellen als admin in der turnierübersicht". Das Gate dafuer
-            // ist `detailOffen` weiter oben.
-            id: 'tournament-new-instance-btn',
-            label: 'Neu',
-            className: 'btn btn-primary tournament-new-instance-btn',
-            onClick: openTournamentWizard,
-          }]
+          ? [
+              {
+                // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
+                // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
+                // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
+                //
+                // 2026-08-26: Der Knopf steht nur noch in der UEBERSICHT, nie
+                // in einem geoeffneten Turnier — Jonas: „lieber turnier
+                // erstellen als admin in der turnierübersicht". Das Gate dafuer
+                // ist `detailOffen` weiter oben.
+                id: 'tournament-new-instance-btn',
+                label: 'Neu',
+                className: 'btn btn-primary tournament-new-instance-btn',
+                onClick: openTournamentWizard,
+              },
+            ]
           : []),
       ]
     : [];
@@ -2566,9 +2560,7 @@ async function loadTournamentInstances(reset = false) {
       `/tournaments/group/${encodeURIComponent(curGroupId)}`,
       'GET'
     );
-    tournamentInstances = Array.isArray(instanceData?.tournaments)
-      ? instanceData.tournaments
-      : [];
+    tournamentInstances = Array.isArray(instanceData?.tournaments) ? instanceData.tournaments : [];
     // P1 (2026-08-24, User-Liste): server-derived isAdmin pro Turnier
     // cachen — renderTournamentInstancesPage braucht es für die Müll-Buttons.
     currentTournamentListIsAdmin = instanceData?.isAdmin === true;
@@ -2622,9 +2614,12 @@ async function loadTournamentInstances(reset = false) {
     // Wenn der Backend-Call mit 403 fehlschlägt, war es vermutlich fehlende Mitgliedschaft.
     if (e?.status === 403 || e?.statusCode === 403) {
       if (icon) icon.textContent = '🚫';
-      if (text) text.textContent = 'Du bist nicht (mehr) Mitglied dieser Gruppe oder hast keine Berechtigung.';
+      if (text)
+        text.textContent =
+          'Du bist nicht (mehr) Mitglied dieser Gruppe oder hast keine Berechtigung.';
       if (actions) {
-        actions.innerHTML = '<p class="t-hint">Bitte einen Owner oder Deputy der Gruppe um Zugriff bitten.</p>';
+        actions.innerHTML =
+          '<p class="t-hint">Bitte einen Owner oder Deputy der Gruppe um Zugriff bitten.</p>';
       }
       show('empty');
       grid.innerHTML = '';
@@ -2695,7 +2690,7 @@ function wireTournamentListInteractions(shell) {
       closeAllMenus();
       deleteTournamentInstance(
         deleteBtn.dataset.instanceId,
-        deleteBtn.dataset.instanceName || 'Turnier',
+        deleteBtn.dataset.instanceName || 'Turnier'
       );
       return;
     }
@@ -2710,7 +2705,10 @@ function wireTournamentListInteractions(shell) {
   // Tastaturbedienung: Enter und Leertaste öffnen die fokussierte Karte.
   // Ohne das ist role="button" eine Lüge.
   shell.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') { closeAllMenus(); return; }
+    if (event.key === 'Escape') {
+      closeAllMenus();
+      return;
+    }
     if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
     const card = event.target.closest('[data-action="open-instance"]');
     if (!card || card !== event.target) return;
@@ -2748,14 +2746,16 @@ function renderTournamentInstancesPage() {
     .filter(([, instances]) => instances.length > 0)
     .map(([phase, instances]) => {
       const instanceCards = instances
-        .map((instance) => renderTournamentListCard({
-          instance,
-          phase,
-          isAdmin,
-          phaseLabel: tournamentPhaseLabel(phase),
-          modeLabel: tournamentModeLabel(instance?.mode),
-          icons: { more: ICON_MORE, trash: ICON_TRASH },
-        }))
+        .map((instance) =>
+          renderTournamentListCard({
+            instance,
+            phase,
+            isAdmin,
+            phaseLabel: tournamentPhaseLabel(phase),
+            modeLabel: tournamentModeLabel(instance?.mode),
+            icons: { more: ICON_MORE, trash: ICON_TRASH },
+          })
+        )
         .join('');
 
       // Beschwerde 5 (2026-08-26): „unter 'bereit' bei der turnierauswahl
@@ -2788,9 +2788,9 @@ function renderTournamentInstancesPage() {
   // (Spec §13.2: einem Mitglied ein "Leg eins an" hinzuwerfen, wäre
   // ein Knopf ohne Funktion).
   const emptyHtml = `<div class="t-empty-state">
-      <div class="t-empty-state-text">${isAdmin
-        ? 'Noch kein Turnier angelegt.'
-        : 'In dieser Gruppe läuft gerade kein Turnier.'}</div>
+      <div class="t-empty-state-text">${
+        isAdmin ? 'Noch kein Turnier angelegt.' : 'In dieser Gruppe läuft gerade kein Turnier.'
+      }</div>
       ${isAdmin ? '<div class="t-empty-state-hint">Leg eins an, um loszulegen.</div>' : ''}
     </div>`;
 
@@ -3016,9 +3016,7 @@ function startTabLoad(mount, label, loader) {
  */
 function renderTabLoadError(mount, label, wieder, detail) {
   if (!mount) return;
-  const detailZeile = detail
-    ? `<p class="t-hint t-hint--error">${esc(String(detail))}</p>`
-    : '';
+  const detailZeile = detail ? `<p class="t-hint t-hint--error">${esc(String(detail))}</p>` : '';
   mount.innerHTML = `
       <div class="t-card">
         <div class="t-card-body">
@@ -3106,10 +3104,7 @@ async function ladeDruckboegen(t, mount) {
   };
 
   try {
-    const daten = await apiCall(
-      `/tournaments/${encodeURIComponent(t.id)}/standings`,
-      'GET'
-    );
+    const daten = await apiCall(`/tournaments/${encodeURIComponent(t.id)}/standings`, 'GET');
     // Stale-Guard wie an den sechs anderen Stellen im File: zwischen
     // Absenden und Antwort kann der Nutzer laengst woanders stehen.
     if (activeTournamentInstance?.id !== t.id) return;
@@ -3119,7 +3114,7 @@ async function ladeDruckboegen(t, mount) {
     // Bogen 1 und 3 daraus Spielplan und Baum ziehen.
     rendern(
       { ...t, groups: gruppen.length ? gruppen : (t.groups ?? []) },
-      daten?.qualifyPerGroup ?? t?.config?.advancePerGroup,
+      daten?.qualifyPerGroup ?? t?.config?.advancePerGroup
     );
   } catch (err) {
     // Ohne Tabellen ist der Spielplan-Bogen immer noch brauchbar —
@@ -3152,9 +3147,14 @@ function handleTournamentTabSideEffects(view, t, detail) {
         loadEinstellungenTab(t, mount).catch((err) => {
           // eslint-disable-next-line no-console
           console.warn('[tab:einstellungen] Laden fehlgeschlagen', err);
-          renderTabLoadError(mount, 'Die Einstellungen', () => {
-            handleTournamentTabSideEffects('einstellungen', t, detail);
-          }, err && err.message ? err.message : null);
+          renderTabLoadError(
+            mount,
+            'Die Einstellungen',
+            () => {
+              handleTournamentTabSideEffects('einstellungen', t, detail);
+            },
+            err && err.message ? err.message : null
+          );
         });
       }
       return;
@@ -3211,10 +3211,7 @@ async function openTournamentInstance(instanceId) {
     // instanceId` in den Sub-Renderern (loadStandingsTab, loadScheduleTab,
     // ...). Vorher wurde die ganze Response gespeichert → .id === undefined
     // → Sub-Renderer fanden nichts.
-    const res = await apiCall(
-      `/tournaments/${encodeURIComponent(instanceId)}`,
-      'GET'
-    );
+    const res = await apiCall(`/tournaments/${encodeURIComponent(instanceId)}`, 'GET');
     const instance = res?.tournament ?? res;
     // Bug #11 (User-Punkt 3, 2026-08-18): Das innere Tournament-DTO
     // hat KEIN isAdmin — das ist ein Top-Level-Feld der Response.
@@ -3248,9 +3245,15 @@ async function openTournamentInstance(instanceId) {
     // "Noch keine Gruppen — Turnier muss generiert sein.", obwohl die
     // Gruppen in der DB vorhanden waren.
     activeTournamentInstance.teams = Array.isArray(res?.teams) ? res.teams : (instance.teams ?? []);
-    activeTournamentInstance.stages = Array.isArray(res?.stages) ? res.stages : (instance.stages ?? []);
-    activeTournamentInstance.groups = Array.isArray(res?.groups) ? res.groups : (instance.groups ?? []);
-    activeTournamentInstance.matches = Array.isArray(res?.matches) ? res.matches : (instance.matches ?? []);
+    activeTournamentInstance.stages = Array.isArray(res?.stages)
+      ? res.stages
+      : (instance.stages ?? []);
+    activeTournamentInstance.groups = Array.isArray(res?.groups)
+      ? res.groups
+      : (instance.groups ?? []);
+    activeTournamentInstance.matches = Array.isArray(res?.matches)
+      ? res.matches
+      : (instance.matches ?? []);
     activeTournamentInstance.stats = res?.stats ?? instance.stats ?? null;
     curTournamentView = 'instances';
     saveLastModuleState();
@@ -3261,7 +3264,8 @@ async function openTournamentInstance(instanceId) {
     // Response (nicht im inneren tournament-Objekt). Vor diesem Fix war
     // t.isAdmin immer undefined → Renderer hat Member-View angezeigt
     // → kein "Ergebnis eintragen"-Button.
-    renderTournamentInstanceDetailV3({ ...instance,
+    renderTournamentInstanceDetailV3({
+      ...instance,
       teams: activeTournamentInstance.teams,
       stages: activeTournamentInstance.stages,
       groups: activeTournamentInstance.groups,
@@ -3314,7 +3318,10 @@ async function refreshTournamentAfterMutation(tournamentId) {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[refreshTournamentAfterMutation] Nachladen fehlgeschlagen', e);
-    toast('Gespeichert. Die Ansicht konnte nicht aktualisiert werden — bitte die Seite neu laden.', 'info');
+    toast(
+      'Gespeichert. Die Ansicht konnte nicht aktualisiert werden — bitte die Seite neu laden.',
+      'info'
+    );
     return false;
   }
 }
@@ -3356,11 +3363,14 @@ const T_VIEW_CHROME = {
   },
   gruppen: {
     titel: 'Gruppen',
-    kicker: (t) => [
-      zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
-      zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
-      zw(Array.isArray(t.matches) ? t.matches.length : 0, 'Spiel', 'Spiele'),
-    ].filter(Boolean).join(' · '),
+    kicker: (t) =>
+      [
+        zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+        zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
+        zw(Array.isArray(t.matches) ? t.matches.length : 0, 'Spiel', 'Spiele'),
+      ]
+        .filter(Boolean)
+        .join(' · '),
     aktion: { label: 'Regelwerk', view: 'regeln' },
   },
   baum: {
@@ -3380,24 +3390,34 @@ const T_VIEW_CHROME = {
     // genau die Frage, die am K.-o.-Tisch aufkommt — und es steht schon
     // bei den Gruppen, also lernt man den Ort einmal statt zweimal.
     titel: 'K.-o.-Phase',
-    kicker: (t) => [
-      zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
-      tournamentModeLabel(t.mode) || '',
-    ].filter(Boolean).join(' · '),
+    kicker: (t) =>
+      [
+        zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+        tournamentModeLabel(t.mode) || '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
     aktion: { label: 'Regelwerk', view: 'regeln' },
   },
   teams: {
     titel: 'Teams',
-    kicker: (t) => [
-      zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
-      zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
-    ].filter(Boolean).join(' · '),
+    kicker: (t) =>
+      [
+        zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+        zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
+      ]
+        .filter(Boolean)
+        .join(' · '),
     aktion: null,
   },
   regeln: {
     titel: 'Regelwerk',
     kicker: (t) => t.name || '',
-    aktion: { label: 'Bearbeiten', handlung: 'regelwerk-bearbeiten', wenn: (t) => t.isAdmin === true },
+    aktion: {
+      label: 'Bearbeiten',
+      handlung: 'regelwerk-bearbeiten',
+      wenn: (t) => t.isAdmin === true,
+    },
   },
   drucken: { titel: 'Drucken', kicker: (t) => t.name || '', aktion: null },
   einstellungen: {
@@ -3436,7 +3456,11 @@ function applyViewChrome(detail, view, t) {
   const kickEl = detail.querySelector('.t-mod-kicker-text');
   if (kickEl) {
     let text = '';
-    try { text = chrome.kicker ? (chrome.kicker(t) || '') : ''; } catch { text = ''; }
+    try {
+      text = chrome.kicker ? chrome.kicker(t) || '' : '';
+    } catch {
+      text = '';
+    }
     kickEl.textContent = text;
   }
 
@@ -3447,7 +3471,11 @@ function applyViewChrome(detail, view, t) {
     // Bedingung, gibt es keinen Ersatzknopf — der Platz bleibt leer.
     let erlaubt = !!chrome.aktion;
     if (erlaubt && typeof chrome.aktion.wenn === 'function') {
-      try { erlaubt = chrome.aktion.wenn(t) === true; } catch { erlaubt = false; }
+      try {
+        erlaubt = chrome.aktion.wenn(t) === true;
+      } catch {
+        erlaubt = false;
+      }
     }
     delete actEl.dataset.view;
     delete actEl.dataset.handlung;
@@ -3483,12 +3511,12 @@ function renderTournamentInstanceDetailV3(t) {
     // groups_ko (Default): Standard-Reihenfolge.
     // Ergebnis: IMMER genau 3 View-Buttons + "Mehr" in der Bottom-Bar.
     const tabIcons = {
-      spielplan:     { icon: ICON_TAB_GAMES,    label: 'Spiele' },
-      gruppen:       { icon: ICON_TAB_GROUPS,   label: 'Gruppen' },
-      baum:          { icon: ICON_TAB_BRACKET,  label: 'Baum' },
-      teams:         { icon: ICON_SHEET_TEAMS,  label: 'Teams' },
-      regeln:        { icon: ICON_SHEET_RULES,  label: 'Regeln' },
-      drucken:       { icon: ICON_SHEET_PRINT,  label: 'Drucken' },
+      spielplan: { icon: ICON_TAB_GAMES, label: 'Spiele' },
+      gruppen: { icon: ICON_TAB_GROUPS, label: 'Gruppen' },
+      baum: { icon: ICON_TAB_BRACKET, label: 'Baum' },
+      teams: { icon: ICON_SHEET_TEAMS, label: 'Teams' },
+      regeln: { icon: ICON_SHEET_RULES, label: 'Regeln' },
+      drucken: { icon: ICON_SHEET_PRINT, label: 'Drucken' },
       einstellungen: { icon: ICON_SHEET_SETTINGS, label: 'Einstellungen' },
     };
     const isKoOnly = t.mode === 'ko_only';
@@ -3508,16 +3536,20 @@ function renderTournamentInstanceDetailV3(t) {
     const memberViews = filterMemberViews({ allViews, isAdmin });
     const sheetViews = memberViews.filter((v) => !barPrimary.includes(v));
 
-    const barButtonsHtml = barPrimary.map((v, i) => {
-      const cfg = tabIcons[v];
-      const activeCls = i === 0 ? ' is-active' : '';
-      return `<button type="button" class="t-mod-tab${activeCls}" data-view="${v}" aria-label="${cfg.label}">${cfg.icon}<span>${cfg.label}</span></button>`;
-    }).join('\n            ');
+    const barButtonsHtml = barPrimary
+      .map((v, i) => {
+        const cfg = tabIcons[v];
+        const activeCls = i === 0 ? ' is-active' : '';
+        return `<button type="button" class="t-mod-tab${activeCls}" data-view="${v}" aria-label="${cfg.label}">${cfg.icon}<span>${cfg.label}</span></button>`;
+      })
+      .join('\n            ');
 
-    const sheetButtonsHtml = sheetViews.map((v) => {
-      const cfg = tabIcons[v];
-      return `<button type="button" data-view="${v}">${cfg.icon}<span>${cfg.label}</span></button>`;
-    }).join('\n            ');
+    const sheetButtonsHtml = sheetViews
+      .map((v) => {
+        const cfg = tabIcons[v];
+        return `<button type="button" data-view="${v}">${cfg.icon}<span>${cfg.label}</span></button>`;
+      })
+      .join('\n            ');
 
     // Markenuebernahme Etappe 2 (2026-08-26): der Kopf dreht sich um.
     // Vorher war der TURNIERNAME der grosse Titel und die Ansicht stand
@@ -3541,7 +3573,11 @@ function renderTournamentInstanceDetailV3(t) {
     // widerspricht dem ausdruecklich und gibt ihm den Modulkopf als
     // festen Platz („0 → 3" in der Bilanz). Markup und Regel dazu stehen
     // in renderModulKopf — eine Wahrheit fuer App und Pruefstand.
-    const headerHtml = renderModulKopf({ t, titel: 'Spielplan', cacheBust: t?.logoUrl ? Date.now() : null });
+    const headerHtml = renderModulKopf({
+      t,
+      titel: 'Spielplan',
+      cacheBust: t?.logoUrl ? Date.now() : null,
+    });
 
     // Spielplan-View-Inhalt: kommt in Schritt 3.
     // Platzhalter zeigt ehrlich, was sie noch nicht können — vgl. Module-Scope
@@ -3648,7 +3684,9 @@ function renderTournamentInstanceDetailV3(t) {
     // Handy tot.
     const allTabBtns = [...navBtns, ...tabBtns];
     function switchToView(view, sourceBtn) {
-      allTabBtns.forEach((b) => b.classList.toggle('is-active', b === sourceBtn || b.dataset.view === view));
+      allTabBtns.forEach((b) =>
+        b.classList.toggle('is-active', b === sourceBtn || b.dataset.view === view)
+      );
       sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === view));
       // Markenuebernahme: der Kopf traegt die Ansicht, also muss er hier mit.
       applyViewChrome(detail, view, t);
@@ -3927,7 +3965,6 @@ function bindSpielplanInteractions(t) {
     }
   });
 
-
   // Der Click-Outside-Listener fuer das Filter-Dropdown ist mit dem
   // Dropdown selbst entfallen (2026-08-26, Beschwerde 4). Er hing am
   // `document` und lief bei JEDEM Klick der ganzen Anwendung mit, um
@@ -3974,7 +4011,8 @@ async function loadStandingsTab(tournamentId) {
   if (!tournamentId) return;
   const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
   if (!mount) return;
-  mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Tabellen…</p></div></div>';
+  mount.innerHTML =
+    '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Tabellen…</p></div></div>';
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/standings`, 'GET');
     // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
@@ -3987,13 +4025,15 @@ async function loadStandingsTab(tournamentId) {
     const scoreLabel = data.scoreLabel || 'Punkte';
 
     if (groups.length === 0) {
-      mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Keine Gruppen vorhanden.</p></div></div>';
+      mount.innerHTML =
+        '<div class="t-card"><div class="t-card-body"><p class="t-hint">Keine Gruppen vorhanden.</p></div></div>';
       return;
     }
 
     const hasAnyRows = groups.some((g) => (g.standings || []).length > 0);
     if (!hasAnyRows) {
-      mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Noch keine Gruppenspiele absolviert.</p></div></div>';
+      mount.innerHTML =
+        '<div class="t-card"><div class="t-card-body"><p class="t-hint">Noch keine Gruppenspiele absolviert.</p></div></div>';
       return;
     }
 
@@ -4024,27 +4064,29 @@ async function loadStandingsTab(tournamentId) {
     // teuer), sondern greift auf die zuletzt geladenen groups zurück.
     // Da loadStandingsTab ohnehin die Quelle der Wahrheit ist, rufen
     // wir sie rekursionsfrei via refreshStandingsTab() auf.
-    ensureTModResizeObserver(() => refreshStandingsTab(
-      tournamentId,
-      groups,
-      data.bestThirds,
-      scoreLabel,
-      // P5-Re-Fix-3 (2026-08-25): Args für den Re-Render des Buttons
-      // nach Resize — Bedingungen bleiben über Crossen der 600-px-Grenze
-      // identisch, also reicht die Referenz auf das aktive Turnier. Wir
-      // übergeben nur ein Args-Objekt, wenn die Bedingungen erfüllt sind,
-      // damit refreshStandingsTab nicht versehentlich einen Button für
-      // Member oder nicht-groups_ko-Modi rendert.
-      (
-        tournament?.isAdmin === true
-        && tournament?.mode === 'groups_ko'
-        && allGroupsFinished
-        && bracketHasPlaceholders
-      ) ? { tournament } : null,
-      // A3: dieselbe Qualifikationszahl wie beim Erst-Render, sonst
-      // wechselt die Einfaerbung beim Crossen der 600-px-Grenze.
-      data.qualifyPerGroup
-    ));
+    ensureTModResizeObserver(() =>
+      refreshStandingsTab(
+        tournamentId,
+        groups,
+        data.bestThirds,
+        scoreLabel,
+        // P5-Re-Fix-3 (2026-08-25): Args für den Re-Render des Buttons
+        // nach Resize — Bedingungen bleiben über Crossen der 600-px-Grenze
+        // identisch, also reicht die Referenz auf das aktive Turnier. Wir
+        // übergeben nur ein Args-Objekt, wenn die Bedingungen erfüllt sind,
+        // damit refreshStandingsTab nicht versehentlich einen Button für
+        // Member oder nicht-groups_ko-Modi rendert.
+        tournament?.isAdmin === true &&
+          tournament?.mode === 'groups_ko' &&
+          allGroupsFinished &&
+          bracketHasPlaceholders
+          ? { tournament }
+          : null,
+        // A3: dieselbe Qualifikationszahl wie beim Erst-Render, sonst
+        // wechselt die Einfaerbung beim Crossen der 600-px-Grenze.
+        data.qualifyPerGroup
+      )
+    );
   } catch (e) {
     if (activeTournamentInstance?.id !== tournamentId) return;
     mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
@@ -4069,7 +4111,14 @@ async function loadStandingsTab(tournamentId) {
  * Bedingungen (isAdmin, mode, Flags) bleiben über Resize identisch —
  * kein Re-Fetch nötig.
  */
-function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillKoButtonArgs, qualifyPerGroup) {
+function refreshStandingsTab(
+  tournamentId,
+  groups,
+  bestThirds,
+  scoreLabel,
+  fillKoButtonArgs,
+  qualifyPerGroup
+) {
   const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
   if (!mount) return;
   if (!groups) return; // kein Vorlauf → still ignorieren
@@ -4087,7 +4136,6 @@ function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillK
   void fillKoButtonArgs;
 }
 
-
 /**
  * Turnierbaum-Tab rendern (Etappe B.4).
  *
@@ -4104,7 +4152,8 @@ async function loadBracketTab(tournamentId) {
   if (!tournamentId) return;
   const mount = document.querySelector('[data-tab-body="baum-mount"]');
   if (!mount) return;
-  mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Turnierbaum…</p></div></div>';
+  mount.innerHTML =
+    '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Turnierbaum…</p></div></div>';
   try {
     const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/bracket`, 'GET');
     // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
@@ -4123,13 +4172,18 @@ async function loadBracketTab(tournamentId) {
     // jeder vor-Generierung-Turniersituation ausgesperrt hat.
     const allGroupsFinished = data?.allGroupsFinished === true;
     const bracketHasPlaceholders = data?.bracketHasPlaceholders === true;
-    const renderer = (window.spielplanHelpers && window.spielplanHelpers.bracket && window.spielplanHelpers.bracket.renderBracket)
-      || ((globalThis.spielplanHelpers && globalThis.spielplanHelpers.bracket && globalThis.spielplanHelpers.bracket.renderBracket));
+    const renderer =
+      (window.spielplanHelpers &&
+        window.spielplanHelpers.bracket &&
+        window.spielplanHelpers.bracket.renderBracket) ||
+      (globalThis.spielplanHelpers &&
+        globalThis.spielplanHelpers.bracket &&
+        globalThis.spielplanHelpers.bracket.renderBracket);
     if (typeof renderer !== 'function') {
       throw new Error('Bracket-Renderer nicht verfügbar (spielplan-helpers.js nicht geladen)');
     }
     mount.innerHTML = renderer(matches);
-    wireBracketTabs(mount);  // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
+    wireBracketTabs(mount); // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
 
     // P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" wurde vom
     // Bracket-Tab HIERHER zum Gruppen-Tab verschoben (User-Feedback:
@@ -4140,7 +4194,8 @@ async function loadBracketTab(tournamentId) {
     // Mitglieder sehen weiterhin keinen Button (isAdmin-Gate).
   } catch (e) {
     if (activeTournamentInstance?.id !== tournamentId) return;
-    mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
+    mount.innerHTML =
+      '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
     toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
     // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
     // es den Tab als geladen und der „Erneut versuchen"-Knopf
@@ -4187,9 +4242,10 @@ async function fuelleKoPhaseVonHand(tournament) {
       'POST'
     );
     const mu = result?.firstMatchup;
-    const msg = mu?.home && mu?.away
-      ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
-      : 'K.-o.-Phase gefüllt';
+    const msg =
+      mu?.home && mu?.away
+        ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+        : 'K.-o.-Phase gefüllt';
     toast(msg, 'success');
     erfolg = true;
   } catch (e) {
@@ -4201,7 +4257,7 @@ async function fuelleKoPhaseVonHand(tournament) {
       ? 'Die Gruppenphase ist noch nicht abgeschlossen — es fehlen Ergebnisse.'
       : /bracket_already_filled/.test(roh)
         ? 'Die K.-o.-Phase steht bereits. Hier ist nichts zu reparieren.'
-        : (e?.serverMessage || 'K.-o.-Phase konnte nicht gefüllt werden');
+        : e?.serverMessage || 'K.-o.-Phase konnte nicht gefüllt werden';
     toast(errorMsg, /bracket_already_filled/.test(roh) ? 'info' : 'error');
   }
   if (erfolg) {
@@ -4283,26 +4339,25 @@ function openBracketRefillConfirmDialog(tournamentId) {
     } else if (action === 'refill') {
       // Buttons sperren, damit User nicht doppelt klickt.
       const buttons = dlg.querySelectorAll('button');
-      buttons.forEach((b) => { b.disabled = true; });
-      apiCall(
-        `/tournaments/${encodeURIComponent(tournamentId)}/fill-ko`,
-        'POST',
-      )
+      buttons.forEach((b) => {
+        b.disabled = true;
+      });
+      apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fill-ko`, 'POST')
         .then((result) => {
           const mu = result?.firstMatchup;
-          const msg = mu?.home && mu?.away
-            ? `K.-o.-Phase neu gesetzt: ${mu.home} trifft auf ${mu.away}`
-            : 'K.-o.-Phase neu gesetzt';
+          const msg =
+            mu?.home && mu?.away
+              ? `K.-o.-Phase neu gesetzt: ${mu.home} trifft auf ${mu.away}`
+              : 'K.-o.-Phase neu gesetzt';
           toast(msg, 'success');
           close();
           return refreshTournamentAfterMutation(tournamentId);
         })
         .catch((e2) => {
-          toast(
-            e2?.serverMessage || 'K.-o.-Phase konnte nicht neu gesetzt werden',
-            'error',
-          );
-          buttons.forEach((b) => { b.disabled = false; });
+          toast(e2?.serverMessage || 'K.-o.-Phase konnte nicht neu gesetzt werden', 'error');
+          buttons.forEach((b) => {
+            b.disabled = false;
+          });
         });
     }
   });
@@ -4415,10 +4470,12 @@ async function loadTeamsTab(t) {
   // (Spec §6.1: "Bei KO entscheidet die Reihenfolge, gegen wen man spielt").
   const reorderable = isAdmin && t.status === 'draft';
 
-  const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderTeamsList)
-    || ((globalThis.spielplanHelpers && globalThis.spielplanHelpers.renderTeamsList));
+  const renderer =
+    (window.spielplanHelpers && window.spielplanHelpers.renderTeamsList) ||
+    (globalThis.spielplanHelpers && globalThis.spielplanHelpers.renderTeamsList);
   if (typeof renderer !== 'function') {
-    mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Teams-Renderer nicht verfügbar.</p></div></div>';
+    mount.innerHTML =
+      '<div class="t-card"><div class="t-card-body"><p class="t-hint">Teams-Renderer nicht verfügbar.</p></div></div>';
     return;
   }
   const teams = Array.isArray(t.teams) ? t.teams : [];
@@ -4471,9 +4528,10 @@ async function loadEinstellungenTab(t, mount) {
   // der User einen Fehlertext sehen — nicht eine leere Seite.
   try {
     if (!t || !t.id || !mount) return;
-    const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderEinstellungen);
+    const renderer = window.spielplanHelpers && window.spielplanHelpers.renderEinstellungen;
     if (typeof renderer !== 'function') {
-      mount.innerHTML = '<div class="t-card"><div class="t-card-body"><p class="t-hint">Einstellungen-Renderer nicht verfügbar.</p></div></div>';
+      mount.innerHTML =
+        '<div class="t-card"><div class="t-card-body"><p class="t-hint">Einstellungen-Renderer nicht verfügbar.</p></div></div>';
       return;
     }
     const finishedCount = Array.isArray(t.matches)
@@ -4513,9 +4571,14 @@ async function loadEinstellungenTab(t, mount) {
     console.error('[loadEinstellungenTab] failed', err);
     // Fehlerbild mit „Erneut versuchen" statt einer Sackgasse — der
     // Wiederholungsweg ist derselbe Aufruf mit demselben Mount.
-    renderTabLoadError(mount, 'Die Einstellungen', () => {
-      loadEinstellungenTab(t, mount);
-    }, err && err.message ? err.message : String(err));
+    renderTabLoadError(
+      mount,
+      'Die Einstellungen',
+      () => {
+        loadEinstellungenTab(t, mount);
+      },
+      err && err.message ? err.message : String(err)
+    );
   }
 }
 
@@ -4556,7 +4619,11 @@ function wireStepper(mount) {
     // Ein leeres oder vertipptes Feld darf nicht zu NaN führen — dann
     // stünde nach einem Klick "NaN" im Formular und der nächste Klick
     // käme nicht mehr heraus.
-    const jetzt = Number.isFinite(Number(feld.value)) ? Number(feld.value) : (Number.isFinite(min) ? min : 0);
+    const jetzt = Number.isFinite(Number(feld.value))
+      ? Number(feld.value)
+      : Number.isFinite(min)
+        ? min
+        : 0;
     const neu = Math.min(max, Math.max(min, jetzt + richtung * schritt));
     if (neu === jetzt) return;
     feld.value = String(neu);
@@ -4615,9 +4682,9 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       const ok = await openConfirmDialog({
         title: 'Logo entfernen',
         message:
-          'Das Logo wird gelöscht und verschwindet aus dem Turnierkopf, '
-          + 'vom Ausdruck und von der Zuschauer-Seite. Du kannst jederzeit '
-          + 'ein neues hochladen.',
+          'Das Logo wird gelöscht und verschwindet aus dem Turnierkopf, ' +
+          'vom Ausdruck und von der Zuschauer-Seite. Du kannst jederzeit ' +
+          'ein neues hochladen.',
         confirmLabel: 'Entfernen',
         danger: true,
       });
@@ -4803,7 +4870,10 @@ function wireEinstellungen(mount, t, { finishedCount }) {
   if (redrawSeedingBtn) {
     wireGuardedClick(redrawSeedingBtn, async () => {
       if (finishedCount > 0) {
-        toast('Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.', 'error');
+        toast(
+          'Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.',
+          'error'
+        );
         return;
       }
       const ok = await openConfirmDialog({
@@ -4835,9 +4905,13 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       // Lock-Check vorne (UX, nicht Sicherheit): das Backend lehnt sowieso
       // mit 409 ab. Aber so bekommt der User sofort Feedback statt eines
       // stummen Fehlers nach dem Confirm.
-      const lockState = (typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor)
-        ? window.tournamentLocks.lockStateFor({ status: t.status, startedAt: t.startedAt }, finishedCount)
-        : null;
+      const lockState =
+        typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor
+          ? window.tournamentLocks.lockStateFor(
+              { status: t.status, startedAt: t.startedAt },
+              finishedCount
+            )
+          : null;
       if (lockState && lockState.canEditGroups && !lockState.canEditGroups.allowed) {
         toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
         return;
@@ -4851,13 +4925,13 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       const ok = await openConfirmDialog({
         title: 'Zufällig verteilen',
         message: verliertErgebnisse
-          ? `Die Teams werden neu gemischt — und der Spielplan der Gruppenphase `
-            + `wird dabei neu erzeugt. ${finishedCount} bereits eingetragene `
-            + `Ergebnis${finishedCount === 1 ? '' : 'se'} gehen verloren, und die `
-            + `K.-o.-Phase wird zurückgesetzt.`
-          : 'Die Teams werden zwischen den vorhandenen Gruppen neu gemischt. '
-            + 'Gruppengrößen bleiben gleich. Der Spielplan der Gruppenphase wird '
-            + 'dabei neu erzeugt — es sind noch keine Ergebnisse eingetragen.',
+          ? `Die Teams werden neu gemischt — und der Spielplan der Gruppenphase ` +
+            `wird dabei neu erzeugt. ${finishedCount} bereits eingetragene ` +
+            `Ergebnis${finishedCount === 1 ? '' : 'se'} gehen verloren, und die ` +
+            `K.-o.-Phase wird zurückgesetzt.`
+          : 'Die Teams werden zwischen den vorhandenen Gruppen neu gemischt. ' +
+            'Gruppengrößen bleiben gleich. Der Spielplan der Gruppenphase wird ' +
+            'dabei neu erzeugt — es sind noch keine Ergebnisse eingetragen.',
         expectedName: verliertErgebnisse ? t.name : null,
         confirmLabel: 'Neu mischen',
         danger: verliertErgebnisse,
@@ -4882,14 +4956,16 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     const updateBar = () => {
       if (selected.length === 0) {
         swapBar.hidden = true;
-        board.querySelectorAll('.t-group-team-card.is-selected').forEach((c) =>
-          c.classList.remove('is-selected')
-        );
+        board
+          .querySelectorAll('.t-group-team-card.is-selected')
+          .forEach((c) => c.classList.remove('is-selected'));
       } else {
         swapBar.hidden = false;
         const names = selected.map((s) => s.name).join(' ↔ ');
         swapBarLabel.textContent = `Tausch: ${names}`;
-        swapConfirmBtn.disabled = !(selected.length === 2 && selected[0].groupKey !== selected[1].groupKey);
+        swapConfirmBtn.disabled = !(
+          selected.length === 2 && selected[0].groupKey !== selected[1].groupKey
+        );
       }
     };
     // Klick auf Team-Karte → Auswahl toggeln.
@@ -4930,9 +5006,13 @@ function wireEinstellungen(mount, t, { finishedCount }) {
         return;
       }
       // Lock-Check vor UX.
-      const lockState = (typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor)
-        ? window.tournamentLocks.lockStateFor({ status: t.status, startedAt: t.startedAt }, finishedCount)
-        : null;
+      const lockState =
+        typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor
+          ? window.tournamentLocks.lockStateFor(
+              { status: t.status, startedAt: t.startedAt },
+              finishedCount
+            )
+          : null;
       if (lockState && lockState.canEditGroups && !lockState.canEditGroups.allowed) {
         toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
         return;
@@ -4952,10 +5032,10 @@ function wireEinstellungen(mount, t, { finishedCount }) {
         const neuS = swapRes?.spielplanNeu;
         toast(
           neuS
-            ? `${selected[0].name} ↔ ${selected[1].name} getauscht — `
-              + `${neuS.spieleNachher} Gruppenspiele neu angesetzt`
+            ? `${selected[0].name} ↔ ${selected[1].name} getauscht — ` +
+                `${neuS.spieleNachher} Gruppenspiele neu angesetzt`
             : `${selected[0].name} ↔ ${selected[1].name} getauscht`,
-          'success',
+          'success'
         );
         saved = true;
       } catch (e) {
@@ -5002,11 +5082,9 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       // Renderer aus der gespeicherten Konfiguration geschrieben hat.
       // Damit ist der Zurücksetz-Punkt immer der Serverstand — ohne
       // eine zweite Datenquelle, die auseinanderlaufen könnte.
-      editor
-        .querySelectorAll('.t-field-name, .t-fields-count')
-        .forEach((input) => {
-          input.value = input.defaultValue;
-        });
+      editor.querySelectorAll('.t-field-name, .t-fields-count').forEach((input) => {
+        input.value = input.defaultValue;
+      });
       toast('Änderungen verworfen', 'info');
     });
   }
@@ -5055,15 +5133,12 @@ function wireEinstellungen(mount, t, { finishedCount }) {
 async function startTournament(tournamentId) {
   let saved = false;
   try {
-    const res = await apiCall(
-      `/tournaments/${encodeURIComponent(tournamentId)}/start`,
-      'POST',
-      {}
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/start`, 'POST', {});
+    const at = res?.startedAt ? new Date(res.startedAt).toLocaleString('de-DE') : 'jetzt';
+    toast(
+      `Turnier ist gestartet (${at}) — Sperren für Team-Anzahl, Modus und Reihenfolge greifen jetzt.`,
+      'success'
     );
-    const at = res?.startedAt
-      ? new Date(res.startedAt).toLocaleString('de-DE')
-      : 'jetzt';
-    toast(`Turnier ist gestartet (${at}) — Sperren für Team-Anzahl, Modus und Reihenfolge greifen jetzt.`, 'success');
     saved = true;
   } catch (e) {
     toast(e?.serverMessage || 'Turnier konnte nicht gestartet werden', 'error');
@@ -5141,11 +5216,7 @@ async function createPublicLink(tournamentId) {
 async function revokePublicLink(tournamentId) {
   let saved = false;
   try {
-    await apiCall(
-      `/tournaments/${encodeURIComponent(tournamentId)}/public`,
-      'DELETE',
-      {}
-    );
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/public`, 'DELETE', {});
     toast('Zuschauer-Link ist widerrufen — die Adresse führt jetzt ins Leere.', 'success');
     saved = true;
   } catch (e) {
@@ -5160,11 +5231,7 @@ async function revertToDraft(tournamentId, confirmName) {
   let saved = false;
   try {
     const body = confirmName ? { confirmTournamentName: confirmName } : {};
-    await apiCall(
-      `/tournaments/${encodeURIComponent(tournamentId)}/revert-to-draft`,
-      'POST',
-      body
-    );
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/revert-to-draft`, 'POST', body);
     toast('Turnier ist wieder im Entwurf — Spielplan ist erhalten geblieben.', 'success');
     saved = true;
   } catch (e) {
@@ -5254,7 +5321,7 @@ async function rescheduleAuto(tournamentId, mount, tournamentName) {
     if (ok) {
       toast(
         `Zeitplan neu berechnet (${duration} min Spiel, ${pause} min Pause, ${parallelFields} Platten).`,
-        'success',
+        'success'
       );
       saved = true;
     }
@@ -5263,7 +5330,6 @@ async function rescheduleAuto(tournamentId, mount, tournamentName) {
   }
   if (saved) await refreshTournamentAfterMutation(tournamentId);
 }
-
 
 // ─── Etappe B.7 Action-Backend-Anbindungen ───────────────────────
 
@@ -5276,7 +5342,11 @@ async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
       // Backend lehnt ohne Confirm ab, deshalb geben wir den Turniernamen mit.
       body.confirmTournamentName = tournamentName;
     }
-    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/redraw`, 'POST', body);
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/redraw`,
+      'POST',
+      body
+    );
     toast(`Setzreihenfolge neu ausgelost (${res?.teams?.length ?? 0} Teams)`, 'success');
     saved = true;
   } catch (e) {
@@ -5316,8 +5386,8 @@ async function balanceShuffleGroups(tournamentId, tournamentName, finishedCount 
     const neu = res?.spielplanNeu;
     toast(
       neu
-        ? `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, `
-          + `${neu.spieleNachher} Gruppenspiele neu angesetzt`
+        ? `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, ` +
+            `${neu.spieleNachher} Gruppenspiele neu angesetzt`
         : `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, Größe pro Gruppe gleich`,
       'success'
     );
@@ -5337,7 +5407,9 @@ async function balanceShuffleGroups(tournamentId, tournamentName, finishedCount 
 async function saveGroupsAssignment(tournamentId, groupsPayload) {
   let saved = false;
   try {
-    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/groups`, 'PATCH', { groups: groupsPayload });
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/groups`, 'PATCH', {
+      groups: groupsPayload,
+    });
     toast('Gruppeneinteilung gespeichert', 'success');
     saved = true;
   } catch (e) {
@@ -5355,7 +5427,9 @@ async function saveGroupsAssignment(tournamentId, groupsPayload) {
 async function saveFieldsConfig(tournamentId, fieldsPayload) {
   let saved = false;
   try {
-    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fields`, 'PATCH', { fields: fieldsPayload });
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fields`, 'PATCH', {
+      fields: fieldsPayload,
+    });
     if (res?.warnings?.length > 0) {
       const dropped = res.warnings.find((w) => w.type === 'fields_dropped');
       if (dropped) {
@@ -5383,8 +5457,15 @@ async function saveFieldsConfig(tournamentId, fieldsPayload) {
 async function finishTournament(tournamentId) {
   let saved = false;
   try {
-    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/finish`, 'POST', {});
-    toast(`Turnier abgeschlossen${res?.alreadyFinished ? ' (war schon abgeschlossen)' : ''}`, 'success');
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/finish`,
+      'POST',
+      {}
+    );
+    toast(
+      `Turnier abgeschlossen${res?.alreadyFinished ? ' (war schon abgeschlossen)' : ''}`,
+      'success'
+    );
     saved = true;
   } catch (e) {
     toast(e.serverMessage || 'Turnier konnte nicht abgeschlossen werden', 'error');
@@ -5397,9 +5478,13 @@ async function finishTournament(tournamentId) {
 async function resetResults(tournamentId, confirmName) {
   let saved = false;
   try {
-    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/reset-results`, 'POST', {
-      confirmTournamentName: confirmName,
-    });
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/reset-results`,
+      'POST',
+      {
+        confirmTournamentName: confirmName,
+      }
+    );
     toast(`${res?.resetCount ?? 0} Ergebnisse zurückgesetzt`, 'success');
     saved = true;
   } catch (e) {
@@ -5431,16 +5516,17 @@ async function deleteTournamentWithConfirm(instanceId, instanceName, confirmName
     // Fix (siehe main.js:6392-6394). P2-Folge-Fix (2026-08-25):
     // DELETE schlug mit 401 fehl, sobald die 15-min-Token-Lifetime
     // abgelaufen war — der Refresh-Token blieb 7 Tage gültig.
-    await apiCall(
-      `/tournaments/${encodeURIComponent(instanceId)}`,
-      'DELETE',
-      { confirmTournamentName: confirmName },
-    );
+    await apiCall(`/tournaments/${encodeURIComponent(instanceId)}`, 'DELETE', {
+      confirmTournamentName: confirmName,
+    });
     if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
     toast('Turnier gelöscht', 'success');
     await loadTournamentInstances(true);
   } catch (e) {
-    if (e.status === 409 && /delete_locked_results_present/.test(e.serverCode || e.serverMessage || '')) {
+    if (
+      e.status === 409 &&
+      /delete_locked_results_present/.test(e.serverCode || e.serverMessage || '')
+    ) {
       toast('Turniername stimmt nicht', 'error');
       return;
     }
@@ -5576,7 +5662,7 @@ function startInlineRename(row, t) {
         input.replaceWith(newName);
         // Marker-Initial aktualisieren.
         const marker = row.querySelector('.t-team-marker');
-        if (marker) marker.textContent = (next.trim().charAt(0).toUpperCase() || '?');
+        if (marker) marker.textContent = next.trim().charAt(0).toUpperCase() || '?';
         row.dataset.renaming = '';
         toast('Teamname gespeichert.', 'success');
       } catch (e) {
@@ -5677,9 +5763,11 @@ function attachTeamsDnD(list, t) {
       drag.row.style.right = '0';
       drag.row.style.width = '100%';
     }
-    drag.row.style.top = (e.clientY - drag.offsetY) + 'px';
+    drag.row.style.top = e.clientY - drag.offsetY + 'px';
 
-    const others = Array.from(list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)'));
+    const others = Array.from(
+      list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)')
+    );
     const draggedMid = e.clientY;
     let targetIdx = others.length;
     for (let i = 0; i < others.length; i++) {
@@ -5710,7 +5798,10 @@ function attachTeamsDnD(list, t) {
   };
 
   const commit = async () => {
-    if (!drag || !drag.active) { drag = null; return; }
+    if (!drag || !drag.active) {
+      drag = null;
+      return;
+    }
     const phIdx = Array.prototype.indexOf.call(list.children, drag.placeholder);
     drag.placeholder.remove();
     drag.row.style.position = '';
@@ -5720,8 +5811,9 @@ function attachTeamsDnD(list, t) {
     drag.row.style.top = '';
     drag.row.classList.remove('is-dragging');
     const movedId = drag.row.dataset.teamId;
-    const currentIds = Array.from(list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)'))
-      .map((el) => el.dataset.teamId);
+    const currentIds = Array.from(
+      list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)')
+    ).map((el) => el.dataset.teamId);
     // Index nach Drop = phIdx, abzüglich der Drag-Row, falls dahinter.
     const adjusted = phIdx > drag.index ? phIdx - 1 : phIdx;
     const order = currentIds.slice();
@@ -5731,25 +5823,25 @@ function attachTeamsDnD(list, t) {
     drag = null;
 
     // Wenn die Reihenfolge nicht geändert wurde → kein Server-Round-Trip.
-    const originalOrder = Array.from(list.querySelectorAll('.t-team-row'))
-      .map((el) => el.dataset.teamId);
+    const originalOrder = Array.from(list.querySelectorAll('.t-team-row')).map(
+      (el) => el.dataset.teamId
+    );
     // Beim DnD war die gerenderte Reihenfolge = originalOrder (gleicher Screenshot).
     // Wenn unsere berechnete order der gerenderten Reihenfolge entspricht, ist
     // effektiv nichts passiert.
-    const same = order.length === originalOrder.length && order.every((id, i) => id === originalOrder[i]);
+    const same =
+      order.length === originalOrder.length && order.every((id, i) => id === originalOrder[i]);
     if (same) return;
 
     try {
-      const res = await apiCall(
-        `/tournaments/${encodeURIComponent(t.id)}/teams/reorder`,
-        'PATCH',
-        { order }
-      );
+      const res = await apiCall(`/tournaments/${encodeURIComponent(t.id)}/teams/reorder`, 'PATCH', {
+        order,
+      });
       // Server liefert die Teams in der neuen Reihenfolge mit aktualisierten seeds.
-      const updated = (res && Array.isArray(res.teams)) ? res.teams : null;
+      const updated = res && Array.isArray(res.teams) ? res.teams : null;
       const mount = document.querySelector('[data-tab-body="teams-mount"]');
       if (!mount) return;
-      const renderer = (window.spielplanHelpers && window.spielplanHelpers.renderTeamsList);
+      const renderer = window.spielplanHelpers && window.spielplanHelpers.renderTeamsList;
       if (!renderer) return;
       // Re-Render mit den Server-Daten — ist die Single Source of Truth.
       mount.innerHTML = renderer(updated || order.map((id) => ({ id })), {
@@ -5799,9 +5891,10 @@ function attachTeamsDnD(list, t) {
  * Edit-Mode nicht verwirft.
  */
 function renderRulesView(tournamentId, mount) {
-  const t = (typeof activeTournamentInstance === 'object' && activeTournamentInstance?.id === tournamentId)
-    ? activeTournamentInstance
-    : null;
+  const t =
+    typeof activeTournamentInstance === 'object' && activeTournamentInstance?.id === tournamentId
+      ? activeTournamentInstance
+      : null;
   const rules = t?.rules ?? '';
   const isAdmin = !!t?.isAdmin;
   const isEditing = mount.dataset.editing === '1';
@@ -5838,12 +5931,17 @@ function renderRulesView(tournamentId, mount) {
 
   // Read-Mode (Member ODER Admin ohne Edit).
   const body = rulesHelpers.renderRulesParagraphs(rules);
-  const emptyHint = body === ''
-    ? `<div class="t-card"><div class="t-card-body"><p class="t-hint">${isAdmin
-        ? 'Noch keine Regeln hinterlegt. Klick auf „Bearbeiten" fügt sie hinzu.'
-        : 'Noch keine Regeln hinterlegt.'}</p></div></div>`
-    : '';
-  mount.innerHTML = emptyHint || `
+  const emptyHint =
+    body === ''
+      ? `<div class="t-card"><div class="t-card-body"><p class="t-hint">${
+          isAdmin
+            ? 'Noch keine Regeln hinterlegt. Klick auf „Bearbeiten" fügt sie hinzu.'
+            : 'Noch keine Regeln hinterlegt.'
+        }</p></div></div>`
+      : '';
+  mount.innerHTML =
+    emptyHint ||
+    `
     <div class="t-card">
       <div class="t-card-body">
         <div class="t-rules-paragraphs">${body}</div>
@@ -5878,14 +5976,14 @@ async function saveRules(tournamentId) {
   if (saveBtn) saveBtn.disabled = true;
   if (cancelBtn) cancelBtn.disabled = true;
   try {
-    const updated = await apiCall(
-      `/tournaments/${encodeURIComponent(tournamentId)}`,
-      'PATCH',
-      { rules: newRules },
-    );
-    if (updated?.tournament?.rules !== undefined
-        && typeof activeTournamentInstance === 'object'
-        && activeTournamentInstance?.id === tournamentId) {
+    const updated = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
+      rules: newRules,
+    });
+    if (
+      updated?.tournament?.rules !== undefined &&
+      typeof activeTournamentInstance === 'object' &&
+      activeTournamentInstance?.id === tournamentId
+    ) {
       activeTournamentInstance.rules = updated.tournament.rules;
     }
     delete mount.dataset.editing;
@@ -5943,7 +6041,9 @@ async function saveTournamentRules(tournamentId) {
   const ta = document.getElementById('t-rules-text');
   if (!ta) return;
   try {
-    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', { rulesText: ta.value });
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
+      rulesText: ta.value,
+    });
     toast('Regelwerk gespeichert', 'success');
   } catch (e) {
     toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
@@ -5956,7 +6056,11 @@ async function saveTournamentRules(tournamentId) {
  */
 function openTournamentBeamer(tournamentId) {
   if (!tournamentId) return;
-  window.open(`/tournament/${encodeURIComponent(tournamentId)}/beamer`, `beamer-${tournamentId}`, 'noopener,noreferrer');
+  window.open(
+    `/tournament/${encodeURIComponent(tournamentId)}/beamer`,
+    `beamer-${tournamentId}`,
+    'noopener,noreferrer'
+  );
 }
 
 /**
@@ -6021,9 +6125,10 @@ async function rescheduleTournament(tournamentId, tournamentName) {
     }
 
     const data = await res.json();
-    const finishedNote = data.finishedCountAtTimeOfReschedule > 0
-      ? ` (${data.finishedCountAtTimeOfReschedule} Ergebnis${data.finishedCountAtTimeOfReschedule === 1 ? '' : 'se'} erhalten)`
-      : '';
+    const finishedNote =
+      data.finishedCountAtTimeOfReschedule > 0
+        ? ` (${data.finishedCountAtTimeOfReschedule} Ergebnis${data.finishedCountAtTimeOfReschedule === 1 ? '' : 'se'} erhalten)`
+        : '';
     toast(`Zeitplan neu terminiert — ${data.rescheduledCount} Spiele${finishedNote}`, 'success');
     return true;
   } catch (e) {
@@ -6076,9 +6181,9 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   // Match-Liste normalisieren + sortieren.
   const matches = Array.isArray(allMatches) ? allMatches : [];
   // Open + scheduled first; falls scheduledAt fehlt → ans Ende.
-  const openSorted = sortMatchesBySchedule(
-    matches.filter((m) => !m.isFinished && m.id),
-  ).map((m) => ({ id: m.id, m }));
+  const openSorted = sortMatchesBySchedule(matches.filter((m) => !m.isFinished && m.id)).map(
+    (m) => ({ id: m.id, m })
+  );
 
   const findMatch = (id) => matches.find((m) => m.id === id) || null;
   const initialMatch = matchId ? findMatch(matchId) : null;
@@ -6094,9 +6199,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
     if (!m) return '';
     const homeName = m.home?.name || 'offen';
     const awayName = m.away?.name || 'offen';
-    const timeStr = m.scheduledTime
-      ? `${m.scheduledTime} `
-      : '';
+    const timeStr = m.scheduledTime ? `${m.scheduledTime} ` : '';
     const tischStr = typeof m.field === 'number' ? `· Platte ${m.field} ` : '';
     const labelStr = m.label ? `· ${m.label} ` : '';
     return `${timeStr}${tischStr}${labelStr}· ${homeName} – ${awayName}`.trim();
@@ -6137,20 +6240,21 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         <button type="button" class="t-dialog-close" data-action="close" aria-label="Schließen">✕</button>
       </div>
       <form id="result-entry-form" class="t-dialog-body">
-        ${initialMatch
-          ? `<input type="hidden" id="re-match-id" value="${esc(initialMatch.id)}">`
-          : (openSorted.length
+        ${
+          initialMatch
+            ? `<input type="hidden" id="re-match-id" value="${esc(initialMatch.id)}">`
+            : openSorted.length
               ? `<div class="t-field">
                   <label class="t-field-label" for="re-match-id">Welches Spiel?</label>
                   <select id="re-match-id" class="t-field-select" required>
                     <option value="">— offenes Spiel wählen —</option>
-                    ${openSorted.map(({ id, m }) => (
-                      `<option value="${esc(id)}">${esc(labelFor(m))}</option>`
-                    )).join('')}
+                    ${openSorted
+                      .map(({ id, m }) => `<option value="${esc(id)}">${esc(labelFor(m))}</option>`)
+                      .join('')}
                   </select>
                 </div>`
               : `<p class="t-hint">Keine offenen Spiele vorhanden — bitte zuerst Spiele generieren.</p>`
-            )}
+        }
         <div class="t-score-entry">
           <div class="t-score-entry-row">
             <span class="t-score-entry-team">
@@ -6286,11 +6390,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
     // beim nächsten Fehlversuch einfach die Konsole öffnen und uns die
     // Trace-ID geben). Wer sie leiser haben will:
     //   window.tournamentTraceSilent = true
-    const traceId =
-      'cli-' +
-      Date.now().toString(36) +
-      '-' +
-      Math.random().toString(36).slice(2, 6);
+    const traceId = 'cli-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
     const tlog = (...args) => {
       if (typeof window === 'undefined' || window.tournamentTraceSilent !== true) {
         // eslint-disable-next-line no-console
@@ -6334,10 +6434,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
       const undoNote = propagated
         ? ` (${propagated} Folgespiel${propagated === 1 ? '' : 'e'} aktualisiert)`
         : '';
-      toast(
-        `Ergebnis gespeichert (${sh} : ${sa})${undoNote}`,
-        'success',
-      );
+      toast(`Ergebnis gespeichert (${sh} : ${sa})${undoNote}`, 'success');
       // P5-Re-Fix (2026-08-25): Wenn der Server beim Speichern die
       // K.-o.-Phase automatisch befüllt hat, zeigen wir einen ZUSÄTZ-
       // lichen Toast "K.-o.-Phase steht: Team X trifft auf Team Y".
@@ -6345,9 +6442,10 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
       // Hauptursache für "der Baum füllt sich nicht" Missverständnis.
       if (result?.koFill?.filled) {
         const mu = result.koFill.firstMatchup;
-        const koMsg = mu?.home && mu?.away
-          ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
-          : 'K.-o.-Phase gefüllt';
+        const koMsg =
+          mu?.home && mu?.away
+            ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+            : 'K.-o.-Phase gefüllt';
         // Kurze Verzögerung, damit der Save-Toast nicht doppelt wirkt.
         setTimeout(() => toast(koMsg, 'success'), 350);
         tlog('ko-fill:toast-shown', { updatedCount: result.koFill.updatedCount });
@@ -6359,10 +6457,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
         // Abbrechen / Brackets lassen / Brackets neu qualifizieren.
         tlog('ko-fill:warn-already-filled');
         // Kurze Verzögerung, damit der Save-Toast nicht überdeckt wird.
-        setTimeout(
-          () => openBracketRefillConfirmDialog(tournamentId),
-          400,
-        );
+        setTimeout(() => openBracketRefillConfirmDialog(tournamentId), 400);
       }
       tlog('toast:shown');
       // Gespeichert — ein gesicherter Entwurf desselben Spiels waere
@@ -6435,21 +6530,26 @@ async function openMatchDetailModal(tournamentId, matchId) {
   });
   const body = dlg.querySelector('#md-body');
   try {
-    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`, 'GET');
+    const data = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`,
+      'GET'
+    );
     const m = data.match || data;
     const home = m.teamHome?.name || formatPlaceholder(m.placeholderHome) || 'TBD';
     const away = m.teamAway?.name || formatPlaceholder(m.placeholderAway) || 'TBD';
-    const meta = (m.metadata && typeof m.metadata === 'object') ? m.metadata : {};
+    const meta = m.metadata && typeof m.metadata === 'object' ? m.metadata : {};
     const audit = Array.isArray(meta.audit) ? meta.audit : [];
     const photos = Array.isArray(meta.photos) ? meta.photos : [];
-    const auditHtml = audit.length === 0
-      ? '<p class="t-hint">Noch keine Audit-Einträge.</p>'
-      : `<ul class="t-match-audit">${audit.map((a) => `<li><strong>${esc(new Date(a.at).toLocaleString('de-DE'))}</strong> · ${esc(a.action)} ${a.detail ? '· ' + esc(a.detail) : ''}${a.user ? ' · ' + esc(a.user) : ''}</li>`).join('')}</ul>`;
-    const photosHtml = photos.length === 0
-      ? ''
-      : `<div class="t-match-photos">${photos.map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="Match-Foto" loading="lazy"></a>`).join('')}</div>`;
+    const auditHtml =
+      audit.length === 0
+        ? '<p class="t-hint">Noch keine Audit-Einträge.</p>'
+        : `<ul class="t-match-audit">${audit.map((a) => `<li><strong>${esc(new Date(a.at).toLocaleString('de-DE'))}</strong> · ${esc(a.action)} ${a.detail ? '· ' + esc(a.detail) : ''}${a.user ? ' · ' + esc(a.user) : ''}</li>`).join('')}</ul>`;
+    const photosHtml =
+      photos.length === 0
+        ? ''
+        : `<div class="t-match-photos">${photos.map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="Match-Foto" loading="lazy"></a>`).join('')}</div>`;
     body.innerHTML = `
-      <div class="t-match-card ${m.isFinished ? 'is-completed' : (m.isLive ? 'is-live' : '')}">
+      <div class="t-match-card ${m.isFinished ? 'is-completed' : m.isLive ? 'is-live' : ''}">
         <span class="t-match-home">${esc(home)}</span>
         <span class="t-match-score">${m.scoreHome ?? '–'} : ${m.scoreAway ?? '–'}</span>
         <span class="t-match-away">${esc(away)}</span>
@@ -6488,8 +6588,11 @@ async function openMatchDetailModal(tournamentId, matchId) {
       const venue = dlg.querySelector('#md-venue').value;
       const photoFiles = dlg.querySelector('#md-photo').files;
       const newPhotos = [];
-      for (const f of (photoFiles || [])) {
-        if (f.size > 5 * 1024 * 1024) { toast(`Bild ${f.name} > 5MB`, 'error'); continue; }
+      for (const f of photoFiles || []) {
+        if (f.size > 5 * 1024 * 1024) {
+          toast(`Bild ${f.name} > 5MB`, 'error');
+          continue;
+        }
         try {
           const up = await uploadTournamentMatchPhoto(f, tournamentId, matchId);
           newPhotos.push({ url: up.url, uploadedAt: new Date().toISOString() });
@@ -6498,17 +6601,24 @@ async function openMatchDetailModal(tournamentId, matchId) {
         }
       }
       const mergedPhotos = [...photos, ...newPhotos];
-      const newAudit = [...audit, {
-        at: new Date().toISOString(),
-        action: 'edit',
-        detail: notes ? 'Notiz aktualisiert' : 'Felder aktualisiert',
-      }];
+      const newAudit = [
+        ...audit,
+        {
+          at: new Date().toISOString(),
+          action: 'edit',
+          detail: notes ? 'Notiz aktualisiert' : 'Felder aktualisiert',
+        },
+      ];
       let saved = false;
       try {
-        await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`, 'PATCH', {
-          venueLabel: venue,
-          metadata: { ...meta, notes, photos: mergedPhotos, audit: newAudit },
-        });
+        await apiCall(
+          `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`,
+          'PATCH',
+          {
+            venueLabel: venue,
+            metadata: { ...meta, notes, photos: mergedPhotos, audit: newAudit },
+          }
+        );
         toast('Match aktualisiert', 'success');
         dlg.remove();
         saved = true;
@@ -6529,11 +6639,15 @@ async function openMatchDetailModal(tournamentId, matchId) {
  */
 async function uploadTournamentMatchPhoto(file, tournamentId, matchId) {
   // Lade Signed URL
-  const sig = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}/photo-upload`, 'POST', {
-    filename: file.name,
-    contentType: file.type,
-    size: file.size,
-  });
+  const sig = await apiCall(
+    `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}/photo-upload`,
+    'POST',
+    {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    }
+  );
   if (!sig?.uploadUrl) throw new Error('Keine Upload-URL erhalten');
   const put = await fetch(sig.uploadUrl, {
     method: 'PUT',
@@ -7429,10 +7543,7 @@ const WIZARD_HOST_CLASS = 't-wizard-host';
  */
 const T_LIST_GRID_CLASS = 'tournaments-grid';
 const T_DETAIL_HOST_CLASS = 't-detail-host';
-const WIZARD_HIDDEN_HEADER_BUTTONS = [
-  'tournament-refresh-btn',
-  'tournament-new-instance-btn',
-];
+const WIZARD_HIDDEN_HEADER_BUTTONS = ['tournament-refresh-btn', 'tournament-new-instance-btn'];
 
 function hideTournamentHeaderButtons() {
   // Buttons werden komplett entfernt statt nur display:none zu setzen.
@@ -7512,7 +7623,15 @@ async function openTournamentWizard() {
   const knownFieldsByStep = {
     1: ['name', 'date', 'location', 'sport', 'numTables', 'tableNames'],
     2: ['teams'],
-    3: ['mode', 'numGroups', 'distributionMethod', 'pointsWin', 'pointsDraw', 'pointsLoss', 'tiebreakers'],
+    3: [
+      'mode',
+      'numGroups',
+      'distributionMethod',
+      'pointsWin',
+      'pointsDraw',
+      'pointsLoss',
+      'tiebreakers',
+    ],
     4: ['advancePerGroup', 'bestThirdsCount', 'thirdPlaceMatch'],
     5: ['startTime', 'matchDuration', 'pauseMinutes'],
   };
@@ -7564,11 +7683,13 @@ async function openTournamentWizard() {
       if (!state.tournamentId) {
         // Auch der Retry hat nicht gereicht — jetzt erst blockieren.
         console.error(
-          '[wizard] onGenerate: state.tournamentId fehlt nach Retry.\n' +
-          '  state.groupId =', state.groupId, '\n' +
-          '  opts.groupId (für die Turnier-Erstellung) wurde übergeben =', !!curGroupId, '\n' +
-          '  state.__draftError =', state.__draftError || '(leer)', '\n' +
-          '  → Wahrscheinlichste Ursache: keine Berechtigung oder Server nicht erreichbar.'
+          '[wizard] onGenerate: state.tournamentId fehlt nach Retry.\n' + '  state.groupId =',
+          state.groupId,
+          '\n' + '  opts.groupId (für die Turnier-Erstellung) wurde übergeben =',
+          !!curGroupId,
+          '\n' + '  state.__draftError =',
+          state.__draftError || '(leer)',
+          '\n' + '  → Wahrscheinlichste Ursache: keine Berechtigung oder Server nicht erreichbar.'
         );
         return {
           ok: false,
@@ -7576,9 +7697,7 @@ async function openTournamentWizard() {
             error: 'draft_missing',
             message:
               'Der Turnier-Entwurf konnte nicht in der Datenbank angelegt werden. ' +
-              (state.__draftError
-                ? `Ursache: ${state.__draftError} `
-                : '') +
+              (state.__draftError ? `Ursache: ${state.__draftError} ` : '') +
               'Bitte lade die Seite neu (Strg+F5) und versuche es erneut. ' +
               'Falls der Fehler bleibt, prüfe die Browser-Konsole auf rote Fehlerzeilen.',
           },
@@ -7614,9 +7733,10 @@ async function openTournamentWizard() {
           ok: false,
           body: {
             error: sync.error || 'teams_sync_failed',
-            message: sync.message ||
+            message:
+              sync.message ||
               'Die Teams konnten nicht zum Server übertragen werden. ' +
-              'Bitte prüfe die Browser-Konsole und versuche es erneut.',
+                'Bitte prüfe die Browser-Konsole und versuche es erneut.',
           },
         };
       }
@@ -7640,8 +7760,10 @@ async function openTournamentWizard() {
     console.info(
       '%c✅ Turnier generiert',
       'color:#2c8a4f;font-weight:bold',
-      '\nID:', state.tournamentId,
-      '\nName:', state.name,
+      '\nID:',
+      state.tournamentId,
+      '\nName:',
+      state.name,
       '\nPrüfen mit: inspectTournament("' + state.tournamentId + '")'
     );
     // Issue 2: Mount-Flag freigeben — nach erfolgreichem Generate ist
@@ -7741,8 +7863,11 @@ async function openTournamentWizard() {
   // Diagnose: prüft die Kette direkt am Einstieg. Wenn groupId hier
   // undefined ist, ist der Fehler im Wrapper. Wenn der Wizard dann
   // trotzdem keinen POST absetzt, liegt es in tournament.js.
-  console.log('[wizard] mount: groupId=%s, tournamentId=%s',
-    curGroupId || '(none)', initialState.tournamentId || '(none)');
+  console.log(
+    '[wizard] mount: groupId=%s, tournamentId=%s',
+    curGroupId || '(none)',
+    initialState.tournamentId || '(none)'
+  );
 
   const grid = document.getElementById('grid');
   if (!grid) return;
@@ -7826,9 +7951,12 @@ async function teardownWizard() {
  * matches, stats in einer Antwort — kein Hin-und-Her).
  */
 async function inspectTournament(tournamentId) {
-  const id = tournamentId || (typeof window !== 'undefined' ? window.__lastGeneratedTournamentId : null);
+  const id =
+    tournamentId || (typeof window !== 'undefined' ? window.__lastGeneratedTournamentId : null);
   if (!id) {
-    console.warn('[inspectTournament] Keine ID übergeben und kein __lastGeneratedTournamentId gesetzt.');
+    console.warn(
+      '[inspectTournament] Keine ID übergeben und kein __lastGeneratedTournamentId gesetzt.'
+    );
     return null;
   }
   let res;
@@ -7855,7 +7983,9 @@ async function inspectTournament(tournamentId) {
 
   console.group(`👥 Teams (${teams.length})`);
   for (const team of teams) {
-    console.log(`  • [${team.seed ?? '-'}] ${team.name}${team.color ? ' (' + team.color + ')' : ''}`);
+    console.log(
+      `  • [${team.seed ?? '-'}] ${team.name}${team.color ? ' (' + team.color + ')' : ''}`
+    );
   }
   console.groupEnd();
 
@@ -7892,12 +8022,16 @@ async function inspectTournament(tournamentId) {
   if (matches.length > 0) {
     console.log('Erste Spiele:');
     for (const m of matches.slice(0, 5)) {
-      console.log(`  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`);
+      console.log(
+        `  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`
+      );
     }
     if (matches.length > 7) {
       console.log(`  ... (${matches.length - 7} weitere)`);
       for (const m of matches.slice(-2)) {
-        console.log(`  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`);
+        console.log(
+          `  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`
+        );
       }
     }
   }

@@ -56,7 +56,7 @@ export function nextPaletteColor(existingTeams) {
   const usedColors = new Set(
     (existingTeams || [])
       .map((t) => (typeof t?.color === 'string' ? t.color.toLowerCase() : null))
-      .filter(Boolean),
+      .filter(Boolean)
   );
 
   // Suche die erste Palette-Farbe, die noch nicht vergeben ist.

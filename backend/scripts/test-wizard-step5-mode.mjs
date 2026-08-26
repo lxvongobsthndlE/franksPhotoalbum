@@ -13,13 +13,11 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find((t) => t.type === 'page'
-    && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0 && !page; i < 25; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find((t) => t.type === 'page'
-      && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -38,13 +36,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -55,8 +56,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text
-      + ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -80,7 +80,7 @@ async function runTests() {
   await sleep(800);
 
   for (let i = 0; i < 50; i++) {
-    const ready = (await evalPage(send, () => window.__tReady === true));
+    const ready = await evalPage(send, () => window.__tReady === true);
     if (ready) break;
     await sleep(100);
   }
@@ -94,30 +94,34 @@ async function runTests() {
   }
 
   async function renderWith(stateIn) {
-    return await evalPage(send, (cfg) => {
-      const ROOT = document.getElementById('root');
-      ROOT.innerHTML = '';
-      const state = cfg.state;
-      const w = window.__renderWizardView({
-        initialState: state,
-        onStateChange: () => {},
-        onCancel: () => {},
-      });
-      ROOT.appendChild(w);
-      const rows = Array.from(document.querySelectorAll('.t-wizard-summary-row, dt'));
-      const out = {};
-      for (const r of rows) {
-        // Step 5 nutzt <dl> mit <dt>/<dd> via appendSummaryRow.
-        if (r.tagName === 'DT') {
-          const dd = r.nextElementSibling;
-          out[r.textContent] = dd?.textContent;
+    return await evalPage(
+      send,
+      (cfg) => {
+        const ROOT = document.getElementById('root');
+        ROOT.innerHTML = '';
+        const state = cfg.state;
+        const w = window.__renderWizardView({
+          initialState: state,
+          onStateChange: () => {},
+          onCancel: () => {},
+        });
+        ROOT.appendChild(w);
+        const rows = Array.from(document.querySelectorAll('.t-wizard-summary-row, dt'));
+        const out = {};
+        for (const r of rows) {
+          // Step 5 nutzt <dl> mit <dt>/<dd> via appendSummaryRow.
+          if (r.tagName === 'DT') {
+            const dd = r.nextElementSibling;
+            out[r.textContent] = dd?.textContent;
+          }
         }
-      }
-      return {
-        rows: out,
-        hasEnde: out['Voraussichtliches Ende'] !== undefined,
-      };
-    }, { state: stateIn });
+        return {
+          rows: out,
+          hasEnde: out['Voraussichtliches Ende'] !== undefined,
+        };
+      },
+      { state: stateIn }
+    );
   }
 
   // ----------------------------------------------------------------
@@ -125,8 +129,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 1: ko_only, 2 Teams → Endzeit vorhanden ---');
   {
-    const teams = Array.from({ length: 2 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 2 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 5,
       name: 'K.o. mini',
@@ -135,7 +142,9 @@ async function runTests() {
       numGroups: 2,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -146,8 +155,7 @@ async function runTests() {
       matchDuration: 15,
       pauseMinutes: 5,
     });
-    expect(r.hasEnde,
-      `Endzeit angezeigt (real: hasEnde=${r.hasEnde})`);
+    expect(r.hasEnde, `Endzeit angezeigt (real: hasEnde=${r.hasEnde})`);
   }
 
   // ----------------------------------------------------------------
@@ -156,8 +164,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 2: groups_only, 4 / 1 Gruppe → Endzeit vorhanden ---');
   {
-    const teams = Array.from({ length: 4 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 4 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 5,
       name: 'groups mini',
@@ -166,7 +177,9 @@ async function runTests() {
       numGroups: 1,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -177,8 +190,7 @@ async function runTests() {
       matchDuration: 15,
       pauseMinutes: 5,
     });
-    expect(r.hasEnde,
-      `Endzeit angezeigt (real: hasEnde=${r.hasEnde})`);
+    expect(r.hasEnde, `Endzeit angezeigt (real: hasEnde=${r.hasEnde})`);
   }
 
   // ----------------------------------------------------------------
@@ -186,8 +198,11 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 3: groups_only, 2 / 2 Gruppen → KEINE Endzeit ---');
   {
-    const teams = Array.from({ length: 2 }, (_, i) =>
-      ({ name: 'T' + (i + 1), color: null, seed: i + 1 }));
+    const teams = Array.from({ length: 2 }, (_, i) => ({
+      name: 'T' + (i + 1),
+      color: null,
+      seed: i + 1,
+    }));
     const r = await renderWith({
       step: 5,
       name: 'groups zu wenig',
@@ -196,7 +211,9 @@ async function runTests() {
       numGroups: 2,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -207,8 +224,7 @@ async function runTests() {
       matchDuration: 15,
       pauseMinutes: 5,
     });
-    expect(!r.hasEnde,
-      `Endzeit NICHT angezeigt (real: hasEnde=${r.hasEnde})`);
+    expect(!r.hasEnde, `Endzeit NICHT angezeigt (real: hasEnde=${r.hasEnde})`);
   }
 
   console.log('\n=== Fertig. Exit-Code:', process.exitCode || 0, '===');

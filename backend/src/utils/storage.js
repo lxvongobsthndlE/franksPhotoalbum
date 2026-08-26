@@ -50,7 +50,9 @@ export async function initStorage() {
  * Wir behalten die Funktion für künftige Match-Foto-Uploads.
  */
 export async function getTournamentAssetPutUrl(objectKey, contentType) {
-  return getClient().presignedPutObject(BUCKET_TOURNAMENT, objectKey, 60 * 10, { 'Content-Type': contentType });
+  return getClient().presignedPutObject(BUCKET_TOURNAMENT, objectKey, 60 * 10, {
+    'Content-Type': contentType,
+  });
 }
 
 export async function getTournamentAssetUrl(objectKey, expirySeconds = 3600) {

@@ -8,7 +8,7 @@
 
 export const DEFAULT_CONFIG = Object.freeze({
   // ---- Verteilung der Teams in Gruppen (Spec §5.1)
-  distribution: 'snake',           // 'snake' | 'random' | 'manual'
+  distribution: 'snake', // 'snake' | 'random' | 'manual'
 
   // ---- Punkte (Spec §5.4)
   pointsPerWin: 3,
@@ -20,15 +20,15 @@ export const DEFAULT_CONFIG = Object.freeze({
   tiebreakers: ['points', 'goalDiff', 'goalsFor', 'headToHead'],
 
   // ---- §13 Constraint #4: harte Obergrenze für Tiebreaker-Rekursion
-  maxTiebreakerDepth: 16,          // Standard > Anzahl Teams in einer Gruppe
+  maxTiebreakerDepth: 16, // Standard > Anzahl Teams in einer Gruppe
 
   // ---- Qualifikation aus Gruppenphase (Spec §6.1)
-  qualifyPerGroup: 2,             // Top N pro Gruppe
-  bestThirds: 0,                  // zusätzliche "beste Dritte"
+  qualifyPerGroup: 2, // Top N pro Gruppe
+  bestThirds: 0, // zusätzliche "beste Dritte"
 
   // ---- KO-Konfiguration
-  hasThirdPlacePlayoff: false,    // '3RD'-Match bei 4+ Teams
-  seedProtection: 'group',      // 'group' = Same-Group-Spiele möglichst vermeiden
+  hasThirdPlacePlayoff: false, // '3RD'-Match bei 4+ Teams
+  seedProtection: 'group', // 'group' = Same-Group-Spiele möglichst vermeiden
 
   // ---- Zeitplan (Spec §5.3)
   schedule: {
@@ -36,7 +36,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     matchDurationMinutes: 30,
     pauseAfterMatches: 0,
     parallelFields: 1,
-    startTime: '10:00',           // HH:MM
+    startTime: '10:00', // HH:MM
   },
 });
 

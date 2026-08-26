@@ -11,7 +11,14 @@ import { describe, test, expect } from 'vitest';
 
 const SERVER = path.join(import.meta.dirname, '..', 'normalize-confirm-name.js');
 const BROWSER = path.join(
-  import.meta.dirname, '..', '..', '..', '..', 'public', 'script', 'normalize-confirm-name.js'
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'public',
+  'script',
+  'normalize-confirm-name.js'
 );
 
 describe('normalizeConfirmName — Server/Browser Quellen-Identität', () => {

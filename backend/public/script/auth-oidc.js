@@ -335,7 +335,7 @@ export async function fetchWithAuth(endpoint, options = {}) {
   // FormData/Blob bleiben unangetastet: dort muss der Browser die
   // Boundary selbst setzen.
   const hasContentType = Object.keys(requestOptions.headers).some(
-    (h) => h.toLowerCase() === 'content-type',
+    (h) => h.toLowerCase() === 'content-type'
   );
   if (typeof requestOptions.body === 'string' && !hasContentType) {
     requestOptions.headers['Content-Type'] = 'application/json';

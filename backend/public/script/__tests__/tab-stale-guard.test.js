@@ -49,11 +49,7 @@ describe('Der Guard selbst tut, was er soll', () => {
 
   const baue = () => {
     // eslint-disable-next-line no-new-func
-    return new Function(
-      'activeTournamentInstance',
-      'tournamentId',
-      `${GUARD}\nreturn 'gemalt';`,
-    );
+    return new Function('activeTournamentInstance', 'tournamentId', `${GUARD}\nreturn 'gemalt';`);
   };
 
   it('laesst durch, solange dasselbe Turnier offen ist', () => {
@@ -75,11 +71,16 @@ function funktion(name) {
   let treffer = null;
   const suche = (node) => {
     if (!node || typeof node.type !== 'string') return;
-    if (node.type === 'FunctionDeclaration' && node.id?.name === name) { treffer = node; return; }
+    if (node.type === 'FunctionDeclaration' && node.id?.name === name) {
+      treffer = node;
+      return;
+    }
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'start' || key === 'end') continue;
       const v = node[key];
-      if (Array.isArray(v)) { for (const c of v) suche(c); } else suche(v);
+      if (Array.isArray(v)) {
+        for (const c of v) suche(c);
+      } else suche(v);
     }
   };
   suche(ast);
@@ -129,7 +130,9 @@ describe('Struktur: jeder Tab-Lader bewacht seinen Mount', () => {
       const schreibenAb = koerper.indexOf('mount.innerHTML', nachFetch);
       expect(guardAb, `${name}: Guard fehlt nach dem Fetch`).toBeGreaterThan(-1);
       expect(schreibenAb, `${name}: kein Schreiben nach dem Fetch`).toBeGreaterThan(-1);
-      expect(guardAb, `${name}: Guard steht hinter dem ersten Schreiben — nutzlos`).toBeLessThan(schreibenAb);
+      expect(guardAb, `${name}: Guard steht hinter dem ersten Schreiben — nutzlos`).toBeLessThan(
+        schreibenAb
+      );
     }
   });
 });

@@ -27,10 +27,10 @@ const KO_ROUND_ORDER = {
   R64: 0,
   R32: 1,
   R16: 2,
-  QF:  3,
-  SF:  4,
+  QF: 3,
+  SF: 4,
   '3RD': 5,
-  F:   6,
+  F: 6,
 };
 
 // Gruppenphase liegt immer vor KO. Wir verwenden einen Offset, damit die
@@ -80,9 +80,7 @@ function blockIndex(m, unknownOrder) {
   if (m?.stageType === 'ko') {
     const key = String(m?.round ?? '');
     const known = KO_ROUND_ORDER[key];
-    const order = known !== undefined
-      ? known
-      : (unknownOrder?.get(key) ?? Number.MAX_SAFE_INTEGER);
+    const order = known !== undefined ? known : (unknownOrder?.get(key) ?? Number.MAX_SAFE_INTEGER);
     return KO_BLOCK_OFFSET + order;
   }
   // Default: Gruppen-Spiel
@@ -90,7 +88,9 @@ function blockIndex(m, unknownOrder) {
 }
 
 function parseStartTime(startStr, baseDate) {
-  const [h, m] = String(startStr ?? '10:00').split(':').map((s) => parseInt(s, 10));
+  const [h, m] = String(startStr ?? '10:00')
+    .split(':')
+    .map((s) => parseInt(s, 10));
   const d = new Date(baseDate);
   d.setHours(Number.isFinite(h) ? h : 10, Number.isFinite(m) ? m : 0, 0, 0);
   return d;
@@ -120,11 +120,7 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
   // Wenn matchDurationMinutes fehlt, fallen wir auf slotMinutes zurück.
   const matchDuration = Math.max(5, sched.matchDurationMinutes ?? 30);
   const pauseAfter = Math.max(0, sched.pauseAfterMatches ?? 0);
-  const slotMinutes = Math.max(
-    5,
-    matchDuration + pauseAfter,
-    Math.max(5, sched.slotMinutes ?? 15),
-  );
+  const slotMinutes = Math.max(5, matchDuration + pauseAfter, Math.max(5, sched.slotMinutes ?? 15));
   const parallelFields = Math.max(1, sched.parallelFields ?? 1);
   const startTime = sched.startTime ?? '10:00';
 
@@ -193,9 +189,9 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
   //   W4  Determinismus: bracketPos, dann id — §10.9 bleibt gültig.
   const minRest = Math.max(0, Math.min(4, sched.minRestSlots ?? 1));
 
-  const teamLastSlot = new Map();    // teamId → letzter belegter Slot
-  const slotTeams = new Map();       // slotIndex → Set<teamId>
-  const slotFieldUsed = new Map();   // slotIndex → Set<field>
+  const teamLastSlot = new Map(); // teamId → letzter belegter Slot
+  const slotTeams = new Map(); // slotIndex → Set<teamId>
+  const slotFieldUsed = new Map(); // slotIndex → Set<field>
   const result = new Map();
 
   /**
@@ -231,10 +227,14 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
 
       if (restPflicht) {
         // H4: nach einem Spiel in Slot s frühestens wieder in s+1+minRest.
-        const rh = m.teamHome != null && teamLastSlot.has(m.teamHome)
-          ? slot - teamLastSlot.get(m.teamHome) : Infinity;
-        const ra = m.teamAway != null && teamLastSlot.has(m.teamAway)
-          ? slot - teamLastSlot.get(m.teamAway) : Infinity;
+        const rh =
+          m.teamHome != null && teamLastSlot.has(m.teamHome)
+            ? slot - teamLastSlot.get(m.teamHome)
+            : Infinity;
+        const ra =
+          m.teamAway != null && teamLastSlot.has(m.teamAway)
+            ? slot - teamLastSlot.get(m.teamAway)
+            : Infinity;
         if (Math.min(rh, ra) <= minRest) continue;
       }
 
@@ -253,8 +253,14 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
     slotFieldUsed.get(slot).add(feld);
     if (!slotTeams.has(slot)) slotTeams.set(slot, new Set());
     const ts = slotTeams.get(slot);
-    if (m.teamHome != null) { ts.add(m.teamHome); teamLastSlot.set(m.teamHome, slot); }
-    if (m.teamAway != null) { ts.add(m.teamAway); teamLastSlot.set(m.teamAway, slot); }
+    if (m.teamHome != null) {
+      ts.add(m.teamHome);
+      teamLastSlot.set(m.teamHome, slot);
+    }
+    if (m.teamAway != null) {
+      ts.add(m.teamAway);
+      teamLastSlot.set(m.teamAway, slot);
+    }
   }
 
   let slotIndex = 0;
@@ -442,7 +448,7 @@ export function detectRoundOverlaps(matches) {
  */
 export function scheduleMetrics(matches, opts = {}) {
   const geplant = (matches ?? []).filter(
-    (m) => m?.scheduledAt != null && Number.isFinite(new Date(m.scheduledAt).getTime()),
+    (m) => m?.scheduledAt != null && Number.isFinite(new Date(m.scheduledAt).getTime())
   );
   const leer = {
     spiele: geplant.length,
@@ -457,8 +463,9 @@ export function scheduleMetrics(matches, opts = {}) {
   };
   if (geplant.length === 0) return leer;
 
-  const zeiten = [...new Set(geplant.map((m) => new Date(m.scheduledAt).getTime()))]
-    .sort((a, b) => a - b);
+  const zeiten = [...new Set(geplant.map((m) => new Date(m.scheduledAt).getTime()))].sort(
+    (a, b) => a - b
+  );
 
   // Das Slot-Raster wird aus den ZEITABSTÄNDEN abgeleitet, nicht aus der
   // Aufzählung der belegten Anstoßzeiten.
@@ -486,14 +493,16 @@ export function scheduleMetrics(matches, opts = {}) {
     for (const z of zeiten) {
       let a = Math.round((z - t0) / 60_000);
       let b = slotMinuten;
-      while (a) { const t = b % a; b = a; a = t; }
+      while (a) {
+        const t = b % a;
+        b = a;
+        a = t;
+      }
       slotMinuten = b;
     }
   }
   const raster = slotMinuten > 0 ? slotMinuten : 1;
-  const slotVon = new Map(
-    zeiten.map((z) => [z, Math.round((z - t0) / 60_000 / raster)]),
-  );
+  const slotVon = new Map(zeiten.map((z) => [z, Math.round((z - t0) / 60_000 / raster)]));
   if (slotMinuten === 0) slotMinuten = null;
 
   const proTeam = new Map();

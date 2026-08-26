@@ -43,9 +43,9 @@ describe('rankBestThirds', () => {
     // Gruppe mit 3 Spielen (3 Teams): played=2
     // Wenn beide 4 Punkte haben, sind sie gleich normalisiert
     const groupStandings = [
-      [{ teamId: 'A3', played: 3, points: 4, goalsFor: 3, goalsAgainst: 2, goalDiff: 1 }],   // 1.33 P/S
-      [{ teamId: 'B3', played: 3, points: 4, goalsFor: 4, goalsAgainst: 2, goalDiff: 2 }],   // 1.33 P/S
-      [{ teamId: 'C3', played: 2, points: 4, goalsFor: 3, goalsAgainst: 1, goalDiff: 2 }],   // 2.0 P/S
+      [{ teamId: 'A3', played: 3, points: 4, goalsFor: 3, goalsAgainst: 2, goalDiff: 1 }], // 1.33 P/S
+      [{ teamId: 'B3', played: 3, points: 4, goalsFor: 4, goalsAgainst: 2, goalDiff: 2 }], // 1.33 P/S
+      [{ teamId: 'C3', played: 2, points: 4, goalsFor: 3, goalsAgainst: 1, goalDiff: 2 }], // 2.0 P/S
     ];
     const sorted = rankBestThirds(groupStandings);
     expect(sorted[0].teamId).toBe('C3'); // am besten normalisiert

@@ -126,14 +126,18 @@ export function computeHeadToHeadSubTable(teamIds, finishedMatches) {
     a.ga += sh;
 
     if (sh > sa) {
-      h.won += 1; h.points += 3;
+      h.won += 1;
+      h.points += 3;
       a.lost += 1;
     } else if (sa > sh) {
-      a.won += 1; a.points += 3;
+      a.won += 1;
+      a.points += 3;
       h.lost += 1;
     } else {
-      h.drawn += 1; h.points += 1;
-      a.drawn += 1; a.points += 1;
+      h.drawn += 1;
+      h.points += 1;
+      a.drawn += 1;
+      a.points += 1;
     }
   }
 

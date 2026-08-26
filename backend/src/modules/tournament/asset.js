@@ -25,10 +25,14 @@ export const ALLOWED_LOGO_MIMETYPES = ['image/png', 'image/jpeg', 'image/webp'];
 // Ausgabe.
 function inputFor(mimetype) {
   switch (mimetype) {
-    case 'image/png':  return 'png';
-    case 'image/jpeg': return 'jpeg';
-    case 'image/webp': return 'webp';
-    default: return null;
+    case 'image/png':
+      return 'png';
+    case 'image/jpeg':
+      return 'jpeg';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return null;
   }
 }
 
@@ -44,9 +48,7 @@ function inputFor(mimetype) {
  */
 export async function resizeLogoImage(buffer, mimetype) {
   if (!ALLOWED_LOGO_MIMETYPES.includes(mimetype)) {
-    const err = new Error(
-      `Nur PNG, JPEG und WebP sind als Logo erlaubt (du: ${mimetype}).`
-    );
+    const err = new Error(`Nur PNG, JPEG und WebP sind als Logo erlaubt (du: ${mimetype}).`);
     err.statusCode = 400;
     err.code = 'unsupported_format';
     throw err;

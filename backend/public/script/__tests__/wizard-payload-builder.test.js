@@ -10,10 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  buildPatchPayload,
-  buildGeneratePayload,
-} from '../tournament.js';
+import { buildPatchPayload, buildGeneratePayload } from '../tournament.js';
 
 const FULL_STATE = {
   step: 5,
@@ -23,9 +20,11 @@ const FULL_STATE = {
   sport: 'becher',
   logoUrl: null,
   teamInput: '',
-  teams: Array.from({ length: 12 }, (_, i) =>
-    ({ name: `Team ${i + 1}`, color: null, seed: i + 1 })
-  ),
+  teams: Array.from({ length: 12 }, (_, i) => ({
+    name: `Team ${i + 1}`,
+    color: null,
+    seed: i + 1,
+  })),
   mode: 'groups_ko',
   numGroups: 3,
   distributionMethod: 'snake',
@@ -49,9 +48,7 @@ describe('buildPatchPayload — alle Felder', () => {
     const body = buildPatchPayload(FULL_STATE);
     expect(body.location).toBe('Sporthalle A, Reutlingen');
     expect(body.sport).toBe('becher');
-    expect(body.tableLabels).toEqual([
-      'Platte 1', 'Platte 2', 'Platte 3', 'Platte 4',
-    ]);
+    expect(body.tableLabels).toEqual(['Platte 1', 'Platte 2', 'Platte 3', 'Platte 4']);
     expect(body.config).toBeDefined();
   });
 
@@ -61,9 +58,7 @@ describe('buildPatchPayload — alle Felder', () => {
     expect(cfg.pointsPerWin).toBe(3);
     expect(cfg.pointsPerDraw).toBe(1);
     expect(cfg.pointsPerLoss).toBe(0);
-    expect(cfg.tiebreakers).toEqual([
-      'points', 'goalDiff', 'goalsFor', 'goalsAgainst',
-    ]);
+    expect(cfg.tiebreakers).toEqual(['points', 'goalDiff', 'goalsFor', 'goalsAgainst']);
     expect(cfg.qualifyPerGroup).toBe(2);
     expect(cfg.bestThirds).toBe(2);
     expect(cfg.hasThirdPlacePlayoff).toBe(true);
@@ -103,9 +98,7 @@ describe('buildPatchPayload — changedFields-Filter', () => {
       changedFields: ['pointsWin', 'tiebreakers'],
     });
     expect(body.config.pointsPerWin).toBe(3);
-    expect(body.config.tiebreakers).toEqual([
-      'points', 'goalDiff', 'goalsFor', 'goalsAgainst',
-    ]);
+    expect(body.config.tiebreakers).toEqual(['points', 'goalDiff', 'goalsFor', 'goalsAgainst']);
     expect(body.location).toBeUndefined();
     expect(body.sport).toBeUndefined();
   });
@@ -116,9 +109,7 @@ describe('buildPatchPayload — changedFields-Filter', () => {
     });
     expect(body.config.schedule.parallelFields).toBe(4);
     expect(body.config.schedule.startTime).toBe('14:00');
-    expect(body.tableLabels).toEqual([
-      'Platte 1', 'Platte 2', 'Platte 3', 'Platte 4',
-    ]);
+    expect(body.tableLabels).toEqual(['Platte 1', 'Platte 2', 'Platte 3', 'Platte 4']);
   });
 
   it('changedFields mit distributionMethod → config.distribution', () => {
@@ -166,17 +157,17 @@ describe('buildGeneratePayload', () => {
 
   it('groupSize = ceil(teams / numGroups)', () => {
     // 13 Teams / 3 Gruppen → ceil(13/3) = 5
-    const state = { ...FULL_STATE, teams: FULL_STATE.teams.concat([
-      { name: 'Team 13', color: null, seed: 13 },
-    ]) };
+    const state = {
+      ...FULL_STATE,
+      teams: FULL_STATE.teams.concat([{ name: 'Team 13', color: null, seed: 13 }]),
+    };
     expect(buildGeneratePayload(state).groupSize).toBe(5);
   });
 
   it('confirmTournamentName wird nur gesetzt wenn übergeben', () => {
     expect(buildGeneratePayload(FULL_STATE).confirmTournamentName).toBeUndefined();
     expect(
-      buildGeneratePayload(FULL_STATE, { confirmTournamentName: 'X' })
-        .confirmTournamentName
+      buildGeneratePayload(FULL_STATE, { confirmTournamentName: 'X' }).confirmTournamentName
     ).toBe('X');
   });
 

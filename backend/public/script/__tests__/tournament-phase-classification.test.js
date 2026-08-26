@@ -93,13 +93,7 @@ describe('tournamentPhaseLabel — deutsche Bezeichnungen', () => {
 
 describe('TOURNAMENT_PHASE_ORDER — Reihenfolge in der Listen-Gruppierung', () => {
   it('enthält genau die 5 v3-Phasen-Keys in fester Reihenfolge', () => {
-    expect(TOURNAMENT_PHASE_ORDER).toEqual([
-      'draft',
-      'ready',
-      'live',
-      'finished',
-      'other',
-    ]);
+    expect(TOURNAMENT_PHASE_ORDER).toEqual(['draft', 'ready', 'live', 'finished', 'other']);
   });
 });
 

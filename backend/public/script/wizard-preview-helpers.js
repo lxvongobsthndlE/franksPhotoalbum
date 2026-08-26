@@ -73,16 +73,14 @@ export function computeEndInfo(state) {
     // Freilose werden bei der Zeitplanung nicht extra gerechnet — der
     // Bracket hat trotzdem (Zweierpotenz − 1) Slots, aber kein Team
     // bestreitet ein Freilos-Spiel. n-1 ist die ehrliche Aussage.
-    koGames = Math.max(0, state.teams.length - 1)
-      + (state.thirdPlaceMatch ? 1 : 0);
+    koGames = Math.max(0, state.teams.length - 1) + (state.thirdPlaceMatch ? 1 : 0);
   } else if (state.mode === 'groups_only') {
     // Reine Gruppenphase, keine K.-o.-Phase.
     groupGames = countGroupGames(sizes, state.doubleRoundRobin);
   } else {
     // groups_ko: Gruppenphase + K.-o.-Baum aus den Qualifikanten.
     groupGames = countGroupGames(sizes, state.doubleRoundRobin);
-    const qualifiers = state.numGroups * state.advancePerGroup
-      + (state.bestThirdsCount ?? 0);
+    const qualifiers = state.numGroups * state.advancePerGroup + (state.bestThirdsCount ?? 0);
     koGames = estimateKoGames(qualifiers) + (state.thirdPlaceMatch ? 1 : 0);
   }
 
@@ -91,7 +89,7 @@ export function computeEndInfo(state) {
   const slots = Math.max(1, Math.ceil(totalGames / Math.max(1, state.numTables)));
   const totalMinutes = slots * slotMinutes;
   const [hh, mm] = (state.startTime || '14:00').split(':').map(Number);
-  const endMinutes = (hh * 60 + mm) + totalMinutes;
+  const endMinutes = hh * 60 + mm + totalMinutes;
   const endH = Math.floor((endMinutes / 60) % 24);
   const endM = endMinutes % 60;
   const endLabel = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;

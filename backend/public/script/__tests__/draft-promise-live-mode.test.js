@@ -65,7 +65,7 @@ describe('ensureDraftPromise — Mock-Modus (opts.groupId fehlt)', () => {
 
   it(
     'REGRESSIONSSCHUTZ: opts.groupId fehlt, aber initialState.groupId ist ' +
-    'gesetzt — genau das war der main.js-Bug vom 2026-08-11',
+      'gesetzt — genau das war der main.js-Bug vom 2026-08-11',
     async () => {
       const state = { name: 'X', mode: 'groups_ko', groupId: 'g-1' };
       // opts.groupId fehlt → Mock-Modus → kein fetch.

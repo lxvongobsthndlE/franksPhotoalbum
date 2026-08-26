@@ -86,7 +86,16 @@ function defaultConfig4(overrides = {}) {
       startTime: '10:00',
     },
     ...overrides,
-    schedule: { ...{ slotMinutes: 15, matchDurationMinutes: 30, pauseAfterMatches: 0, parallelFields: 1, startTime: '10:00' }, ...(overrides.schedule ?? {}) },
+    schedule: {
+      ...{
+        slotMinutes: 15,
+        matchDurationMinutes: 30,
+        pauseAfterMatches: 0,
+        parallelFields: 1,
+        startTime: '10:00',
+      },
+      ...(overrides.schedule ?? {}),
+    },
   };
 }
 
@@ -101,10 +110,7 @@ function defaultConfig12(overrides = {}) {
 
 // Helper: alle scheduledAt + field aus dem Output.
 function scheduleById(output) {
-  const all = [
-    ...output.groups.flatMap((g) => g.matches),
-    ...output.bracket.matches,
-  ];
+  const all = [...output.groups.flatMap((g) => g.matches), ...output.bracket.matches];
   return new Map(all.filter((m) => m.scheduledAt).map((m) => [m.id, m]));
 }
 
@@ -126,10 +132,7 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
       expect(m.stageType).toBe('ko');
     }
     // Kein 'g_*'-Match im Output.
-    const allMatches = [
-      ...out.groups.flatMap((g) => g.matches),
-      ...out.bracket.matches,
-    ];
+    const allMatches = [...out.groups.flatMap((g) => g.matches), ...out.bracket.matches];
     for (const m of allMatches) {
       expect(m.id.startsWith('g_')).toBe(false);
     }
@@ -200,24 +203,36 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
       schedule: {
         matchDurationMinutes: 35,
         pauseAfterMatches: 0,
-        slotMinutes: 15,           // ← bleibt absichtlich auf 15, Wizard schickt das so
-        parallelFields: 2,         // 2 SFs gleichzeitig auf Platte 1 + 2
+        slotMinutes: 15, // ← bleibt absichtlich auf 15, Wizard schickt das so
+        parallelFields: 2, // 2 SFs gleichzeitig auf Platte 1 + 2
       },
     });
     const matches = [
       // 4 KO-Spiele in 2 Blöcken (SF + F): erst die 2 SFs gleichzeitig,
       // dann das F.
       {
-        id: 'ko_SF_1', stageType: 'ko', round: 'SF', bracketPos: 1,
-        teamHome: 'T1', teamAway: 'T2',
+        id: 'ko_SF_1',
+        stageType: 'ko',
+        round: 'SF',
+        bracketPos: 1,
+        teamHome: 'T1',
+        teamAway: 'T2',
       },
       {
-        id: 'ko_SF_2', stageType: 'ko', round: 'SF', bracketPos: 2,
-        teamHome: 'T3', teamAway: 'T4',
+        id: 'ko_SF_2',
+        stageType: 'ko',
+        round: 'SF',
+        bracketPos: 2,
+        teamHome: 'T3',
+        teamAway: 'T4',
       },
       {
-        id: 'ko_F_1',  stageType: 'ko', round: 'F',  bracketPos: 1,
-        teamHome: null, teamAway: null,
+        id: 'ko_F_1',
+        stageType: 'ko',
+        round: 'F',
+        bracketPos: 1,
+        teamHome: null,
+        teamAway: null,
       },
     ];
     const sched = generateSchedule(matches, cfg, new Date('2026-09-05'));
@@ -226,7 +241,7 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
     // Block 2: F → 35 Min nach den SFs.
     const sf1 = byId.get('ko_SF_1').scheduledAt.getTime();
     const sf2 = byId.get('ko_SF_2').scheduledAt.getTime();
-    const f1  = byId.get('ko_F_1').scheduledAt.getTime();
+    const f1 = byId.get('ko_F_1').scheduledAt.getTime();
     expect(f1 - sf1).toBe(35 * 60_000); // ← DAS IST BUG 2
     // SFs gleichzeitig auf parallelen Feldern.
     expect(sf1).toBe(sf2);
@@ -244,10 +259,24 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
       },
     });
     const matches = [
-      { id: 'g_A_1', stageType: 'group', groupKey: 'A', roundNumber: 1,
-        bracketPos: 1, teamHome: 'T1', teamAway: 'T2' },
-      { id: 'g_A_2', stageType: 'group', groupKey: 'A', roundNumber: 2,
-        bracketPos: 1, teamHome: 'T3', teamAway: 'T4' },
+      {
+        id: 'g_A_1',
+        stageType: 'group',
+        groupKey: 'A',
+        roundNumber: 1,
+        bracketPos: 1,
+        teamHome: 'T1',
+        teamAway: 'T2',
+      },
+      {
+        id: 'g_A_2',
+        stageType: 'group',
+        groupKey: 'A',
+        roundNumber: 2,
+        bracketPos: 1,
+        teamHome: 'T3',
+        teamAway: 'T4',
+      },
     ];
     const sched = generateSchedule(matches, cfg, new Date('2026-09-05'));
     const byId = new Map(sched.map((m) => [m.id, m]));
@@ -271,10 +300,22 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
       },
     });
     const matches = [
-      { id: 'ko_SF_1', stageType: 'ko', round: 'SF', bracketPos: 1,
-        teamHome: 'T1', teamAway: 'T2' },
-      { id: 'ko_SF_2', stageType: 'ko', round: 'SF', bracketPos: 2,
-        teamHome: 'T3', teamAway: 'T4' },
+      {
+        id: 'ko_SF_1',
+        stageType: 'ko',
+        round: 'SF',
+        bracketPos: 1,
+        teamHome: 'T1',
+        teamAway: 'T2',
+      },
+      {
+        id: 'ko_SF_2',
+        stageType: 'ko',
+        round: 'SF',
+        bracketPos: 2,
+        teamHome: 'T3',
+        teamAway: 'T4',
+      },
     ];
     const sched = generateSchedule(matches, cfg, new Date('2026-09-05'));
     const byId = new Map(sched.map((m) => [m.id, m]));
@@ -412,10 +453,14 @@ describe('Engine-Wizard-Round-Trip: jeder Wizard-Wert kommt in der Engine an', (
       distributionSeed: 'fixed-seed',
     };
     const outSnake = generateTournament({
-      teams: teams8, config: cfgSnake, baseDate: '2026-09-05',
+      teams: teams8,
+      config: cfgSnake,
+      baseDate: '2026-09-05',
     });
     const outRandom = generateTournament({
-      teams: teams8, config: cfgRandom, baseDate: '2026-09-05',
+      teams: teams8,
+      config: cfgRandom,
+      baseDate: '2026-09-05',
     });
     // A-Gruppe mit random ist (hoffentlich) eine andere Reihenfolge als
     // snake. Falls random zufällig dieselbe Reihenfolge erzeugt, ist der

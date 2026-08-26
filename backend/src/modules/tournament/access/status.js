@@ -7,17 +7,17 @@
  */
 
 export const TOURNAMENT_STATUS = Object.freeze({
-  draft:       'Entwurf',
-  generated:   'Bereit',
+  draft: 'Entwurf',
+  generated: 'Bereit',
   group_stage: 'Gruppenphase',
-  ko_stage:    'K.-o.-Runde',
-  finished:    'Beendet',
+  ko_stage: 'K.-o.-Runde',
+  finished: 'Beendet',
 });
 
 export const TOURNAMENT_MODE = Object.freeze({
-  groups_ko:   'Gruppen + K.-o.',
+  groups_ko: 'Gruppen + K.-o.',
   groups_only: 'Nur Gruppen',
-  ko_only:     'Nur K.-o.',
+  ko_only: 'Nur K.-o.',
   double_elim: 'Doppel-K.O.',
 });
 
@@ -29,24 +29,24 @@ export const TOURNAMENT_MODE = Object.freeze({
 // aber auf "läuft", damit das UI nie einen englischen Status sieht.
 export const MATCH_STATUS = Object.freeze({
   scheduled: 'offen',
-  live:      'läuft',
-  finished:  'beendet',
+  live: 'läuft',
+  finished: 'beendet',
 });
 
 export const STAGE_TYPE = Object.freeze({
-  group:              'Gruppenphase',
-  ko:                 'K.-o.-Runde',
+  group: 'Gruppenphase',
+  ko: 'K.-o.-Runde',
   intermediate_group: 'Zwischenrunde',
-  losers:             'Loser-Bracket',
+  losers: 'Loser-Bracket',
 });
 
 // KO-Rundenkürzel → sprechender Name (Spec §6.5)
 export const ROUND_LABEL = Object.freeze({
-  R32:  'Sechzehntelfinale',
-  R16:  'Achtelfinale',
-  QF:   'Viertelfinale',
-  SF:   'Halbfinale',
-  F:    'Finale',
+  R32: 'Sechzehntelfinale',
+  R16: 'Achtelfinale',
+  QF: 'Viertelfinale',
+  SF: 'Halbfinale',
+  F: 'Finale',
   '3RD': 'Spiel um Platz 3',
 });
 

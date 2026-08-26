@@ -9,15 +9,8 @@
  *   startsAt, endsAt, createdById, createdAt, updatedAt
  */
 
-import {
-  tournamentStatusLabel,
-  tournamentModeLabel,
-  tournamentCardStatusLabel,
-} from './status.js';
-import {
-  formatDateShort,
-  formatWeekdayDate,
-} from './time.js';
+import { tournamentStatusLabel, tournamentModeLabel, tournamentCardStatusLabel } from './status.js';
+import { formatDateShort, formatWeekdayDate } from './time.js';
 
 /**
  * singleDay-Logik (Spec §7):
@@ -31,7 +24,7 @@ import {
 
 const SPORT_LABEL = Object.freeze({
   becher: { long: 'Becher', short: 'B.' },
-  tore:   { long: 'Tore',   short: 'Tore' },
+  tore: { long: 'Tore', short: 'Tore' },
   punkte: { long: 'Punkte', short: 'Pkt.' },
 });
 
@@ -96,12 +89,8 @@ export function prepareTournamentView(rawTournament, opts = {}) {
     // Bracket-validierenden Sperren greifen.
     startedAt: rawTournament.startedAt ?? null,
     startedAtShort: formatDateShort(rawTournament.startedAt),
-    startsAtDate: computedSingleDay
-      ? ''
-      : formatWeekdayDate(rawTournament.startsAt),
-    endsAtDate: computedSingleDay
-      ? ''
-      : formatWeekdayDate(rawTournament.endsAt),
+    startsAtDate: computedSingleDay ? '' : formatWeekdayDate(rawTournament.startsAt),
+    endsAtDate: computedSingleDay ? '' : formatWeekdayDate(rawTournament.endsAt),
     startsAtShort: formatDateShort(rawTournament.startsAt),
     endsAtShort: formatDateShort(rawTournament.endsAt),
     singleDay: computedSingleDay,
@@ -113,13 +102,9 @@ export function prepareTournamentView(rawTournament, opts = {}) {
     scoreLabel: sportScoreLabel(rawTournament.sport ?? 'becher'),
     scoreShort: sportScoreShort(rawTournament.sport ?? 'becher'),
     // Tischlabels: eigene Tischnamen für Ausdruck/Beamer.
-    tableLabels: Array.isArray(rawTournament.tableLabels)
-      ? rawTournament.tableLabels
-      : null,
+    tableLabels: Array.isArray(rawTournament.tableLabels) ? rawTournament.tableLabels : null,
     // Regelwerk (Spec §8.4 Info-Seite). null, wenn nicht gepflegt.
-    rules: typeof rawTournament.rules === 'string'
-      ? rawTournament.rules
-      : null,
+    rules: typeof rawTournament.rules === 'string' ? rawTournament.rules : null,
 
     createdById: rawTournament.createdById ?? null,
     createdAt: rawTournament.createdAt ?? null,
@@ -139,9 +124,8 @@ export function prepareTournamentList(rawTournaments, opts = {}) {
     // Pro-Item-Stats: erwartet opts.statsById = Map<tournamentId, stats>.
     // Fallback: kein Stats → Counts bleiben null und das UI blendet die
     // Kurzinfo / den Fortschrittsbalken aus.
-    const itemOpts = opts.statsById instanceof Map
-      ? { ...opts, stats: opts.statsById.get(t.id) ?? null }
-      : opts;
+    const itemOpts =
+      opts.statsById instanceof Map ? { ...opts, stats: opts.statsById.get(t.id) ?? null } : opts;
     const v = prepareTournamentView(t, itemOpts);
     v.cardStatusLabel = tournamentCardStatusLabel(t.status);
     return v;
@@ -180,10 +164,7 @@ export async function aggregateTournamentStats(prisma, tournamentIds) {
   const result = new Map();
   for (const t of tournaments) {
     const stages = Array.isArray(t.stages) ? t.stages : [];
-    const groupCount = stages.reduce(
-      (sum, s) => sum + (s?._count?.groups ?? 0),
-      0
-    );
+    const groupCount = stages.reduce((sum, s) => sum + (s?._count?.groups ?? 0), 0);
     result.set(t.id, {
       teamCount: t._count?.teams ?? 0,
       groupCount,

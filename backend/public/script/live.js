@@ -212,9 +212,8 @@ function kopf(t) {
 
   if (t.location) meta.append(el('span', null, t.location));
   if (t.startsAtShort) {
-    const datum = t.singleDay || !t.endsAtShort
-      ? t.startsAtShort
-      : `${t.startsAtShort} – ${t.endsAtShort}`;
+    const datum =
+      t.singleDay || !t.endsAtShort ? t.startsAtShort : `${t.startsAtShort} – ${t.endsAtShort}`;
     meta.append(el('span', 'mono', datum));
   }
   if (t.teamCount != null) {
@@ -402,9 +401,8 @@ function planeNaechsten() {
   // Vordergrund holt den Stand ohnehin sofort.
   if (document.visibilityState === 'hidden') return;
 
-  const abstand = fehlversuche > 0
-    ? abstandNachFehler(fehlversuche)
-    : naechsterAbstand(letzterErfolg);
+  const abstand =
+    fehlversuche > 0 ? abstandNachFehler(fehlversuche) : naechsterAbstand(letzterErfolg);
   zeitgeber = setTimeout(() => laden(), abstand);
 }
 
@@ -448,9 +446,7 @@ async function laden({ manuell = false } = {}) {
     letzterErfolg = daten;
     letzterStand = new Date();
     fehlversuche = 0;
-    document.title = daten.tournament?.name
-      ? `${daten.tournament.name} — Turnier`
-      : 'Turnier';
+    document.title = daten.tournament?.name ? `${daten.tournament.name} — Turnier` : 'Turnier';
     zeichne(daten);
 
     // Wer tippt, will sehen, dass etwas passiert ist. Kommt die Antwort

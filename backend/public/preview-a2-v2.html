@@ -1,356 +1,454 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>A2 v2 Preview — Match-Card (mit t-match-rows) + A2.6 Filter-Dropdown</title>
-  <link rel="stylesheet" href="./style/main.css" />
-  <link rel="stylesheet" href="./style/tournament.css" />
-  <style>
-    body { margin: 0; background: var(--paper, #FAF7F1); font-family: inherit; }
-    .preview-shell { max-width: 1920px; margin: 0 auto; padding: 24px; }
-    .preview-block {
-      border: 1px dashed #ccc;
-      padding: 16px;
-      margin-bottom: 32px;
-      background: var(--surface);
-    }
-    .preview-block h2 {
-      font-size: 14px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--ink-soft);
-      margin: 0 0 12px 0;
-      font-weight: 600;
-    }
-    .preview-390 { width: 390px; }
-    .preview-820 { width: 820px; }
-    .preview-1280 { width: 1280px; }
-    .preview-1920 { width: 1920px; }
-    /* Sektion-Label */
-    .preview-section-label {
-      font-size: 11px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--ink-soft);
-      font-weight: 700;
-      margin: 0 0 12px 0;
-    }
-  </style>
-</head>
-<body>
-<div class="preview-shell">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A2 v2 Preview — Match-Card (mit t-match-rows) + A2.6 Filter-Dropdown</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <style>
+      body {
+        margin: 0;
+        background: var(--paper, #faf7f1);
+        font-family: inherit;
+      }
+      .preview-shell {
+        max-width: 1920px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .preview-block {
+        border: 1px dashed #ccc;
+        padding: 16px;
+        margin-bottom: 32px;
+        background: var(--surface);
+      }
+      .preview-block h2 {
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin: 0 0 12px 0;
+        font-weight: 600;
+      }
+      .preview-390 {
+        width: 390px;
+      }
+      .preview-820 {
+        width: 820px;
+      }
+      .preview-1280 {
+        width: 1280px;
+      }
+      .preview-1920 {
+        width: 1920px;
+      }
+      /* Sektion-Label */
+      .preview-section-label {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        font-weight: 700;
+        margin: 0 0 12px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-shell">
+      <h1 style="font-size: 18px; margin: 0 0 24px 0">
+        A2 v2 Preview — Match-Card mit t-match-rows Wrapper + A2.6 Filter-Dropdown
+      </h1>
 
-  <h1 style="font-size: 18px; margin: 0 0 24px 0;">A2 v2 Preview — Match-Card mit t-match-rows Wrapper + A2.6 Filter-Dropdown</h1>
+      <!-- ───────── 390px Mobile (Spielplan-Liste) ───────── -->
+      <div class="preview-block preview-390">
+        <h2>Mobile (390px) — Spielplan-Liste</h2>
+        <div class="t-mod" style="height: auto">
+          <div class="t-card">
+            <div class="t-card-body">
+              <div class="t-match" data-match-id="m-1">
+                <div class="t-match-bar"></div>
+                <div class="t-match-meta">
+                  <div class="t-match-meta-line t-match-meta-time">14:30 · Platte 2</div>
+                  <div class="t-match-meta-line t-match-meta-label">VF 1</div>
+                </div>
+                <div class="t-match-rows">
+                  <div class="t-match-team is-winner">
+                    <i class="t-dot" style="background: #abc" aria-hidden="true"></i>
+                    <span class="name">Heim-Team Sechsunddreißig</span>
+                  </div>
+                  <div class="t-match-score" data-area="home-score">3</div>
+                  <div class="t-match-team right">
+                    <i class="t-dot" style="background: #def" aria-hidden="true"></i>
+                    <span class="name">Gast</span>
+                  </div>
+                  <div class="t-match-score" data-area="away-score">1</div>
+                </div>
+                <div class="t-match-action">
+                  <button type="button" class="t-btn t-btn--ghost t-btn--sm">Erneut</button>
+                </div>
+              </div>
 
-  <!-- ───────── 390px Mobile (Spielplan-Liste) ───────── -->
-  <div class="preview-block preview-390">
-    <h2>Mobile (390px) — Spielplan-Liste</h2>
-    <div class="t-mod" style="height: auto;">
-      <div class="t-card"><div class="t-card-body">
+              <div class="t-match t-match--done" data-match-id="m-2">
+                <div class="t-match-bar"></div>
+                <div class="t-match-meta">
+                  <div class="t-match-meta-line t-match-meta-time">15:00 · Platte 1</div>
+                </div>
+                <div class="t-match-rows">
+                  <div class="t-match-team">
+                    <i class="t-dot" style="background: var(--line)" aria-hidden="true"></i>
+                    <span class="name">Noch Kein Name</span>
+                  </div>
+                  <div class="t-match-score empty" data-area="home-score">–</div>
+                  <div class="t-match-team right">
+                    <i class="t-dot" style="background: var(--line)" aria-hidden="true"></i>
+                    <span class="name">Gegner Ebenfalls Offen</span>
+                  </div>
+                  <div class="t-match-score empty" data-area="away-score">–</div>
+                </div>
+                <div class="t-match-action">
+                  <button type="button" class="t-btn t-btn--ghost t-btn--sm">Ergebnis</button>
+                </div>
+              </div>
 
-        <div class="t-match" data-match-id="m-1">
-          <div class="t-match-bar"></div>
-          <div class="t-match-meta">
-            <div class="t-match-meta-line t-match-meta-time">14:30 · Platte 2</div>
-            <div class="t-match-meta-line t-match-meta-label">VF 1</div>
-          </div>
-          <div class="t-match-rows">
-            <div class="t-match-team is-winner">
-              <i class="t-dot" style="background:#abc" aria-hidden="true"></i>
-              <span class="name">Heim-Team Sechsunddreißig</span>
+              <div class="t-match t-match--live" data-match-id="m-3">
+                <div class="t-match-bar"></div>
+                <div class="t-match-meta">
+                  <div class="t-match-meta-line t-match-meta-time">15:30 · Platte 3</div>
+                  <div class="t-match-meta-line t-match-meta-label">HF</div>
+                </div>
+                <div class="t-match-rows">
+                  <div class="t-match-team">
+                    <i class="t-dot" style="background: #8b6b4a" aria-hidden="true"></i>
+                    <span class="name">Team Alpha</span>
+                  </div>
+                  <div class="t-match-score" data-area="home-score">2</div>
+                  <div class="t-match-team right is-winner">
+                    <i class="t-dot" style="background: #4f7a4a" aria-hidden="true"></i>
+                    <span class="name">Team Beta</span>
+                  </div>
+                  <div class="t-match-score" data-area="away-score">4</div>
+                </div>
+                <div class="t-match-action">
+                  <span class="t-match-action-text">Läuft</span>
+                </div>
+              </div>
             </div>
-            <div class="t-match-score" data-area="home-score">3</div>
-            <div class="t-match-team right">
-              <i class="t-dot" style="background:#def" aria-hidden="true"></i>
-              <span class="name">Gast</span>
-            </div>
-            <div class="t-match-score" data-area="away-score">1</div>
-          </div>
-          <div class="t-match-action">
-            <button type="button" class="t-btn t-btn--ghost t-btn--sm">Erneut</button>
           </div>
         </div>
+      </div>
 
-        <div class="t-match t-match--done" data-match-id="m-2">
-          <div class="t-match-bar"></div>
-          <div class="t-match-meta">
-            <div class="t-match-meta-line t-match-meta-time">15:00 · Platte 1</div>
-          </div>
-          <div class="t-match-rows">
-            <div class="t-match-team">
-              <i class="t-dot" style="background:var(--line)" aria-hidden="true"></i>
-              <span class="name">Noch Kein Name</span>
-            </div>
-            <div class="t-match-score empty" data-area="home-score">–</div>
-            <div class="t-match-team right">
-              <i class="t-dot" style="background:var(--line)" aria-hidden="true"></i>
-              <span class="name">Gegner Ebenfalls Offen</span>
-            </div>
-            <div class="t-match-score empty" data-area="away-score">–</div>
-          </div>
-          <div class="t-match-action">
-            <button type="button" class="t-btn t-btn--ghost t-btn--sm">Ergebnis</button>
-          </div>
-        </div>
-
-        <div class="t-match t-match--live" data-match-id="m-3">
-          <div class="t-match-bar"></div>
-          <div class="t-match-meta">
-            <div class="t-match-meta-line t-match-meta-time">15:30 · Platte 3</div>
-            <div class="t-match-meta-line t-match-meta-label">HF</div>
-          </div>
-          <div class="t-match-rows">
-            <div class="t-match-team">
-              <i class="t-dot" style="background:#8B6B4A" aria-hidden="true"></i>
-              <span class="name">Team Alpha</span>
-            </div>
-            <div class="t-match-score" data-area="home-score">2</div>
-            <div class="t-match-team right is-winner">
-              <i class="t-dot" style="background:#4F7A4A" aria-hidden="true"></i>
-              <span class="name">Team Beta</span>
-            </div>
-            <div class="t-match-score" data-area="away-score">4</div>
-          </div>
-          <div class="t-match-action">
-            <span class="t-match-action-text">Läuft</span>
-          </div>
-        </div>
-
-      </div></div>
-    </div>
-  </div>
-
-  <!-- ───────── 390px Mobile (A2.6 Filter-Dropdown) ───────── -->
-  <div class="preview-block preview-390">
-    <h2>A2.6 — Mobile Filter-Dropdown</h2>
-    <div class="t-mod" style="height: auto;">
-      <div class="t-card"><div class="t-card-body">
-        <div class="t-filter-wrap" style="position: relative;">
-          <button type="button" class="t-filter-trigger"
+      <!-- ───────── 390px Mobile (A2.6 Filter-Dropdown) ───────── -->
+      <div class="preview-block preview-390">
+        <h2>A2.6 — Mobile Filter-Dropdown</h2>
+        <div class="t-mod" style="height: auto">
+          <div class="t-card">
+            <div class="t-card-body">
+              <div class="t-filter-wrap" style="position: relative">
+                <button
+                  type="button"
+                  class="t-filter-trigger"
                   data-action="toggle-filter-dropdown"
-                  aria-haspopup="menu" aria-expanded="false">
-            <span class="t-filter-trigger-label">Filter: Alle (24)</span>
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  <span class="t-filter-trigger-label">Filter: Alle (24)</span>
+                  <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
+                </button>
+                <span class="t-chip" data-filter="all">Alle (24)</span>
+              </div>
+              <div class="t-hint">
+                Klick auf den Filter-Button öffnet ein Dropdown mit allen Filter-Optionen.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────── 1280px Desktop (Spielplan) ───────── -->
+      <div class="preview-block preview-1280">
+        <h2>Desktop (1280px) — Spielplan-Liste mit A2.6 Filter</h2>
+
+        <!-- A2.6 Filter oben -->
+        <div class="t-filter-wrap" style="position: relative; margin-bottom: 16px">
+          <button
+            type="button"
+            class="t-filter-trigger"
+            data-action="toggle-filter-dropdown"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          >
+            <span class="t-filter-trigger-label">Filter: Alle (12)</span>
             <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
           </button>
-          <span class="t-chip" data-filter="all">Alle (24)</span>
-        </div>
-        <div class="t-hint">Klick auf den Filter-Button öffnet ein Dropdown mit allen Filter-Optionen.</div>
-      </div></div>
-    </div>
-  </div>
-
-  <!-- ───────── 1280px Desktop (Spielplan) ───────── -->
-  <div class="preview-block preview-1280">
-    <h2>Desktop (1280px) — Spielplan-Liste mit A2.6 Filter</h2>
-
-    <!-- A2.6 Filter oben -->
-    <div class="t-filter-wrap" style="position: relative; margin-bottom: 16px;">
-      <button type="button" class="t-filter-trigger"
-              data-action="toggle-filter-dropdown"
-              aria-haspopup="menu" aria-expanded="false">
-        <span class="t-filter-trigger-label">Filter: Alle (12)</span>
-        <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
-      </button>
-      <span class="t-chip" data-filter="all">Alle (12)</span>
-      <span class="t-hint" style="margin-left: 12px;">Filter-Button + aktive Auswahl als Chip daneben.</span>
-    </div>
-
-    <div class="t-mod" style="height: auto;">
-      <div class="t-card"><div class="t-card-body">
-
-        <div class="t-match" data-match-id="m-1">
-          <div class="t-match-bar"></div>
-          <div class="t-match-meta">
-            <div class="t-match-meta-line t-match-meta-time">14:30 · Platte 2</div>
-            <div class="t-match-meta-line t-match-meta-label">VF 1</div>
-          </div>
-          <div class="t-match-rows">
-            <div class="t-match-team is-winner">
-              <i class="t-dot" style="background:#abc" aria-hidden="true"></i>
-              <span class="name">Heim-Team Sechsunddreißig</span>
-            </div>
-            <div class="t-match-score" data-area="home-score">3</div>
-            <div class="t-match-team right">
-              <i class="t-dot" style="background:#def" aria-hidden="true"></i>
-              <span class="name">Gast</span>
-            </div>
-            <div class="t-match-score" data-area="away-score">1</div>
-          </div>
-          <div class="t-match-action">
-            <button type="button" class="t-btn t-btn--ghost t-btn--sm">Erneut</button>
-          </div>
+          <span class="t-chip" data-filter="all">Alle (12)</span>
+          <span class="t-hint" style="margin-left: 12px"
+            >Filter-Button + aktive Auswahl als Chip daneben.</span
+          >
         </div>
 
-        <div class="t-match t-match--done" data-match-id="m-2">
-          <div class="t-match-bar"></div>
-          <div class="t-match-meta">
-            <div class="t-match-meta-line t-match-meta-time">15:00 · Platte 1</div>
-          </div>
-          <div class="t-match-rows">
-            <div class="t-match-team">
-              <i class="t-dot" style="background:var(--line)" aria-hidden="true"></i>
-              <span class="name">Noch Kein Name</span>
-            </div>
-            <div class="t-match-score empty" data-area="home-score">–</div>
-            <div class="t-match-team right">
-              <i class="t-dot" style="background:var(--line)" aria-hidden="true"></i>
-              <span class="name">Gegner Ebenfalls Offen</span>
-            </div>
-            <div class="t-match-score empty" data-area="away-score">–</div>
-          </div>
-          <div class="t-match-action">
-            <button type="button" class="t-btn t-btn--ghost t-btn--sm">Ergebnis</button>
-          </div>
-        </div>
-
-        <div class="t-match t-match--live" data-match-id="m-3">
-          <div class="t-match-bar"></div>
-          <div class="t-match-meta">
-            <div class="t-match-meta-line t-match-meta-time">15:30 · Platte 3</div>
-            <div class="t-match-meta-line t-match-meta-label">HF</div>
-          </div>
-          <div class="t-match-rows">
-            <div class="t-match-team">
-              <i class="t-dot" style="background:#8B6B4A" aria-hidden="true"></i>
-              <span class="name">Team Alpha</span>
-            </div>
-            <div class="t-match-score" data-area="home-score">2</div>
-            <div class="t-match-team right is-winner">
-              <i class="t-dot" style="background:#4F7A4A" aria-hidden="true"></i>
-              <span class="name">Team Beta</span>
-            </div>
-            <div class="t-match-score" data-area="away-score">4</div>
-          </div>
-          <div class="t-match-action">
-            <span class="t-match-action-text">Läuft</span>
-          </div>
-        </div>
-
-      </div></div>
-    </div>
-
-  </div>
-
-  <!-- ───────── 1920px Desktop (Spielplan + Kontextspalte) ───────── -->
-  <div class="preview-block preview-1920">
-    <h2>Desktop (1920px) — Spielplan-Liste + Kontextspalte</h2>
-
-    <div class="t-filter-wrap" style="position: relative; margin-bottom: 16px;">
-      <button type="button" class="t-filter-trigger"
-              data-action="toggle-filter-dropdown"
-              aria-haspopup="menu" aria-expanded="true">
-        <span class="t-filter-trigger-label">Filter: VF (4)</span>
-        <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
-      </button>
-      <span class="t-chip" data-filter="vf">VF (4)</span>
-      <span class="t-hint" style="margin-left: 12px;">So sieht es aus, wenn das Dropdown offen ist.</span>
-
-      <!-- Simuliertes offenes Dropdown zur Visualisierung -->
-      <div class="t-filter-dropdown"
-           style="display: block; position: absolute; top: calc(100% + 4px); left: 0; min-width: 200px; background: #fff; border: 1px solid var(--line, #E7DFD2); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 6px 0; z-index: 1000;">
-        <div class="t-filter-item" data-filter="all" style="padding: 8px 12px; cursor: pointer;">Alle (12)</div>
-        <div class="t-filter-item" data-filter="open" style="padding: 8px 12px; cursor: pointer;">Offen (4)</div>
-        <div class="t-filter-item" data-filter="live" style="padding: 8px 12px; cursor: pointer;">Läuft (2)</div>
-        <div class="t-filter-item" data-filter="finished" style="padding: 8px 12px; cursor: pointer;">Beendet (6)</div>
-        <hr style="margin: 6px 0; border: 0; border-top: 1px solid var(--line);">
-        <div class="t-filter-item" data-filter="vf" style="padding: 8px 12px; cursor: pointer; background: rgba(0,0,0,0.04); font-weight: 600;">VF (4)  ← aktiv</div>
-        <div class="t-filter-item" data-filter="hf" style="padding: 8px 12px; cursor: pointer;">HF (2)</div>
-        <div class="t-filter-item" data-filter="final" style="padding: 8px 12px; cursor: pointer;">Finale (1)</div>
-      </div>
-    </div>
-
-    <div class="t-mod" style="height: auto;">
-      <div style="display: flex; gap: 24px;">
-        <div style="flex: 1;">
-          <div class="t-card"><div class="t-card-body">
-
-            <div class="t-match" data-match-id="m-1">
-              <div class="t-match-bar"></div>
-              <div class="t-match-meta">
-                <div class="t-match-meta-line t-match-meta-time">14:30 · Platte 2</div>
-                <div class="t-match-meta-line t-match-meta-label">VF 1</div>
-              </div>
-              <div class="t-match-rows">
-                <div class="t-match-team is-winner">
-                  <i class="t-dot" style="background:#abc" aria-hidden="true"></i>
-                  <span class="name">Heim-Team Sechsunddreißig</span>
+        <div class="t-mod" style="height: auto">
+          <div class="t-card">
+            <div class="t-card-body">
+              <div class="t-match" data-match-id="m-1">
+                <div class="t-match-bar"></div>
+                <div class="t-match-meta">
+                  <div class="t-match-meta-line t-match-meta-time">14:30 · Platte 2</div>
+                  <div class="t-match-meta-line t-match-meta-label">VF 1</div>
                 </div>
-                <div class="t-match-score" data-area="home-score">3</div>
-                <div class="t-match-team right">
-                  <i class="t-dot" style="background:#def" aria-hidden="true"></i>
-                  <span class="name">Gast</span>
+                <div class="t-match-rows">
+                  <div class="t-match-team is-winner">
+                    <i class="t-dot" style="background: #abc" aria-hidden="true"></i>
+                    <span class="name">Heim-Team Sechsunddreißig</span>
+                  </div>
+                  <div class="t-match-score" data-area="home-score">3</div>
+                  <div class="t-match-team right">
+                    <i class="t-dot" style="background: #def" aria-hidden="true"></i>
+                    <span class="name">Gast</span>
+                  </div>
+                  <div class="t-match-score" data-area="away-score">1</div>
                 </div>
-                <div class="t-match-score" data-area="away-score">1</div>
-              </div>
-              <div class="t-match-action">
-                <button type="button" class="t-btn t-btn--ghost t-btn--sm">Erneut</button>
-              </div>
-            </div>
-
-            <div class="t-match t-match--live" data-match-id="m-3">
-              <div class="t-match-bar"></div>
-              <div class="t-match-meta">
-                <div class="t-match-meta-line t-match-meta-time">15:30 · Platte 3</div>
-                <div class="t-match-meta-line t-match-meta-label">HF</div>
-              </div>
-              <div class="t-match-rows">
-                <div class="t-match-team">
-                  <i class="t-dot" style="background:#8B6B4A" aria-hidden="true"></i>
-                  <span class="name">Team Alpha</span>
+                <div class="t-match-action">
+                  <button type="button" class="t-btn t-btn--ghost t-btn--sm">Erneut</button>
                 </div>
-                <div class="t-match-score" data-area="home-score">2</div>
-                <div class="t-match-team right is-winner">
-                  <i class="t-dot" style="background:#4F7A4A" aria-hidden="true"></i>
-                  <span class="name">Team Beta</span>
+              </div>
+
+              <div class="t-match t-match--done" data-match-id="m-2">
+                <div class="t-match-bar"></div>
+                <div class="t-match-meta">
+                  <div class="t-match-meta-line t-match-meta-time">15:00 · Platte 1</div>
                 </div>
-                <div class="t-match-score" data-area="away-score">4</div>
+                <div class="t-match-rows">
+                  <div class="t-match-team">
+                    <i class="t-dot" style="background: var(--line)" aria-hidden="true"></i>
+                    <span class="name">Noch Kein Name</span>
+                  </div>
+                  <div class="t-match-score empty" data-area="home-score">–</div>
+                  <div class="t-match-team right">
+                    <i class="t-dot" style="background: var(--line)" aria-hidden="true"></i>
+                    <span class="name">Gegner Ebenfalls Offen</span>
+                  </div>
+                  <div class="t-match-score empty" data-area="away-score">–</div>
+                </div>
+                <div class="t-match-action">
+                  <button type="button" class="t-btn t-btn--ghost t-btn--sm">Ergebnis</button>
+                </div>
               </div>
-              <div class="t-match-action">
-                <span class="t-match-action-text">Läuft</span>
-              </div>
-            </div>
 
-          </div></div>
-        </div>
-
-        <div style="width: 320px;">
-          <h3 style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 8px 0;">Als Nächstes (compact)</h3>
-          <div class="t-match t-match--compact">
-            <div class="t-match-bar"></div>
-            <div class="t-match-rows">
-              <div class="t-match-team">
-                <i class="t-dot" style="background:#abc" aria-hidden="true"></i>
-                <span class="name">Heim</span>
+              <div class="t-match t-match--live" data-match-id="m-3">
+                <div class="t-match-bar"></div>
+                <div class="t-match-meta">
+                  <div class="t-match-meta-line t-match-meta-time">15:30 · Platte 3</div>
+                  <div class="t-match-meta-line t-match-meta-label">HF</div>
+                </div>
+                <div class="t-match-rows">
+                  <div class="t-match-team">
+                    <i class="t-dot" style="background: #8b6b4a" aria-hidden="true"></i>
+                    <span class="name">Team Alpha</span>
+                  </div>
+                  <div class="t-match-score" data-area="home-score">2</div>
+                  <div class="t-match-team right is-winner">
+                    <i class="t-dot" style="background: #4f7a4a" aria-hidden="true"></i>
+                    <span class="name">Team Beta</span>
+                  </div>
+                  <div class="t-match-score" data-area="away-score">4</div>
+                </div>
+                <div class="t-match-action">
+                  <span class="t-match-action-text">Läuft</span>
+                </div>
               </div>
-              <div class="t-match-score" data-area="home-score">3</div>
-              <div class="t-match-team right">
-                <i class="t-dot" style="background:#def" aria-hidden="true"></i>
-                <span class="name">Gast</span>
-              </div>
-              <div class="t-match-score" data-area="away-score">1</div>
-            </div>
-          </div>
-          <div class="t-match t-match--compact">
-            <div class="t-match-bar"></div>
-            <div class="t-match-rows">
-              <div class="t-match-team">
-                <i class="t-dot" style="background:#8B6B4A" aria-hidden="true"></i>
-                <span class="name">Team A</span>
-              </div>
-              <div class="t-match-score empty" data-area="home-score">–</div>
-              <div class="t-match-team right">
-                <i class="t-dot" style="background:var(--line)" aria-hidden="true"></i>
-                <span class="name">Team B</span>
-              </div>
-              <div class="t-match-score empty" data-area="away-score">–</div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-</div>
-</body>
+      <!-- ───────── 1920px Desktop (Spielplan + Kontextspalte) ───────── -->
+      <div class="preview-block preview-1920">
+        <h2>Desktop (1920px) — Spielplan-Liste + Kontextspalte</h2>
+
+        <div class="t-filter-wrap" style="position: relative; margin-bottom: 16px">
+          <button
+            type="button"
+            class="t-filter-trigger"
+            data-action="toggle-filter-dropdown"
+            aria-haspopup="menu"
+            aria-expanded="true"
+          >
+            <span class="t-filter-trigger-label">Filter: VF (4)</span>
+            <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
+          </button>
+          <span class="t-chip" data-filter="vf">VF (4)</span>
+          <span class="t-hint" style="margin-left: 12px"
+            >So sieht es aus, wenn das Dropdown offen ist.</span
+          >
+
+          <!-- Simuliertes offenes Dropdown zur Visualisierung -->
+          <div
+            class="t-filter-dropdown"
+            style="
+              display: block;
+              position: absolute;
+              top: calc(100% + 4px);
+              left: 0;
+              min-width: 200px;
+              background: #fff;
+              border: 1px solid var(--line, #e7dfd2);
+              border-radius: 6px;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+              padding: 6px 0;
+              z-index: 1000;
+            "
+          >
+            <div class="t-filter-item" data-filter="all" style="padding: 8px 12px; cursor: pointer">
+              Alle (12)
+            </div>
+            <div
+              class="t-filter-item"
+              data-filter="open"
+              style="padding: 8px 12px; cursor: pointer"
+            >
+              Offen (4)
+            </div>
+            <div
+              class="t-filter-item"
+              data-filter="live"
+              style="padding: 8px 12px; cursor: pointer"
+            >
+              Läuft (2)
+            </div>
+            <div
+              class="t-filter-item"
+              data-filter="finished"
+              style="padding: 8px 12px; cursor: pointer"
+            >
+              Beendet (6)
+            </div>
+            <hr style="margin: 6px 0; border: 0; border-top: 1px solid var(--line)" />
+            <div
+              class="t-filter-item"
+              data-filter="vf"
+              style="
+                padding: 8px 12px;
+                cursor: pointer;
+                background: rgba(0, 0, 0, 0.04);
+                font-weight: 600;
+              "
+            >
+              VF (4) ← aktiv
+            </div>
+            <div class="t-filter-item" data-filter="hf" style="padding: 8px 12px; cursor: pointer">
+              HF (2)
+            </div>
+            <div
+              class="t-filter-item"
+              data-filter="final"
+              style="padding: 8px 12px; cursor: pointer"
+            >
+              Finale (1)
+            </div>
+          </div>
+        </div>
+
+        <div class="t-mod" style="height: auto">
+          <div style="display: flex; gap: 24px">
+            <div style="flex: 1">
+              <div class="t-card">
+                <div class="t-card-body">
+                  <div class="t-match" data-match-id="m-1">
+                    <div class="t-match-bar"></div>
+                    <div class="t-match-meta">
+                      <div class="t-match-meta-line t-match-meta-time">14:30 · Platte 2</div>
+                      <div class="t-match-meta-line t-match-meta-label">VF 1</div>
+                    </div>
+                    <div class="t-match-rows">
+                      <div class="t-match-team is-winner">
+                        <i class="t-dot" style="background: #abc" aria-hidden="true"></i>
+                        <span class="name">Heim-Team Sechsunddreißig</span>
+                      </div>
+                      <div class="t-match-score" data-area="home-score">3</div>
+                      <div class="t-match-team right">
+                        <i class="t-dot" style="background: #def" aria-hidden="true"></i>
+                        <span class="name">Gast</span>
+                      </div>
+                      <div class="t-match-score" data-area="away-score">1</div>
+                    </div>
+                    <div class="t-match-action">
+                      <button type="button" class="t-btn t-btn--ghost t-btn--sm">Erneut</button>
+                    </div>
+                  </div>
+
+                  <div class="t-match t-match--live" data-match-id="m-3">
+                    <div class="t-match-bar"></div>
+                    <div class="t-match-meta">
+                      <div class="t-match-meta-line t-match-meta-time">15:30 · Platte 3</div>
+                      <div class="t-match-meta-line t-match-meta-label">HF</div>
+                    </div>
+                    <div class="t-match-rows">
+                      <div class="t-match-team">
+                        <i class="t-dot" style="background: #8b6b4a" aria-hidden="true"></i>
+                        <span class="name">Team Alpha</span>
+                      </div>
+                      <div class="t-match-score" data-area="home-score">2</div>
+                      <div class="t-match-team right is-winner">
+                        <i class="t-dot" style="background: #4f7a4a" aria-hidden="true"></i>
+                        <span class="name">Team Beta</span>
+                      </div>
+                      <div class="t-match-score" data-area="away-score">4</div>
+                    </div>
+                    <div class="t-match-action">
+                      <span class="t-match-action-text">Läuft</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="width: 320px">
+              <h3
+                style="
+                  font-size: 11px;
+                  letter-spacing: 0.08em;
+                  text-transform: uppercase;
+                  color: var(--ink-soft);
+                  margin: 0 0 8px 0;
+                "
+              >
+                Als Nächstes (compact)
+              </h3>
+              <div class="t-match t-match--compact">
+                <div class="t-match-bar"></div>
+                <div class="t-match-rows">
+                  <div class="t-match-team">
+                    <i class="t-dot" style="background: #abc" aria-hidden="true"></i>
+                    <span class="name">Heim</span>
+                  </div>
+                  <div class="t-match-score" data-area="home-score">3</div>
+                  <div class="t-match-team right">
+                    <i class="t-dot" style="background: #def" aria-hidden="true"></i>
+                    <span class="name">Gast</span>
+                  </div>
+                  <div class="t-match-score" data-area="away-score">1</div>
+                </div>
+              </div>
+              <div class="t-match t-match--compact">
+                <div class="t-match-bar"></div>
+                <div class="t-match-rows">
+                  <div class="t-match-team">
+                    <i class="t-dot" style="background: #8b6b4a" aria-hidden="true"></i>
+                    <span class="name">Team A</span>
+                  </div>
+                  <div class="t-match-score empty" data-area="home-score">–</div>
+                  <div class="t-match-team right">
+                    <i class="t-dot" style="background: var(--line)" aria-hidden="true"></i>
+                    <span class="name">Team B</span>
+                  </div>
+                  <div class="t-match-score empty" data-area="away-score">–</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>

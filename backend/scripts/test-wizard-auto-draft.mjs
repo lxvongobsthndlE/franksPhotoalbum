@@ -22,11 +22,11 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find(t => t.type === 'page' && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0 && !page; i < 25; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find(t => t.type === 'page' && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target mit screen-b-preview.html');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -45,13 +45,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -62,8 +65,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text +
-                    ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -112,18 +114,22 @@ async function runTests() {
       const method = (opts.method || 'GET').toUpperCase();
       if (method === 'POST' && /\/api\/tournaments$/.test(String(url))) {
         window.__postCalls.push({ url: String(url), name: opts.body, ts: Date.now() });
-        return new Response(JSON.stringify({
-          tournament: {
-            id: 't-blur-1',
-            groupId: 'g-1',
-            name: 'Auto-Draft Test',
-            status: 'draft',
-          },
-        }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            tournament: {
+              id: 't-blur-1',
+              groupId: 'g-1',
+              name: 'Auto-Draft Test',
+              status: 'draft',
+            },
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        );
       }
       if (method === 'POST' && /\/api\/tournaments\/[^/]+\/logo$/.test(String(url))) {
         return new Response(JSON.stringify({ logoUrl: '/api/tournaments/t-blur-1/logo' }), {
-          status: 200, headers: { 'Content-Type': 'application/json' },
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
         });
       }
       return realFetch(url, opts);
@@ -135,7 +141,9 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 1: Mock-Modus (kein groupId) ---');
 
-  await evalPageFn(() => { window.__postCalls = []; });
+  await evalPageFn(() => {
+    window.__postCalls = [];
+  });
   await evalPageFn(() => {
     const ROOT = document.getElementById('root');
     ROOT.innerHTML = '';
@@ -158,15 +166,16 @@ async function runTests() {
   await sleep(300);
   const mockPost = await evalPageFn(() => window.__postCalls.length);
   expect(mockBlur.ok, 'Mock-Setup gelaufen');
-  expect(mockPost === 0,
-    `Mock-Modus: kein POST /api/tournaments (real: ${mockPost})`);
+  expect(mockPost === 0, `Mock-Modus: kein POST /api/tournaments (real: ${mockPost})`);
 
   // ----------------------------------------------------------------
   // Test 2: Live-Modus, leerer Name → blur → kein POST.
   // ----------------------------------------------------------------
   console.log('\n--- Test 2: Leerer Name → kein POST ---');
 
-  await evalPageFn(() => { window.__postCalls = []; });
+  await evalPageFn(() => {
+    window.__postCalls = [];
+  });
   await evalPageFn(() => {
     const ROOT = document.getElementById('root');
     ROOT.innerHTML = '';
@@ -187,8 +196,7 @@ async function runTests() {
   });
   await sleep(300);
   const emptyPost = await evalPageFn(() => window.__postCalls.length);
-  expect(emptyPost === 0,
-    `Leerer Name: kein POST (real: ${emptyPost})`);
+  expect(emptyPost === 0, `Leerer Name: kein POST (real: ${emptyPost})`);
 
   // ----------------------------------------------------------------
   // Test 3: Live-Modus, Name gefüllt + blur → genau 1 POST,
@@ -196,7 +204,9 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 3: Name + blur → 1 POST, Picker aktiviert ---');
 
-  await evalPageFn(() => { window.__postCalls = []; });
+  await evalPageFn(() => {
+    window.__postCalls = [];
+  });
   await evalPageFn(() => {
     const ROOT = document.getElementById('root');
     ROOT.innerHTML = '';
@@ -214,10 +224,8 @@ async function runTests() {
     pickBtnDisabled: document.querySelector('.t-wizard-logo-picker button')?.disabled,
     statusText: document.querySelector('.t-wizard-logo-status')?.textContent,
   }));
-  expect(beforeBlur.pickBtnDisabled === true,
-    'Picker initial disabled (kein tournamentId)');
-  expect(/Hinweis/i.test(beforeBlur.statusText),
-    'Status zeigt Entwurf-Hinweis vor blur');
+  expect(beforeBlur.pickBtnDisabled === true, 'Picker initial disabled (kein tournamentId)');
+  expect(/Hinweis/i.test(beforeBlur.statusText), 'Status zeigt Entwurf-Hinweis vor blur');
 
   // Blur mit gültigem Namen.
   await evalPageFn(() => {
@@ -236,14 +244,16 @@ async function runTests() {
     lastName: window.__postCalls[0]?.name,
   }));
 
-  expect(afterBlur.postCount === 1,
-    `Genau 1 POST /api/tournaments (real: ${afterBlur.postCount})`);
-  expect(/Sommer-Cup 2026/.test(afterBlur.lastName),
-    `POST-Body enthält Turniername (real: ${afterBlur.lastName?.slice(0, 80)}…)`);
-  expect(afterBlur.pickBtnDisabled === false,
-    'Picker nach Auto-Draft aktiviert');
-  expect(afterBlur.statusText === '' || afterBlur.statusText === undefined,
-    'Entwurf-Hinweis nach Auto-Draft entfernt');
+  expect(afterBlur.postCount === 1, `Genau 1 POST /api/tournaments (real: ${afterBlur.postCount})`);
+  expect(
+    /Sommer-Cup 2026/.test(afterBlur.lastName),
+    `POST-Body enthält Turniername (real: ${afterBlur.lastName?.slice(0, 80)}…)`
+  );
+  expect(afterBlur.pickBtnDisabled === false, 'Picker nach Auto-Draft aktiviert');
+  expect(
+    afterBlur.statusText === '' || afterBlur.statusText === undefined,
+    'Entwurf-Hinweis nach Auto-Draft entfernt'
+  );
 
   // ----------------------------------------------------------------
   // Test 4: Zweites Blur (z. B. User ändert Name nochmal) →
@@ -260,8 +270,7 @@ async function runTests() {
   });
   await sleep(300);
   const post4 = await evalPageFn(() => window.__postCalls.length);
-  expect(post4 === 1,
-    `Nach 2. Blur: weiterhin nur 1 POST (real: ${post4})`);
+  expect(post4 === 1, `Nach 2. Blur: weiterhin nur 1 POST (real: ${post4})`);
 
   // ----------------------------------------------------------------
   // Test 5: "Weiter" klicken nach Auto-Draft → kein zweiter POST.
@@ -274,8 +283,7 @@ async function runTests() {
   });
   await sleep(400);
   const post5 = await evalPageFn(() => window.__postCalls.length);
-  expect(post5 === 1,
-    `"Weiter" feuert keinen neuen POST (real: ${post5})`);
+  expect(post5 === 1, `"Weiter" feuert keinen neuen POST (real: ${post5})`);
 
   // ----------------------------------------------------------------
   // Test 6: Logo-Picker aktiviert sich OHNE Re-Render.
@@ -283,7 +291,9 @@ async function runTests() {
   // ----------------------------------------------------------------
   console.log('\n--- Test 6: Picker aktiviert ohne Re-Render ---');
 
-  await evalPageFn(() => { window.__postCalls = []; });
+  await evalPageFn(() => {
+    window.__postCalls = [];
+  });
   await evalPageFn(() => {
     const ROOT = document.getElementById('root');
     ROOT.innerHTML = '';
@@ -324,12 +334,9 @@ async function runTests() {
     };
   }, focusRef);
 
-  expect(afterBlurFocus.sameNameInput,
-    'Name-Input ist DASSELBE DOM-Element (kein Re-Render)');
-  expect(afterBlurFocus.pickBtnDisabled === false,
-    'Picker nach Auto-Draft aktiviert');
-  expect(afterBlurFocus.postCount === 1,
-    `Genau 1 POST (real: ${afterBlurFocus.postCount})`);
+  expect(afterBlurFocus.sameNameInput, 'Name-Input ist DASSELBE DOM-Element (kein Re-Render)');
+  expect(afterBlurFocus.pickBtnDisabled === false, 'Picker nach Auto-Draft aktiviert');
+  expect(afterBlurFocus.postCount === 1, `Genau 1 POST (real: ${afterBlurFocus.postCount})`);
 
   // ----------------------------------------------------------------
   // Test 7: Server-Fehler beim Auto-Draft → Wizard läuft weiter,
@@ -345,10 +352,13 @@ async function runTests() {
       const method = (opts.method || 'GET').toUpperCase();
       if (method === 'POST' && /\/api\/tournaments$/.test(String(url))) {
         window.__postCalls.push({ url: String(url), ts: Date.now() });
-        return new Response(JSON.stringify({
-          error: 'server_error',
-          message: 'Datenbank streikt',
-        }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            error: 'server_error',
+            message: 'Datenbank streikt',
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
       }
       return realFetch(url, opts);
     };
@@ -382,12 +392,12 @@ async function runTests() {
     nameInputValue: document.querySelector('.t-wizard input.t-input')?.value,
   }));
 
-  expect(errState.postCount === 1,
-    'POST wurde versucht (1)');
-  expect(errState.pickBtnDisabled === true,
-    'Picker bleibt disabled, weil Draft fehlgeschlagen');
-  expect(errState.nameInputValue === 'Failure Turnier',
-    'Turniername bleibt im Input — User kann weiter tippen');
+  expect(errState.postCount === 1, 'POST wurde versucht (1)');
+  expect(errState.pickBtnDisabled === true, 'Picker bleibt disabled, weil Draft fehlgeschlagen');
+  expect(
+    errState.nameInputValue === 'Failure Turnier',
+    'Turniername bleibt im Input — User kann weiter tippen'
+  );
 
   console.log('\n=== Fertig. Exit-Code:', process.exitCode || 0, '===');
   s.ws.close();

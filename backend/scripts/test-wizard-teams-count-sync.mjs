@@ -19,13 +19,11 @@ async function getTargets() {
 
 async function attachToPage() {
   let targets = await getTargets();
-  let page = targets.find((t) => t.type === 'page'
-    && t.url.includes('screen-b-preview'));
+  let page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   for (let i = 0 && !page; i < 25; i++) {
     await sleep(200);
     targets = await getTargets();
-    page = targets.find((t) => t.type === 'page'
-      && t.url.includes('screen-b-preview'));
+    page = targets.find((t) => t.type === 'page' && t.url.includes('screen-b-preview'));
   }
   if (!page) throw new Error('kein Edge-Target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -44,13 +42,16 @@ async function attachToPage() {
       else resolve(msg.result);
     }
   });
-  return { ws, send: async (method, params = {}) => {
-    const reqId = ++id;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      ws.send(JSON.stringify({ id: reqId, method, params }));
-    });
-  }};
+  return {
+    ws,
+    send: async (method, params = {}) => {
+      const reqId = ++id;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        ws.send(JSON.stringify({ id: reqId, method, params }));
+      });
+    },
+  };
 }
 
 async function evalPage(send, fnStr, arg = null) {
@@ -61,8 +62,7 @@ async function evalPage(send, fnStr, arg = null) {
     returnByValue: true,
   });
   if (r.exceptionDetails) {
-    throw new Error('eval: ' + r.exceptionDetails.text
-      + ' :: ' + (r.result?.description || ''));
+    throw new Error('eval: ' + r.exceptionDetails.text + ' :: ' + (r.result?.description || ''));
   }
   return r.result?.value;
 }
@@ -86,7 +86,7 @@ async function runTests() {
   await sleep(800);
 
   for (let i = 0; i < 50; i++) {
-    const ready = (await evalPage(send, () => window.__tReady === true));
+    const ready = await evalPage(send, () => window.__tReady === true);
     if (ready) break;
     await sleep(100);
   }
@@ -120,7 +120,9 @@ async function runTests() {
       numGroups: 3,
       distributionMethod: 'random',
       doubleRoundRobin: false,
-      pointsWin: 3, pointsDraw: 1, pointsLoss: 0,
+      pointsWin: 3,
+      pointsDraw: 1,
+      pointsLoss: 0,
       tiebreakers: ['points', 'headToHead'],
       advancePerGroup: 2,
       bestThirdsCount: 0,
@@ -144,10 +146,11 @@ async function runTests() {
     };
   });
 
-  expect(initial.numberInputValue === '12',
-    `Zahlenfeld zeigt 12 (real: "${initial.numberInputValue}")`);
-  expect(initial.rowsCount === 12,
-    `Liste hat 12 Zeilen (real: ${initial.rowsCount})`);
+  expect(
+    initial.numberInputValue === '12',
+    `Zahlenfeld zeigt 12 (real: "${initial.numberInputValue}")`
+  );
+  expect(initial.rowsCount === 12, `Liste hat 12 Zeilen (real: ${initial.rowsCount})`);
 
   // ----------------------------------------------------------------
   // Test 2: addBtn-Klick → Zahlenfeld folgt auf 13
@@ -172,10 +175,11 @@ async function runTests() {
     rowsCount: document.querySelectorAll('.t-wizard-team-row').length,
   }));
 
-  expect(afterAdd.numberInputValue === '13',
-    `Zahlenfeld spiegelt 13 nach addBtn (real: "${afterAdd.numberInputValue}")`);
-  expect(afterAdd.rowsCount === 13,
-    `Liste hat 13 Zeilen (real: ${afterAdd.rowsCount})`);
+  expect(
+    afterAdd.numberInputValue === '13',
+    `Zahlenfeld spiegelt 13 nach addBtn (real: "${afterAdd.numberInputValue}")`
+  );
+  expect(afterAdd.rowsCount === 13, `Liste hat 13 Zeilen (real: ${afterAdd.rowsCount})`);
 
   // ----------------------------------------------------------------
   // Test 3: zwei weitere addBtn-Klicks → 15
@@ -196,10 +200,11 @@ async function runTests() {
     rowsCount: document.querySelectorAll('.t-wizard-team-row').length,
   }));
 
-  expect(afterMore.numberInputValue === '15',
-    `Zahlenfeld = 15 nach 3 addBtn (real: "${afterMore.numberInputValue}")`);
-  expect(afterMore.rowsCount === 15,
-    `Liste hat 15 Zeilen (real: ${afterMore.rowsCount})`);
+  expect(
+    afterMore.numberInputValue === '15',
+    `Zahlenfeld = 15 nach 3 addBtn (real: "${afterMore.numberInputValue}")`
+  );
+  expect(afterMore.rowsCount === 15, `Liste hat 15 Zeilen (real: ${afterMore.rowsCount})`);
 
   // ----------------------------------------------------------------
   // Test 4: Feld oben darf weiterhin Bedienelement sein — Tippen
@@ -211,8 +216,9 @@ async function runTests() {
   await evalPage(send, () => {
     const input = document.querySelector('.t-wizard-stepper-input');
     input.value = '5';
-    const applyBtn = Array.from(document.querySelectorAll('.t-wizard-teams-path button.t-btn--primary'))
-      .find((b) => b.textContent.trim() === 'Anzahl übernehmen');
+    const applyBtn = Array.from(
+      document.querySelectorAll('.t-wizard-teams-path button.t-btn--primary')
+    ).find((b) => b.textContent.trim() === 'Anzahl übernehmen');
     if (applyBtn) applyBtn.click();
   });
   await sleep(300);
@@ -222,10 +228,14 @@ async function runTests() {
     rowsCount: document.querySelectorAll('.t-wizard-team-row').length,
   }));
 
-  expect(afterApply.numberInputValue === '5',
-    `Nach applyCount(5): Feld = 5 (real: "${afterApply.numberInputValue}")`);
-  expect(afterApply.rowsCount === 5,
-    `Nach applyCount(5): Liste = 5 Zeilen (real: ${afterApply.rowsCount})`);
+  expect(
+    afterApply.numberInputValue === '5',
+    `Nach applyCount(5): Feld = 5 (real: "${afterApply.numberInputValue}")`
+  );
+  expect(
+    afterApply.rowsCount === 5,
+    `Nach applyCount(5): Liste = 5 Zeilen (real: ${afterApply.rowsCount})`
+  );
 
   console.log('\n=== Fertig. Exit-Code:', process.exitCode || 0, '===');
   s.ws.close();

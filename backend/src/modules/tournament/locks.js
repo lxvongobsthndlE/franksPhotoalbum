@@ -20,7 +20,15 @@
  *   Funktionsobjekt — verifiziert durch `locks-parity.test.js`.
  */
 
-export const EDITABLE = Object.freeze(['teams', 'mode', 'groups', 'fields', 'times', 'draw', 'results']);
+export const EDITABLE = Object.freeze([
+  'teams',
+  'mode',
+  'groups',
+  'fields',
+  'times',
+  'draw',
+  'results',
+]);
 
 /**
  * Hauptfunktion für die meisten Lock-Entscheidungen.
@@ -57,11 +65,20 @@ export function canEdit(t, finishedCount, what) {
   switch (what) {
     case 'teams':
       // Add/Remove/Reorder gesperrt. Rename ist nicht hier.
-      return { allowed: false, reason: 'Sperrt, solange das Turnier läuft. Nur Umbenennen ist noch möglich.' };
+      return {
+        allowed: false,
+        reason: 'Sperrt, solange das Turnier läuft. Nur Umbenennen ist noch möglich.',
+      };
     case 'mode':
-      return { allowed: false, reason: 'Sperrt, solange das Turnier läuft. Modus ist jetzt eingefroren.' };
+      return {
+        allowed: false,
+        reason: 'Sperrt, solange das Turnier läuft. Modus ist jetzt eingefroren.',
+      };
     case 'groups':
-      return { allowed: false, reason: 'Sperrt, solange das Turnier läuft. Gruppen sind jetzt eingefroren.' };
+      return {
+        allowed: false,
+        reason: 'Sperrt, solange das Turnier läuft. Gruppen sind jetzt eingefroren.',
+      };
     case 'fields':
       // Spielfeld-Namen und -Anzahl in LÄUFT noch änderbar.
       return { allowed: true, reason: null };
@@ -93,7 +110,11 @@ export function canRevertToDraft(t, finishedCount) {
     return { allowed: false, reason: 'Turnier wurde noch nicht gestartet.' };
   }
   if (finishedCount > 0) {
-    return { allowed: false, reason: 'Es liegen bereits Ergebnisse vor. Bestätige mit dem Turniernamen, um sie zu verwerfen.' };
+    return {
+      allowed: false,
+      reason:
+        'Es liegen bereits Ergebnisse vor. Bestätige mit dem Turniernamen, um sie zu verwerfen.',
+    };
   }
   return { allowed: true, reason: null };
 }
@@ -105,7 +126,10 @@ export function canRevertToDraft(t, finishedCount) {
  */
 export function canStartTournament(t) {
   if (t.status !== 'generated') {
-    return { allowed: false, reason: 'Turnier ist nicht generiert. Erst „Spielplan generieren" aufrufen.' };
+    return {
+      allowed: false,
+      reason: 'Turnier ist nicht generiert. Erst „Spielplan generieren" aufrufen.',
+    };
   }
   if (t.startedAt !== null && t.startedAt !== undefined) {
     return { allowed: false, reason: 'Turnier läuft bereits.' };
@@ -153,10 +177,22 @@ export function lockStateFor(t, finishedCount) {
     canEditResults: results,
     canRevertToDraft: revert,
     canStart: start,
-    canDelete: t.status !== 'finished' ? { allowed: true, reason: null } : { allowed: false, reason: 'Turnier ist beendet.' },
-    canFinish: t.status !== 'finished' ? { allowed: true, reason: null } : { allowed: false, reason: 'Turnier ist bereits beendet.' },
-    canShiftMatches: t.status !== 'finished' ? { allowed: true, reason: null } : { allowed: false, reason: 'Turnier ist beendet.' },
-    canReschedule: t.status !== 'finished' ? { allowed: true, reason: null } : { allowed: false, reason: 'Turnier ist beendet.' },
+    canDelete:
+      t.status !== 'finished'
+        ? { allowed: true, reason: null }
+        : { allowed: false, reason: 'Turnier ist beendet.' },
+    canFinish:
+      t.status !== 'finished'
+        ? { allowed: true, reason: null }
+        : { allowed: false, reason: 'Turnier ist bereits beendet.' },
+    canShiftMatches:
+      t.status !== 'finished'
+        ? { allowed: true, reason: null }
+        : { allowed: false, reason: 'Turnier ist beendet.' },
+    canReschedule:
+      t.status !== 'finished'
+        ? { allowed: true, reason: null }
+        : { allowed: false, reason: 'Turnier ist beendet.' },
     requireConfirmForRedraw: requireConfirmForRedraw(t, finishedCount),
     requireConfirmForDelete: requireConfirmForDelete(t, finishedCount),
   };

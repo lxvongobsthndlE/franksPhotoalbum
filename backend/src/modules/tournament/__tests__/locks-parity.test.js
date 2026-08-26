@@ -203,10 +203,7 @@ describe('locks: UMD-Pattern — window.tournamentLocks exportiert dieselbe Logi
     const path = await import('node:path');
     const url = await import('node:url');
     const here = url.fileURLToPath(import.meta.url);
-    const src = await fs.readFile(
-      path.resolve(path.dirname(here), '../locks.js'),
-      'utf8'
-    );
+    const src = await fs.readFile(path.resolve(path.dirname(here), '../locks.js'), 'utf8');
     expect(src).toMatch(/typeof\s+window\s+!==\s+'undefined'/);
     expect(src).toMatch(/window\.tournamentLocks/);
     // Beide Pfade (ESM-Export + window.global) müssen dieselben Funktionen

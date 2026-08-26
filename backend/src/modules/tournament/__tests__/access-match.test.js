@@ -28,8 +28,8 @@ const teams = new Map([
 
 const stages = new Map([
   ['s_group', { id: 's_group', name: 'Gruppenphase', type: 'group', orderIndex: 1 }],
-  ['s_ko',    { id: 's_ko',    name: 'K.-o.-Runde',  type: 'ko',    orderIndex: 2 }],
-  ['s_losers',{ id: 's_losers',name: 'Loser-Bracket',type: 'losers',orderIndex: 3 }],
+  ['s_ko', { id: 's_ko', name: 'K.-o.-Runde', type: 'ko', orderIndex: 2 }],
+  ['s_losers', { id: 's_losers', name: 'Loser-Bracket', type: 'losers', orderIndex: 3 }],
 ]);
 
 const groups = new Map([
@@ -50,38 +50,37 @@ describe('buildMatchLabel', () => {
   });
 
   it('KO-Spiel "HF 2"', () => {
-    expect(buildMatchLabel({ stageId: 's_ko', round: 'SF', bracketPos: 2 }, ctx))
-      .toBe('HF 2');
+    expect(buildMatchLabel({ stageId: 's_ko', round: 'SF', bracketPos: 2 }, ctx)).toBe('HF 2');
   });
 
   it('Finale', () => {
-    expect(buildMatchLabel({ stageId: 's_ko', round: 'F', bracketPos: 1 }, ctx))
-      .toBe('Finale');
+    expect(buildMatchLabel({ stageId: 's_ko', round: 'F', bracketPos: 1 }, ctx)).toBe('Finale');
   });
 
   it('Spiel um Platz 3', () => {
-    expect(buildMatchLabel({ stageId: 's_ko', round: '3RD', bracketPos: 1 }, ctx))
-      .toBe('Spiel um Platz 3');
+    expect(buildMatchLabel({ stageId: 's_ko', round: '3RD', bracketPos: 1 }, ctx)).toBe(
+      'Spiel um Platz 3'
+    );
   });
 
   it('Achtelfinale "AF 1"', () => {
-    expect(buildMatchLabel({ stageId: 's_ko', round: 'R16', bracketPos: 1 }, ctx))
-      .toBe('AF 1');
+    expect(buildMatchLabel({ stageId: 's_ko', round: 'R16', bracketPos: 1 }, ctx)).toBe('AF 1');
   });
 
   it('Sechzehntelfinale "SF 1"', () => {
-    expect(buildMatchLabel({ stageId: 's_ko', round: 'R32', bracketPos: 1 }, ctx))
-      .toBe('SF 1');
+    expect(buildMatchLabel({ stageId: 's_ko', round: 'R32', bracketPos: 1 }, ctx)).toBe('SF 1');
   });
 
   it('Gruppenspiel "Gruppenspiel A1"', () => {
-    expect(buildMatchLabel({ stageId: 's_group', groupId: 'gA', bracketPos: 1 }, ctx))
-      .toBe('Gruppenspiel A1');
+    expect(buildMatchLabel({ stageId: 's_group', groupId: 'gA', bracketPos: 1 }, ctx)).toBe(
+      'Gruppenspiel A1'
+    );
   });
 
   it('Gruppenspiel "Gruppenspiel B3"', () => {
-    expect(buildMatchLabel({ stageId: 's_group', groupId: 'gB', bracketPos: 3 }, ctx))
-      .toBe('Gruppenspiel B3');
+    expect(buildMatchLabel({ stageId: 's_group', groupId: 'gB', bracketPos: 3 }, ctx)).toBe(
+      'Gruppenspiel B3'
+    );
   });
 
   it('Fallback ohne Kontext', () => {
@@ -213,7 +212,7 @@ describe('prepareMatchView — KO mit Folgematch', () => {
     round: 'SF',
     bracketPos: 2,
     teamHome: 'tB',
-    teamAway: null,                // kommt noch aus VF
+    teamAway: null, // kommt noch aus VF
     placeholderHome: null,
     placeholderAway: { type: 'match_winner', matchLabel: 'VF 2' },
     scoreHome: null,
@@ -225,8 +224,8 @@ describe('prepareMatchView — KO mit Folgematch', () => {
 
   const matches = new Map([
     ['mFinal', prepareMatchView(koFinal, ctx)],
-    ['mSF1',   prepareMatchView(koSf1, ctx)],
-    ['mSF2',   prepareMatchView(koSf2, ctx)],
+    ['mSF1', prepareMatchView(koSf1, ctx)],
+    ['mSF2', prepareMatchView(koSf2, ctx)],
   ]);
   const ctxWithMatches = { ...ctx, matches };
 
@@ -285,7 +284,7 @@ describe('prepareMatchView — Edge Cases', () => {
   it('Match ohne Teams/Placeholders → null-Slots', () => {
     const v = prepareMatchView(
       { id: 'm', tournamentId: 't', stageId: 's_group', bracketPos: 1 },
-      ctx,
+      ctx
     );
     expect(v.home).toBeNull();
     expect(v.away).toBeNull();
@@ -294,7 +293,7 @@ describe('prepareMatchView — Edge Cases', () => {
   it('status default "scheduled" → statusLabel "offen"', () => {
     const v = prepareMatchView(
       { id: 'm', tournamentId: 't', stageId: 's_group', bracketPos: 1 },
-      ctx,
+      ctx
     );
     expect(v.status).toBe('scheduled');
     expect(v.statusLabel).toBe('offen');
@@ -303,11 +302,15 @@ describe('prepareMatchView — Edge Cases', () => {
   it('field null → null im DTO', () => {
     const v = prepareMatchView(
       {
-        id: 'm', tournamentId: 't', stageId: 's_group', bracketPos: 1,
-        teamHome: 'tA', teamAway: 'tB',
+        id: 'm',
+        tournamentId: 't',
+        stageId: 's_group',
+        bracketPos: 1,
+        teamHome: 'tA',
+        teamAway: 'tB',
         scheduledAt: new Date('2026-09-05T12:00:00'),
       },
-      ctx,
+      ctx
     );
     expect(v.field).toBeNull();
   });
@@ -315,10 +318,14 @@ describe('prepareMatchView — Edge Cases', () => {
   it('scheduledAt null → leere Zeitstrings', () => {
     const v = prepareMatchView(
       {
-        id: 'm', tournamentId: 't', stageId: 's_group', bracketPos: 1,
-        teamHome: 'tA', teamAway: 'tB',
+        id: 'm',
+        tournamentId: 't',
+        stageId: 's_group',
+        bracketPos: 1,
+        teamHome: 'tA',
+        teamAway: 'tB',
       },
-      ctx,
+      ctx
     );
     expect(v.scheduledTime).toBe('');
     expect(v.scheduledLabel).toBe('');
@@ -327,10 +334,14 @@ describe('prepareMatchView — Edge Cases', () => {
   it('Team-ID ohne Lookup → "—" als Name', () => {
     const v = prepareMatchView(
       {
-        id: 'm', tournamentId: 't', stageId: 's_group', bracketPos: 1,
-        teamHome: 'unknown', teamAway: 'tB',
+        id: 'm',
+        tournamentId: 't',
+        stageId: 's_group',
+        bracketPos: 1,
+        teamHome: 'unknown',
+        teamAway: 'tB',
       },
-      ctx,
+      ctx
     );
     expect(v.home.name).toBe('—');
   });
@@ -338,10 +349,13 @@ describe('prepareMatchView — Edge Cases', () => {
   it('live-Status wird erkannt', () => {
     const v = prepareMatchView(
       {
-        id: 'm', tournamentId: 't', stageId: 's_group', bracketPos: 1,
+        id: 'm',
+        tournamentId: 't',
+        stageId: 's_group',
+        bracketPos: 1,
         status: 'live',
       },
-      ctx,
+      ctx
     );
     expect(v.isLive).toBe(true);
     expect(v.statusLabel).toBe('läuft');
@@ -363,7 +377,7 @@ describe('prepareMatchList', () => {
         { id: 'm1', tournamentId: 't', stageId: 's_group', bracketPos: 1 },
         { id: 'm2', tournamentId: 't', stageId: 's_group', bracketPos: 2 },
       ],
-      ctx,
+      ctx
     );
     expect(list).toHaveLength(2);
     expect(list[0].id).toBe('m1');
@@ -377,7 +391,7 @@ describe('buildMatchLookup', () => {
         { id: 'm1', tournamentId: 't', stageId: 's_group', groupId: 'gA', bracketPos: 1 },
         { id: 'm2', tournamentId: 't', stageId: 's_ko', round: 'QF', bracketPos: 1 },
       ],
-      ctx,
+      ctx
     );
     expect(map).toBeInstanceOf(Map);
     expect(map.get('m1').label).toBe('Gruppenspiel A1');

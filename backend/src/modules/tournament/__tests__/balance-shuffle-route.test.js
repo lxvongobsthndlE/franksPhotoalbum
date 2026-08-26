@@ -61,9 +61,16 @@ const initialMemberships = [
 
 function makeStub(overrides = {}) {
   return {
-    id: tDraftId, groupId: gId, name: 'Mein Turnier',
-    status: 'draft', isPublic: false, publicToken: null,
-    publicRevokedAt: null, logoUrl: null, config: null, startedAt: null,
+    id: tDraftId,
+    groupId: gId,
+    name: 'Mein Turnier',
+    status: 'draft',
+    isPublic: false,
+    publicToken: null,
+    publicRevokedAt: null,
+    logoUrl: null,
+    config: null,
+    startedAt: null,
     group: { id: gId, createdBy: u.admin.id, name: 'G' },
     ...overrides,
   };
@@ -77,11 +84,27 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
     $transaction: vi.fn(async (cb) => {
       return typeof cb === 'function' ? cb(prisma) : cb;
     }),
@@ -109,7 +132,12 @@ function baseStubs(prisma) {
   prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
     if (where.id === tDraftId) return makeStub({ id: tDraftId });
     if (where.id === tGeneratedId) return makeStub({ id: tGeneratedId, status: 'generated' });
-    if (where.id === tRunningId) return makeStub({ id: tRunningId, status: 'group_stage', startedAt: new Date('2026-08-20T10:00:00Z') });
+    if (where.id === tRunningId)
+      return makeStub({
+        id: tRunningId,
+        status: 'group_stage',
+        startedAt: new Date('2026-08-20T10:00:00Z'),
+      });
     if (where.id === tNoGroupsId) return makeStub({ id: tNoGroupsId, status: 'generated' });
     return null;
   });
@@ -176,7 +204,8 @@ afterEach(async () => {
 
 const post = (url, body = {}, userId = u.admin.id) =>
   app.inject({
-    method: 'POST', url,
+    method: 'POST',
+    url,
     headers: { 'x-test-user': userId },
     payload: body,
   });
@@ -192,7 +221,11 @@ describe('POST /api/tournaments/:id/balance-shuffle-groups', () => {
   });
 
   it('403 Member (§1.2 Pflicht-Test)', async () => {
-    const res = await post(`/api/tournaments/${tGeneratedId}/balance-shuffle-groups`, {}, u.member.id);
+    const res = await post(
+      `/api/tournaments/${tGeneratedId}/balance-shuffle-groups`,
+      {},
+      u.member.id
+    );
     expect(res.statusCode).toBe(403);
   });
 
@@ -237,7 +270,9 @@ describe('POST /api/tournaments/:id/balance-shuffle-groups', () => {
   it('Size-Invariante: Anzahl Teams pro Gruppe bleibt gleich (3 Gruppen à 4)', async () => {
     // Track der letzten "written" Memberships.
     const lastWritten = [];
-    prisma.groupMembership.deleteMany.mockImplementation(async () => ({ count: lastWritten.length }));
+    prisma.groupMembership.deleteMany.mockImplementation(async () => ({
+      count: lastWritten.length,
+    }));
     prisma.groupMembership.createMany.mockImplementation(async ({ data }) => {
       lastWritten.length = 0;
       lastWritten.push(...data);

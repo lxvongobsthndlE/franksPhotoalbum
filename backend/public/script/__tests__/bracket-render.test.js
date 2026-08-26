@@ -27,9 +27,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  bracket,
-} from '../spielplan-helpers.js';
+import { bracket } from '../spielplan-helpers.js';
 
 const { groupMatchesByRound, renderMatchCardBracket, renderBracket } = bracket;
 
@@ -83,11 +81,13 @@ describe('groupMatchesByRound', () => {
       makeKoMatch({ id: 'qf4', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 4 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'sf2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale',       bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
     ];
     const out = groupMatchesByRound(matches);
     expect(out.winnerBracket.map((r) => r.label)).toEqual([
-      'Viertelfinale', 'Halbfinale', 'Finale',
+      'Viertelfinale',
+      'Halbfinale',
+      'Finale',
     ]);
     expect(out.thirdPlace).toBeNull();
     expect(out.winnerBracket[0].matches.map((m) => m.id)).toEqual(['qf1', 'qf2', 'qf3', 'qf4']);
@@ -97,15 +97,31 @@ describe('groupMatchesByRound', () => {
 
   it('16er-Baum (R16 + QF + SF + F) → 4 Spalten in Reihenfolge [Achtelfinale, Viertelfinale, Halbfinale, Finale]', () => {
     const r16 = Array.from({ length: 8 }, (_, i) =>
-      makeKoMatch({ id: `r16_${i + 1}`, round: 'R16', roundLabel: 'Achtelfinale', bracketPos: i + 1 }));
+      makeKoMatch({
+        id: `r16_${i + 1}`,
+        round: 'R16',
+        roundLabel: 'Achtelfinale',
+        bracketPos: i + 1,
+      })
+    );
     const qf = Array.from({ length: 4 }, (_, i) =>
-      makeKoMatch({ id: `qf_${i + 1}`, round: 'QF', roundLabel: 'Viertelfinale', bracketPos: i + 1 }));
+      makeKoMatch({
+        id: `qf_${i + 1}`,
+        round: 'QF',
+        roundLabel: 'Viertelfinale',
+        bracketPos: i + 1,
+      })
+    );
     const sf = Array.from({ length: 2 }, (_, i) =>
-      makeKoMatch({ id: `sf_${i + 1}`, round: 'SF', roundLabel: 'Halbfinale', bracketPos: i + 1 }));
-    const f  = [makeKoMatch({ id: 'f_1', round: 'F', roundLabel: 'Finale', bracketPos: 1 })];
+      makeKoMatch({ id: `sf_${i + 1}`, round: 'SF', roundLabel: 'Halbfinale', bracketPos: i + 1 })
+    );
+    const f = [makeKoMatch({ id: 'f_1', round: 'F', roundLabel: 'Finale', bracketPos: 1 })];
     const out = groupMatchesByRound([...r16, ...qf, ...sf, ...f]);
     expect(out.winnerBracket.map((r) => r.label)).toEqual([
-      'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale',
+      'Achtelfinale',
+      'Viertelfinale',
+      'Halbfinale',
+      'Finale',
     ]);
   });
 
@@ -113,12 +129,15 @@ describe('groupMatchesByRound', () => {
     const matches = [
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'sf2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
       // DTO hat fälschlich bracketType='winner' (siehe bracket.js:407).
       // Unsere Erkennung nutzt round='3RD' — das MUSS funktionieren.
       makeKoMatch({
-        id: '3rd_1', round: '3RD', roundLabel: 'Spiel um Platz 3',
-        bracketType: 'winner', bracketPos: 1,
+        id: '3rd_1',
+        round: '3RD',
+        roundLabel: 'Spiel um Platz 3',
+        bracketType: 'winner',
+        bracketPos: 1,
         home: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 1', color: null },
         away: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 2', color: null },
       }),
@@ -133,8 +152,11 @@ describe('groupMatchesByRound', () => {
     const matches = [
       makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
       makeKoMatch({
-        id: '3rd_2', round: '3RD', roundLabel: 'Spiel um Platz 3',
-        bracketType: 'loser', bracketPos: 1,
+        id: '3rd_2',
+        round: '3RD',
+        roundLabel: 'Spiel um Platz 3',
+        bracketType: 'loser',
+        bracketPos: 1,
       }),
     ];
     const out = groupMatchesByRound(matches);
@@ -157,15 +179,32 @@ describe('groupMatchesByRound', () => {
     // (4 echte + 2 BYE-Spiele). Nach Anzahl-Matches zu sortieren wäre
     // eine Falle. KO_ROUND_ORDER hingegen liefert weiter [R16, QF, SF, F].
     const r16 = Array.from({ length: 6 }, (_, i) =>
-      makeKoMatch({ id: `r16_${i + 1}`, round: 'R16', roundLabel: 'Achtelfinale', bracketPos: i + 1 }));
+      makeKoMatch({
+        id: `r16_${i + 1}`,
+        round: 'R16',
+        roundLabel: 'Achtelfinale',
+        bracketPos: i + 1,
+      })
+    );
     const qf = Array.from({ length: 4 }, (_, i) =>
-      makeKoMatch({ id: `qf_${i + 1}`, round: 'QF', roundLabel: 'Viertelfinale', bracketPos: i + 1 }));
-    const sf = [makeKoMatch({ id: 'sf_1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
-                makeKoMatch({ id: 'sf_2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 })];
-    const f  = [makeKoMatch({ id: 'f_1', round: 'F', roundLabel: 'Finale', bracketPos: 1 })];
+      makeKoMatch({
+        id: `qf_${i + 1}`,
+        round: 'QF',
+        roundLabel: 'Viertelfinale',
+        bracketPos: i + 1,
+      })
+    );
+    const sf = [
+      makeKoMatch({ id: 'sf_1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
+      makeKoMatch({ id: 'sf_2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 }),
+    ];
+    const f = [makeKoMatch({ id: 'f_1', round: 'F', roundLabel: 'Finale', bracketPos: 1 })];
     const out = groupMatchesByRound([...r16, ...qf, ...sf, ...f]);
     expect(out.winnerBracket.map((r) => r.label)).toEqual([
-      'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale',
+      'Achtelfinale',
+      'Viertelfinale',
+      'Halbfinale',
+      'Finale',
     ]);
     expect(out.winnerBracket[0].matches.length).toBe(6);
   });
@@ -182,7 +221,8 @@ describe('renderMatchCardBracket', () => {
     const m = makeKoMatch({
       home: { kind: 'team', name: 'Heimteam A', color: '#abc' },
       away: { kind: 'team', name: 'Gastteam B', color: '#def' },
-      scoreHome: 2, scoreAway: 1,
+      scoreHome: 2,
+      scoreAway: 1,
     });
     const html = renderMatchCardBracket(m);
     expect(html).toContain('t-match--bracket');
@@ -210,7 +250,8 @@ describe('renderMatchCardBracket', () => {
 
   it('placeholder-Heim rendert home.name ("Sieger VF 1") kursiv (via t-match--placeholder Klasse)', () => {
     const m = makeKoMatch({
-      round: 'SF', roundLabel: 'Halbfinale',
+      round: 'SF',
+      roundLabel: 'Halbfinale',
       home: { kind: 'placeholder', teamId: null, name: 'Sieger VF 1', color: null },
       away: { kind: 'placeholder', teamId: null, name: 'Sieger VF 2', color: null },
     });
@@ -223,7 +264,8 @@ describe('renderMatchCardBracket', () => {
 
   it('3RD-Match rendert "Verlierer HF 1" / "Verlierer HF 2" (NICHT "Sieger")', () => {
     const m = makeKoMatch({
-      round: '3RD', roundLabel: 'Spiel um Platz 3',
+      round: '3RD',
+      roundLabel: 'Spiel um Platz 3',
       home: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 1', color: null },
       away: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 2', color: null },
     });
@@ -235,8 +277,11 @@ describe('renderMatchCardBracket', () => {
 
   it('beendet-Match mit Score rendert "Beendet" in Meta-Zeile + Sieger-Highlighting', () => {
     const m = makeKoMatch({
-      scoreHome: 3, scoreAway: 2, isFinished: true,
-      scheduledTime: '14:30', field: 2,
+      scoreHome: 3,
+      scoreAway: 2,
+      isFinished: true,
+      scheduledTime: '14:30',
+      field: 2,
     });
     const html = renderMatchCardBracket(m);
     expect(html).toContain('Beendet');
@@ -251,10 +296,11 @@ describe('renderMatchCardBracket', () => {
 
   it('offenes Match mit scheduledTime + field rendert "14:30 · Platte 2" (geschuetzt)', () => {
     const m = makeKoMatch({
-      scheduledTime: '14:30', field: 2,
+      scheduledTime: '14:30',
+      field: 2,
     });
     const html = renderMatchCardBracket(m);
-        // Geschuetztes Leerzeichen zwischen "Platte" und der Nummer
+    // Geschuetztes Leerzeichen zwischen "Platte" und der Nummer
     // (2026-08-26, Fund von Jonas am iPhone SE): die Meta-Zeile darf
     // umbrechen, damit lange Feldnamen nicht abgeschnitten werden — sie
     // hat das genutzt und die Nummer auf eine eigene Zeile geschoben.
@@ -276,7 +322,9 @@ describe('renderMatchCardBracket', () => {
 
   it('Unentschieden zeigt keine is-winner-Klasse auf einem der Teams', () => {
     const m = makeKoMatch({
-      scoreHome: 2, scoreAway: 2, isFinished: true,
+      scoreHome: 2,
+      scoreAway: 2,
+      isFinished: true,
     });
     const html = renderMatchCardBracket(m);
     expect(html).toContain('t-match--done');
@@ -344,7 +392,7 @@ describe('renderBracket', () => {
       makeKoMatch({ id: 'qf4', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 4 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'sf2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
     ];
     const html = renderBracket(matches);
     expect(html).toContain('bracket-wrap');
@@ -360,8 +408,12 @@ describe('renderBracket', () => {
   });
 
   it('empty matches → Hinweistext "Der Turnierbaum erscheint..."', () => {
-    expect(renderBracket([])).toContain('Der Turnierbaum erscheint, sobald die KO-Phase generiert wurde.');
-    expect(renderBracket(null)).toContain('Der Turnierbaum erscheint, sobald die KO-Phase generiert wurde.');
+    expect(renderBracket([])).toContain(
+      'Der Turnierbaum erscheint, sobald die KO-Phase generiert wurde.'
+    );
+    expect(renderBracket(null)).toContain(
+      'Der Turnierbaum erscheint, sobald die KO-Phase generiert wurde.'
+    );
   });
 
   it('3RD-Match liegt INNERHALB der Finale-Spalte (Bug-16-Nachschlag 2026-08-19)', () => {
@@ -371,10 +423,13 @@ describe('renderBracket', () => {
     // Wenn es in der Finale-Spalte sitzt, löst sich das von selbst."
     const matches = [
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
       makeKoMatch({
-        id: '3rd_1', round: '3RD', roundLabel: 'Spiel um Platz 3',
-        bracketType: 'winner', bracketPos: 1,
+        id: '3rd_1',
+        round: '3RD',
+        roundLabel: 'Spiel um Platz 3',
+        bracketType: 'winner',
+        bracketPos: 1,
         home: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 1', color: null },
         away: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 2', color: null },
       }),
@@ -401,10 +456,13 @@ describe('renderBracket', () => {
     // Sicherheitscheck: 3RD darf NICHT in einer eigenen 4. .bracket-col landen.
     const matches = [
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
       makeKoMatch({
-        id: '3rd_1', round: '3RD', roundLabel: 'Spiel um Platz 3',
-        bracketType: 'winner', bracketPos: 1,
+        id: '3rd_1',
+        round: '3RD',
+        roundLabel: 'Spiel um Platz 3',
+        bracketType: 'winner',
+        bracketPos: 1,
         home: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 1', color: null },
         away: { kind: 'placeholder', teamId: null, name: 'Verlierer HF 2', color: null },
       }),
@@ -436,7 +494,7 @@ describe('renderBracket', () => {
       makeKoMatch({ id: 'qf2', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 2 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'sf2', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 2 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
     ];
     const html = renderBracket(matches);
     // Auf keiner Card darf margin-top im style-Attribut stehen.
@@ -447,7 +505,7 @@ describe('renderBracket', () => {
     const matches = [
       makeKoMatch({ id: 'qf1', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
     ];
     const html = renderBracket(matches);
     expect(html).toContain('class="bracket-tabs"');
@@ -473,7 +531,7 @@ describe('renderBracket', () => {
       makeKoMatch({ id: 'qf1', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 1 }),
       makeKoMatch({ id: 'qf2', round: 'QF', roundLabel: 'Viertelfinale', bracketPos: 2 }),
       makeKoMatch({ id: 'sf1', round: 'SF', roundLabel: 'Halbfinale', bracketPos: 1 }),
-      makeKoMatch({ id: 'f1',  round: 'F',  roundLabel: 'Finale', bracketPos: 1 }),
+      makeKoMatch({ id: 'f1', round: 'F', roundLabel: 'Finale', bracketPos: 1 }),
     ];
     const html = renderBracket(matches);
     expect(html).not.toContain('grid-column:');
@@ -495,12 +553,17 @@ describe('renderBracket', () => {
 
 describe('renderBracket — Weg zum Titel und Runden-Stand', () => {
   const runde = (id, label, n, fertig) =>
-    Array.from({ length: n }, (_, i) => makeKoMatch({
-      id: id + i, round: id, roundLabel: label, bracketPos: i + 1,
-      isFinished: i < fertig,
-      scoreHome: i < fertig ? 3 : undefined,
-      scoreAway: i < fertig ? 1 : undefined,
-    }));
+    Array.from({ length: n }, (_, i) =>
+      makeKoMatch({
+        id: id + i,
+        round: id,
+        roundLabel: label,
+        bracketPos: i + 1,
+        isFinished: i < fertig,
+        scoreHome: i < fertig ? 3 : undefined,
+        scoreAway: i < fertig ? 1 : undefined,
+      })
+    );
 
   const staende = (html) =>
     [...html.matchAll(/<span class="bracket-tab-stand">([^<]*)<\/span>/g)].map((m) => m[1]);
@@ -542,10 +605,7 @@ describe('renderBracket — Weg zum Titel und Runden-Stand', () => {
     // NICHT zurueckkommt, ohne dass jemand die Entscheidung kennt —
     // ein geloeschter Test haette die Vorlage beim naechsten Abgleich
     // stillschweigend gewinnen lassen.
-    const html = renderBracket([
-      ...runde('SF', 'Halbfinale', 2, 0),
-      ...runde('F', 'Finale', 1, 0),
-    ]);
+    const html = renderBracket([...runde('SF', 'Halbfinale', 2, 0), ...runde('F', 'Finale', 1, 0)]);
     expect(html).not.toContain('t-weg-svg');
     expect(html).not.toContain('t-weg');
     expect(html).not.toMatch(/aria-label="Fortschritt: Runde/);
@@ -556,10 +616,7 @@ describe('renderBracket — Weg zum Titel und Runden-Stand', () => {
     // leisten die Reiter ohnehin, und praeziser: "Halbfinale 0/2" sagt
     // mehr als ein halbgefuellter Kreis. Deshalb ist mit der Miniatur
     // keine Information verlorengegangen — genau das wird hier geprueft.
-    const html = renderBracket([
-      ...runde('SF', 'Halbfinale', 2, 1),
-      ...runde('F', 'Finale', 1, 0),
-    ]);
+    const html = renderBracket([...runde('SF', 'Halbfinale', 2, 1), ...runde('F', 'Finale', 1, 0)]);
     expect(html).toContain('bracket-tabs');
     expect(html).toContain('bracket-tab-stand');
     expect(html).toContain('1/2');
@@ -567,10 +624,7 @@ describe('renderBracket — Weg zum Titel und Runden-Stand', () => {
   });
 
   it('die Pillen stehen VOR dem Baum', () => {
-    const html = renderBracket([
-      ...runde('SF', 'Halbfinale', 2, 0),
-      ...runde('F', 'Finale', 1, 0),
-    ]);
+    const html = renderBracket([...runde('SF', 'Halbfinale', 2, 0), ...runde('F', 'Finale', 1, 0)]);
     const pillen = html.indexOf('bracket-tabs');
     const baum = html.indexOf('bracket-wrap');
     expect(pillen).toBeGreaterThan(-1);

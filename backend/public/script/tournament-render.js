@@ -183,13 +183,14 @@ export function renderTournamentListCard({
 
   // Die Badge-Farbe folgt dem Status, nicht der Phase: "draft" und
   // "generated" liegen im selben Phasen-Bucket, sehen aber verschieden aus.
-  const statusClass = {
-    draft: 't-list-card-status--draft',
-    generated: 't-list-card-status--ready',
-    group_stage: 't-list-card-status--running',
-    ko_stage: 't-list-card-status--running',
-    finished: 't-list-card-status--finished',
-  }[instance?.status] || 't-list-card-status--draft';
+  const statusClass =
+    {
+      draft: 't-list-card-status--draft',
+      generated: 't-list-card-status--ready',
+      group_stage: 't-list-card-status--running',
+      ko_stage: 't-list-card-status--running',
+      finished: 't-list-card-status--finished',
+    }[instance?.status] || 't-list-card-status--draft';
 
   // Datum und Ort statt des wiederholten Status.
   const subLine = [formatTournamentCardDate(instance?.startsAt), instance?.location || '']
@@ -228,10 +229,14 @@ export function renderTournamentListCard({
       ${menuHtml}
     </div>
     <div class="t-list-card-info">${esc(infoParts.join(' · '))}</div>
-    ${total > 0 ? `<div class="t-list-card-progress">
+    ${
+      total > 0
+        ? `<div class="t-list-card-progress">
       <div class="t-list-card-progress-bar"><span class="t-list-card-progress-fill" style="width:${pct}%"></span></div>
       <div class="t-list-card-progress-label">${played} von ${total} Spielen</div>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
   </article>`;
 }
 
@@ -269,8 +274,9 @@ export function renderTournamentListCard({
  * zeigt der Browser nach einem Austausch das alte Bild.
  */
 export function renderModulKopf({ t, titel = 'Spielplan', cacheBust = null } = {}) {
-  const logoUrl = (typeof t?.logoUrl === 'string' && t.logoUrl) ? t.logoUrl : null;
-  const v = cacheBust == null ? '' : `${logoUrl && logoUrl.includes('?') ? '&' : '?'}v=${cacheBust}`;
+  const logoUrl = typeof t?.logoUrl === 'string' && t.logoUrl ? t.logoUrl : null;
+  const v =
+    cacheBust == null ? '' : `${logoUrl && logoUrl.includes('?') ? '&' : '?'}v=${cacheBust}`;
   const logoHtml = logoUrl
     ? `<img class="t-mod-logo" src="${esc(logoUrl)}${v}" alt="" aria-hidden="true">`
     : '';

@@ -48,24 +48,22 @@ function fakeDb(zustand) {
       findMany: async () => zustand.stages,
     },
     group_: {
-      findMany: async ({ where }) => zustand.groups
-        .filter((g) => where.stageId.in.includes(g.stageId))
-        .map((g) => ({
-          ...g,
-          memberships: zustand.memberships
-            .filter((m) => m.groupId === g.id)
-            .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
-        })),
+      findMany: async ({ where }) =>
+        zustand.groups
+          .filter((g) => where.stageId.in.includes(g.stageId))
+          .map((g) => ({
+            ...g,
+            memberships: zustand.memberships
+              .filter((m) => m.groupId === g.id)
+              .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+          })),
     },
     match: {
-      count: async ({ where }) => zustand.matches.filter(
-        (m) => where.stageId.in.includes(m.stageId),
-      ).length,
+      count: async ({ where }) =>
+        zustand.matches.filter((m) => where.stageId.in.includes(m.stageId)).length,
       deleteMany: async ({ where }) => {
         const vorher = zustand.matches.length;
-        zustand.matches = zustand.matches.filter(
-          (m) => !where.stageId.in.includes(m.stageId),
-        );
+        zustand.matches = zustand.matches.filter((m) => !where.stageId.in.includes(m.stageId));
         return { count: vorher - zustand.matches.length };
       },
       createMany: async ({ data }) => {
@@ -75,7 +73,10 @@ function fakeDb(zustand) {
       updateMany: async ({ where, data }) => {
         let n = 0;
         for (const m of zustand.matches) {
-          if (where.stageId.in.includes(m.stageId)) { Object.assign(m, data); n++; }
+          if (where.stageId.in.includes(m.stageId)) {
+            Object.assign(m, data);
+            n++;
+          }
         }
         return { count: n };
       },
@@ -84,10 +85,11 @@ function fakeDb(zustand) {
         if (m) Object.assign(m, data);
         return m;
       },
-      findMany: async () => zustand.matches.map((m) => ({
-        ...m,
-        stage: zustand.stages.find((s) => s.id === m.stageId) ?? null,
-      })),
+      findMany: async () =>
+        zustand.matches.map((m) => ({
+          ...m,
+          stage: zustand.stages.find((s) => s.id === m.stageId) ?? null,
+        })),
     },
   };
   return db;
@@ -97,7 +99,8 @@ function fakeDb(zustand) {
 function ausgangslage() {
   return {
     tournament: {
-      id: 'T', name: 'Testturnier',
+      id: 'T',
+      name: 'Testturnier',
       config: { mode: 'groups_ko', numGroups: 2, qualifyPerGroup: 1 },
     },
     stages: [
@@ -118,19 +121,46 @@ function ausgangslage() {
     // … aber gespielt wird in A zwischen t3 und t4. Genau der Widerspruch.
     matches: [
       {
-        id: 'alt1', tournamentId: 'T', stageId: 'sg', groupId: 'gA',
-        teamHome: 't3', teamAway: 't4', scoreHome: 2, scoreAway: 1,
-        status: 'finished', round: '1', scheduledAt: new Date('2026-09-05T10:00:00Z'), field: 1,
+        id: 'alt1',
+        tournamentId: 'T',
+        stageId: 'sg',
+        groupId: 'gA',
+        teamHome: 't3',
+        teamAway: 't4',
+        scoreHome: 2,
+        scoreAway: 1,
+        status: 'finished',
+        round: '1',
+        scheduledAt: new Date('2026-09-05T10:00:00Z'),
+        field: 1,
       },
       {
-        id: 'alt2', tournamentId: 'T', stageId: 'sg', groupId: 'gB',
-        teamHome: 't1', teamAway: 't2', scoreHome: null, scoreAway: null,
-        status: 'scheduled', round: '1', scheduledAt: new Date('2026-09-05T10:30:00Z'), field: 1,
+        id: 'alt2',
+        tournamentId: 'T',
+        stageId: 'sg',
+        groupId: 'gB',
+        teamHome: 't1',
+        teamAway: 't2',
+        scoreHome: null,
+        scoreAway: null,
+        status: 'scheduled',
+        round: '1',
+        scheduledAt: new Date('2026-09-05T10:30:00Z'),
+        field: 1,
       },
       {
-        id: 'ko1', tournamentId: 'T', stageId: 'sk', groupId: null,
-        teamHome: 't3', teamAway: 't1', scoreHome: 3, scoreAway: 0,
-        status: 'finished', round: '1', scheduledAt: new Date('2026-09-05T11:00:00Z'), field: 1,
+        id: 'ko1',
+        tournamentId: 'T',
+        stageId: 'sk',
+        groupId: null,
+        teamHome: 't3',
+        teamAway: 't1',
+        scoreHome: 3,
+        scoreAway: 0,
+        status: 'finished',
+        round: '1',
+        scheduledAt: new Date('2026-09-05T11:00:00Z'),
+        field: 1,
       },
     ],
   };
@@ -138,7 +168,9 @@ function ausgangslage() {
 
 describe('regeneriereGruppenphase', () => {
   let zustand;
-  beforeEach(() => { zustand = ausgangslage(); });
+  beforeEach(() => {
+    zustand = ausgangslage();
+  });
 
   it('macht den Widerspruch unmöglich: wer hier spielt, ist hier Mitglied', async () => {
     // DIE Zusicherung. Alles andere in dieser Datei ist Beiwerk.
@@ -147,7 +179,7 @@ describe('regeneriereGruppenphase', () => {
 
     for (const g of zustand.groups) {
       const mitglieder = new Set(
-        zustand.memberships.filter((m) => m.groupId === g.id).map((m) => m.teamId),
+        zustand.memberships.filter((m) => m.groupId === g.id).map((m) => m.teamId)
       );
       const spieler = new Set();
       for (const m of zustand.matches.filter((x) => x.groupId === g.id)) {
@@ -155,10 +187,14 @@ describe('regeneriereGruppenphase', () => {
         if (m.teamAway) spieler.add(m.teamAway);
       }
       for (const id of spieler) {
-        expect(mitglieder.has(id), `${id} spielt in ${g.key}, ist dort aber kein Mitglied`).toBe(true);
+        expect(mitglieder.has(id), `${id} spielt in ${g.key}, ist dort aber kein Mitglied`).toBe(
+          true
+        );
       }
       for (const id of mitglieder) {
-        expect(spieler.has(id), `${id} ist Mitglied von ${g.key}, spielt dort aber nicht`).toBe(true);
+        expect(spieler.has(id), `${id} ist Mitglied von ${g.key}, spielt dort aber nicht`).toBe(
+          true
+        );
       }
     }
   });
@@ -221,8 +257,15 @@ describe('regeneriereGruppenphase', () => {
     // Mensch im Spielplan sieht: keine zwei Runden zur selben Zeit,
     // und keine spätere Runde vor einer früheren.
     zustand.tournament.config = {
-      mode: 'groups_ko', numGroups: 2, qualifyPerGroup: 2,
-      schedule: { matchDurationMinutes: 10, pauseAfterMatches: 5, parallelFields: 2, startTime: '10:00' },
+      mode: 'groups_ko',
+      numGroups: 2,
+      qualifyPerGroup: 2,
+      schedule: {
+        matchDurationMinutes: 10,
+        pauseAfterMatches: 5,
+        parallelFields: 2,
+        startTime: '10:00',
+      },
     };
     zustand.memberships = [
       { id: 'm1', groupId: 'gA', teamId: 't1', position: 0 },
@@ -235,24 +278,35 @@ describe('regeneriereGruppenphase', () => {
       { id: 'm8', groupId: 'gB', teamId: 't8', position: 3 },
     ];
     const ko = (id, round, pos) => ({
-      id, tournamentId: 'T', stageId: 'sk', groupId: null,
-      teamHome: null, teamAway: null, scoreHome: null, scoreAway: null,
-      status: 'scheduled', round, bracketPos: pos,
-      scheduledAt: new Date('2026-09-05T12:00:00Z'), field: 1,
+      id,
+      tournamentId: 'T',
+      stageId: 'sk',
+      groupId: null,
+      teamHome: null,
+      teamAway: null,
+      scoreHome: null,
+      scoreAway: null,
+      status: 'scheduled',
+      round,
+      bracketPos: pos,
+      scheduledAt: new Date('2026-09-05T12:00:00Z'),
+      field: 1,
     });
     zustand.matches = [
-      zustand.matches[0], zustand.matches[1],
-      ko('qf1', 'QF', 1), ko('qf2', 'QF', 2),
-      ko('sf1', 'SF', 1), ko('sf2', 'SF', 2),
-      ko('p3', '3RD', 1), ko('fin', 'F', 1),
+      zustand.matches[0],
+      zustand.matches[1],
+      ko('qf1', 'QF', 1),
+      ko('qf2', 'QF', 2),
+      ko('sf1', 'SF', 1),
+      ko('sf2', 'SF', 2),
+      ko('p3', '3RD', 1),
+      ko('fin', 'F', 1),
     ];
 
     const db = fakeDb(zustand);
     await regeneriereGruppenphase(db, 'T', engine);
 
-    const zeit = (id) => new Date(
-      zustand.matches.find((m) => m.id === id).scheduledAt,
-    ).getTime();
+    const zeit = (id) => new Date(zustand.matches.find((m) => m.id === id).scheduledAt).getTime();
     const runde = {
       QF: ['qf1', 'qf2'].map(zeit),
       SF: ['sf1', 'sf2'].map(zeit),
@@ -269,8 +323,9 @@ describe('regeneriereGruppenphase', () => {
 
     // Und die Gruppenphase liegt komplett davor.
     const gruppenEnde = Math.max(
-      ...zustand.matches.filter((m) => m.stageId === 'sg')
-        .map((m) => new Date(m.scheduledAt).getTime()),
+      ...zustand.matches
+        .filter((m) => m.stageId === 'sg')
+        .map((m) => new Date(m.scheduledAt).getTime())
     );
     expect(fruehestes('QF')).toBeGreaterThan(gruppenEnde);
   });

@@ -71,10 +71,9 @@ describe('Zuschauer-Link-Block — die drei Zustände', () => {
 
   it('freigegeben: URL, Kopieren, QR, Aushang und Widerruf', () => {
     const token = 'A'.repeat(32);
-    const html = renderEinstellungen(
-      basis({ isPublic: true, publicToken: token }),
-      { isAdmin: true }
-    );
+    const html = renderEinstellungen(basis({ isPublic: true, publicToken: token }), {
+      isAdmin: true,
+    });
     expect(html).toContain('data-public-url');
     expect(html).toContain(`/t/${token}`);
     expect(html).toContain('data-action="copy-public-link"');
@@ -88,20 +87,18 @@ describe('Zuschauer-Link-Block — die drei Zustände', () => {
 
   it('isPublic ohne Token gilt als NICHT freigegeben', () => {
     // Halber Zustand: Das darf nie einen Link mit "/t/null" erzeugen.
-    const html = renderEinstellungen(
-      basis({ isPublic: true, publicToken: null }),
-      { isAdmin: true }
-    );
+    const html = renderEinstellungen(basis({ isPublic: true, publicToken: null }), {
+      isAdmin: true,
+    });
     expect(html).toContain('data-action="create-public-link"');
     expect(html).not.toContain('/t/null');
     expect(html).not.toContain('data-public-url');
   });
 
   it('Mitglieder sehen den Block gar nicht (P1 Read-only)', () => {
-    const html = renderEinstellungen(
-      basis({ isPublic: true, publicToken: 'B'.repeat(32) }),
-      { isAdmin: false }
-    );
+    const html = renderEinstellungen(basis({ isPublic: true, publicToken: 'B'.repeat(32) }), {
+      isAdmin: false,
+    });
     expect(html).not.toContain('data-action="create-public-link"');
     expect(html).not.toContain('data-action="revoke-public-link"');
     expect(html).not.toContain('data-public-url');
@@ -117,10 +114,9 @@ describe('Turnierlogo-Block', () => {
   });
 
   it('Logo vorhanden: Vorschau, Austauschen und Entfernen', () => {
-    const html = renderEinstellungen(
-      basis({ logoUrl: '/api/tournaments/t1/logo' }),
-      { isAdmin: true }
-    );
+    const html = renderEinstellungen(basis({ logoUrl: '/api/tournaments/t1/logo' }), {
+      isAdmin: true,
+    });
     expect(html).toContain('/api/tournaments/t1/logo');
     expect(html).toContain('data-action="upload-logo"');
     expect(html).toContain('data-action="remove-logo"');
@@ -130,10 +126,9 @@ describe('Turnierlogo-Block', () => {
     // Der Ablageort ist für jedes Turnier derselbe („logo"), die Adresse
     // also auch. Ohne den Zusatz zeigt der Browser nach dem Austausch
     // weiter das alte Bild — der Upload wirkt dann wirkungslos.
-    const html = renderEinstellungen(
-      basis({ logoUrl: '/api/tournaments/t1/logo' }),
-      { isAdmin: true }
-    );
+    const html = renderEinstellungen(basis({ logoUrl: '/api/tournaments/t1/logo' }), {
+      isAdmin: true,
+    });
     expect(html).toMatch(/\/api\/tournaments\/t1\/logo\?v=\d+/);
   });
 
@@ -155,10 +150,9 @@ describe('Turnierlogo-Block', () => {
   });
 
   it('Mitglieder sehen den Block nicht', () => {
-    const html = renderEinstellungen(
-      basis({ logoUrl: '/api/tournaments/t1/logo' }),
-      { isAdmin: false }
-    );
+    const html = renderEinstellungen(basis({ logoUrl: '/api/tournaments/t1/logo' }), {
+      isAdmin: false,
+    });
     expect(html).not.toContain('data-action="upload-logo"');
     expect(html).not.toContain('data-action="remove-logo"');
   });

@@ -59,11 +59,28 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn(), create: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+      create: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn(), update: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
     $transaction: vi.fn(async (cb) => (typeof cb === 'function' ? cb() : cb)),
   };
 }
@@ -133,11 +150,17 @@ describe('Etappe B.8.1 — POST /:id/reschedule Bezugspunkt', () => {
   it('Fall 1: body.baseDate explizit → gewinnt (alt)', async () => {
     const explicitDate = new Date('2026-09-05T10:00:00Z');
     baseStubs(prisma, [
-      { id: 'm-1', stageId: 's-1', stage: { type: 'ko' }, round: 'QF', bracketPos: 1, scheduledAt: explicitDate, field: 1 },
+      {
+        id: 'm-1',
+        stageId: 's-1',
+        stage: { type: 'ko' },
+        round: 'QF',
+        bracketPos: 1,
+        scheduledAt: explicitDate,
+        field: 1,
+      },
     ]);
-    generateScheduleMock.mockReturnValue([
-      { id: 'm-1', scheduledAt: explicitDate, field: 1 },
-    ]);
+    generateScheduleMock.mockReturnValue([{ id: 'm-1', scheduledAt: explicitDate, field: 1 }]);
     app = await buildApp(prisma);
 
     const customBase = new Date('2026-12-31T08:00:00Z').toISOString();
@@ -157,8 +180,24 @@ describe('Etappe B.8.1 — POST /:id/reschedule Bezugspunkt', () => {
     const earliest = new Date('2026-09-05T10:00:00Z');
     const later = new Date('2026-09-05T12:00:00Z');
     baseStubs(prisma, [
-      { id: 'm-1', stageId: 's-1', stage: { type: 'ko' }, round: 'QF', bracketPos: 1, scheduledAt: later, field: 1 },
-      { id: 'm-2', stageId: 's-1', stage: { type: 'ko' }, round: 'QF', bracketPos: 2, scheduledAt: earliest, field: 2 },
+      {
+        id: 'm-1',
+        stageId: 's-1',
+        stage: { type: 'ko' },
+        round: 'QF',
+        bracketPos: 1,
+        scheduledAt: later,
+        field: 1,
+      },
+      {
+        id: 'm-2',
+        stageId: 's-1',
+        stage: { type: 'ko' },
+        round: 'QF',
+        bracketPos: 2,
+        scheduledAt: earliest,
+        field: 2,
+      },
     ]);
     generateScheduleMock.mockReturnValue([
       { id: 'm-1', scheduledAt: earliest, field: 1 },
@@ -181,7 +220,15 @@ describe('Etappe B.8.1 — POST /:id/reschedule Bezugspunkt', () => {
   it('Fall 3: kein body.baseDate, kein m.scheduledAt → fallback new Date()', async () => {
     const before = Date.now();
     baseStubs(prisma, [
-      { id: 'm-1', stageId: 's-1', stage: { type: 'ko' }, round: 'QF', bracketPos: 1, scheduledAt: null, field: null },
+      {
+        id: 'm-1',
+        stageId: 's-1',
+        stage: { type: 'ko' },
+        round: 'QF',
+        bracketPos: 1,
+        scheduledAt: null,
+        field: null,
+      },
     ]);
     generateScheduleMock.mockReturnValue([
       { id: 'm-1', scheduledAt: new Date(before + 1000), field: 1 },
@@ -212,11 +259,17 @@ describe('Etappe B.8.1 — POST /:id/reschedule Bezugspunkt', () => {
     const t1 = new Date('2026-09-05T10:00:00Z');
     const t1Shifted = new Date('2026-09-05T10:10:00Z');
     baseStubs(prisma, [
-      { id: 'm-1', stageId: 's-1', stage: { type: 'ko' }, round: 'QF', bracketPos: 1, scheduledAt: t1Shifted, field: 1 },
+      {
+        id: 'm-1',
+        stageId: 's-1',
+        stage: { type: 'ko' },
+        round: 'QF',
+        bracketPos: 1,
+        scheduledAt: t1Shifted,
+        field: 1,
+      },
     ]);
-    generateScheduleMock.mockReturnValue([
-      { id: 'm-1', scheduledAt: t1Shifted, field: 1 },
-    ]);
+    generateScheduleMock.mockReturnValue([{ id: 'm-1', scheduledAt: t1Shifted, field: 1 }]);
     app = await buildApp(prisma);
 
     const res = await app.inject({

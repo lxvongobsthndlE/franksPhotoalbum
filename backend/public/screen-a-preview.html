@@ -1,248 +1,250 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Screen A — Turnierliste (Preview)</title>
-  <link rel="stylesheet" href="./style/main.css" />
-  <link rel="stylesheet" href="./style/tournament.css" />
-  <style>
-    /* Preview-only: App-Shell simulieren, damit das Modul-Layout
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Screen A — Turnierliste (Preview)</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <style>
+      /* Preview-only: App-Shell simulieren, damit das Modul-Layout
        seine drei Spalten aufbauen kann. Auf der Produktivseite
        lebt die App-Shell in main.css. */
-    html, body {
-      margin: 0;
-      background: var(--paper, #FAF7F1);
-      min-height: 100vh;
-      /* Horizontales Scrollen unterbinden — die Seite muss
+      html,
+      body {
+        margin: 0;
+        background: var(--paper, #faf7f1);
+        min-height: 100vh;
+        /* Horizontales Scrollen unterbinden — die Seite muss
          bei 390px stehen bleiben, auch wenn das Preview-Toolbar
          oben rechts eigentlich schmaler sein müsste. */
-      overflow-x: hidden;
-    }
-    .preview-frame {
-      display: flex;
-      min-height: 100vh;
-    }
-    .preview-fake-sidebar {
-      flex: none;
-      width: 236px;
-      background: #FAFBFC;
-      border-right: 1px solid var(--line, #E7DFD2);
-      display: flex;
-      flex-direction: column;
-      padding: 20px 0;
-    }
-    /* Echte App-Sidebar wird bei <=900px zum Off-Screen-Drawer. */
-    @media (max-width: 900px) {
+        overflow-x: hidden;
+      }
+      .preview-frame {
+        display: flex;
+        min-height: 100vh;
+      }
       .preview-fake-sidebar {
-        display: none;
+        flex: none;
+        width: 236px;
+        background: #fafbfc;
+        border-right: 1px solid var(--line, #e7dfd2);
+        display: flex;
+        flex-direction: column;
+        padding: 20px 0;
       }
-    }
-    #root {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-    /* Preview-only: Mode-Switcher oben rechts. */
-    .preview-toolbar {
-      position: fixed;
-      top: 12px; right: 12px;
-      z-index: 100;
-      display: flex;
-      gap: 8px;
-      background: var(--surface, #FFF);
-      border: 1px solid var(--line, #E7DFD2);
-      border-radius: 999px;
-      padding: 4px;
-      font-family: inherit;
-      font-size: 13px;
-    }
-    .preview-toolbar button {
-      padding: 4px 12px;
-      border-radius: 999px;
-      border: none;
-      background: transparent;
-      color: var(--ink-soft, #8A8077);
-      cursor: pointer;
-    }
-    .preview-toolbar button.is-active {
-      background: var(--accent, #8B6B4A);
-      color: #FFF;
-      font-weight: 600;
-    }
-  </style>
-</head>
-<body>
-  <div class="preview-toolbar" id="toolbar">
-    <button data-mode="admin"  class="is-active">Admin</button>
-    <button data-mode="member">Mitglied</button>
-    <button data-mode="empty">Leerer Zustand</button>
-  </div>
+      /* Echte App-Sidebar wird bei <=900px zum Off-Screen-Drawer. */
+      @media (max-width: 900px) {
+        .preview-fake-sidebar {
+          display: none;
+        }
+      }
+      #root {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      /* Preview-only: Mode-Switcher oben rechts. */
+      .preview-toolbar {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 100;
+        display: flex;
+        gap: 8px;
+        background: var(--surface, #fff);
+        border: 1px solid var(--line, #e7dfd2);
+        border-radius: 999px;
+        padding: 4px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      .preview-toolbar button {
+        padding: 4px 12px;
+        border-radius: 999px;
+        border: none;
+        background: transparent;
+        color: var(--ink-soft, #8a8077);
+        cursor: pointer;
+      }
+      .preview-toolbar button.is-active {
+        background: var(--accent, #8b6b4a);
+        color: #fff;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-toolbar" id="toolbar">
+      <button data-mode="admin" class="is-active">Admin</button>
+      <button data-mode="member">Mitglied</button>
+      <button data-mode="empty">Leerer Zustand</button>
+    </div>
 
-  <div class="preview-frame">
-    <aside class="preview-fake-sidebar" aria-hidden="true"></aside>
-    <div id="root"></div>
-  </div>
+    <div class="preview-frame">
+      <aside class="preview-fake-sidebar" aria-hidden="true"></aside>
+      <div id="root"></div>
+    </div>
 
-  <script type="module">
-    import { renderListView } from './script/tournament.js';
+    <script type="module">
+      import { renderListView } from './script/tournament.js';
 
-    // ----------------------------------------------------------------
-    // Mock-DTO (entspricht buildTournamentListContext-Antwort).
-    // ----------------------------------------------------------------
-    const ADMIN_LIST = {
-      isAdmin: true,
-      rawCount: 6,
-      tournaments: [
-        {
-          id: 'cltnt1aabbbbbbbbbbbbbbbb',
-          name: 'Sommer-Cup 2026',
-          logoUrl: null,
-          mode: 'groups_ko',
-          modeLabel: 'Gruppen + K.-o.',
-          status: 'group_stage',
-          statusLabel: 'Gruppenphase',
-          cardStatusLabel: 'Läuft',
-          startsAtShort: 'Sa, 05. Sep.',
-          startsAt: new Date('2026-09-05T08:00:00Z'),
-          singleDay: true,
-          teamCount: 16,
-          groupCount: 4,
-          matchCount: 24,
-          finishedCount: 12,
-        },
-        {
-          id: 'cltnt2ccccccccccccccccccc',
-          name: 'Bierpong-Vereinsmeisterschaft',
-          logoUrl: null,
-          mode: 'groups_only',
-          modeLabel: 'Nur Gruppen',
-          status: 'generated',
-          statusLabel: 'Bereit',
-          cardStatusLabel: 'Bereit',
-          startsAtShort: 'Sa, 12. Sep.',
-          startsAt: new Date('2026-09-12T10:00:00Z'),
-          singleDay: true,
-          teamCount: 8,
-          groupCount: 2,
-          matchCount: 28,
-          finishedCount: 0,
-        },
-        {
-          id: 'cltnt3dddddddddddddddddd',
-          name: 'Winterliga (Entwurf)',
-          logoUrl: null,
-          mode: 'ko_only',
-          modeLabel: 'Nur K.-o.',
-          status: 'draft',
-          statusLabel: 'Entwurf',
-          cardStatusLabel: 'Entwurf',
-          startsAtShort: 'Dez. 2026',
-          startsAt: new Date('2026-12-05T00:00:00Z'),
-          singleDay: false,
-          teamCount: 0,
-          groupCount: 0,
-          matchCount: 0,
-          finishedCount: 0,
-        },
-        {
-          id: 'cltnt4eeeeeeeeeeeeeeeeee',
-          name: 'Pfingst-Turnier 2025',
-          logoUrl: null,
-          mode: 'groups_ko',
-          modeLabel: 'Gruppen + K.-o.',
-          status: 'finished',
-          statusLabel: 'Beendet',
-          cardStatusLabel: 'Beendet',
-          startsAtShort: 'So, 08. Jun. 2025',
-          startsAt: new Date('2025-06-08T08:00:00Z'),
-          singleDay: true,
-          teamCount: 12,
-          groupCount: 3,
-          matchCount: 20,
-          finishedCount: 20,
-        },
-        {
-          id: 'cltnt5ffffffffffffffffffff',
-          name: 'Doppel-K.o. Sommer 2026',
-          logoUrl: null,
-          mode: 'double_elim',
-          modeLabel: 'Doppel-K.O.',
-          status: 'ko_stage',
-          statusLabel: 'K.-o.-Runde',
-          cardStatusLabel: 'Läuft',
-          startsAtShort: 'Sa, 19. Sep.',
-          startsAt: new Date('2026-09-19T11:00:00Z'),
-          singleDay: true,
-          teamCount: 8,
-          groupCount: 2,
-          matchCount: 22,
-          finishedCount: 14,
-        },
-        {
-          id: 'cltnt6gggggggggggggggggggg',
-          name: 'Mixed-Cup Frühjahr',
-          logoUrl: null,
-          mode: 'groups_only',
-          modeLabel: 'Nur Gruppen',
-          status: 'finished',
-          statusLabel: 'Beendet',
-          cardStatusLabel: 'Beendet',
-          startsAtShort: 'Sa, 04. Apr. 2026',
-          startsAt: new Date('2026-04-04T08:00:00Z'),
-          singleDay: true,
-          teamCount: 6,
-          groupCount: 2,
-          matchCount: 15,
-          finishedCount: 15,
-        },
-      ],
-    };
+      // ----------------------------------------------------------------
+      // Mock-DTO (entspricht buildTournamentListContext-Antwort).
+      // ----------------------------------------------------------------
+      const ADMIN_LIST = {
+        isAdmin: true,
+        rawCount: 6,
+        tournaments: [
+          {
+            id: 'cltnt1aabbbbbbbbbbbbbbbb',
+            name: 'Sommer-Cup 2026',
+            logoUrl: null,
+            mode: 'groups_ko',
+            modeLabel: 'Gruppen + K.-o.',
+            status: 'group_stage',
+            statusLabel: 'Gruppenphase',
+            cardStatusLabel: 'Läuft',
+            startsAtShort: 'Sa, 05. Sep.',
+            startsAt: new Date('2026-09-05T08:00:00Z'),
+            singleDay: true,
+            teamCount: 16,
+            groupCount: 4,
+            matchCount: 24,
+            finishedCount: 12,
+          },
+          {
+            id: 'cltnt2ccccccccccccccccccc',
+            name: 'Bierpong-Vereinsmeisterschaft',
+            logoUrl: null,
+            mode: 'groups_only',
+            modeLabel: 'Nur Gruppen',
+            status: 'generated',
+            statusLabel: 'Bereit',
+            cardStatusLabel: 'Bereit',
+            startsAtShort: 'Sa, 12. Sep.',
+            startsAt: new Date('2026-09-12T10:00:00Z'),
+            singleDay: true,
+            teamCount: 8,
+            groupCount: 2,
+            matchCount: 28,
+            finishedCount: 0,
+          },
+          {
+            id: 'cltnt3dddddddddddddddddd',
+            name: 'Winterliga (Entwurf)',
+            logoUrl: null,
+            mode: 'ko_only',
+            modeLabel: 'Nur K.-o.',
+            status: 'draft',
+            statusLabel: 'Entwurf',
+            cardStatusLabel: 'Entwurf',
+            startsAtShort: 'Dez. 2026',
+            startsAt: new Date('2026-12-05T00:00:00Z'),
+            singleDay: false,
+            teamCount: 0,
+            groupCount: 0,
+            matchCount: 0,
+            finishedCount: 0,
+          },
+          {
+            id: 'cltnt4eeeeeeeeeeeeeeeeee',
+            name: 'Pfingst-Turnier 2025',
+            logoUrl: null,
+            mode: 'groups_ko',
+            modeLabel: 'Gruppen + K.-o.',
+            status: 'finished',
+            statusLabel: 'Beendet',
+            cardStatusLabel: 'Beendet',
+            startsAtShort: 'So, 08. Jun. 2025',
+            startsAt: new Date('2025-06-08T08:00:00Z'),
+            singleDay: true,
+            teamCount: 12,
+            groupCount: 3,
+            matchCount: 20,
+            finishedCount: 20,
+          },
+          {
+            id: 'cltnt5ffffffffffffffffffff',
+            name: 'Doppel-K.o. Sommer 2026',
+            logoUrl: null,
+            mode: 'double_elim',
+            modeLabel: 'Doppel-K.O.',
+            status: 'ko_stage',
+            statusLabel: 'K.-o.-Runde',
+            cardStatusLabel: 'Läuft',
+            startsAtShort: 'Sa, 19. Sep.',
+            startsAt: new Date('2026-09-19T11:00:00Z'),
+            singleDay: true,
+            teamCount: 8,
+            groupCount: 2,
+            matchCount: 22,
+            finishedCount: 14,
+          },
+          {
+            id: 'cltnt6gggggggggggggggggggg',
+            name: 'Mixed-Cup Frühjahr',
+            logoUrl: null,
+            mode: 'groups_only',
+            modeLabel: 'Nur Gruppen',
+            status: 'finished',
+            statusLabel: 'Beendet',
+            cardStatusLabel: 'Beendet',
+            startsAtShort: 'Sa, 04. Apr. 2026',
+            startsAt: new Date('2026-04-04T08:00:00Z'),
+            singleDay: true,
+            teamCount: 6,
+            groupCount: 2,
+            matchCount: 15,
+            finishedCount: 15,
+          },
+        ],
+      };
 
-    const MEMBER_LIST = {
-      isAdmin: false,
-      rawCount: ADMIN_LIST.rawCount,
-      tournaments: ADMIN_LIST.tournaments.filter((t) => t.status !== 'draft'),
-    };
+      const MEMBER_LIST = {
+        isAdmin: false,
+        rawCount: ADMIN_LIST.rawCount,
+        tournaments: ADMIN_LIST.tournaments.filter((t) => t.status !== 'draft'),
+      };
 
-    const EMPTY_LIST = {
-      isAdmin: true,
-      rawCount: 0,
-      tournaments: [],
-    };
+      const EMPTY_LIST = {
+        isAdmin: true,
+        rawCount: 0,
+        tournaments: [],
+      };
 
-    // ----------------------------------------------------------------
-    // Render-Loop
-    // ----------------------------------------------------------------
-    const root = document.getElementById('root');
-    const toolbar = document.getElementById('toolbar');
+      // ----------------------------------------------------------------
+      // Render-Loop
+      // ----------------------------------------------------------------
+      const root = document.getElementById('root');
+      const toolbar = document.getElementById('toolbar');
 
-    function render(mode) {
-      let dto;
-      if (mode === 'admin')  dto = ADMIN_LIST;
-      else if (mode === 'member') dto = MEMBER_LIST;
-      else                     dto = EMPTY_LIST;
+      function render(mode) {
+        let dto;
+        if (mode === 'admin') dto = ADMIN_LIST;
+        else if (mode === 'member') dto = MEMBER_LIST;
+        else dto = EMPTY_LIST;
 
-      root.innerHTML = '';
-      const view = renderListView(dto, {
-        onCardClick: () => console.log('[preview] card click — Detail-View folgt'),
-        onMenuAction: () => console.log('[preview] menu action — folgt'),
+        root.innerHTML = '';
+        const view = renderListView(dto, {
+          onCardClick: () => console.log('[preview] card click — Detail-View folgt'),
+          onMenuAction: () => console.log('[preview] menu action — folgt'),
+        });
+        root.appendChild(view);
+
+        for (const btn of toolbar.querySelectorAll('button')) {
+          btn.classList.toggle('is-active', btn.dataset.mode === mode);
+        }
+      }
+
+      toolbar.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        render(btn.dataset.mode);
       });
-      root.appendChild(view);
 
-      for (const btn of toolbar.querySelectorAll('button')) {
-        btn.classList.toggle('is-active', btn.dataset.mode === mode);
-      }
-    }
-
-    toolbar.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('button');
-      if (!btn) return;
-      render(btn.dataset.mode);
-    });
-
-    render('admin');
-  </script>
-</body>
+      render('admin');
+    </script>
+  </body>
 </html>

@@ -40,19 +40,87 @@ const ko = (o) => ({
 });
 
 const turnier = (extra = {}) => ({
-  tournament: { id: 't1', name: 'Frühjahrsturnier', startsAt: '2026-04-18T10:00:00.000Z', location: 'Halle 2' },
-  groups: [{
-    groupKey: 'A', groupName: 'Gruppe A',
-    standings: [
-      { teamId: 'a1', name: 'Blaue Hummeln', played: 3, won: 2, drawn: 0, lost: 1, goalsFor: 12, goalsAgainst: 6, goalDiff: 6, points: 6 },
-      { teamId: 'a2', name: 'Netzroller', played: 2, won: 1, drawn: 1, lost: 0, goalsFor: 8, goalsAgainst: 6, goalDiff: 2, points: 4 },
-      { teamId: 'a3', name: 'Tafelrunde', played: 3, won: 0, drawn: 2, lost: 1, goalsFor: 7, goalsAgainst: 8, goalDiff: -1, points: 2 },
-    ],
-  }],
+  tournament: {
+    id: 't1',
+    name: 'Frühjahrsturnier',
+    startsAt: '2026-04-18T10:00:00.000Z',
+    location: 'Halle 2',
+  },
+  groups: [
+    {
+      groupKey: 'A',
+      groupName: 'Gruppe A',
+      standings: [
+        {
+          teamId: 'a1',
+          name: 'Blaue Hummeln',
+          played: 3,
+          won: 2,
+          drawn: 0,
+          lost: 1,
+          goalsFor: 12,
+          goalsAgainst: 6,
+          goalDiff: 6,
+          points: 6,
+        },
+        {
+          teamId: 'a2',
+          name: 'Netzroller',
+          played: 2,
+          won: 1,
+          drawn: 1,
+          lost: 0,
+          goalsFor: 8,
+          goalsAgainst: 6,
+          goalDiff: 2,
+          points: 4,
+        },
+        {
+          teamId: 'a3',
+          name: 'Tafelrunde',
+          played: 3,
+          won: 0,
+          drawn: 2,
+          lost: 1,
+          goalsFor: 7,
+          goalsAgainst: 8,
+          goalDiff: -1,
+          points: 2,
+        },
+      ],
+    },
+  ],
   matches: [
-    spiel({ id: 'g1', fin: true, zeit: '14:00', platte: 1, gruppe: 'Gruppe A', h: 'Blaue Hummeln', a: 'Kellerkinder', hs: 3, as: 1 }),
-    spiel({ id: 'g2', fin: true, zeit: '14:00', platte: 2, gruppe: 'Gruppe A', h: 'Netzroller', a: 'Tafelrunde', hs: 3, as: 2 }),
-    spiel({ id: 'g3', zeit: '14:30', platte: 1, gruppe: 'Gruppe A', h: 'Tafelrunde', a: 'Stille Post' }),
+    spiel({
+      id: 'g1',
+      fin: true,
+      zeit: '14:00',
+      platte: 1,
+      gruppe: 'Gruppe A',
+      h: 'Blaue Hummeln',
+      a: 'Kellerkinder',
+      hs: 3,
+      as: 1,
+    }),
+    spiel({
+      id: 'g2',
+      fin: true,
+      zeit: '14:00',
+      platte: 2,
+      gruppe: 'Gruppe A',
+      h: 'Netzroller',
+      a: 'Tafelrunde',
+      hs: 3,
+      as: 2,
+    }),
+    spiel({
+      id: 'g3',
+      zeit: '14:30',
+      platte: 1,
+      gruppe: 'Gruppe A',
+      h: 'Tafelrunde',
+      a: 'Stille Post',
+    }),
   ],
   ...extra,
 });
@@ -64,7 +132,7 @@ describe('renderDruckboegen', () => {
     const t = turnier();
     t.matches.push(
       ko({ id: 'h1', runde: 'SF', label: 'Halbfinale', pos: 1, h: 'A', a: 'B' }),
-      ko({ id: 'f1', runde: 'F', label: 'Finale', pos: 1, h: 'Sieger HF1', a: 'Sieger HF2' }),
+      ko({ id: 'f1', runde: 'F', label: 'Finale', pos: 1, h: 'Sieger HF1', a: 'Sieger HF2' })
     );
     const html = renderDruckboegen(t, 2);
     expect((html.match(/class="t-bogen[ "]/g) || []).length).toBe(3);
@@ -85,8 +153,18 @@ describe('renderDruckboegen', () => {
   it('verliert keine Partie beim Gruppieren nach Uhrzeit', () => {
     const t = turnier();
     t.matches = Array.from({ length: 18 }, (_, i) =>
-      spiel({ id: 'm' + i, zeit: ['14:00', '14:30', '15:00'][i % 3], platte: (i % 3) + 1,
-              gruppe: 'Gruppe A', h: 'H' + i, a: 'G' + i, fin: i < 9, hs: 3, as: 1 }));
+      spiel({
+        id: 'm' + i,
+        zeit: ['14:00', '14:30', '15:00'][i % 3],
+        platte: (i % 3) + 1,
+        gruppe: 'Gruppe A',
+        h: 'H' + i,
+        a: 'G' + i,
+        fin: i < 9,
+        hs: 3,
+        as: 1,
+      })
+    );
     const html = renderDruckboegen(t, 2);
     const spielplan = html.slice(0, html.indexOf('Gruppentabellen'));
     // 18 Partien + keine thead-Zeile im Spielplan-Bogen
@@ -125,9 +203,29 @@ describe('renderDruckboegen', () => {
   it('der K.-o.-Bogen liegt quer und zeichnet eine Klammer', () => {
     const t = turnier();
     t.matches.push(
-      ko({ id: 'v1', runde: 'QF', label: 'Viertelfinale', pos: 1, fin: true, h: 'A', a: 'B', hs: 3, as: 1 }),
-      ko({ id: 'v2', runde: 'QF', label: 'Viertelfinale', pos: 2, fin: true, h: 'C', a: 'D', hs: 2, as: 3 }),
-      ko({ id: 'h1', runde: 'SF', label: 'Halbfinale', pos: 1, h: 'A', a: 'D' }),
+      ko({
+        id: 'v1',
+        runde: 'QF',
+        label: 'Viertelfinale',
+        pos: 1,
+        fin: true,
+        h: 'A',
+        a: 'B',
+        hs: 3,
+        as: 1,
+      }),
+      ko({
+        id: 'v2',
+        runde: 'QF',
+        label: 'Viertelfinale',
+        pos: 2,
+        fin: true,
+        h: 'C',
+        a: 'D',
+        hs: 2,
+        as: 3,
+      }),
+      ko({ id: 'h1', runde: 'SF', label: 'Halbfinale', pos: 1, h: 'A', a: 'D' })
     );
     const html = renderDruckboegen(t, 2);
     expect(html).toContain('t-bogen--quer');
@@ -139,7 +237,9 @@ describe('renderDruckboegen', () => {
 
   it('Platzhalter-Namen erscheinen, statt eine Zeile leer zu lassen', () => {
     const t = turnier();
-    t.matches.push(ko({ id: 'f1', runde: 'F', label: 'Finale', pos: 1, h: 'Sieger HF1', a: 'Sieger HF2' }));
+    t.matches.push(
+      ko({ id: 'f1', runde: 'F', label: 'Finale', pos: 1, h: 'Sieger HF1', a: 'Sieger HF2' })
+    );
     expect(renderDruckboegen(t, 2)).toContain('Sieger HF1');
   });
 });

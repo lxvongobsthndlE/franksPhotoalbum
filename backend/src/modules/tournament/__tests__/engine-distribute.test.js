@@ -42,24 +42,22 @@ describe('distributeTeamsIntoGroups', () => {
     const teams = makeTeams(12);
     const a = distributeTeamsIntoGroups(teams, 4, { method: 'random', seed: 'fixed-seed' });
     const b = distributeTeamsIntoGroups(teams, 4, { method: 'random', seed: 'fixed-seed' });
-    expect(a.map((g) => g.map((t) => t.id).join(',')))
-      .toEqual(b.map((g) => g.map((t) => t.id).join(',')));
+    expect(a.map((g) => g.map((t) => t.id).join(','))).toEqual(
+      b.map((g) => g.map((t) => t.id).join(','))
+    );
   });
 
   it('random mit verschiedenen seeds liefert unterschiedliche Verteilungen', () => {
     const teams = makeTeams(12);
     const a = distributeTeamsIntoGroups(teams, 4, { method: 'random', seed: 'alpha' });
     const b = distributeTeamsIntoGroups(teams, 4, { method: 'random', seed: 'beta' });
-    expect(a.map((g) => g.map((t) => t.id).join(',')))
-      .not.toEqual(b.map((g) => g.map((t) => t.id).join(',')));
+    expect(a.map((g) => g.map((t) => t.id).join(','))).not.toEqual(
+      b.map((g) => g.map((t) => t.id).join(','))
+    );
   });
 
   it('manual: Reihenfolge unverändert, zyklisch', () => {
     const result = distributeTeamsIntoGroups(makeTeams(7), 3, { method: 'manual' });
-    expect(result.map((g) => g.map((t) => t.id).join(','))).toEqual([
-      't1,t4,t7',
-      't2,t5',
-      't3,t6',
-    ]);
+    expect(result.map((g) => g.map((t) => t.id).join(','))).toEqual(['t1,t4,t7', 't2,t5', 't3,t6']);
   });
 });

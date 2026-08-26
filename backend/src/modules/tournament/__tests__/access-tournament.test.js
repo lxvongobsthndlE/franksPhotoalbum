@@ -32,17 +32,15 @@ const baseRaw = {
 
 describe('detectSingleDay', () => {
   it('gleicher Tag → true', () => {
-    expect(detectSingleDay(
-      new Date('2026-09-05T09:00:00'),
-      new Date('2026-09-05T20:00:00'),
-    )).toBe(true);
+    expect(detectSingleDay(new Date('2026-09-05T09:00:00'), new Date('2026-09-05T20:00:00'))).toBe(
+      true
+    );
   });
 
   it('verschiedene Tage → false', () => {
-    expect(detectSingleDay(
-      new Date('2026-09-05T20:00:00'),
-      new Date('2026-09-06T18:00:00'),
-    )).toBe(false);
+    expect(detectSingleDay(new Date('2026-09-05T20:00:00'), new Date('2026-09-06T18:00:00'))).toBe(
+      false
+    );
   });
 
   it('nur startsAt gesetzt → true (Default)', () => {
@@ -58,17 +56,15 @@ describe('detectSingleDay', () => {
   });
 
   it('Monatswechsel zählt als mehrtägig', () => {
-    expect(detectSingleDay(
-      new Date('2026-08-31T20:00:00'),
-      new Date('2026-09-01T18:00:00'),
-    )).toBe(false);
+    expect(detectSingleDay(new Date('2026-08-31T20:00:00'), new Date('2026-09-01T18:00:00'))).toBe(
+      false
+    );
   });
 
   it('Jahreswechsel', () => {
-    expect(detectSingleDay(
-      new Date('2026-12-31T22:00:00'),
-      new Date('2027-01-01T02:00:00'),
-    )).toBe(false);
+    expect(detectSingleDay(new Date('2026-12-31T22:00:00'), new Date('2027-01-01T02:00:00'))).toBe(
+      false
+    );
   });
 });
 

@@ -58,7 +58,10 @@ describe('serializeTeamsList', () => {
   });
 
   it('vergibt Default-Seed = Index wenn seed fehlt', () => {
-    const out = serializeTeamsList([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
+    const out = serializeTeamsList([
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' },
+    ]);
     expect(out[0].seed).toBe(0);
     expect(out[1].seed).toBe(1);
   });
@@ -132,10 +135,10 @@ describe('renderTeamsList', () => {
   });
 
   it('XSS: <script> im Namen wird escaped', () => {
-    const html = renderTeamsList(
-      [{ id: 'x', name: '<script>alert(1)</script>', seed: 0 }],
-      { isAdmin: true, reorderable: true }
-    );
+    const html = renderTeamsList([{ id: 'x', name: '<script>alert(1)</script>', seed: 0 }], {
+      isAdmin: true,
+      reorderable: true,
+    });
     expect(html).not.toContain('<script>alert');
     expect(html).toContain('&lt;script&gt;');
   });

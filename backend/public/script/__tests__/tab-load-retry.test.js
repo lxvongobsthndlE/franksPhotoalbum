@@ -55,7 +55,14 @@ function fakeMount() {
     querySelector(sel) {
       if (sel !== '[data-action="retry-tab-load"]') return null;
       if (!this.innerHTML.includes('data-action="retry-tab-load"')) return null;
-      const btn = { addEventListener(typ, fn) { if (typ === 'click') this._fn = fn; }, klick() { this._fn?.({}); } };
+      const btn = {
+        addEventListener(typ, fn) {
+          if (typ === 'click') this._fn = fn;
+        },
+        klick() {
+          this._fn?.({});
+        },
+      };
       knoepfe.push(btn);
       return btn;
     },
@@ -67,12 +74,14 @@ function lade() {
   const factory = new Function(
     'console',
     'esc',
-    `${quelle}\nreturn { startTabLoad, renderTabLoadError };`,
+    `${quelle}\nreturn { startTabLoad, renderTabLoadError };`
   );
   return factory({ warn() {} }, (s) => String(s ?? ''));
 }
 
-const ruhe = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+const ruhe = async () => {
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+};
 
 describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
   const { startTabLoad } = lade();
@@ -80,10 +89,15 @@ describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
   it('markiert erst NACH erfolgreichem Laden als geladen', async () => {
     const mount = fakeMount();
     let aufgeloest;
-    const loader = () => new Promise((r) => { aufgeloest = r; });
+    const loader = () =>
+      new Promise((r) => {
+        aufgeloest = r;
+      });
     startTabLoad(mount, 'Die Teamliste', loader);
     await ruhe();
-    expect(mount.dataset.loaded, 'waehrend des Ladens muss der Zustand pending sein').toBe('pending');
+    expect(mount.dataset.loaded, 'waehrend des Ladens muss der Zustand pending sein').toBe(
+      'pending'
+    );
     aufgeloest();
     await ruhe();
     expect(mount.dataset.loaded).toBe('1');
@@ -91,15 +105,23 @@ describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
 
   it('nimmt die Markierung bei Fehlschlag WIEDER WEG', async () => {
     const mount = fakeMount();
-    startTabLoad(mount, 'Die Teamliste', async () => { throw new Error('HTTP 500'); });
+    startTabLoad(mount, 'Die Teamliste', async () => {
+      throw new Error('HTTP 500');
+    });
     await ruhe();
-    expect(mount.dataset.loaded, 'ein fehlgeschlagener Tab darf nicht als geladen gelten').toBeUndefined();
+    expect(
+      mount.dataset.loaded,
+      'ein fehlgeschlagener Tab darf nicht als geladen gelten'
+    ).toBeUndefined();
   });
 
   it('der naechste Tab-Klick laedt nach einem Fehlschlag von selbst neu', async () => {
     const mount = fakeMount();
     let versuche = 0;
-    const loader = async () => { versuche += 1; throw new Error('HTTP 500'); };
+    const loader = async () => {
+      versuche += 1;
+      throw new Error('HTTP 500');
+    };
     startTabLoad(mount, 'Die Teamliste', loader);
     await ruhe();
     startTabLoad(mount, 'Die Teamliste', loader); // erneuter Tab-Wechsel
@@ -110,7 +132,10 @@ describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
   it('blockt eine zweite Ladung, solange die erste laeuft', async () => {
     const mount = fakeMount();
     let versuche = 0;
-    const loader = () => { versuche += 1; return new Promise(() => {}); };
+    const loader = () => {
+      versuche += 1;
+      return new Promise(() => {});
+    };
     startTabLoad(mount, 'Die Teamliste', loader);
     startTabLoad(mount, 'Die Teamliste', loader);
     await ruhe();
@@ -120,7 +145,9 @@ describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
   it('laedt einen bereits geladenen Tab nicht erneut', async () => {
     const mount = fakeMount();
     let versuche = 0;
-    const loader = async () => { versuche += 1; };
+    const loader = async () => {
+      versuche += 1;
+    };
     startTabLoad(mount, 'Die Teamliste', loader);
     await ruhe();
     startTabLoad(mount, 'Die Teamliste', loader);
@@ -130,7 +157,9 @@ describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
 
   it('zeigt bei Fehlschlag ein Fehlerbild mit Erneut-Knopf', async () => {
     const mount = fakeMount();
-    startTabLoad(mount, 'Der Turnierbaum', async () => { throw new Error('HTTP 500'); });
+    startTabLoad(mount, 'Der Turnierbaum', async () => {
+      throw new Error('HTTP 500');
+    });
     await ruhe();
     expect(mount.innerHTML).toContain('Der Turnierbaum konnte nicht geladen werden.');
     expect(mount.innerHTML).toContain('data-action="retry-tab-load"');
@@ -140,7 +169,10 @@ describe('startTabLoad: der Fehlschlag ist kein Endzustand', () => {
   it('der Knopf startet wirklich einen neuen Versuch', async () => {
     const mount = fakeMount();
     let versuche = 0;
-    startTabLoad(mount, 'Der Turnierbaum', async () => { versuche += 1; throw new Error('HTTP 500'); });
+    startTabLoad(mount, 'Der Turnierbaum', async () => {
+      versuche += 1;
+      throw new Error('HTTP 500');
+    });
     await ruhe();
     expect(versuche).toBe(1);
     mount.knoepfe.at(-1).klick();
@@ -180,7 +212,11 @@ describe('Struktur: kein Tab markiert sich mehr vor dem Laden', () => {
     expect(fn).not.toContain('!mount.dataset.loaded');
   });
 
-  for (const [view, lader] of [['teams', 'loadTeamsTab'], ['gruppen', 'loadStandingsTab'], ['baum', 'loadBracketTab']]) {
+  for (const [view, lader] of [
+    ['teams', 'loadTeamsTab'],
+    ['gruppen', 'loadStandingsTab'],
+    ['baum', 'loadBracketTab'],
+  ]) {
     it(`${view}-Tab laeuft ueber startTabLoad (${lader})`, () => {
       const fn = schneide('handleTournamentTabSideEffects');
       const ab = fn.indexOf(`view === '${view}'`);
@@ -201,7 +237,7 @@ describe('Struktur: kein Tab markiert sich mehr vor dem Laden', () => {
 
   it('der Erneut-Knopf ist auch im Einstellungen-Tab verdrahtet', () => {
     const fn = schneide('loadEinstellungenTab');
-    expect(fn).toContain('renderTabLoadError(mount,');
+    expect(fn).toMatch(/renderTabLoadError\(\s*mount\s*,/);
   });
 });
 

@@ -76,15 +76,19 @@ describe('generateTournament', () => {
       teams: teams12,
       config: { mode: 'groups_ko', numGroups: 3, bestThirds: 2 },
     });
-    const idsA = a.groups.flatMap((g) => g.matches.map((m) => m.id))
+    const idsA = a.groups
+      .flatMap((g) => g.matches.map((m) => m.id))
       .concat(a.bracket.matches.map((m) => m.id));
-    const idsB = b.groups.flatMap((g) => g.matches.map((m) => m.id))
+    const idsB = b.groups
+      .flatMap((g) => g.matches.map((m) => m.id))
       .concat(b.bracket.matches.map((m) => m.id));
     expect(idsA).toEqual(idsB);
 
-    const timesA = a.groups.flatMap((g) => g.matches.map((m) => m.scheduledAt?.getTime()))
+    const timesA = a.groups
+      .flatMap((g) => g.matches.map((m) => m.scheduledAt?.getTime()))
       .concat(a.bracket.matches.map((m) => m.scheduledAt?.getTime()));
-    const timesB = b.groups.flatMap((g) => g.matches.map((m) => m.scheduledAt?.getTime()))
+    const timesB = b.groups
+      .flatMap((g) => g.matches.map((m) => m.scheduledAt?.getTime()))
       .concat(b.bracket.matches.map((m) => m.scheduledAt?.getTime()));
     expect(timesA).toEqual(timesB);
   });
@@ -94,10 +98,7 @@ describe('generateTournament', () => {
       teams: teams12,
       config: { mode: 'groups_ko', numGroups: 3, bestThirds: 2 },
     });
-    const all = [
-      ...r.groups.flatMap((g) => g.matches),
-      ...r.bracket.matches,
-    ];
+    const all = [...r.groups.flatMap((g) => g.matches), ...r.bracket.matches];
     for (const m of all) {
       expect(m.scheduledAt).toBeInstanceOf(Date);
       expect(typeof m.field).toBe('number');

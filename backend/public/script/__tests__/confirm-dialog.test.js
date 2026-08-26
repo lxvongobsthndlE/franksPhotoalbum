@@ -128,16 +128,16 @@ describe('resolveConfirmDescriptor — Backward-Compat für 5 bestehende Aufrufe
 describe('openConfirmDialog — Token-Vererbung, Escape, Fokus-Rückkehr (A5)', () => {
   const tournamentJs = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), '..', 'tournament.js'),
-    'utf8',
+    'utf8'
   );
   const tournamentCss = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'style', 'tournament.css'),
-    'utf8',
+    'utf8'
   );
 
   it('Der Backdrop trägt die Host-Klassen — sonst erbt er keinen Token', () => {
     expect(tournamentJs).toMatch(
-      /backdrop\.className = `t-confirm-backdrop \$\{DIALOG_TOKEN_CLASSES\}`/,
+      /backdrop\.className = `t-confirm-backdrop \$\{DIALOG_TOKEN_CLASSES\}`/
     );
     expect(tournamentJs).not.toMatch(/backdrop\.className = 't-confirm-backdrop';/);
   });
@@ -166,7 +166,7 @@ describe('openConfirmDialog — Token-Vererbung, Escape, Fokus-Rückkehr (A5)', 
 
   it('Der Radius kommt aus dem Modul, obwohl --r3 dort nicht existiert', () => {
     expect(tournamentCss).toMatch(
-      /\.t-dialog-host \.t-confirm-dialog \{ border-radius: var\(--r-card\); \}/,
+      /\.t-dialog-host \.t-confirm-dialog \{\s*border-radius: var\(--r-card\);\s*\}/
     );
   });
 

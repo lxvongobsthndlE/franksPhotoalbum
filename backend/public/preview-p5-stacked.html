@@ -1,140 +1,211 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Preview — P5 Re-Fix: Standings-Tabelle schmal mit Pl/Team/Becher/Diff/Pkt</title>
-  <link rel="stylesheet" href="./style/main.css" />
-  <link rel="stylesheet" href="./style/tournament.css" />
-  <style>
-    body { margin: 0; background: #FAF7F1; font-family: inherit;
-           display: flex; min-height: 100vh; }
-    #content {
-      flex: 1; overflow-y: auto; padding: 30px 28px; min-width: 0;
-    }
-    .preview-hint { color: #8A8077; font-size: 12px; margin-bottom: 12px; }
-  </style>
-</head>
-<body>
-  <main id="content">
-    <p class="preview-hint">Standings-Tabelle unter ≤600 px Container. Erwartet:
-       nur Pl · Team · Becher · Diff · Pkt. sichtbar, alles in einer Zeile pro
-       Team, Schrift 12 px, kein Overlap.</p>
-    <div class="t-mod" style="height: calc(100vh - 60px); overflow: hidden;">
-      <header class="t-mod-header">
-        <div class="t-logo">🏆</div>
-        <div class="t-mod-header-info">
-          <div class="t-mod-header-text"><div class="t-title">Sommer-Cup 2026 (P5 Test)</div></div>
-          <div class="t-mod-header-badges"><span class="t-badge t-badge--status is-active">Aktiv</span></div>
-        </div>
-      </header>
-      <div class="t-mod-tabs" role="tablist">
-        <button type="button" class="t-mod-tab" data-view="spielplan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg>
-          <span>Spiele</span>
-        </button>
-        <button type="button" class="t-mod-tab is-active" data-view="gruppen">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
-          <span>Gruppen</span>
-        </button>
-        <button type="button" class="t-mod-tab" data-view="baum">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>
-          <span>Baum</span>
-        </button>
-        <button type="button" class="t-mod-tab" data-action="open-more-menu">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
-          <span>Mehr</span>
-        </button>
-      </div>
-      <div class="t-mod-more-sheet" data-open="false" style="display:none"><div class="t-mod-more-panel"></div></div>
-      <div class="t-shell">
-        <nav class="t-mod-nav" style="display:none">
-          <button data-view="gruppen" class="is-active">Gruppen</button>
-        </nav>
-        <main class="t-mod-main">
-          <section class="t-view is-active" data-view="gruppen">
-            <div class="t-card">
-              <div class="t-card-body">
-                <h3 class="t-standings-group-title">Gruppe A</h3>
-                <table class="t-standings-table">
-                  <colgroup>
-                    <col style="width:6%">
-                    <col style="width:auto">
-                    <col style="width:8%">
-                    <col style="width:7%">
-                    <col style="width:7%">
-                    <col style="width:7%">
-                    <col style="width:12%">
-                    <col style="width:9%">
-                    <col style="width:9%">
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th class="is-rank"  data-col="pl">Pl.</th>
-                      <th class="is-team">Team</th>
-                      <th class="is-num"   data-col="played">Sp.</th>
-                      <th class="is-num"   data-col="won">S</th>
-                      <th class="is-num"   data-col="drawn">U</th>
-                      <th class="is-num"   data-col="lost">N</th>
-                      <th class="is-num"   data-col="score">Becher</th>
-                      <th class="is-num"   data-col="diff">Diff</th>
-                      <th class="is-num"   data-col="points">Pkt.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr class="t-standings-row is-first">
-                      <td class="t-standings-rank" data-col="pl">1.</td>
-                      <td class="t-standings-team">Team Alpha</td>
-                      <td class="t-standings-num" data-col="played">3</td>
-                      <td class="t-standings-num" data-col="won">3</td>
-                      <td class="t-standings-num" data-col="drawn">0</td>
-                      <td class="t-standings-num" data-col="lost">0</td>
-                      <td class="t-standings-num" data-col="score">9:2</td>
-                      <td class="t-standings-num is-positive" data-col="diff">+7</td>
-                      <td class="t-standings-num is-points" data-col="points">9</td>
-                    </tr>
-                    <tr class="t-standings-row is-second">
-                      <td class="t-standings-rank" data-col="pl">2.</td>
-                      <td class="t-standings-team">Team Beta</td>
-                      <td class="t-standings-num" data-col="played">3</td>
-                      <td class="t-standings-num" data-col="won">1</td>
-                      <td class="t-standings-num" data-col="drawn">0</td>
-                      <td class="t-standings-num" data-col="lost">2</td>
-                      <td class="t-standings-num" data-col="score">5:6</td>
-                      <td class="t-standings-num is-negative" data-col="diff">-1</td>
-                      <td class="t-standings-num is-points" data-col="points">3</td>
-                    </tr>
-                    <tr class="t-standings-row">
-                      <td class="t-standings-rank" data-col="pl">3.</td>
-                      <td class="t-standings-team">Team Gamma</td>
-                      <td class="t-standings-num" data-col="played">2</td>
-                      <td class="t-standings-num" data-col="won">0</td>
-                      <td class="t-standings-num" data-col="drawn">1</td>
-                      <td class="t-standings-num" data-col="lost">1</td>
-                      <td class="t-standings-num" data-col="score">2:8</td>
-                      <td class="t-standings-num is-negative" data-col="diff">-6</td>
-                      <td class="t-standings-num is-points" data-col="points">1</td>
-                    </tr>
-                    <tr class="t-standings-row">
-                      <td class="t-standings-rank" data-col="pl">4.</td>
-                      <td class="t-standings-team">Team Delta</td>
-                      <td class="t-standings-num" data-col="played">2</td>
-                      <td class="t-standings-num" data-col="won">1</td>
-                      <td class="t-standings-num" data-col="drawn">1</td>
-                      <td class="t-standings-num" data-col="lost">0</td>
-                      <td class="t-standings-num" data-col="score">4:4</td>
-                      <td class="t-standings-num" data-col="diff">0</td>
-                      <td class="t-standings-num is-points" data-col="points">4</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Preview — P5 Re-Fix: Standings-Tabelle schmal mit Pl/Team/Becher/Diff/Pkt</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #faf7f1;
+        font-family: inherit;
+        display: flex;
+        min-height: 100vh;
+      }
+      #content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 30px 28px;
+        min-width: 0;
+      }
+      .preview-hint {
+        color: #8a8077;
+        font-size: 12px;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="content">
+      <p class="preview-hint">
+        Standings-Tabelle unter ≤600 px Container. Erwartet: nur Pl · Team · Becher · Diff · Pkt.
+        sichtbar, alles in einer Zeile pro Team, Schrift 12 px, kein Overlap.
+      </p>
+      <div class="t-mod" style="height: calc(100vh - 60px); overflow: hidden">
+        <header class="t-mod-header">
+          <div class="t-logo">🏆</div>
+          <div class="t-mod-header-info">
+            <div class="t-mod-header-text">
+              <div class="t-title">Sommer-Cup 2026 (P5 Test)</div>
             </div>
-          </section>
-        </main>
-        <aside class="t-mod-aside" style="display:none"></aside>
+            <div class="t-mod-header-badges">
+              <span class="t-badge t-badge--status is-active">Aktiv</span>
+            </div>
+          </div>
+        </header>
+        <div class="t-mod-tabs" role="tablist">
+          <button type="button" class="t-mod-tab" data-view="spielplan">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M13 5h8" />
+              <path d="M13 12h8" />
+              <path d="M13 19h8" />
+              <path d="m3 17 2 2 4-4" />
+              <path d="m3 7 2 2 4-4" />
+            </svg>
+            <span>Spiele</span>
+          </button>
+          <button type="button" class="t-mod-tab is-active" data-view="gruppen">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"
+              />
+            </svg>
+            <span>Gruppen</span>
+          </button>
+          <button type="button" class="t-mod-tab" data-view="baum">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <circle cx="18" cy="6" r="3" />
+              <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+              <path d="M12 12v3" />
+            </svg>
+            <span>Baum</span>
+          </button>
+          <button type="button" class="t-mod-tab" data-action="open-more-menu">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="5" cy="12" r="1" />
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="19" cy="12" r="1" />
+            </svg>
+            <span>Mehr</span>
+          </button>
+        </div>
+        <div class="t-mod-more-sheet" data-open="false" style="display: none">
+          <div class="t-mod-more-panel"></div>
+        </div>
+        <div class="t-shell">
+          <nav class="t-mod-nav" style="display: none">
+            <button data-view="gruppen" class="is-active">Gruppen</button>
+          </nav>
+          <main class="t-mod-main">
+            <section class="t-view is-active" data-view="gruppen">
+              <div class="t-card">
+                <div class="t-card-body">
+                  <h3 class="t-standings-group-title">Gruppe A</h3>
+                  <table class="t-standings-table">
+                    <colgroup>
+                      <col style="width: 6%" />
+                      <col style="width: auto" />
+                      <col style="width: 8%" />
+                      <col style="width: 7%" />
+                      <col style="width: 7%" />
+                      <col style="width: 7%" />
+                      <col style="width: 12%" />
+                      <col style="width: 9%" />
+                      <col style="width: 9%" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th class="is-rank" data-col="pl">Pl.</th>
+                        <th class="is-team">Team</th>
+                        <th class="is-num" data-col="played">Sp.</th>
+                        <th class="is-num" data-col="won">S</th>
+                        <th class="is-num" data-col="drawn">U</th>
+                        <th class="is-num" data-col="lost">N</th>
+                        <th class="is-num" data-col="score">Becher</th>
+                        <th class="is-num" data-col="diff">Diff</th>
+                        <th class="is-num" data-col="points">Pkt.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="t-standings-row is-first">
+                        <td class="t-standings-rank" data-col="pl">1.</td>
+                        <td class="t-standings-team">Team Alpha</td>
+                        <td class="t-standings-num" data-col="played">3</td>
+                        <td class="t-standings-num" data-col="won">3</td>
+                        <td class="t-standings-num" data-col="drawn">0</td>
+                        <td class="t-standings-num" data-col="lost">0</td>
+                        <td class="t-standings-num" data-col="score">9:2</td>
+                        <td class="t-standings-num is-positive" data-col="diff">+7</td>
+                        <td class="t-standings-num is-points" data-col="points">9</td>
+                      </tr>
+                      <tr class="t-standings-row is-second">
+                        <td class="t-standings-rank" data-col="pl">2.</td>
+                        <td class="t-standings-team">Team Beta</td>
+                        <td class="t-standings-num" data-col="played">3</td>
+                        <td class="t-standings-num" data-col="won">1</td>
+                        <td class="t-standings-num" data-col="drawn">0</td>
+                        <td class="t-standings-num" data-col="lost">2</td>
+                        <td class="t-standings-num" data-col="score">5:6</td>
+                        <td class="t-standings-num is-negative" data-col="diff">-1</td>
+                        <td class="t-standings-num is-points" data-col="points">3</td>
+                      </tr>
+                      <tr class="t-standings-row">
+                        <td class="t-standings-rank" data-col="pl">3.</td>
+                        <td class="t-standings-team">Team Gamma</td>
+                        <td class="t-standings-num" data-col="played">2</td>
+                        <td class="t-standings-num" data-col="won">0</td>
+                        <td class="t-standings-num" data-col="drawn">1</td>
+                        <td class="t-standings-num" data-col="lost">1</td>
+                        <td class="t-standings-num" data-col="score">2:8</td>
+                        <td class="t-standings-num is-negative" data-col="diff">-6</td>
+                        <td class="t-standings-num is-points" data-col="points">1</td>
+                      </tr>
+                      <tr class="t-standings-row">
+                        <td class="t-standings-rank" data-col="pl">4.</td>
+                        <td class="t-standings-team">Team Delta</td>
+                        <td class="t-standings-num" data-col="played">2</td>
+                        <td class="t-standings-num" data-col="won">1</td>
+                        <td class="t-standings-num" data-col="drawn">1</td>
+                        <td class="t-standings-num" data-col="lost">0</td>
+                        <td class="t-standings-num" data-col="score">4:4</td>
+                        <td class="t-standings-num" data-col="diff">0</td>
+                        <td class="t-standings-num is-points" data-col="points">4</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </main>
+          <aside class="t-mod-aside" style="display: none"></aside>
+        </div>
       </div>
-    </div>
-  </main>
-</body>
+    </main>
+  </body>
 </html>

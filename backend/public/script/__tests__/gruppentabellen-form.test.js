@@ -28,8 +28,15 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { renderStandingsGroups, setCompactMode } from '../spielplan-helpers.js';
 
 const team = (name, sp, pkt) => ({
-  name, played: sp, won: 0, drawn: 0, lost: 0,
-  goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: pkt,
+  name,
+  played: sp,
+  won: 0,
+  drawn: 0,
+  lost: 0,
+  goalsFor: 0,
+  goalsAgainst: 0,
+  goalDiff: 0,
+  points: pkt,
 });
 const gruppe = (key) => ({
   groupKey: key,

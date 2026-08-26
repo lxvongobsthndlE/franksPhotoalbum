@@ -30,11 +30,7 @@ import {
 // Pure Funktionen für die Wizard-Vorschau (Spec §13.3, Bug 10).
 // Regressionsschutz: thirdPlaceMatch muss sich auf die Vorschau
 // auswirken — siehe wizard-preview-helpers.js für Details.
-import {
-  computeEndInfo,
-  estimateKoGames,
-  bracketSizeLabel,
-} from './wizard-preview-helpers.js';
+import { computeEndInfo, estimateKoGames, bracketSizeLabel } from './wizard-preview-helpers.js';
 
 // ----------------------------------------------------------------
 // Entwurfs-Lebenszyklus (Spec §1.2, §12).
@@ -59,9 +55,7 @@ async function createDraft({ groupId, name, mode }) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(
-      body?.message || body?.error || `POST /api/tournaments → ${res.status}`
-    );
+    throw new Error(body?.message || body?.error || `POST /api/tournaments → ${res.status}`);
   }
   return body.tournament;
 }
@@ -191,9 +185,7 @@ async function syncTeamsToBackend(state) {
   if (!Array.isArray(state.teams) || state.teams.length === 0) {
     // Nichts zu syncen. Aber: falls vorher Teams da waren und der
     // User alle entfernt hat, müssen wir die Server-Teams aufräumen.
-    const prevIds = Array.isArray(state.__syncedTeamIds)
-      ? state.__syncedTeamIds
-      : [];
+    const prevIds = Array.isArray(state.__syncedTeamIds) ? state.__syncedTeamIds : [];
     let removed = 0;
     for (const id of prevIds) {
       try {
@@ -213,16 +205,13 @@ async function syncTeamsToBackend(state) {
   // 1. POST alle aktuellen Namen. Server skippt Duplikate.
   let res;
   try {
-    res = await fetchWithAuth(
-      `/api/tournaments/${encodeURIComponent(state.tournamentId)}/teams`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          names: state.teams.map((t) => String(t?.name ?? '').trim()).filter(Boolean),
-        }),
-      }
-    );
+    res = await fetchWithAuth(`/api/tournaments/${encodeURIComponent(state.tournamentId)}/teams`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        names: state.teams.map((t) => String(t?.name ?? '').trim()).filter(Boolean),
+      }),
+    });
   } catch (err) {
     return { ok: false, error: 'network', message: err.message };
   }
@@ -251,12 +240,8 @@ async function syncTeamsToBackend(state) {
   // 3. IDs, die im letzten Sync da waren, aber jetzt nicht mehr im
   // state → DELETE. So bleiben Wizard-State und DB synchron, auch
   // wenn der User Teams im Wizard entfernt hat.
-  const previousIds = Array.isArray(state.__syncedTeamIds)
-    ? state.__syncedTeamIds.slice()
-    : [];
-  const currentIds = new Set(
-    state.teams.map((t) => t.id).filter(Boolean)
-  );
+  const previousIds = Array.isArray(state.__syncedTeamIds) ? state.__syncedTeamIds.slice() : [];
+  const currentIds = new Set(state.teams.map((t) => t.id).filter(Boolean));
   const toDelete = previousIds.filter((id) => !currentIds.has(id));
   let removed = 0;
   for (const id of toDelete) {
@@ -298,7 +283,7 @@ export { syncTeamsToBackend };
  * was schiefgelaufen ist und was er tun kann.
  */
 function translateDraftError(err) {
-  const raw = (err && err.message) ? String(err.message) : '';
+  const raw = err && err.message ? String(err.message) : '';
   const lower = raw.toLowerCase();
 
   // Netzwerk / Offline
@@ -309,10 +294,13 @@ function translateDraftError(err) {
   const statusMatch = raw.match(/→\s*(\d{3})/);
   if (statusMatch) {
     const status = Number(statusMatch[1]);
-    if (status === 401) return 'Du bist nicht angemeldet. Bitte melde dich an und versuche es erneut.';
-    if (status === 403) return 'Du hast keine Berechtigung, in dieser Gruppe ein Turnier anzulegen.';
+    if (status === 401)
+      return 'Du bist nicht angemeldet. Bitte melde dich an und versuche es erneut.';
+    if (status === 403)
+      return 'Du hast keine Berechtigung, in dieser Gruppe ein Turnier anzulegen.';
     if (status === 404) return 'Die Gruppe wurde nicht gefunden. Bitte lade die Seite neu.';
-    if (status === 409) return 'In dieser Gruppe existiert bereits ein Turnier mit diesem Namen. Bitte wähle einen anderen Namen.';
+    if (status === 409)
+      return 'In dieser Gruppe existiert bereits ein Turnier mit diesem Namen. Bitte wähle einen anderen Namen.';
     if (status === 500 || status === 502 || status === 503) {
       return 'Das Turnier konnte nicht gespeichert werden. Bitte versuche es in einem Moment erneut.';
     }
@@ -391,16 +379,15 @@ export function buildPatchPayload(state, { changedFields = null } = {}) {
   // zulassen muss (siehe config-validator.js).
   config.numGroups = state.numGroups;
   // location: leere Strings werden zu null (kein „ " im Druckkopf).
-  const locationClean = (typeof state.location === 'string'
-                        && state.location.trim() === '')
-                        ? null
-                        : (state.location ?? null);
+  const locationClean =
+    typeof state.location === 'string' && state.location.trim() === ''
+      ? null
+      : (state.location ?? null);
   const meta = {
     location: locationClean,
     sport: state.sport,
-    tableLabels: Array.isArray(state.tableNames) && state.tableNames.length > 0
-      ? state.tableNames
-      : null,
+    tableLabels:
+      Array.isArray(state.tableNames) && state.tableNames.length > 0 ? state.tableNames : null,
   };
   // changedFields enthält WIZARD-Feldnamen (z. B. „location", „tableNames",
   // „numTables"), nicht die API-Feldnamen. Map:
@@ -409,8 +396,7 @@ export function buildPatchPayload(state, { changedFields = null } = {}) {
     sport: 'sport',
     tableNames: 'tableLabels',
   };
-  const include = (field) =>
-    !changedFields || changedFields.includes(field);
+  const include = (field) => !changedFields || changedFields.includes(field);
   const body = {};
   for (const [wizardName, apiName] of Object.entries(metaFieldsByName)) {
     if (include(wizardName)) body[apiName] = meta[apiName];
@@ -427,14 +413,20 @@ export function buildPatchPayload(state, { changedFields = null } = {}) {
   // und konnte nach Step 3 nicht mehr aktualisiert werden.
   const configOnly = [
     'numGroups',
-    'distributionMethod', 'pointsWin', 'pointsDraw', 'pointsLoss',
-    'tiebreakers', 'advancePerGroup', 'bestThirdsCount',
-    'thirdPlaceMatch', 'numTables', 'matchDuration',
-    'pauseMinutes', 'startTime',
+    'distributionMethod',
+    'pointsWin',
+    'pointsDraw',
+    'pointsLoss',
+    'tiebreakers',
+    'advancePerGroup',
+    'bestThirdsCount',
+    'thirdPlaceMatch',
+    'numTables',
+    'matchDuration',
+    'pauseMinutes',
+    'startTime',
   ];
-  const anyConfig = !changedFields || configOnly.some((f) =>
-    changedFields.includes(f)
-  );
+  const anyConfig = !changedFields || configOnly.some((f) => changedFields.includes(f));
   if (anyConfig) body.config = config;
   return body;
 }
@@ -458,14 +450,11 @@ export async function persistConfig(state, opts = {}) {
   const body = buildPatchPayload(state, opts);
   let res;
   try {
-    res = await fetchWithAuth(
-      `/api/tournaments/${encodeURIComponent(state.tournamentId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
+    res = await fetchWithAuth(`/api/tournaments/${encodeURIComponent(state.tournamentId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   } catch (err) {
     return {
       ok: false,
@@ -512,9 +501,10 @@ export function buildGeneratePayload(state, opts = {}) {
   // Generate (vor PATCH) aber noch null. Doppelung ist OK; der Server
   // bevorzugt den Body-Wert.
   body.numGroups = state.numGroups;
-  const groupSize = state.teams.length > 0 && state.numGroups > 0
-    ? Math.ceil(state.teams.length / state.numGroups)
-    : 0;
+  const groupSize =
+    state.teams.length > 0 && state.numGroups > 0
+      ? Math.ceil(state.teams.length / state.numGroups)
+      : 0;
   body.groupSize = groupSize;
   // Modus explizit mitschicken (Bug A, 2026-08-17). Body hat Priorität
   // vor der DB-Spalte (routes.js Z. 587: `request.body?.mode ?? ctx…`).
@@ -798,10 +788,7 @@ function renderTeamSlot(slot, side, match) {
 function renderMatchScore(match) {
   const score = document.createElement('div');
   score.className = 't-match-score';
-  if (
-    match.scoreHome != null &&
-    match.scoreAway != null
-  ) {
+  if (match.scoreHome != null && match.scoreAway != null) {
     score.textContent = `${match.scoreHome} : ${match.scoreAway}`;
   } else {
     score.classList.add('empty');
@@ -822,9 +809,7 @@ function renderMatchAction(match, opts) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 't-btn t-btn--sm';
-  button.textContent = match.isFinished
-    ? 'Ergebnis ändern'
-    : 'Ergebnis eintragen';
+  button.textContent = match.isFinished ? 'Ergebnis ändern' : 'Ergebnis eintragen';
   button.addEventListener('click', (ev) => {
     ev.stopPropagation();
     opts.onAction(match);
@@ -909,7 +894,7 @@ export function renderTeamsView(opts = {}) {
   // Pending-Queue und Status.
   const localTeams = initialTeams.map((t) => ({ ...t }));
   const pendingValues = new Map(); // teamId -> { name?, color? }
-  const inFlight = new Set();      // teamIds mit laufendem PATCH
+  const inFlight = new Set(); // teamIds mit laufendem PATCH
   const failedPatches = new Map(); // teamId -> { name?, color? } (für Retry)
   let lastSuccessAt = 0;
 
@@ -1113,10 +1098,7 @@ export function renderTeamsView(opts = {}) {
     if (!status) return;
     status.dataset.state = state;
     status.textContent =
-      state === 'saving' ? '…'
-      : state === 'ok' ? '✓'
-      : state === 'err' ? '⚠'
-      : '';
+      state === 'saving' ? '…' : state === 'ok' ? '✓' : state === 'err' ? '⚠' : '';
     li.dataset.rowState = state;
   }
 
@@ -1228,7 +1210,7 @@ function renderMobileTabs(active) {
   wrap.className = 't-mod-tabs';
   wrap.setAttribute('role', 'tablist');
   for (const tab of [
-    { id: 'alle',     label: 'Alle' },
+    { id: 'alle', label: 'Alle' },
     { id: 'aktuelle', label: 'Aktuelle' },
     { id: 'kommende', label: 'Kommende' },
     { id: 'beendete', label: 'Beendete' },
@@ -1281,9 +1263,10 @@ function renderListMain(tournaments, isAdmin, opts) {
   title.textContent = 'Aktuelle Turniere';
   const sub = document.createElement('div');
   sub.className = 't-view-sub';
-  sub.textContent = tournaments.length === 1
-    ? '1 Turnier in dieser Gruppe'
-    : `${tournaments.length} Turniere in dieser Gruppe`;
+  sub.textContent =
+    tournaments.length === 1
+      ? '1 Turnier in dieser Gruppe'
+      : `${tournaments.length} Turniere in dieser Gruppe`;
   head.appendChild(title);
   head.appendChild(sub);
   main.appendChild(head);
@@ -1302,9 +1285,7 @@ function renderTournamentGrid(tournaments, isAdmin, opts) {
   grid.className = 't-card-grid';
 
   // Filter: Mitglieder sehen keine Entwürfe (Spec §13.2).
-  const visible = isAdmin
-    ? tournaments
-    : tournaments.filter((t) => t.status !== 'draft');
+  const visible = isAdmin ? tournaments : tournaments.filter((t) => t.status !== 'draft');
 
   for (const t of visible) {
     grid.appendChild(renderTournamentCard(t, isAdmin, opts));
@@ -1497,12 +1478,17 @@ function renderDraftCard(tournament, isAdmin, opts = {}) {
 
 function badgeVariant(status) {
   switch (status) {
-    case 'draft':       return 'draft';
-    case 'generated':   return 'ready';
+    case 'draft':
+      return 'draft';
+    case 'generated':
+      return 'ready';
     case 'group_stage':
-    case 'ko_stage':    return 'running';
-    case 'finished':    return 'finished';
-    default:            return 'draft';
+    case 'ko_stage':
+      return 'running';
+    case 'finished':
+      return 'finished';
+    default:
+      return 'draft';
   }
 }
 
@@ -1588,9 +1574,7 @@ export function renderEmptyState(isAdmin) {
 
   const hint = document.createElement('div');
   hint.className = 't-empty-state-hint';
-  hint.textContent = isAdmin
-    ? 'Das Anlegen folgt im nächsten Schritt.'
-    : '';
+  hint.textContent = isAdmin ? 'Das Anlegen folgt im nächsten Schritt.' : '';
   wrap.appendChild(hint);
 
   return wrap;
@@ -1610,10 +1594,10 @@ function renderAside(isAdmin, tournamentCount) {
   legendBlock.appendChild(legendTitle);
 
   for (const v of [
-    { status: 'draft',       label: 'Entwurf' },
-    { status: 'generated',   label: 'Bereit' },
+    { status: 'draft', label: 'Entwurf' },
+    { status: 'generated', label: 'Bereit' },
     { status: 'group_stage', label: 'Läuft' },
-    { status: 'finished',    label: 'Beendet' },
+    { status: 'finished', label: 'Beendet' },
   ]) {
     const row = document.createElement('div');
     row.className = 't-list-card-row';
@@ -1687,16 +1671,29 @@ if (typeof window !== 'undefined') {
 // ========================================================================
 
 const SPORT_OPTIONS = [
-  { id: 'becher', label: 'Bierpong',   score: 'Becher',  scoreShort: 'B.' },
-  { id: 'tore',   label: 'Fußball',    score: 'Tore',    scoreShort: 'Tore' },
-  { id: 'punkte', label: 'Sonstiges',  score: 'Punkte',  scoreShort: 'Pkt.' },
+  { id: 'becher', label: 'Bierpong', score: 'Becher', scoreShort: 'B.' },
+  { id: 'tore', label: 'Fußball', score: 'Tore', scoreShort: 'Tore' },
+  { id: 'punkte', label: 'Sonstiges', score: 'Punkte', scoreShort: 'Pkt.' },
 ];
 
 const MODE_OPTIONS = [
-  { id: 'groups_ko',  label: 'Gruppen + K.-o.', desc: 'WM-Modus. Jede Gruppe spielt Jeder-gegen-Jeden, die besten Teams steigen in den K.-o.-Baum auf.' },
-  { id: 'groups_only', label: 'Nur Gruppen',    desc: 'Liga-Modus. Endstand ist die Gruppentabelle.' },
-  { id: 'ko_only',     label: 'Nur K.-o.',      desc: 'Single-Elimination. Direkt in den K.-o.-Baum, optional mit Spiel um Platz 3.' },
-  { id: 'double_elim', label: 'Doppel-K.O.',    desc: 'Doppelt-k.-o. (Kommt in einer späteren Ausbaustufe.)', disabled: true },
+  {
+    id: 'groups_ko',
+    label: 'Gruppen + K.-o.',
+    desc: 'WM-Modus. Jede Gruppe spielt Jeder-gegen-Jeden, die besten Teams steigen in den K.-o.-Baum auf.',
+  },
+  { id: 'groups_only', label: 'Nur Gruppen', desc: 'Liga-Modus. Endstand ist die Gruppentabelle.' },
+  {
+    id: 'ko_only',
+    label: 'Nur K.-o.',
+    desc: 'Single-Elimination. Direkt in den K.-o.-Baum, optional mit Spiel um Platz 3.',
+  },
+  {
+    id: 'double_elim',
+    label: 'Doppel-K.O.',
+    desc: 'Doppelt-k.-o. (Kommt in einer späteren Ausbaustufe.)',
+    disabled: true,
+  },
 ];
 
 const DISTRIBUTION_METHODS = [
@@ -1706,20 +1703,14 @@ const DISTRIBUTION_METHODS = [
 ];
 
 const TIEBREAKER_ORDER = [
-  { id: 'points',         label: 'Punkte' },
-  { id: 'headToHead',     label: 'Direkter Vergleich' },
-  { id: 'goalDiff',       label: 'Tordifferenz' },
-  { id: 'goalsFor',       label: 'Erzielte Tore' },
-  { id: 'goalsAgainst',   label: 'Wenigste Gegentore' },
+  { id: 'points', label: 'Punkte' },
+  { id: 'headToHead', label: 'Direkter Vergleich' },
+  { id: 'goalDiff', label: 'Tordifferenz' },
+  { id: 'goalsFor', label: 'Erzielte Tore' },
+  { id: 'goalsAgainst', label: 'Wenigste Gegentore' },
 ];
 
-const STEP_TITLES = [
-  'Grunddaten',
-  'Teams',
-  'Modus',
-  'Qualifikation & Zeitplan',
-  'Zusammenfassung',
-];
+const STEP_TITLES = ['Grunddaten', 'Teams', 'Modus', 'Qualifikation & Zeitplan', 'Zusammenfassung'];
 
 const DEFAULT_WIZARD_STATE = {
   step: 1,
@@ -1817,11 +1808,13 @@ export function validateConstitution(state) {
   if (teamCount === 0) {
     return {
       level: 'block',
-      messages: [{
-        severity: 'error',
-        code: 'NO_TEAMS',
-        text: 'Es sind noch keine Teams erfasst.',
-      }],
+      messages: [
+        {
+          severity: 'error',
+          code: 'NO_TEAMS',
+          text: 'Es sind noch keine Teams erfasst.',
+        },
+      ],
     };
   }
 
@@ -1829,31 +1822,32 @@ export function validateConstitution(state) {
   if (teamCount < 2) {
     return {
       level: 'block',
-      messages: [{
-        severity: 'error',
-        code: 'TOO_FEW_TEAMS',
-        text: 'Ein Turnier braucht mindestens 2 Teams.',
-      }],
+      messages: [
+        {
+          severity: 'error',
+          code: 'TOO_FEW_TEAMS',
+          text: 'Ein Turnier braucht mindestens 2 Teams.',
+        },
+      ],
     };
   }
 
   // 3) KO-Modi: prüfen, dass die KO-Runde tatsächlich jemanden
   //    eliminiert. Wenn alle Teams weiterkommen, ist die KO-Phase
   //    sinnlos (Bug B: 4 Teams / 2 Gruppen / Top 2 = alle 4 weiter).
-  const hasKoPhase =
-    mode === 'groups_ko' ||
-    mode === 'ko_only' ||
-    mode === 'double_elim';
+  const hasKoPhase = mode === 'groups_ko' || mode === 'ko_only' || mode === 'double_elim';
   if (hasKoPhase) {
     if (mode === 'ko_only') {
       if (teamCount < 2) {
         return {
           level: 'block',
-          messages: [{
-            severity: 'error',
-            code: 'KO_WITH_ONE_TEAM',
-            text: 'KO-Modus braucht mindestens 2 Teams.',
-          }],
+          messages: [
+            {
+              severity: 'error',
+              code: 'KO_WITH_ONE_TEAM',
+              text: 'KO-Modus braucht mindestens 2 Teams.',
+            },
+          ],
         };
       }
       // ko_only: alle Teams sind direkt im Bracket, daher OK sofern >= 2.
@@ -1863,22 +1857,21 @@ export function validateConstitution(state) {
       if (qualifiers >= teamCount) {
         return {
           level: 'block',
-          messages: [{
-            severity: 'error',
-            code: 'QUALIFIERS_GE_TEAMS',
-            text:
-              `${numGroups} Gruppen × ${advancePerGroup} Aufsteiger + ` +
-              `${bestThirds} beste Dritte = ${qualifiers} Qualifikanten. ` +
-              `Bei ${teamCount} Teams kommt jeder weiter — die KO-Phase ` +
-              `wäre sinnlos. Reduziere die Anzahl der Gruppen oder die ` +
-              `Aufsteiger pro Gruppe.`,
-            fix: {
-              reduceAdvancePerGroup: Math.max(
-                1,
-                Math.floor(teamCount / numGroups) - 1,
-              ),
+          messages: [
+            {
+              severity: 'error',
+              code: 'QUALIFIERS_GE_TEAMS',
+              text:
+                `${numGroups} Gruppen × ${advancePerGroup} Aufsteiger + ` +
+                `${bestThirds} beste Dritte = ${qualifiers} Qualifikanten. ` +
+                `Bei ${teamCount} Teams kommt jeder weiter — die KO-Phase ` +
+                `wäre sinnlos. Reduziere die Anzahl der Gruppen oder die ` +
+                `Aufsteiger pro Gruppe.`,
+              fix: {
+                reduceAdvancePerGroup: Math.max(1, Math.floor(teamCount / numGroups) - 1),
+              },
             },
-          }],
+          ],
         };
       }
     }
@@ -1911,7 +1904,7 @@ export function validateConstitution(state) {
 
   const hasError = messages.some((m) => m.severity === 'error');
   return {
-    level: messages.length === 0 ? 'ok' : (hasError ? 'block' : 'warn'),
+    level: messages.length === 0 ? 'ok' : hasError ? 'block' : 'warn',
     messages,
   };
 }
@@ -1942,26 +1935,26 @@ export function validateConstitution(state) {
 export const TOURNAMENT_PHASE_ORDER = ['draft', 'ready', 'live', 'finished', 'other'];
 
 const TOURNAMENT_STATUS_TO_PHASE = {
-  draft:        'draft',
-  generated:    'ready',
-  group_stage:  'live',
-  ko_stage:     'live',
-  finished:     'finished',
-  cancelled:    'finished',
+  draft: 'draft',
+  generated: 'ready',
+  group_stage: 'live',
+  ko_stage: 'live',
+  finished: 'finished',
+  cancelled: 'finished',
   // v2-Aliase:
   registration: 'ready',
-  scheduled:    'ready',
-  in_progress:  'live',
-  completed:    'finished',
+  scheduled: 'ready',
+  in_progress: 'live',
+  completed: 'finished',
 };
 
 const TOURNAMENT_PHASE_LABELS = {
-  draft:     'Entwurf',
-  ready:     'Bereit',
-  live:      'Läuft',
-  finished:  'Beendet',
+  draft: 'Entwurf',
+  ready: 'Bereit',
+  live: 'Läuft',
+  finished: 'Beendet',
   cancelled: 'Abgebrochen',
-  other:     'Sonstige',
+  other: 'Sonstige',
 };
 
 /**
@@ -2075,9 +2068,9 @@ export function renderWizardView(opts = {}) {
   if (!opts.groupId && state.groupId) {
     console.warn(
       '[wizard] opts.groupId fehlt, aber initialState.groupId ist gesetzt. ' +
-      'Die Turnier-Erstellung geht in den Mock-Modus und legt keinen Entwurf an. ' +
-      '→ renderWizardView({ groupId, initialState, ... }) — groupId MUSS ' +
-      'als Top-Level-Option übergeben werden, nicht nur in initialState.'
+        'Die Turnier-Erstellung geht in den Mock-Modus und legt keinen Entwurf an. ' +
+        '→ renderWizardView({ groupId, initialState, ... }) — groupId MUSS ' +
+        'als Top-Level-Option übergeben werden, nicht nur in initialState.'
     );
   }
 
@@ -2095,7 +2088,9 @@ export function renderWizardView(opts = {}) {
     onCancel: async () => {
       await deleteDraft(state.tournamentId);
       if (typeof opts.onCancel === 'function') {
-        try { opts.onCancel(); } catch (e) {
+        try {
+          opts.onCancel();
+        } catch (e) {
           console.warn('[wizard] caller onCancel threw:', e);
         }
       }
@@ -2254,12 +2249,23 @@ function renderWizardStep(state, opts) {
   wrap.appendChild(heading);
 
   switch (state.step) {
-    case 1: renderStep1Grunddaten(wrap, state, opts); break;
-    case 2: renderStep2Teams(wrap, state, opts); break;
-    case 3: renderStep3Modus(wrap, state, opts); break;
-    case 4: renderStep4Qualifikation(wrap, state, opts); break;
-    case 5: renderStep5Zusammenfassung(wrap, state, opts); break;
-    default: break;
+    case 1:
+      renderStep1Grunddaten(wrap, state, opts);
+      break;
+    case 2:
+      renderStep2Teams(wrap, state, opts);
+      break;
+    case 3:
+      renderStep3Modus(wrap, state, opts);
+      break;
+    case 4:
+      renderStep4Qualifikation(wrap, state, opts);
+      break;
+    case 5:
+      renderStep5Zusammenfassung(wrap, state, opts);
+      break;
+    default:
+      break;
   }
 
   return wrap;
@@ -2270,94 +2276,98 @@ function renderStep1Grunddaten(wrap, state, opts) {
   form.className = 't-wizard-fields';
   form.addEventListener('submit', (e) => e.preventDefault());
 
-  form.appendChild(buildField({
-    label: 'Turniername',
-    required: true,
-    input: (id) => {
-      const i = document.createElement('input');
-      i.type = 'text';
-      i.id = id;
-      i.className = 't-input';
-      i.placeholder = 'z. B. „Sommer-Cup 2026"';
-      i.value = state.name;
-      i.addEventListener('input', () => {
-        state.name = i.value;
-        notifyChange(state, opts);
-      });
-      // Auto-Draft bei blur: sobald der User einen gültigen Namen
-      // eingibt und das Feld verlässt, legen wir den Entwurf in der
-      // DB an. Damit wird das Logo-Feld sofort aktiv (statt erst nach
-      // Schritt 1 → 2 → 1). Genau ein POST pro Wizard-leben —
-      // ensureDraftPromise() ist single-flight und idempotent.
-      //
-      // Mock-Modus (kein opts.groupId): das Logo-Feld ist bereits von
-      // Anfang an aktiv (Picker läuft über FileReader/dataURL) — kein
-      // zusätzlicher Blur-Handler nötig.
-      i.addEventListener('blur', () => {
-        if (state.step !== 1) return;       // Nur in Step 1 sinnvoll
-        if (state.tournamentId) return;     // Schon angelegt
-        if (!state.name.trim()) return;     // Leerer Name → kein POST
-        if (!opts.groupId) return;          // Mock: Feld ist schon aktiv
-        ensureDraftPromise(state, opts)
-          .then(() => {
-            // Logo-Picker aktivieren, ohne Re-Render. Wir holen das
-            // Element frisch per Selector, weil der Picker in einer
-            // eigenen Sub-Component sitzt.
-            const pickBtn = document.querySelector(
-              '.t-wizard-logo-picker button'
-            );
-            const statusEl = document.querySelector('.t-wizard-logo-status');
-            if (pickBtn) pickBtn.disabled = false;
-            if (statusEl && statusEl.textContent.includes('Hinweis:')) {
-              statusEl.textContent = '';
-              statusEl.className = 't-wizard-logo-status';
-            }
-          })
-          .catch((err) => {
-            // Fehler schlucken — die "Weiter"-Routen-Fehlermeldung
-            // wird beim nächsten Klick sichtbar. Hier nur leise
-            // loggen, damit der User nicht durch Inline-Rotmeldung
-            // aus dem Tipp-Flow gerissen wird.
-            console.warn('[wizard] auto-draft failed:', err.message);
-          });
-      });
-      return i;
-    },
-  }));
+  form.appendChild(
+    buildField({
+      label: 'Turniername',
+      required: true,
+      input: (id) => {
+        const i = document.createElement('input');
+        i.type = 'text';
+        i.id = id;
+        i.className = 't-input';
+        i.placeholder = 'z. B. „Sommer-Cup 2026"';
+        i.value = state.name;
+        i.addEventListener('input', () => {
+          state.name = i.value;
+          notifyChange(state, opts);
+        });
+        // Auto-Draft bei blur: sobald der User einen gültigen Namen
+        // eingibt und das Feld verlässt, legen wir den Entwurf in der
+        // DB an. Damit wird das Logo-Feld sofort aktiv (statt erst nach
+        // Schritt 1 → 2 → 1). Genau ein POST pro Wizard-leben —
+        // ensureDraftPromise() ist single-flight und idempotent.
+        //
+        // Mock-Modus (kein opts.groupId): das Logo-Feld ist bereits von
+        // Anfang an aktiv (Picker läuft über FileReader/dataURL) — kein
+        // zusätzlicher Blur-Handler nötig.
+        i.addEventListener('blur', () => {
+          if (state.step !== 1) return; // Nur in Step 1 sinnvoll
+          if (state.tournamentId) return; // Schon angelegt
+          if (!state.name.trim()) return; // Leerer Name → kein POST
+          if (!opts.groupId) return; // Mock: Feld ist schon aktiv
+          ensureDraftPromise(state, opts)
+            .then(() => {
+              // Logo-Picker aktivieren, ohne Re-Render. Wir holen das
+              // Element frisch per Selector, weil der Picker in einer
+              // eigenen Sub-Component sitzt.
+              const pickBtn = document.querySelector('.t-wizard-logo-picker button');
+              const statusEl = document.querySelector('.t-wizard-logo-status');
+              if (pickBtn) pickBtn.disabled = false;
+              if (statusEl && statusEl.textContent.includes('Hinweis:')) {
+                statusEl.textContent = '';
+                statusEl.className = 't-wizard-logo-status';
+              }
+            })
+            .catch((err) => {
+              // Fehler schlucken — die "Weiter"-Routen-Fehlermeldung
+              // wird beim nächsten Klick sichtbar. Hier nur leise
+              // loggen, damit der User nicht durch Inline-Rotmeldung
+              // aus dem Tipp-Flow gerissen wird.
+              console.warn('[wizard] auto-draft failed:', err.message);
+            });
+        });
+        return i;
+      },
+    })
+  );
 
   const row = document.createElement('div');
   row.className = 't-wizard-row two';
-  row.appendChild(buildField({
-    label: 'Datum',
-    input: (id) => {
-      const i = document.createElement('input');
-      i.type = 'date';
-      i.id = id;
-      i.className = 't-input';
-      i.value = state.date;
-      i.addEventListener('input', () => {
-        state.date = i.value;
-        notifyChange(state, opts);
-      });
-      return i;
-    },
-  }));
-  row.appendChild(buildField({
-    label: 'Ort (optional)',
-    input: (id) => {
-      const i = document.createElement('input');
-      i.type = 'text';
-      i.id = id;
-      i.className = 't-input';
-      i.placeholder = 'z. B. „Sporthalle Süd"';
-      i.value = state.location;
-      i.addEventListener('input', () => {
-        state.location = i.value;
-        notifyChange(state, opts);
-      });
-      return i;
-    },
-  }));
+  row.appendChild(
+    buildField({
+      label: 'Datum',
+      input: (id) => {
+        const i = document.createElement('input');
+        i.type = 'date';
+        i.id = id;
+        i.className = 't-input';
+        i.value = state.date;
+        i.addEventListener('input', () => {
+          state.date = i.value;
+          notifyChange(state, opts);
+        });
+        return i;
+      },
+    })
+  );
+  row.appendChild(
+    buildField({
+      label: 'Ort (optional)',
+      input: (id) => {
+        const i = document.createElement('input');
+        i.type = 'text';
+        i.id = id;
+        i.className = 't-input';
+        i.placeholder = 'z. B. „Sporthalle Süd"';
+        i.value = state.location;
+        i.addEventListener('input', () => {
+          state.location = i.value;
+          notifyChange(state, opts);
+        });
+        return i;
+      },
+    })
+  );
   form.appendChild(row);
 
   // Sportart
@@ -2490,7 +2500,8 @@ function buildLogoField(state, opts) {
   // Design auch ohne Backend beurteilen können.
   if (!state.tournamentId && !isMockMode) {
     pickBtn.disabled = true;
-    status.textContent = 'Hinweis: Der Entwurf wird beim Klick auf „Weiter" angelegt. Danach kannst du hier ein Logo hochladen.';
+    status.textContent =
+      'Hinweis: Der Entwurf wird beim Klick auf „Weiter" angelegt. Danach kannst du hier ein Logo hochladen.';
   } else {
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
@@ -2595,7 +2606,8 @@ function buildLogoField(state, opts) {
 function renderStep2Teams(wrap, state, opts) {
   const hint = document.createElement('p');
   hint.className = 't-wizard-step-hint';
-  hint.textContent = 'Lege die Teams an. Du kannst die Namen später jederzeit anpassen — auch noch nach dem Generieren.';
+  hint.textContent =
+    'Lege die Teams an. Du kannst die Namen später jederzeit anpassen — auch noch nach dem Generieren.';
   wrap.appendChild(hint);
 
   // ─────────────────────────────────────────────────────────
@@ -2647,7 +2659,8 @@ function renderStep2Teams(wrap, state, opts) {
 
   const pathAHint = document.createElement('p');
   pathAHint.className = 't-wizard-teams-path-hint';
-  pathAHint.textContent = 'Erzeugt Platzhalter („Team 1", „Team 2" …), die du unten direkt umbenennen kannst.';
+  pathAHint.textContent =
+    'Erzeugt Platzhalter („Team 1", „Team 2" …), die du unten direkt umbenennen kannst.';
   pathA.appendChild(pathAHint);
 
   minusBtn.addEventListener('click', () => {
@@ -2704,7 +2717,8 @@ function renderStep2Teams(wrap, state, opts) {
 
   const pathBHint = document.createElement('p');
   pathBHint.className = 't-wizard-teams-path-hint';
-  pathBHint.textContent = 'Eine Zeile pro Team — aus WhatsApp, Excel oder einer Mailingliste direkt einfügen.';
+  pathBHint.textContent =
+    'Eine Zeile pro Team — aus WhatsApp, Excel oder einer Mailingliste direkt einfügen.';
   pathB.appendChild(pathBHint);
 
   paths.appendChild(pathA);
@@ -2805,9 +2819,7 @@ function renderStep2Teams(wrap, state, opts) {
     if (state.teams.length > 0) {
       const dlg = await openConfirmDialog({
         title: 'Teams ersetzen?',
-        message:
-          `Die bestehenden ${state.teams.length} Teams werden ersetzt. ` +
-          'Fortfahren?',
+        message: `Die bestehenden ${state.teams.length} Teams werden ersetzt. ` + 'Fortfahren?',
         confirmLabel: 'Ersetzen',
       });
       if (dlg.cancelled) return;
@@ -2818,10 +2830,7 @@ function renderStep2Teams(wrap, state, opts) {
     // "schon vergebenen Farben" iterativ auf.
     const assignedSoFar = [];
     state.teams = newEntries.map((e, i) => {
-      const color = nextPaletteColor([
-        ...state.teams,
-        ...assignedSoFar,
-      ]);
+      const color = nextPaletteColor([...state.teams, ...assignedSoFar]);
       assignedSoFar.push({ name: e.name, color });
       return { name: e.name, color, seed: i + 1 };
     });
@@ -2922,7 +2931,7 @@ function attachTeamDnD(list, state, opts) {
       drag.row.style.right = '0';
       drag.row.style.width = '100%';
     }
-    drag.row.style.top = (e.clientY - drag.offsetY) + 'px';
+    drag.row.style.top = e.clientY - drag.offsetY + 'px';
 
     const others = Array.from(list.querySelectorAll('.t-wizard-team-row:not(.is-dragging)'));
     const draggedMid = e.clientY;
@@ -2965,8 +2974,12 @@ function attachTeamDnD(list, state, opts) {
     drag = null;
   };
 
-  list.addEventListener('pointerup',     (e) => { if (drag && e.pointerId === drag.pointerId) finish(true);  });
-  list.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.pointerId) finish(false); });
+  list.addEventListener('pointerup', (e) => {
+    if (drag && e.pointerId === drag.pointerId) finish(true);
+  });
+  list.addEventListener('pointercancel', (e) => {
+    if (drag && e.pointerId === drag.pointerId) finish(false);
+  });
 }
 
 function appendRow(list, index) {
@@ -3139,7 +3152,7 @@ function nextPaletteColor(existingTeams) {
   const used = new Set(
     (existingTeams || [])
       .map((t) => (typeof t?.color === 'string' ? t.color.toLowerCase() : null))
-      .filter(Boolean),
+      .filter(Boolean)
   );
   for (const color of palette) {
     if (!used.has(color.toLowerCase())) return color;
@@ -3252,9 +3265,10 @@ function renderStep3Modus(wrap, state, opts) {
     const dist = groupRowSizes(state.teams.length, state.numGroups);
     const distLabel = document.createElement('span');
     distLabel.className = 't-wizard-group-dist';
-    distLabel.textContent = state.teams.length > 0
-      ? `→ ${state.numGroups} Gruppen → ${dist.join(' / ')}`
-      : `(${state.teams.length} Teams bisher erfasst)`;
+    distLabel.textContent =
+      state.teams.length > 0
+        ? `→ ${state.numGroups} Gruppen → ${dist.join(' / ')}`
+        : `(${state.teams.length} Teams bisher erfasst)`;
     groupRow.appendChild(distLabel);
 
     groupField.appendChild(groupRow);
@@ -3438,9 +3452,9 @@ function renderStep3Modus(wrap, state, opts) {
 // HTML5-Drag ignoriert Touchscreens, daher der Umweg.
 // ----------------------------------------------------------------
 function attachTiebreakerDnD(list, state, opts, refresh) {
-  const THRESHOLD = 5;       // Pixel bis ein Tap zum Drag wird
-  const HALF_SWAP = 12;      // Pixel ab Mitte der nächsten Row → Reihenfolge-Wechsel
-  let drag = null;           // aktiver Drag-State
+  const THRESHOLD = 5; // Pixel bis ein Tap zum Drag wird
+  const HALF_SWAP = 12; // Pixel ab Mitte der nächsten Row → Reihenfolge-Wechsel
+  let drag = null; // aktiver Drag-State
 
   list.addEventListener('pointerdown', (e) => {
     const row = e.target.closest('.t-wizard-tie-row');
@@ -3480,7 +3494,7 @@ function attachTiebreakerDnD(list, state, opts, refresh) {
       drag.row.style.right = '0';
       drag.row.style.width = '100%';
     }
-    drag.row.style.top = (e.clientY - drag.offsetY) + 'px';
+    drag.row.style.top = e.clientY - drag.offsetY + 'px';
 
     // Ziel-Index bestimmen: Vergleich Drag-Mitte mit Row-Mitten.
     const others = Array.from(list.querySelectorAll('.t-wizard-tie-row:not(.is-dragging)'));
@@ -3532,8 +3546,12 @@ function attachTiebreakerDnD(list, state, opts, refresh) {
     drag = null;
   };
 
-  list.addEventListener('pointerup',     (e) => { if (drag && e.pointerId === drag.pointerId) finish(true);  });
-  list.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.pointerId) finish(false); });
+  list.addEventListener('pointerup', (e) => {
+    if (drag && e.pointerId === drag.pointerId) finish(true);
+  });
+  list.addEventListener('pointercancel', (e) => {
+    if (drag && e.pointerId === drag.pointerId) finish(false);
+  });
 }
 
 // ----------------------------------------------------------------
@@ -3557,7 +3575,10 @@ function renderStep4Qualifikation(wrap, state, opts) {
     const advRow = document.createElement('div');
     advRow.className = 't-wizard-stepper';
     const maxAdv = Math.max(1, state.teams.length / state.numGroups - 1);
-    for (const [delta, label] of [[-1, '–'], [1, '+']]) {
+    for (const [delta, label] of [
+      [-1, '–'],
+      [1, '+'],
+    ]) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 't-btn t-btn--sm';
@@ -3589,7 +3610,10 @@ function renderStep4Qualifikation(wrap, state, opts) {
     const btRow = document.createElement('div');
     btRow.className = 't-wizard-stepper';
     const maxBt = Math.max(0, state.numGroups - 1);
-    for (const [delta, label] of [[-1, '–'], [1, '+']]) {
+    for (const [delta, label] of [
+      [-1, '–'],
+      [1, '+'],
+    ]) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 't-btn t-btn--sm';
@@ -3661,19 +3685,19 @@ function renderStep4Qualifikation(wrap, state, opts) {
     const constitution = validateConstitution(state);
     if (constitution.level !== 'ok') {
       const banner = document.createElement('div');
-      banner.className = constitution.level === 'block'
-        ? 't-wizard-warn t-wizard-warn--block'
-        : 't-wizard-warn';
+      banner.className =
+        constitution.level === 'block' ? 't-wizard-warn t-wizard-warn--block' : 't-wizard-warn';
       banner.setAttribute('role', 'alert');
       for (const msg of constitution.messages) {
         const line = document.createElement('div');
         line.className = 't-wizard-warn-line';
         // Prefix für severity — klar, nicht Code-only.
-        const prefix = msg.severity === 'error'
-          ? '❌ Konstellation problematisch: '
-          : msg.severity === 'warn'
-            ? '⚠️ Hinweis: '
-            : 'ℹ️ ';
+        const prefix =
+          msg.severity === 'error'
+            ? '❌ Konstellation problematisch: '
+            : msg.severity === 'warn'
+              ? '⚠️ Hinweis: '
+              : 'ℹ️ ';
         line.textContent = prefix + msg.text;
         banner.appendChild(line);
         // Optional: "Trotzdem generieren" für block-Cases. Da §9
@@ -3695,7 +3719,10 @@ function renderStep4Qualifikation(wrap, state, opts) {
 
   const tblRow = document.createElement('div');
   tblRow.className = 't-wizard-stepper';
-  for (const [delta, label] of [[-1, '–'], [1, '+']]) {
+  for (const [delta, label] of [
+    [-1, '–'],
+    [1, '+'],
+  ]) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 't-btn t-btn--sm';
@@ -3724,56 +3751,62 @@ function renderStep4Qualifikation(wrap, state, opts) {
   // Closure-Referenz; updateEndInfo() schreibt nur den TextContent.
   const timeRow = document.createElement('div');
   timeRow.className = 't-wizard-row three';
-  timeRow.appendChild(buildField({
-    label: 'Startzeit',
-    input: (id) => {
-      const i = document.createElement('input');
-      i.type = 'time';
-      i.id = id;
-      i.className = 't-input';
-      i.value = state.startTime;
-      i.addEventListener('input', () => {
-        state.startTime = i.value;
-        notifyChange(state, opts);
-        updateEndInfo();
-      });
-      return i;
-    },
-  }));
-  timeRow.appendChild(buildField({
-    label: 'Spieldauer (Min.)',
-    input: (id) => {
-      const i = document.createElement('input');
-      i.type = 'number';
-      i.id = id;
-      i.className = 't-input';
-      i.min = '1';
-      i.value = String(state.matchDuration);
-      i.addEventListener('input', () => {
-        state.matchDuration = Math.max(1, Number(i.value) || 1);
-        notifyChange(state, opts);
-        updateEndInfo();
-      });
-      return i;
-    },
-  }));
-  timeRow.appendChild(buildField({
-    label: 'Pause (Min.)',
-    input: (id) => {
-      const i = document.createElement('input');
-      i.type = 'number';
-      i.id = id;
-      i.className = 't-input';
-      i.min = '0';
-      i.value = String(state.pauseMinutes);
-      i.addEventListener('input', () => {
-        state.pauseMinutes = Math.max(0, Number(i.value) || 0);
-        notifyChange(state, opts);
-        updateEndInfo();
-      });
-      return i;
-    },
-  }));
+  timeRow.appendChild(
+    buildField({
+      label: 'Startzeit',
+      input: (id) => {
+        const i = document.createElement('input');
+        i.type = 'time';
+        i.id = id;
+        i.className = 't-input';
+        i.value = state.startTime;
+        i.addEventListener('input', () => {
+          state.startTime = i.value;
+          notifyChange(state, opts);
+          updateEndInfo();
+        });
+        return i;
+      },
+    })
+  );
+  timeRow.appendChild(
+    buildField({
+      label: 'Spieldauer (Min.)',
+      input: (id) => {
+        const i = document.createElement('input');
+        i.type = 'number';
+        i.id = id;
+        i.className = 't-input';
+        i.min = '1';
+        i.value = String(state.matchDuration);
+        i.addEventListener('input', () => {
+          state.matchDuration = Math.max(1, Number(i.value) || 1);
+          notifyChange(state, opts);
+          updateEndInfo();
+        });
+        return i;
+      },
+    })
+  );
+  timeRow.appendChild(
+    buildField({
+      label: 'Pause (Min.)',
+      input: (id) => {
+        const i = document.createElement('input');
+        i.type = 'number';
+        i.id = id;
+        i.className = 't-input';
+        i.min = '0';
+        i.value = String(state.pauseMinutes);
+        i.addEventListener('input', () => {
+          state.pauseMinutes = Math.max(0, Number(i.value) || 0);
+          notifyChange(state, opts);
+          updateEndInfo();
+        });
+        return i;
+      },
+    })
+  );
   form.appendChild(timeRow);
 
   // Live: voraussichtliches Ende. Rendert bedingt (nur wenn genug Teams
@@ -3783,11 +3816,15 @@ function renderStep4Qualifikation(wrap, state, opts) {
   let endInfoEl = null;
   function updateEndInfo() {
     if (state.teams.length < state.numGroups * 2) {
-      if (endInfoEl) { endInfoEl.remove(); endInfoEl = null; }
+      if (endInfoEl) {
+        endInfoEl.remove();
+        endInfoEl = null;
+      }
       return;
     }
     const endInfo = computeEndInfo(state);
-    const text = `Voraussichtliches Turnierende: ${endInfo.endLabel} ` +
+    const text =
+      `Voraussichtliches Turnierende: ${endInfo.endLabel} ` +
       `(ca. ${endInfo.totalMinutes} Min., ${endInfo.groupGames} Gruppenspiele + ${endInfo.koGames} K.-o.-Spiele).`;
     if (endInfoEl) {
       endInfoEl.textContent = text;
@@ -3817,7 +3854,8 @@ function recommendForQualifiers(qualifiers) {
   const gap = bracket - qualifiers;
   if (gap === 0) return `${bracketSizeLabel(qualifiers)} ohne Freilose`;
   if (gap === 1) return bracketSizeLabel(qualifiers) + ' (1 Freilos)';
-  if (gap === 2 && qualifiers === 6) return 'Viertelfinale — 2 beste Dritte ergänzen → sauberer Baum';
+  if (gap === 2 && qualifiers === 6)
+    return 'Viertelfinale — 2 beste Dritte ergänzen → sauberer Baum';
   if (gap >= 2) {
     return `${gap} Plätze fehlen → ${gap} beste Dritte ergänzen (Empfehlung)`;
   }
@@ -3851,7 +3889,14 @@ function renderStep5Zusammenfassung(wrap, state, opts) {
       state,
       opts
     );
-    appendSummaryRow(list, 'Verteilung', distributionLabel(state.distributionMethod), 3, state, opts);
+    appendSummaryRow(
+      list,
+      'Verteilung',
+      distributionLabel(state.distributionMethod),
+      3,
+      state,
+      opts
+    );
     if (state.doubleRoundRobin) {
       appendSummaryRow(list, 'Hin- und Rückrunde', 'Ja', 3, state, opts);
     }
@@ -3870,14 +3915,7 @@ function renderStep5Zusammenfassung(wrap, state, opts) {
     );
   }
 
-  appendSummaryRow(
-    list,
-    'Tische',
-    `${state.numTables}`,
-    4,
-    state,
-    opts
-  );
+  appendSummaryRow(list, 'Tische', `${state.numTables}`, 4, state, opts);
   appendSummaryRow(
     list,
     'Zeit',
@@ -3931,8 +3969,7 @@ function renderStep5Zusammenfassung(wrap, state, opts) {
     for (const msg of constitution.messages) {
       const line = document.createElement('div');
       line.className = 't-wizard-warn-line';
-      line.textContent =
-        (msg.severity === 'error' ? '❌ ' : '⚠️ ') + msg.text;
+      line.textContent = (msg.severity === 'error' ? '❌ ' : '⚠️ ') + msg.text;
       block.appendChild(line);
     }
     wrap.appendChild(block);
@@ -4083,7 +4120,7 @@ export function openConfirmDialog({
     : {
         needsInput: !!expectedName,
         expected: expectedName || null,
-        hint: expectedName ? (confirmText || `Erwartet: „${expectedName}"`) : null,
+        hint: expectedName ? confirmText || `Erwartet: „${expectedName}"` : null,
         okInitiallyDisabled: !!expectedName,
       };
 
@@ -4155,8 +4192,7 @@ export function openConfirmDialog({
       input.addEventListener('input', () => {
         // Geteilter Vergleich mit Server + Mock (Spec §13.10).
         okBtn.disabled =
-          normalizeConfirmName(input.value) !==
-          normalizeConfirmName(descriptor.expected);
+          normalizeConfirmName(input.value) !== normalizeConfirmName(descriptor.expected);
       });
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !okBtn.disabled) okBtn.click();
@@ -4192,10 +4228,14 @@ export function openConfirmDialog({
 
 function distributionLabel(id) {
   switch (id) {
-    case 'random': return 'Zufällig auslosen';
-    case 'seeded': return 'Setzliste (Snake Seeding)';
-    case 'manual': return 'Manuell zuweisen';
-    default: return id;
+    case 'random':
+      return 'Zufällig auslosen';
+    case 'seeded':
+      return 'Setzliste (Snake Seeding)';
+    case 'manual':
+      return 'Manuell zuweisen';
+    default:
+      return id;
   }
 }
 
@@ -4254,9 +4294,7 @@ function renderWizardPreview(state) {
     addPreviewRow(
       card,
       'Teams',
-      state.teams.length > 0
-        ? `${state.teams.length} Teams`
-        : '0 Teams'
+      state.teams.length > 0 ? `${state.teams.length} Teams` : '0 Teams'
     );
     if (state.teams.length > 0) {
       const slots = Math.pow(2, Math.ceil(Math.log2(state.teams.length)));
@@ -4504,8 +4542,10 @@ function validateStep(state, step) {
       }
       return { ok: true };
     }
-    case 5: return { ok: true };
-    default: return { ok: true };
+    case 5:
+      return { ok: true };
+    default:
+      return { ok: true };
   }
 }
 
@@ -4538,4 +4578,3 @@ function getRoot() {
   const sel = document.querySelector('.t-mod.t-wizard');
   return sel || null;
 }
-

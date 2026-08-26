@@ -42,22 +42,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // Englische, vom Server stammende Codes, die in Display-Feldern NIE
 // auftauchen dürfen. Diese Liste wird vom Spec vorgegeben.
-const EN_TOURNAMENT_STATUS = new Set([
-  'draft', 'generated', 'group_stage', 'ko_stage', 'finished',
-]);
+const EN_TOURNAMENT_STATUS = new Set(['draft', 'generated', 'group_stage', 'ko_stage', 'finished']);
 const EN_MATCH_STATUS = new Set(['scheduled', 'live', 'finished']);
-const EN_TOURNAMENT_MODE = new Set([
-  'groups_ko', 'groups_only', 'ko_only', 'double_elim',
-]);
+const EN_TOURNAMENT_MODE = new Set(['groups_ko', 'groups_only', 'ko_only', 'double_elim']);
 const EN_STAGE_TYPE = new Set(['group', 'ko', 'intermediate_group', 'losers']);
 const EN_BRACKET_TYPE = new Set(['winner', 'loser', 'grand_final']);
 const EN_ROUND = new Set(['R32', 'R16', 'QF', 'SF', 'F', '3RD']);
 
 // Felder, deren Werte technisch IDs sein dürfen — entweder per
 // Namens-Konvention (XxxId, publicToken) oder per Liste.
-const ID_FIELDS_BY_NAME = new Set([
-  'id', 'publicToken', 'token',
-]);
+const ID_FIELDS_BY_NAME = new Set(['id', 'publicToken', 'token']);
 const ID_FIELDS_PATTERN_SUFFIX = /Id$|^id$/; // teamId, xxxTeamId, id
 
 function isIdFieldName(name) {
@@ -169,13 +163,10 @@ function assertNoLeaks(payload, label) {
   if (violations.length > 0) {
     const dump = violations
       .map(
-        (v) =>
-          `  - ${v.rule}: ${label}.${v.path} = "${v.value}" (parent-field "${v.parentField}")`
+        (v) => `  - ${v.rule}: ${label}.${v.path} = "${v.value}" (parent-field "${v.parentField}")`
       )
       .join('\n');
-    throw new Error(
-      `DTO-Guard hat ${violations.length} Roh-Daten-Leak(s) in ${label}:\n${dump}`
-    );
+    throw new Error(`DTO-Guard hat ${violations.length} Roh-Daten-Leak(s) in ${label}:\n${dump}`);
   }
 }
 
@@ -216,9 +207,7 @@ function createLocalMockPrisma() {
       updateMany: fn(),
       groupBy: fn(),
     },
-    $transaction: vi.fn(async (cb) =>
-      typeof cb === 'function' ? cb(prismaMock) : cb
-    ),
+    $transaction: vi.fn(async (cb) => (typeof cb === 'function' ? cb(prismaMock) : cb)),
   };
 }
 
@@ -244,8 +233,7 @@ function seedPrisma(prisma) {
   });
   prisma.groupDeputy.findUnique.mockResolvedValue(null);
   prisma.groupMember.findUnique.mockImplementation(async ({ where }) => {
-    if (where.userId_groupId?.userId === 'u-1' &&
-        where.userId_groupId?.groupId === 'g-1') {
+    if (where.userId_groupId?.userId === 'u-1' && where.userId_groupId?.groupId === 'g-1') {
       return { userId: 'u-1', groupId: 'g-1' };
     }
     return null;
@@ -268,10 +256,42 @@ function seedPrisma(prisma) {
     group: { id: 'g-1', createdBy: 'u-1', name: 'Testgruppe' },
   });
   prisma.tournamentTeam.findMany.mockResolvedValue([
-    { id: TEAM_A_ID, name: 'Alpha', color: null, logoUrl: null, players: null, linkedUserIds: [], seed: 1 },
-    { id: TEAM_B_ID, name: 'Bravo', color: null, logoUrl: null, players: null, linkedUserIds: [], seed: 2 },
-    { id: TEAM_C_ID, name: 'Charlie', color: null, logoUrl: null, players: null, linkedUserIds: [], seed: 3 },
-    { id: TEAM_D_ID, name: 'Delta', color: null, logoUrl: null, players: null, linkedUserIds: [], seed: 4 },
+    {
+      id: TEAM_A_ID,
+      name: 'Alpha',
+      color: null,
+      logoUrl: null,
+      players: null,
+      linkedUserIds: [],
+      seed: 1,
+    },
+    {
+      id: TEAM_B_ID,
+      name: 'Bravo',
+      color: null,
+      logoUrl: null,
+      players: null,
+      linkedUserIds: [],
+      seed: 2,
+    },
+    {
+      id: TEAM_C_ID,
+      name: 'Charlie',
+      color: null,
+      logoUrl: null,
+      players: null,
+      linkedUserIds: [],
+      seed: 3,
+    },
+    {
+      id: TEAM_D_ID,
+      name: 'Delta',
+      color: null,
+      logoUrl: null,
+      players: null,
+      linkedUserIds: [],
+      seed: 4,
+    },
   ]);
   prisma.stage.findMany.mockResolvedValue([
     { id: 's-group', type: 'group', name: 'Gruppenphase', orderIndex: 0 },

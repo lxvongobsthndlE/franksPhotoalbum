@@ -43,11 +43,27 @@ function createLocalMockPrisma() {
     groupMember: { findUnique: fn() },
     groupDeputy: { findUnique: fn() },
     tournament: { findUnique: fn(), findMany: fn(), create: fn(), update: fn(), delete: fn() },
-    tournamentTeam: { findFirst: fn(), findMany: fn(), findUnique: fn(), update: fn(), delete: fn() },
+    tournamentTeam: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+      delete: fn(),
+    },
     stage: { findMany: fn(), findUnique: fn(), create: fn(), deleteMany: fn() },
     group_: { findMany: fn(), create: fn() },
     groupMembership: { findMany: fn(), createMany: fn(), deleteMany: fn() },
-    match: { findMany: fn(), findFirst: fn(), findUnique: fn(), create: fn(), createMany: fn(), update: fn(), updateMany: fn(), count: fn(), groupBy: fn() },
+    match: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      createMany: fn(),
+      update: fn(),
+      updateMany: fn(),
+      count: fn(),
+      groupBy: fn(),
+    },
   };
   prisma.$transaction = vi.fn(async (cb) => {
     return typeof cb === 'function' ? cb(prisma) : cb;
@@ -155,10 +171,26 @@ describe('GET /api/tournaments/:id/bracket — neue Flags (P5-Re-Fix)', () => {
   it('Response enthält allGroupsFinished + bracketHasPlaceholders', async () => {
     prisma.match.findMany.mockResolvedValue([
       // Roh-DB-Zeilen, prepareMatchView macht daraus das DTO.
-      { id: 'gm-1', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-a', teamAway: 'team-b', status: 'finished', scoreHome: 2, scoreAway: 1 },
-      { id: 'ko-1', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: null, teamAway: null, status: 'scheduled' },
+      {
+        id: 'gm-1',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        status: 'finished',
+        scoreHome: 2,
+        scoreAway: 1,
+      },
+      {
+        id: 'ko-1',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: null,
+        teamAway: null,
+        status: 'scheduled',
+      },
     ]);
     const res = await app.inject({
       method: 'GET',
@@ -173,12 +205,37 @@ describe('GET /api/tournaments/:id/bracket — neue Flags (P5-Re-Fix)', () => {
 
   it('allGroupsFinished=true wenn alle Gruppen-Matches finished', async () => {
     prisma.match.findMany.mockResolvedValue([
-      { id: 'gm-1', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-a', teamAway: 'team-b', status: 'finished', scoreHome: 2, scoreAway: 1 },
-      { id: 'gm-2', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-c', teamAway: 'team-d', status: 'finished', scoreHome: 3, scoreAway: 0 },
-      { id: 'ko-1', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: null, teamAway: null, status: 'scheduled' },
+      {
+        id: 'gm-1',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        status: 'finished',
+        scoreHome: 2,
+        scoreAway: 1,
+      },
+      {
+        id: 'gm-2',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-c',
+        teamAway: 'team-d',
+        status: 'finished',
+        scoreHome: 3,
+        scoreAway: 0,
+      },
+      {
+        id: 'ko-1',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: null,
+        teamAway: null,
+        status: 'scheduled',
+      },
     ]);
     const res = await app.inject({
       method: 'GET',
@@ -190,12 +247,37 @@ describe('GET /api/tournaments/:id/bracket — neue Flags (P5-Re-Fix)', () => {
 
   it('allGroupsFinished=false wenn ein Gruppen-Match noch nicht fertig', async () => {
     prisma.match.findMany.mockResolvedValue([
-      { id: 'gm-1', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-a', teamAway: 'team-b', status: 'finished', scoreHome: 2, scoreAway: 1 },
-      { id: 'gm-2', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-c', teamAway: 'team-d', status: 'scheduled', scoreHome: null, scoreAway: null },
-      { id: 'ko-1', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: null, teamAway: null, status: 'scheduled' },
+      {
+        id: 'gm-1',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        status: 'finished',
+        scoreHome: 2,
+        scoreAway: 1,
+      },
+      {
+        id: 'gm-2',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-c',
+        teamAway: 'team-d',
+        status: 'scheduled',
+        scoreHome: null,
+        scoreAway: null,
+      },
+      {
+        id: 'ko-1',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: null,
+        teamAway: null,
+        status: 'scheduled',
+      },
     ]);
     const res = await app.inject({
       method: 'GET',
@@ -207,12 +289,35 @@ describe('GET /api/tournaments/:id/bracket — neue Flags (P5-Re-Fix)', () => {
 
   it('bracketHasPlaceholders=true wenn mindestens ein KO-Slot leer ist', async () => {
     prisma.match.findMany.mockResolvedValue([
-      { id: 'gm-1', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-a', teamAway: 'team-b', status: 'finished', scoreHome: 2, scoreAway: 1 },
-      { id: 'ko-1', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: 'team-a', teamAway: null, status: 'scheduled' },
-      { id: 'ko-2', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: 'team-b', teamAway: 'team-c', status: 'scheduled' },
+      {
+        id: 'gm-1',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        status: 'finished',
+        scoreHome: 2,
+        scoreAway: 1,
+      },
+      {
+        id: 'ko-1',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: 'team-a',
+        teamAway: null,
+        status: 'scheduled',
+      },
+      {
+        id: 'ko-2',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: 'team-b',
+        teamAway: 'team-c',
+        status: 'scheduled',
+      },
     ]);
     const res = await app.inject({
       method: 'GET',
@@ -224,12 +329,35 @@ describe('GET /api/tournaments/:id/bracket — neue Flags (P5-Re-Fix)', () => {
 
   it('bracketHasPlaceholders=false wenn alle KO-Slots befüllt sind', async () => {
     prisma.match.findMany.mockResolvedValue([
-      { id: 'gm-1', tournamentId: tId, stageId: 's-group', groupId: 'g-grp-a',
-        teamHome: 'team-a', teamAway: 'team-b', status: 'finished', scoreHome: 2, scoreAway: 1 },
-      { id: 'ko-1', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: 'team-a', teamAway: 'team-b', status: 'scheduled' },
-      { id: 'ko-2', tournamentId: tId, stageId: 's-ko', groupId: null,
-        teamHome: 'team-c', teamAway: 'team-d', status: 'scheduled' },
+      {
+        id: 'gm-1',
+        tournamentId: tId,
+        stageId: 's-group',
+        groupId: 'g-grp-a',
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        status: 'finished',
+        scoreHome: 2,
+        scoreAway: 1,
+      },
+      {
+        id: 'ko-1',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: 'team-a',
+        teamAway: 'team-b',
+        status: 'scheduled',
+      },
+      {
+        id: 'ko-2',
+        tournamentId: tId,
+        stageId: 's-ko',
+        groupId: null,
+        teamHome: 'team-c',
+        teamAway: 'team-d',
+        status: 'scheduled',
+      },
     ]);
     const res = await app.inject({
       method: 'GET',

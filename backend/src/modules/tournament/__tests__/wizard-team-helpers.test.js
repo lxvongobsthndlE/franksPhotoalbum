@@ -62,32 +62,19 @@ describe('nextPlaceholderName', () => {
   });
 
   it('nimmt max+1 auch bei Lücken (1, 2, 5 → "Team 6")', () => {
-    expect(
-      nextPlaceholderName([
-        { name: 'Team 1' },
-        { name: 'Team 2' },
-        { name: 'Team 5' },
-      ])
-    ).toBe('Team 6');
+    expect(nextPlaceholderName([{ name: 'Team 1' }, { name: 'Team 2' }, { name: 'Team 5' }])).toBe(
+      'Team 6'
+    );
   });
 
   it('nimmt max+1, ignoriert umbenannte Teams', () => {
     expect(
-      nextPlaceholderName([
-        { name: 'Team 1' },
-        { name: 'Rakija Boys' },
-        { name: 'Team 7' },
-      ])
+      nextPlaceholderName([{ name: 'Team 1' }, { name: 'Rakija Boys' }, { name: 'Team 7' }])
     ).toBe('Team 8');
   });
 
   it('wenn keine Platzhalter da sind, beginnt bei 1', () => {
-    expect(
-      nextPlaceholderName([
-        { name: 'Rakija Boys' },
-        { name: 'FC Bayern' },
-      ])
-    ).toBe('Team 1');
+    expect(nextPlaceholderName([{ name: 'Rakija Boys' }, { name: 'FC Bayern' }])).toBe('Team 1');
   });
 
   it('verträgt fehlende name-Felder ohne zu werfen', () => {
@@ -151,24 +138,15 @@ describe('duplicateNames', () => {
   it('Duplikate erscheinen in der Reihenfolge, in der sie ZWEIMAL auftauchen', () => {
     // Implementierungs-Detail: das erste Vorkommen landet in `seen`,
     // das zweite in `duplicates`. Set insertion-order spiegelt das wider.
-    expect(
-      duplicateNames([
-        { name: 'Z' },
-        { name: 'A' },
-        { name: 'a' },
-        { name: 'Z' },
-      ])
-    ).toEqual(['a', 'z']);
+    expect(duplicateNames([{ name: 'Z' }, { name: 'A' }, { name: 'a' }, { name: 'Z' }])).toEqual([
+      'a',
+      'z',
+    ]);
   });
 
   it('ignoriert leere Namen', () => {
     expect(
-      duplicateNames([
-        { name: '' },
-        { name: '   ' },
-        { name: 'Foo' },
-        { name: 'Foo' },
-      ])
+      duplicateNames([{ name: '' }, { name: '   ' }, { name: 'Foo' }, { name: 'Foo' }])
     ).toEqual(['foo']);
   });
 
@@ -201,8 +179,14 @@ describe('Platzhalter-Workflow: Step 2 lässt sich ohne echte Namen abschließen
       teams.push({ name: nextPlaceholderName(teams), color: null, seed: i + 1 });
     }
     expect(teams.map((t) => t.name)).toEqual([
-      'Team 1', 'Team 2', 'Team 3', 'Team 4', 'Team 5',
-      'Team 6', 'Team 7', 'Team 8',
+      'Team 1',
+      'Team 2',
+      'Team 3',
+      'Team 4',
+      'Team 5',
+      'Team 6',
+      'Team 7',
+      'Team 8',
     ]);
   });
 

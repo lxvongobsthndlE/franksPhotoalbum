@@ -136,7 +136,7 @@ describe('A4: Kennzahlen und Fortschritt', () => {
   it('stehen in einer Zeile, ohne Umbruch-Markup', () => {
     const html = render();
     expect(html).toContain(
-      '<div class="t-list-card-info">Gruppen + K.-o. · 12 Teams · 3 Gruppen · 26 Spiele</div>',
+      '<div class="t-list-card-info">Gruppen + K.-o. · 12 Teams · 3 Gruppen · 26 Spiele</div>'
     );
   });
 

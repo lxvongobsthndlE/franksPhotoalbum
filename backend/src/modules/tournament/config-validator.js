@@ -87,9 +87,7 @@ export function validateConfigPatch(input) {
       return {
         ok: false,
         error: 'invalid_config',
-        message:
-          'distribution muss einer von ' +
-          ALLOWED_DISTRIBUTION.join(', ') + ' sein.',
+        message: 'distribution muss einer von ' + ALLOWED_DISTRIBUTION.join(', ') + ' sein.',
         field: 'distribution',
       };
     }
@@ -128,8 +126,11 @@ export function validateConfigPatch(input) {
           ok: false,
           error: 'invalid_config',
           message:
-            'Tiebreaker "' + t + '" ist unbekannt. Erlaubt: ' +
-            ALLOWED_TIEBREAKERS.join(', ') + '.',
+            'Tiebreaker "' +
+            t +
+            '" ist unbekannt. Erlaubt: ' +
+            ALLOWED_TIEBREAKERS.join(', ') +
+            '.',
           field: 'tiebreakers',
         };
       }
@@ -208,9 +209,7 @@ export function validateConfigPatch(input) {
       return {
         ok: false,
         error: 'invalid_config',
-        message:
-          'seedProtection muss einer von ' +
-          ALLOWED_SEED_PROTECTION.join(', ') + ' sein.',
+        message: 'seedProtection muss einer von ' + ALLOWED_SEED_PROTECTION.join(', ') + ' sein.',
         field: 'seedProtection',
       };
     }
@@ -247,8 +246,7 @@ export function validateConfigPatch(input) {
         return {
           ok: false,
           error: 'invalid_config',
-          message:
-            'schedule.matchDurationMinutes muss eine ganze Zahl > 0 sein.',
+          message: 'schedule.matchDurationMinutes muss eine ganze Zahl > 0 sein.',
           field: 'schedule.matchDurationMinutes',
         };
       }
@@ -260,8 +258,7 @@ export function validateConfigPatch(input) {
         return {
           ok: false,
           error: 'invalid_config',
-          message:
-            'schedule.pauseAfterMatches muss eine ganze Zahl >= 0 sein.',
+          message: 'schedule.pauseAfterMatches muss eine ganze Zahl >= 0 sein.',
           field: 'schedule.pauseAfterMatches',
         };
       }
@@ -273,8 +270,7 @@ export function validateConfigPatch(input) {
         return {
           ok: false,
           error: 'invalid_config',
-          message:
-            'schedule.parallelFields muss eine ganze Zahl >= 1 sein.',
+          message: 'schedule.parallelFields muss eine ganze Zahl >= 1 sein.',
           field: 'schedule.parallelFields',
         };
       }
@@ -286,8 +282,7 @@ export function validateConfigPatch(input) {
         return {
           ok: false,
           error: 'invalid_config',
-          message:
-            'schedule.startTime muss im Format HH:MM sein (z. B. 14:00).',
+          message: 'schedule.startTime muss im Format HH:MM sein (z. B. 14:00).',
           field: 'schedule.startTime',
         };
       }

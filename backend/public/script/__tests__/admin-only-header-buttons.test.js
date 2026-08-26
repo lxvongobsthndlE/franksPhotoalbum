@@ -52,9 +52,7 @@ const OFFENE_KNOEPFE = ['tournament-refresh-btn'];
  * rot war, bewacht nichts.
  */
 function ohneKommentare(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
 let quelle;
@@ -103,18 +101,18 @@ function knopfListe() {
 
 describe('Kopfleiste: Admin-Knöpfe sind an die Rolle gebunden', () => {
   it.each(ADMIN_KNOEPFE)('$id ist isAdmin-gegated ($grund)', ({ id }) => {
-    expect(
-      definitionsStelle(id),
-      `${id} wird in der Kopfleiste nicht definiert`
-    ).toBeGreaterThan(-1);
+    expect(definitionsStelle(id), `${id} wird in der Kopfleiste nicht definiert`).toBeGreaterThan(
+      -1
+    );
 
     // Innerhalb der Knopf-Liste muss VOR diesem Knopf eine Rollenprüfung
     // stehen. Die Form ist offen — geprüft wird die Tatsache, nicht die
     // Schreibweise.
     const liste = knopfListe();
     const bisKnopf = liste.slice(0, liste.indexOf(`id: '${id}'`));
-    const hatRollenpruefung =
-      /currentTournamentListIsAdmin|darfErstellen|\bisAdmin\b/.test(bisKnopf);
+    const hatRollenpruefung = /currentTournamentListIsAdmin|darfErstellen|\bisAdmin\b/.test(
+      bisKnopf
+    );
     expect(
       hatRollenpruefung,
       `In der Knopf-Liste steht vor "${id}" keine Rollenprüfung. Ein ` +

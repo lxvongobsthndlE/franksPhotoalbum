@@ -142,9 +142,7 @@ describe('Reschedule — Engine-Logik auf DB-Input', () => {
     const input = dbToEngineInput(db);
     const a = generateSchedule(input, baseConfig, baseDate);
     const b = generateSchedule(input, baseConfig, baseDate);
-    expect(a.map((m) => m.scheduledAt.getTime())).toEqual(
-      b.map((m) => m.scheduledAt.getTime()),
-    );
+    expect(a.map((m) => m.scheduledAt.getTime())).toEqual(b.map((m) => m.scheduledAt.getTime()));
     expect(a.map((m) => m.field)).toEqual(b.map((m) => m.field));
   });
 
@@ -162,19 +160,62 @@ describe('Reschedule — Engine-Logik auf DB-Input', () => {
 
   it('R4: KO-Runden paarweise geordnet (R16 < QF < SF < 3RD < F)', () => {
     const db = [
-      { id: 'f1', stage: { type: 'ko' }, round: 'F', teamHome: 'FH', teamAway: 'FA', bracketPos: 1 },
-      { id: 'sf1', stage: { type: 'ko' }, round: 'SF', teamHome: 'SFH', teamAway: 'SFA', bracketPos: 1 },
-      { id: '3rd1', stage: { type: 'ko' }, round: '3RD', teamHome: 'TH', teamAway: 'TA', bracketPos: 1 },
-      { id: 'qf1', stage: { type: 'ko' }, round: 'QF', teamHome: 'QFH', teamAway: 'QFA', bracketPos: 1 },
-      { id: 'r16_1', stage: { type: 'ko' }, round: 'R16', teamHome: 'R16H', teamAway: 'R16A', bracketPos: 1 },
+      {
+        id: 'f1',
+        stage: { type: 'ko' },
+        round: 'F',
+        teamHome: 'FH',
+        teamAway: 'FA',
+        bracketPos: 1,
+      },
+      {
+        id: 'sf1',
+        stage: { type: 'ko' },
+        round: 'SF',
+        teamHome: 'SFH',
+        teamAway: 'SFA',
+        bracketPos: 1,
+      },
+      {
+        id: '3rd1',
+        stage: { type: 'ko' },
+        round: '3RD',
+        teamHome: 'TH',
+        teamAway: 'TA',
+        bracketPos: 1,
+      },
+      {
+        id: 'qf1',
+        stage: { type: 'ko' },
+        round: 'QF',
+        teamHome: 'QFH',
+        teamAway: 'QFA',
+        bracketPos: 1,
+      },
+      {
+        id: 'r16_1',
+        stage: { type: 'ko' },
+        round: 'R16',
+        teamHome: 'R16H',
+        teamAway: 'R16A',
+        bracketPos: 1,
+      },
     ];
     const input = dbToEngineInput(db);
     const scheduled = generateSchedule(input, baseConfig, baseDate);
     const byId = new Map(scheduled.map((s) => [s.id, s]));
-    expect(byId.get('r16_1').scheduledAt.getTime()).toBeLessThan(byId.get('qf1').scheduledAt.getTime());
-    expect(byId.get('qf1').scheduledAt.getTime()).toBeLessThan(byId.get('sf1').scheduledAt.getTime());
-    expect(byId.get('sf1').scheduledAt.getTime()).toBeLessThan(byId.get('3rd1').scheduledAt.getTime());
-    expect(byId.get('3rd1').scheduledAt.getTime()).toBeLessThan(byId.get('f1').scheduledAt.getTime());
+    expect(byId.get('r16_1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('qf1').scheduledAt.getTime()
+    );
+    expect(byId.get('qf1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('sf1').scheduledAt.getTime()
+    );
+    expect(byId.get('sf1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('3rd1').scheduledAt.getTime()
+    );
+    expect(byId.get('3rd1').scheduledAt.getTime()).toBeLessThan(
+      byId.get('f1').scheduledAt.getTime()
+    );
   });
 
   it('R5: Round-Trip — Engine-Output ist in DB-Shape zurückschreibbar', () => {
@@ -227,4 +268,3 @@ describe('Reschedule — Engine-Logik auf DB-Input', () => {
     }
   });
 });
-

@@ -213,25 +213,22 @@ function resolveTarget(fromPath, relSource) {
 
 // =================================================================
 describe('Cross-File Import-Audit', () => {
-  it.each(CONSUMERS)(
-    '%s: jeder importierte Name ist ein Export der Zieldatei',
-    (fileName) => {
-      const failures = auditConsumer(fileName);
-      if (failures.length) {
-        const sample = failures
-          .slice(0, 30)
-          .map((f) => `  - ${f.reason}`)
-          .join('\n');
-        throw new Error(
-          `${fileName}: ${failures.length} Import/Export-Mismatch(s):\n${sample}\n\n` +
-            `Fix: in der Zieldatei „export" vor die Deklaration setzen ` +
-            `(z. B. „export function openConfirmDialog(…) {…}") ` +
-            `oder im Consumer stattdessen „window.X = X" nutzen.`,
-        );
-      }
-      expect(failures).toEqual([]);
-    },
-  );
+  it.each(CONSUMERS)('%s: jeder importierte Name ist ein Export der Zieldatei', (fileName) => {
+    const failures = auditConsumer(fileName);
+    if (failures.length) {
+      const sample = failures
+        .slice(0, 30)
+        .map((f) => `  - ${f.reason}`)
+        .join('\n');
+      throw new Error(
+        `${fileName}: ${failures.length} Import/Export-Mismatch(s):\n${sample}\n\n` +
+          `Fix: in der Zieldatei „export" vor die Deklaration setzen ` +
+          `(z. B. „export function openConfirmDialog(…) {…}") ` +
+          `oder im Consumer stattdessen „window.X = X" nutzen.`
+      );
+    }
+    expect(failures).toEqual([]);
+  });
 
   it.each(CONSUMERS)(
     '%s: hat überhaupt Imports (Sanity-Check, schützt vor leeren Tests)',
@@ -239,11 +236,9 @@ describe('Cross-File Import-Audit', () => {
       const filePath = path.join(FRONTEND_DIR, fileName);
       const raw = fs.readFileSync(filePath, 'utf8');
       const imports = parseImports(raw).filter(
-        (i) =>
-          i.imported &&
-          (i.source.startsWith('./') || i.source.startsWith('../')),
+        (i) => i.imported && (i.source.startsWith('./') || i.source.startsWith('../'))
       );
       expect(imports.length).toBeGreaterThan(0);
-    },
+    }
   );
 });

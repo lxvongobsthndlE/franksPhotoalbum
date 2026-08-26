@@ -163,7 +163,7 @@ describe('Export-Audit: keine undefinierten Namen exportieren', () => {
       // it.each über ein Array wäre schwerfällig — wir generieren den
       // schönen Sammelfehler lieber manuell. Hier nur der „es gibt
       // überhaupt welche"-Check; der harte Test steht weiter unten.
-      [],
+      []
     )('placeholder', () => {});
 
     it('jeder exportierte Name hat eine Definition im selben File', () => {
@@ -181,7 +181,7 @@ describe('Export-Audit: keine undefinierten Namen exportieren', () => {
           `main.js: ${missing.length} exportierte(r) Name(n) ohne Definition:\n` +
             missing.map((n) => `  - ${n}`).join('\n') +
             `\n\nDas sind die Handler, die das Skript beim Laden abwirft.` +
-            `\nFix: Definition ergänzen ODER Eintrag aus Object.assign entfernen.`,
+            `\nFix: Definition ergänzen ODER Eintrag aus Object.assign entfernen.`
         );
       }
       expect(missing).toEqual([]);
@@ -206,7 +206,7 @@ describe('Export-Audit: keine undefinierten Namen exportieren', () => {
         throw new Error(
           `tournament.js: ${missing.length} exportierte(r) Name(n) ohne Definition:\n` +
             missing.map((n) => `  - ${n}`).join('\n') +
-            `\nFix: Definition ergänzen ODER Export entfernen.`,
+            `\nFix: Definition ergänzen ODER Export entfernen.`
         );
       }
       expect(missing).toEqual([]);

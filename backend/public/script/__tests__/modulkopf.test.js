@@ -112,7 +112,10 @@ describe('Der Kopf steht an einer Stelle', () => {
   });
 
   it('niemand tippt die Kopfzeile noch von Hand nach', () => {
-    for (const [name, quelle] of Object.entries({ 'main.js': mainJs, 'pruefstand-marke.js': pruefstand })) {
+    for (const [name, quelle] of Object.entries({
+      'main.js': mainJs,
+      'pruefstand-marke.js': pruefstand,
+    })) {
       const treffer = (quelle.match(/class="t-mod-kicker-text"/g) || []).length;
       expect(treffer, `${name} enthaelt eine zweite Kopie des Kopf-Markups`).toBe(0);
     }
