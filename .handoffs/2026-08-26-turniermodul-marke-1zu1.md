@@ -1,0 +1,271 @@
+# Turniermodul 1:1 nach Artefakt — Nacharbeit
+
+Stand 2026-08-26. Vorgänger-Session: Job `20260825-213923-161`, Branch
+`fix/tourney-marke`, neun Etappen committet und in `main` gemerged.
+Jonas hat das Ergebnis im Browser gesehen und abgelehnt.
+
+---
+
+## 1. Auftragslage — Jonas' Worte
+
+> „also ich bin noch nicht zufrieden. vieles sieht nicht aus wie im artefakt sondern
+> weniger sauber. das muss noch deutlich besser werden. prüfe nochmals alles genau
+> anhand des artefakts sodass es noch besser wird. und ich will nicht mehr das
+> cremefarbene im turniermodul haben. sondern wie im artefakt. bei tabellen: wieso
+> sind die untereinander während sie im artefakt durch den button gewitcht werden
+> konnten? wieso hast du es ncith geschafft 1:1 das artefakt umzusetzen. es ist noch
+> zu viel vom alten design dabei. zB turnier erstellen und aktualisieren hat noch das
+> alte layout. das brauch ich da gar nicht während ich in einem turnier drin bin.
+> finde mir hier eine bessere lösung. auch die filter sahen im artefakt wesentlich
+> besser aus. und unter "bereit" bei der turnierauswahl ist noch ein kasten im
+> hintergrund, wahrscheinlich ein relikt aus den vorherigen versionen. es soll
+> deutlich näher am artefakt dran sein, dieses sah nämlich perfekt aus. setze es 1:1
+> so um designtechnisch und schaue, dass alle alten designrelikte nicht mehr stören."
+
+Vorher, beim GO zum Artefakt:
+
+> „es gefällt mir sehr gut und kann genauso umgesetzt werden"
+> „das turniermodul soll möglichst genau dieses design haben, auch schriftart etc."
+
+**Das Artefakt ist keine Anregung. Es ist die Abnahme-Vorlage.**
+
+---
+
+## 2. Warum der erste Anlauf gescheitert ist — bitte lesen
+
+Die Vorgänger-Session hat **Komponenten umgefärbt, statt Strukturen nachzubauen.**
+Jede einzelne Etappe war für sich verifiziert (43 Browser-Checks, 1679 Tests grün) —
+und trotzdem sieht das Ergebnis nicht aus wie das Artefakt, weil die geprüfte Frage
+falsch war. Geprüft wurde „stimmt die Farbe / der Kontrast / die Spaltenbreite",
+nie „steht hier dasselbe Ding wie im Artefakt".
+
+Konkret: Wo das Artefakt einen **Umschalter** zeigt, blieb eine **Liste** stehen und
+bekam nur neue Farben. Wo das Artefakt **keine** Kopfleiste hat, blieb die alte
+Kopfleiste stehen und bekam neue Farben. Das ist der rote Faden durch alle fünf
+Beschwerden.
+
+**Konsequenz für dich:** Nimm das Artefakt Screen für Screen und vergleiche die
+*Struktur*, bevor du eine Farbe anfasst. Ein Screen ist erst fertig, wenn er neben
+dem Artefakt liegt und man beide verwechseln könnte.
+
+---
+
+## 3. Die Vorlage
+
+- **Referenz-Artefakt (Jonas' Zielbild):**
+  `https://claude.ai/code/artifact/a5f79862-dcdd-444b-9c86-3be4311094ed`
+  Lesen mit dem Artifact-Tool: `action: "read"`, `url: <die URL>`.
+  **Das ist die Abnahme-Vorlage — im Zweifel gewinnt sie gegen jedes Planungsdokument.**
+- **Design-Dokument der Vorgänger-Session** (12 Abschnitte, Begründungen, Tokentabelle):
+  `https://claude.ai/code/artifact/96b93072-2411-4733-807b-9ca461f201c5`
+  Lokale Kopie: `docs/turniermodul-v3/turniermodul-marke.html`
+- **Achtung, Altlast:** Die drei Planungsdokumente unter `docs/turniermodul-v3/`
+  (`redesign-plan.md`, `umsetzung-teil1.md`, `umsetzung-teil2.md`) beschreiben das
+  **alte beige Design**. Gemessen: null Vorkommen von Orange, Archivo oder Plex.
+  Sie sind überholt. Wer ihnen folgt, baut das falsche Ziel.
+
+---
+
+## 4. Die fünf Beschwerden mit Fundort
+
+Alle am 2026-08-26 gegen `fix/tourney-marke` @ `79faace` gemessen. Weicht dein HEAD
+ab, sind das ungeprüfte Prämissen — erst nachmessen.
+
+### B1 — „ich will nicht mehr das cremefarbene im turniermodul haben"
+
+Zwei Quellen, beide müssen weg:
+
+1. **Hartkodiert in `backend/public/style/tournament.css`** — 12 Werte:
+   `#8B6B4A` (141), `#F0E7DA` (2660), `#F5F1E9` (3052, 4038, 4466),
+   `#E7DFD2` (3512, 3575, 3598, 3618, 3643, 3684), `#FAF7F1` (3577).
+2. **Die App-Tokens, auf denen das Modul sitzt** — `backend/public/style/main.css:2-13`:
+   `--bg: #f8f5f1` · `--accent: #8a6a4a` · `--border: #ede7df` · `--accent-l: #f5ede3`.
+   Das Modul liegt im App-Rahmen; wo es keinen eigenen Grund setzt, scheint Creme durch.
+   **Das ist der Grund, warum es „weniger sauber" wirkt** — die Markenfarben schwimmen
+   auf einem beigen Untergrund.
+
+**Vorschlag:** `.t-mod` (und `.t-list-host`) bekommen einen eigenen, deckenden Grund
+aus `--ground` und überschreiben die App-Tokens **lokal** — also `--bg`, `--accent`,
+`--border`, `--accent-l` innerhalb von `.t-mod` auf die Markenwerte mappen. Damit ist
+das Modul farblich abgeschlossen, ohne die restliche App anzufassen (die bleibt bis
+auf Weiteres beige — Jonas' Entscheid: „lass die app erstmal hinten anstellen").
+Der Token-Block dafür steht schon: `backend/public/style/tokens.css`.
+
+### B2 — „bei tabellen: wieso sind die untereinander"
+
+`backend/public/script/spielplan-helpers.js`, `renderStandingsGroups()` (ab Zeile 774)
+mappt über **alle** Gruppen und klebt sie mit `join('')` untereinander. Es gibt keinen
+Umschalter.
+
+Im Artefakt liegt über den Tabellen ein **Segment-Control** (Gruppe A / B / C), und es
+ist immer genau **eine** Tabelle sichtbar. Die CSS-Klasse dafür existiert bereits:
+`.t-seg` in `tournament.css`. Sie wird an dieser Stelle nur nicht benutzt.
+
+**Zu entscheiden (konservativ selbst entscheiden, dann loggen):** Bei genau EINER
+Gruppe keinen Umschalter zeigen — ein Segment-Control mit einem Segment ist Unsinn.
+
+### B3 — „turnier erstellen und aktualisieren hat noch das alte layout.
+###       das brauch ich da gar nicht während ich in einem turnier drin bin"
+
+`backend/public/script/main.js`, `renderTournamentHeaderActions()` (Zeile 2359,
+aufgerufen 2442 / 2489 / 2535). Die Funktion hängt Knöpfe mit den **App-Klassen**
+`btn btn-ghost` und `btn btn-primary tournament-new-instance-btn` in die
+**Kopfleiste der App-Hülle** (neben `uploadBtn`) — nicht in den Modul-Kopf.
+
+Zwei Fehler auf einmal: falsches Design (App-Knöpfe statt `.t-mod-action`) und
+falscher Ort (sie stehen auch dann da, wenn man **in** einem Turnier ist, wo sie
+nichts zu suchen haben).
+
+**Vorschlag für die „bessere Lösung", die Jonas verlangt:**
+- **In der Detailansicht:** App-Kopfleisten-Knöpfe **vollständig leeren**. Der
+  Modul-Kopf hat bereits seinen eigenen Aktionsknopf
+  (`main.js:3407`, `<button class="t-mod-action" data-view-action>`), der je Tab
+  die passende Aktion trägt (`T_VIEW_CHROME`). Der ist die einzige Aktion, die man
+  drinnen braucht.
+- **In der Listenansicht:** „Turnier erstellen" bleibt, wandert aber in den
+  Listen-Kopf als `.t-mod-action` — also in Markenoptik statt `.btn btn-primary`.
+- „Aktualisieren" ersatzlos streichen: Die Ansicht lädt bei jedem Wechsel neu; ein
+  Knopf, der das von Hand tut, ist ein Relikt aus der Zeit vor dem Auto-Refresh.
+  **Falls du das anders siehst: konservativ behalten und loggen.**
+
+### B4 — „auch die filter sahen im artefakt wesentlich besser aus"
+
+Die Vorgänger-Session hat `.t-filter-chip` gebaut (Trigger + Zähler + Aktiv-Chip).
+Vergleiche die Leiste im Artefakt Pixel für Pixel — dort ist sie ruhiger und trägt
+die Zähler anders. **Nicht aus dem Gedächtnis nachbauen: Artefakt lesen, dann bauen.**
+
+### B5 — „unter 'bereit' bei der turnierauswahl ist noch ein kasten im hintergrund"
+
+Gefunden. `backend/public/style/main.css`, Regel `.tournament-instance-group`:
+
+```
+padding: 14px 16px;
+border-radius: 12px;
+background: rgba(255, 255, 255, 0.5);
+border: 1px solid var(--border2);
+```
+
+Ein halbtransparenter weißer Kasten mit beigem Rand um **jede** Statusgruppe
+(„Bereit", „Läuft", „Beendet"). Im Artefakt gibt es das nicht — dort steht nur eine
+Beschriftung und darunter die Karten, ohne Rahmen.
+
+Erzeugt wird das Markup in `main.js` ab ~2735 (`<section class="tournament-instance-group">`).
+
+**Achtung:** `.tournament-instance-group` steht in `main.css` und könnte auch außerhalb
+des Turniermoduls benutzt werden — vor dem Ändern prüfen (`grep`), sonst statt der
+globalen Regel eine Überschreibung unter `.t-mod`/`.t-list-host` setzen.
+
+---
+
+## 5. Was bereits steht (nicht neu bauen)
+
+Neun Etappen sind in `main`. Was funktioniert und bleiben soll:
+
+- `backend/public/style/tokens.css` — **einzige Quelle der Palette.** Trägt alle drei
+  Themen-Zustände (hell / dunkel / „wie das System"). Auch `live.html` und
+  `aushang.html` hängen seit heute daran. **Nicht eigene Tokens danebenlegen.**
+- Schriften: Archivo (Display), Archivo Narrow (Condensed), IBM Plex Sans (Fließtext),
+  IBM Plex Mono (Zahlen/Labels).
+- Zeitachse im Spielplan (`renderZeitmarke`), Rangbänder in den Tabellen,
+  „Weg zum Titel" im Baum, Statuskarte im Einstellungen-Tab.
+- **Druckbögen** (`renderDruckboegen`) — drei eigens gebaute Bögen (Spielplan,
+  Gruppen, K.-o. quer mit SVG-Klammer). Die waren Jonas' zweiter Wunsch und sind
+  nicht beanstandet. `@media print` in `tournament.css`. **Nicht anfassen.**
+- 1679 Tests grün, 5 übersprungen (Stand 2026-08-26).
+
+---
+
+## 6. Revier — es arbeiten mehrere Sessions am selben Repo
+
+Drei Arbeitsbäume auf einem Repo:
+
+| Pfad | Branch | wer |
+|---|---|---|
+| `C:/Users/Rezo/Documents/franksPhotoalbum` | `feat/tourney-alpha` | Haupt-Tree, **liefert den Server aus** |
+| `C:/Users/Rezo/Documents/fpa-css` | `fix/tourney-marke` | **deiner** |
+| `C:/Users/Rezo/Documents/fpa-live` | `chore/live-tokens` | Nachbar (Zuschauerseiten) |
+
+Die Nachbar-Session (`franksphotoalbum-cd`) hat ihre Runde heute abgeschlossen und
+zwei Dinge ausdrücklich **dir** überlassen:
+
+1. `renderLogoBlock()` in `spielplan-helpers.js` läuft noch auf den alten Klassen —
+   sie fasst es nicht an, damit ihr euch nicht in die Quere kommt.
+2. Beim Zuschauer-Link-Block klebt noch ein Inline-`flex` am Eingabefeld
+   (`t-settings-actions > .t-input`) — kann raus, es gibt jetzt eine Regel dafür.
+
+**Vor dem ersten Schreiben `git worktree list` fahren** und prüfen, ob inzwischen ein
+vierter Baum dazugekommen ist.
+
+Ein Hinweis der Nachbar-Session, der Zeit spart: Ihr Quelltext-Scan-Test war zweimal
+**grün, obwohl der Schutz entfernt war** — einmal, weil der erklärende Kommentar die
+gesuchten Wörter enthielt, einmal, weil `const darfErstellen = …` stehen bleibt, wenn
+nur seine Verwendung fällt. Bei Scan-Tests: erst rot sehen, dann glauben.
+
+---
+
+## 7. Betrieb
+
+- Dev-Server läuft auf **Port 3000**, gestartet aus
+  `C:/Users/Rezo/Documents/franksPhotoalbum/backend` mit
+  `node --env-file=.env.local --watch src/app.js`. `--watch` lädt `src/`-Änderungen
+  selbst nach; **statische Dateien** (`public/**`) brauchen nur ein hartes Neuladen
+  im Browser.
+- Der Server liefert aus dem **Haupt-Tree**, nicht aus deinem. Damit Jonas deine
+  Arbeit sieht, muss sie in `main` und der Haupt-Tree auf `main` vorgespult sein.
+  Der Haupt-Tree stand am 26.08. auf `feat/tourney-alpha` — das ist derselbe Commit
+  wie `main` (447fa93), aber das kann sich ändern: nachmessen.
+- **Screenshot-Verify ohne Playwright-Binaries:** Modul aus dem npx-Cache
+  `C:/Users/Rezo/AppData/Local/npm-cache/_npx/e41f203b7505f1fb/node_modules/playwright`,
+  starten mit `chromium.launch({ channel: 'msedge' })`. Memory
+  `screenshot-verify-msedge` hat die Einzelheiten inkl. Junction-Trick für Worktrees.
+
+---
+
+## 8. Zwei Fallen, die die Vorgänger-Session Zeit gekostet haben
+
+1. **Kaskaden-Kollisionen über Dateigrenzen.** `main.css` und `tournament.css`
+   definieren dieselben Klassen (`.t-standings-table`, `.tournaments-grid` u. a.).
+   `@media` und `@container` heben die Spezifität **nicht** an — bei Gleichstand
+   gewinnt die später geladene Datei, also `tournament.css`. Sechs solcher
+   Kollisionen wurden gefunden; es können mehr sein. Symptom: Eine Regel steht
+   sichtbar im Quelltext und wirkt trotzdem nicht.
+   **Werkzeug:** `getComputedStyle()` im Browser gegen den Quelltext prüfen, nicht
+   den Quelltext lesen und glauben.
+2. **Der eigene Prüfstand lügt.** Die Vorgänger-Session hat dreimal einen intakten
+   Zustand für kaputt gehalten (und umgekehrt), weil das Prüf-Markup von Hand
+   geschrieben war statt aus den echten Renderern zu kommen.
+   **Regel:** Prüfstände importieren `spielplan-helpers.js` und rendern damit —
+   nie Markup nachtippen.
+
+---
+
+## 9. Definition of Done
+
+1. Jeder Screen des Artefakts liegt neben dem Screenshot der Umsetzung, und man
+   könnte beide verwechseln. **Belege ablegen**, nicht behaupten.
+2. Kein cremefarbener Pixel mehr im Modul — auch nicht durchscheinend, auch nicht
+   im Nachtmodus. Gegenprobe: `grep` auf die 12 Werte aus B1 findet nichts mehr,
+   **und** ein Screenshot bestätigt es (die App-Tokens sind per `grep` unsichtbar).
+3. Gruppentabellen per Segment-Control umschaltbar, genau eine sichtbar.
+4. In der Detailansicht keine App-Kopfleisten-Knöpfe mehr.
+5. Kein Kasten hinter den Statusgruppen der Turnierliste.
+6. Filterleiste wie im Artefakt.
+7. Alle Tests grün (Basis: 1679/5), Screenshot-Verify bei **390 px und 1920 px**,
+   je **hell und dunkel** — drei Themen-Zustände nicht vergessen (auch „kein
+   Attribut", das ist der Normalfall auf den Zuschauerseiten).
+8. Committet in kleinen Etappen mit deutscher `@@ … @@`-Nachricht, chirurgisch
+   per Pathspec gestaget.
+
+---
+
+## 10. Grenzen
+
+- **Kein Push nach `origin/main`.** Das ist Jonas' GO-Gate (Live-Schaltung).
+- **Merge nach `main` nur nach Rückfrage** — der Haupt-Tree liefert den Server aus,
+  ein Merge zur Unzeit ändert Jonas den Bildschirm unter den Händen.
+- **Die restliche App nicht umfärben.** Jonas' Entscheid vom 26.08.:
+  „dann lass die app erstmal hinten anstellen." Nur das Turniermodul.
+- **Druckbögen und `tokens.css` nicht umbauen** — beide sind abgenommen bzw. tragen
+  jetzt drei Seiten. Ergänzen ja, umbauen nein.
+- `npm install` / `npm ci` / `prisma generate` **niemals** in einem Worktree:
+  `node_modules` sind Verzeichnis-Junctions auf den Haupt-Tree.
