@@ -5506,3 +5506,28 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 }
 .t-chips::-webkit-scrollbar { display: none; }
 .t-chips > .t-chip { flex: 0 0 auto; }
+
+/* ----------------------------------------------------------------
+   DER RAHMEN, IN DEM DAS MODUL SITZT — Beschwerde 1
+   ----------------------------------------------------------------
+   „ich will nicht mehr das cremefarbene im turniermodul haben."
+
+   Die hartnaeckigste Creme-Quelle stand nicht im Modul, sondern
+   darunter: #content traegt 30px/28px Polster und zeigt darin den
+   App-Grund (main.css: body { background: var(--bg) }, hell #f8f5f1).
+   Das Modul lag also in einem cremefarbenen Passepartout — im Browser
+   gemessen rgb(248,245,241), per grep in tournament.css unauffindbar,
+   weil der Wert dort gar nicht vorkommt.
+
+   tokens.css gibt #content die Marken-Palette, wenn das Modul sein
+   direktes Kind ist; hier wird sie angewandt. Beides gehoert zusammen:
+   ohne den Token-Traeger waere var(--ground) hier undefiniert, und eine
+   undefinierte Custom Property loescht die ganze Deklaration STILL —
+   dieselbe Falle wie beim Dialog-Host. Der Fehler saehe dann exakt so
+   aus wie gar keine Regel.
+   ---------------------------------------------------------------- */
+#content:has(> .t-detail-host),
+#content:has(> .t-list-host),
+#content:has(> .tournament-page-shell.t-mod) {
+  background: var(--ground);
+}

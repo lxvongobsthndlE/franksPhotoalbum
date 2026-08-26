@@ -28,8 +28,31 @@
    Einzige Abweichung ist --muted, nachgerechnet — Begruendung steht
    unten an der Stelle.
    ================================================================ */
+/* Dritter Traeger, ergaenzt 2026-08-26 (Entscheid Jonas: "außer du musst
+   die appfarben anpassen um diese im modul anzupassen").
+
+   Warum das noetig ist: #content hat 30px/28px Polster, und der Grund
+   darunter kommt aus main.css — body { background: var(--bg) }, hell
+   #f8f5f1. Das Modul sass also in einem cremefarbenen Rahmen, den KEIN
+   grep in tournament.css findet, weil der Wert dort gar nicht steht.
+   Genau der Fall, vor dem die Uebergabe warnt: "die sieht kein grep,
+   nur ein Screenshot".
+
+   Der Geltungsbereich ist bewusst eng: nur wenn das Modul das DIREKTE
+   Kind von #content ist, also wenn es DER Inhalt ist. Ist ein anderes
+   Modul offen, bleibt alles wie es war — das ist Jonas' "nur das Modul".
+   :has() wird in main.css bereits benutzt, das ist hier keine neue
+   Technik.
+
+   Nebenwirkung, bewusst in Kauf genommen: innerhalb dieses Bereichs
+   tragen auch App-Elemente die Marken-Palette. Wenn ein Turnier offen
+   ist, steht dort aber nichts anderes als das Modul — der Radius ist
+   genau der, den Jonas freigegeben hat. */
 .t-mod,
-.t-brand {
+.t-brand,
+#content:has(> .t-detail-host),
+#content:has(> .t-list-host),
+#content:has(> .tournament-page-shell.t-mod) {
 /* ---- Flaechen ---- */
   --ground:       #E4E4E2;   /* Seitengrund */
   --panel:        #FFFFFF;   /* Karte */
@@ -142,6 +165,14 @@
 
 /* ----------------------------------------------------------------
    NACHTMODUS — drei Zustaende, nicht zwei
+
+   ACHTUNG (26.08.): Die Traeger-Liste unten muss dieselbe sein wie
+   oben im Hell-Block. Beim Ergaenzen von #content war sie es kurz
+   nicht — Ergebnis: der Rahmen um das Modul blieb im Nachtmodus
+   hellgrau (#E4E4E2), gemessen, waehrend das Modul selbst dunkel
+   war. Wer oben einen Traeger ergaenzt, ergaenzt ihn hier ZWEIMAL:
+   im prefers-color-scheme-Block und im [data-theme]-Block.
+
    ----------------------------------------------------------------
    Ein Betrachter hat DREI moegliche Einstellungen, nicht zwei:
 
@@ -166,7 +197,7 @@
    ausdruecklich HELL will, es auch auf einem dunklen System bekommt.
    ---------------------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) :is(.t-mod, .t-brand),
+  :root:not([data-theme='light']) :is(.t-mod, .t-brand, #content:has(> .t-detail-host), #content:has(> .t-list-host), #content:has(> .tournament-page-shell.t-mod)),
   :root:not([data-theme='light']):is(.t-brand) {
   /* Dunkelmodus der Markenuebernahme — Werte woertlich aus dem Artefakt.
      Der Grund wird zur Tinte, das Papier zum Panel. Das Orange hellt auf
@@ -210,7 +241,7 @@
   }
 }
 
-[data-theme='dark'] :is(.t-mod, .t-brand),
+[data-theme='dark'] :is(.t-mod, .t-brand, #content:has(> .t-detail-host), #content:has(> .t-list-host), #content:has(> .tournament-page-shell.t-mod)),
 [data-theme='dark'].t-brand {
   /* Dunkelmodus der Markenuebernahme — Werte woertlich aus dem Artefakt.
      Der Grund wird zur Tinte, das Papier zum Panel. Das Orange hellt auf
