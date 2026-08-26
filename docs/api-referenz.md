@@ -161,6 +161,38 @@ Beim Verlassen kann optional eigener Gruppen-Content gelöscht werden:
 
 ---
 
+## Turniere (`/api/tournaments`)
+
+| Methode  | Pfad                                                           | Beschreibung |
+| -------- | -------------------------------------------------------------- | ------------ |
+| `GET`    | `/api/tournaments/presets?groupId=...`                        | Presets einer Gruppe laden |
+| `POST`   | `/api/tournaments/presets`                                     | Preset erstellen (`groupId`, `name`, `baseType`, optional `participantMode`, `stages`) |
+| `PATCH`  | `/api/tournaments/presets/:id`                                | Preset aktualisieren |
+| `DELETE` | `/api/tournaments/presets/:id`                                | Preset archivieren (`isArchived=true`) |
+| `GET`    | `/api/tournaments/instances?groupId=...&status=...`           | Instanzen einer Gruppe laden |
+| `POST`   | `/api/tournaments/instances`                                  | Instanz aus Preset erstellen (`presetId`, `name`) |
+| `GET`    | `/api/tournaments/instances/:id`                              | Vollständige Instanzdetails laden (Preset, Runden, Teams, Teilnehmer, Matches) |
+| `PATCH`  | `/api/tournaments/instances/:id`                              | Instanz aktualisieren (z. B. `status`, `name`, `config`) |
+| `DELETE` | `/api/tournaments/instances/:id`                              | Instanz löschen |
+| `POST`   | `/api/tournaments/instances/:id/teams`                        | Team anlegen |
+| `POST`   | `/api/tournaments/instances/:id/participants`                 | Teilnehmer hinzufügen |
+| `DELETE` | `/api/tournaments/instances/:id/participants/:participantId`  | Teilnehmer entfernen |
+| `POST`   | `/api/tournaments/instances/:id/matches`                      | Match anlegen |
+| `PATCH`  | `/api/tournaments/instances/:id/matches/:matchId/result`      | Match-Ergebnis erfassen |
+| `GET`    | `/api/tournaments/instances/:id/standings`                    | Standings/Rangliste der Instanz laden |
+
+Hinweise:
+
+- Berechtigungen: Gruppen-Owner, Vertreter und Admins dürfen verwalten; normale Gruppenmitglieder haben Read-Only-Zugriff auf listen-/detailbezogene Endpunkte.
+- Preset-Typen (aktuell): `single_elimination`, `double_elimination`, `round_robin`, `group_plus_knockout`, `custom`.
+- Stage-Typen (aktuell): `single_elimination`, `double_elimination`, `round_robin`.
+- Teilnehmer-Modi (aktuell): `individual`, `team`, `pair`.
+- Die Instanzen-Liste im Frontend trennt die Darstellung in `Entwurf`, `Registrierung`, `Live` und `Abgeschlossen`.
+- Statusfelder sind absichtlich als Strings modelliert, damit Turnierabläufe ohne Enum-Migration erweitert werden können.
+- Beim Eintragen von Match-Ergebnissen werden Teilnehmer-Statistiken (Punkte/Wins/Losses/Draws) serverseitig neu berechnet.
+
+---
+
 ## Feed (`/api/group-feed`)
 
 | Methode  | Pfad                          | Beschreibung                                                                     |

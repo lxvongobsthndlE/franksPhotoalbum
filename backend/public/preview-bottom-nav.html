@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Preview — Mobile Bottom-Nav + Spalten-Overlap-Fix (Bug-1 + Lucide-Icons)</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <style>
+      body {
+        margin: 0;
+        background: var(--paper, #faf7f1);
+        font-family: inherit;
+      }
+      .preview-shell {
+        padding: 24px;
+      }
+      .preview-block {
+        border: 1px dashed #ccc;
+        padding: 16px;
+        margin-bottom: 32px;
+        background: var(--surface);
+      }
+      .preview-block h2 {
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin: 0 0 12px 0;
+        font-weight: 600;
+      }
+      .preview-360 {
+        width: 360px;
+      }
+      .preview-390 {
+        width: 390px;
+      }
+      .preview-600 {
+        width: 600px;
+      }
+      .preview-1280 {
+        width: 1280px;
+      }
+      .preview-shell > .preview-block {
+        display: inline-block;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-shell">
+      <h1 style="font-size: 18px; margin: 0 0 24px 0">
+        Preview — Mobile Bottom-Nav (Bug-1 Fix + Lucide-Icons)
+      </h1>
+
+      <!-- ─────── 360 px Mobile (P2 Dritte-Tabelle schmal, 3 Reihen für Bug-1-Verifikation) ─────── -->
+      <div class="preview-block preview-360">
+        <h2>
+          360 px — Dritte-Tabelle schmal + Bug-1-Verifikation (3 Reihen, letzte voll sichtbar)
+        </h2>
+        <div class="t-mod" style="height: 540px">
+          <header class="t-mod-header">
+            <div class="t-logo">🏆</div>
+            <div class="t-mod-header-info">
+              <div class="t-mod-header-text"><div class="t-title">Sommer-Cup 2026</div></div>
+              <div class="t-mod-header-badges">
+                <span class="t-badge t-badge--status is-active">Aktiv</span>
+              </div>
+            </div>
+          </header>
+          <div class="t-mod-tabs" id="t-tabs-360" role="tablist">
+            <button type="button" class="t-mod-tab is-active" data-view="spielplan">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M13 5h8" />
+                <path d="M13 12h8" />
+                <path d="M13 19h8" />
+                <path d="m3 17 2 2 4-4" />
+                <path d="m3 7 2 2 4-4" />
+              </svg>
+              <span>Spiele</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-view="gruppen">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"
+                />
+              </svg>
+              <span>Gruppen</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-view="baum">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="18" cy="6" r="3" />
+                <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+                <path d="M12 12v3" />
+              </svg>
+              <span>Baum</span>
+            </button>
+            <button
+              type="button"
+              class="t-mod-tab"
+              data-action="open-more-menu"
+              aria-haspopup="dialog"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="5" cy="12" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+              </svg>
+              <span>Mehr</span>
+            </button>
+          </div>
+          <div class="t-mod-more-sheet" data-open="false" role="dialog" aria-modal="true">
+            <button type="button" class="t-mod-more-overlay" data-action="close-more"></button>
+            <div class="t-mod-more-panel" role="document">
+              <button type="button" class="t-mod-more-close" data-action="close-more">✕</button>
+              <h2 class="t-mod-more-title">Mehr</h2>
+              <nav class="t-mod-more-list">
+                <button type="button" data-view="teams">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <circle cx="9" cy="7" r="4" /></svg
+                  ><span>Teams</span>
+                </button>
+                <button type="button" data-view="regeln">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v16" />
+                    <path
+                      d="M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"
+                    /></svg
+                  ><span>Regeln</span>
+                </button>
+                <button type="button" data-view="drucken">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+                    />
+                    <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" />
+                    <rect x="6" y="14" width="12" height="8" rx="1" /></svg
+                  ><span>Drucken</span>
+                </button>
+                <button type="button" data-view="einstellungen">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                    />
+                    <circle cx="12" cy="12" r="3" /></svg
+                  ><span>Einstellungen</span>
+                </button>
+              </nav>
+            </div>
+          </div>
+          <div class="t-shell">
+            <main class="t-mod-main">
+              <section class="t-view is-active" data-view="spielplan">
+                <div class="t-view-head"><div class="t-view-title">Beste Dritte</div></div>
+                <div class="t-card">
+                  <div class="t-card-body">
+                    <h3 class="t-thirds-title">
+                      Beste Dritte
+                      <span class="t-thirds-meta-inline">(Top 2 qualifizieren sich)</span>
+                    </h3>
+                    <p class="t-hint t-hint--compact">
+                      Gruppen unterschiedlich groß — gewertet wird pro Spiel.
+                    </p>
+                    <table class="t-thirds-table">
+                      <colgroup>
+                        <col style="width: 6%" />
+                        <col style="width: auto" />
+                        <col style="width: 8%" />
+                        <col style="width: 8%" />
+                        <col style="width: 7%" />
+                        <col style="width: 7%" />
+                        <col style="width: 7%" />
+                        <col style="width: 12%" />
+                        <col style="width: 9%" />
+                        <col style="width: 9%" />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th class="is-rank" data-col="pl">Pl.</th>
+                          <th class="is-team">Team</th>
+                          <th class="is-group" data-col="group">Gruppe</th>
+                          <th class="is-num" data-col="played">Sp.</th>
+                          <th class="is-num" data-col="won">S</th>
+                          <th class="is-num" data-col="drawn">U</th>
+                          <th class="is-num" data-col="lost">N</th>
+                          <th class="is-num" data-col="score">Becher</th>
+                          <th class="is-num" data-col="diff">Diff</th>
+                          <th class="is-num" data-col="points">Pkt.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="t-thirds-row is-qualified">
+                          <td class="t-thirds-rank" data-col="pl">1.</td>
+                          <td class="t-thirds-team">Team 3</td>
+                          <td class="t-thirds-group" data-col="group">A</td>
+                          <td class="t-thirds-num" data-col="played">3</td>
+                          <td class="t-thirds-num" data-col="won">2</td>
+                          <td class="t-thirds-num" data-col="drawn">1</td>
+                          <td class="t-thirds-num" data-col="lost">0</td>
+                          <td class="t-thirds-num" data-col="score">10:4</td>
+                          <td class="t-thirds-num is-positive" data-col="diff">+6</td>
+                          <td class="t-thirds-num is-points" data-col="points">7</td>
+                        </tr>
+                        <tr class="t-thirds-row is-qualified">
+                          <td class="t-thirds-rank" data-col="pl">2.</td>
+                          <td class="t-thirds-team">Team 7</td>
+                          <td class="t-thirds-group" data-col="group">B</td>
+                          <td class="t-thirds-num" data-col="played">3</td>
+                          <td class="t-thirds-num" data-col="won">2</td>
+                          <td class="t-thirds-num" data-col="drawn">0</td>
+                          <td class="t-thirds-num" data-col="lost">1</td>
+                          <td class="t-thirds-num" data-col="score">8:5</td>
+                          <td class="t-thirds-num is-positive" data-col="diff">+3</td>
+                          <td class="t-thirds-num is-points" data-col="points">6</td>
+                        </tr>
+                        <tr class="t-thirds-row is-out">
+                          <td class="t-thirds-rank" data-col="pl">3.</td>
+                          <td class="t-thirds-team">Team 10</td>
+                          <td class="t-thirds-group" data-col="group">C</td>
+                          <td class="t-thirds-num" data-col="played">2</td>
+                          <td class="t-thirds-num" data-col="won">0</td>
+                          <td class="t-thirds-num" data-col="drawn">1</td>
+                          <td class="t-thirds-num" data-col="lost">1</td>
+                          <td class="t-thirds-num" data-col="score">2:8</td>
+                          <td class="t-thirds-num is-negative" data-col="diff">-6</td>
+                          <td class="t-thirds-num is-points" data-col="points">1</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────── 390 px Mobile (Bug-1: lange Spielplan-Liste scrollt unter die Bar) ─────── -->
+      <div class="preview-block preview-390" style="height: 800px">
+        <h2>
+          390 px — Mobile Bottom-Nav + Spielplan mit 30 Spielen (Scroll-Test: letzte Zeile voll
+          sichtbar)
+        </h2>
+        <div class="t-mod" style="height: 100vh">
+          <header class="t-mod-header">
+            <div class="t-logo">🏆</div>
+            <div class="t-mod-header-info">
+              <div class="t-mod-header-text"><div class="t-title">Sommer-Cup 2026</div></div>
+              <div class="t-mod-header-badges">
+                <span class="t-badge t-badge--status is-active">Aktiv</span>
+              </div>
+            </div>
+          </header>
+          <div class="t-mod-tabs" id="t-tabs-390" role="tablist">
+            <button type="button" class="t-mod-tab is-active" data-view="spielplan">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M13 5h8" />
+                <path d="M13 12h8" />
+                <path d="M13 19h8" />
+                <path d="m3 17 2 2 4-4" />
+                <path d="m3 7 2 2 4-4" />
+              </svg>
+              <span>Spiele</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-view="gruppen">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"
+                />
+              </svg>
+              <span>Gruppen</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-view="baum">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="18" cy="6" r="3" />
+                <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+                <path d="M12 12v3" />
+              </svg>
+              <span>Baum</span>
+            </button>
+            <button
+              type="button"
+              class="t-mod-tab"
+              data-action="open-more-menu"
+              aria-haspopup="dialog"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="5" cy="12" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+              </svg>
+              <span>Mehr</span>
+            </button>
+          </div>
+          <div class="t-mod-more-sheet" data-open="false" role="dialog" aria-modal="true">
+            <button type="button" class="t-mod-more-overlay" data-action="close-more"></button>
+            <div class="t-mod-more-panel" role="document">
+              <button type="button" class="t-mod-more-close" data-action="close-more">✕</button>
+              <h2 class="t-mod-more-title">Mehr</h2>
+              <nav class="t-mod-more-list">
+                <button type="button" data-view="teams">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <circle cx="9" cy="7" r="4" /></svg
+                  ><span>Teams</span>
+                </button>
+                <button type="button" data-view="regeln">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v16" />
+                    <path
+                      d="M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"
+                    /></svg
+                  ><span>Regeln</span>
+                </button>
+                <button type="button" data-view="drucken">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+                    />
+                    <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" />
+                    <rect x="6" y="14" width="12" height="8" rx="1" /></svg
+                  ><span>Drucken</span>
+                </button>
+                <button type="button" data-view="einstellungen">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                    />
+                    <circle cx="12" cy="12" r="3" /></svg
+                  ><span>Einstellungen</span>
+                </button>
+              </nav>
+            </div>
+          </div>
+          <div class="t-shell">
+            <main class="t-mod-main">
+              <section class="t-view is-active" data-view="spielplan">
+                <div class="t-view-head"><div class="t-view-title">Spielplan — 30 Spiele</div></div>
+                <div class="t-card">
+                  <div class="t-card-body" id="matches-long">
+                    <p style="color: var(--ink-soft); font-size: 12px; margin-top: 0">
+                      ↓ Scrolle nach unten — die letzten Zeilen müssen VOR der Bar enden, nicht
+                      hinter ihr.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────── 600 px (P2 alle 10 Spalten, Lucide-Bar) ─────── -->
+      <div class="preview-block preview-600">
+        <h2>600 px — Dritte-Tabelle alle 10 Spalten + Lucide-Bar</h2>
+        <div class="t-mod" style="height: 540px">
+          <header class="t-mod-header">
+            <div class="t-logo">🏆</div>
+            <div class="t-mod-header-info">
+              <div class="t-mod-header-text"><div class="t-title">Sommer-Cup 2026</div></div>
+              <div class="t-mod-header-badges">
+                <span class="t-badge t-badge--status is-active">Aktiv</span>
+              </div>
+            </div>
+          </header>
+          <div class="t-mod-tabs" role="tablist">
+            <button type="button" class="t-mod-tab is-active" data-view="spielplan">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M13 5h8" />
+                <path d="M13 12h8" />
+                <path d="M13 19h8" />
+                <path d="m3 17 2 2 4-4" />
+                <path d="m3 7 2 2 4-4" /></svg
+              ><span>Spiele</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-view="gruppen">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"
+                /></svg
+              ><span>Gruppen</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-view="baum">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="18" cy="6" r="3" />
+                <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+                <path d="M12 12v3" /></svg
+              ><span>Baum</span>
+            </button>
+            <button type="button" class="t-mod-tab" data-action="open-more-menu">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="5" cy="12" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" /></svg
+              ><span>Mehr</span>
+            </button>
+          </div>
+          <div class="t-mod-more-sheet" data-open="false"><div class="t-mod-more-panel"></div></div>
+          <div class="t-shell">
+            <main class="t-mod-main">
+              <section class="t-view is-active" data-view="spielplan">
+                <div class="t-card">
+                  <div class="t-card-body">
+                    <table class="t-thirds-table">
+                      <colgroup>
+                        <col style="width: 6%" />
+                        <col style="width: auto" />
+                        <col style="width: 8%" />
+                        <col style="width: 8%" />
+                        <col style="width: 7%" />
+                        <col style="width: 7%" />
+                        <col style="width: 7%" />
+                        <col style="width: 12%" />
+                        <col style="width: 9%" />
+                        <col style="width: 9%" />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th class="is-rank" data-col="pl">Pl.</th>
+                          <th class="is-team">Team</th>
+                          <th class="is-group" data-col="group">Gruppe</th>
+                          <th class="is-num" data-col="played">Sp.</th>
+                          <th class="is-num" data-col="won">S</th>
+                          <th class="is-num" data-col="drawn">U</th>
+                          <th class="is-num" data-col="lost">N</th>
+                          <th class="is-num" data-col="score">Becher</th>
+                          <th class="is-num" data-col="diff">Diff</th>
+                          <th class="is-num" data-col="points">Pkt.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="t-thirds-row is-qualified">
+                          <td class="t-thirds-rank" data-col="pl">1.</td>
+                          <td class="t-thirds-team">Team Alpha</td>
+                          <td class="t-thirds-group" data-col="group">A</td>
+                          <td class="t-thirds-num" data-col="played">3</td>
+                          <td class="t-thirds-num" data-col="won">2</td>
+                          <td class="t-thirds-num" data-col="drawn">1</td>
+                          <td class="t-thirds-num" data-col="lost">0</td>
+                          <td class="t-thirds-num" data-col="score">10:4</td>
+                          <td class="t-thirds-num is-positive" data-col="diff">+6</td>
+                          <td class="t-thirds-num is-points" data-col="points">7</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────── 1280 px Desktop (Sidebar mit allen 7 Items) ─────── -->
+      <div class="preview-block preview-1280">
+        <h2>1280 px — Desktop-Sidebar mit allen 7 Items</h2>
+        <div class="t-mod" style="height: 540px">
+          <header class="t-mod-header">
+            <div class="t-logo">🏆</div>
+            <div class="t-mod-header-info">
+              <div class="t-mod-header-text"><div class="t-title">Sommer-Cup 2026</div></div>
+              <div class="t-mod-header-badges">
+                <span class="t-badge t-badge--status is-active">Aktiv</span>
+              </div>
+            </div>
+          </header>
+          <div class="t-mod-tabs" style="display: none"></div>
+          <div class="t-mod-more-sheet" style="display: none"></div>
+          <div class="t-shell">
+            <nav class="t-mod-nav">
+              <button type="button" class="is-active" data-view="spielplan">Spielplan</button>
+              <button type="button" data-view="gruppen">Gruppen</button>
+              <button type="button" data-view="baum">Turnierbaum</button>
+              <button type="button" data-view="teams">Teams</button>
+              <button type="button" data-view="regeln">Regeln</button>
+              <button type="button" data-view="drucken">Drucken</button>
+              <button type="button" data-view="einstellungen">Einstellungen</button>
+            </nav>
+            <main class="t-mod-main">
+              <section class="t-view is-active" data-view="spielplan">
+                <div class="t-card">
+                  <div class="t-card-body">Desktop-Sidebar sichtbar, Bottom-Bar weg.</div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Auto-Scroll: ?scroll=bottom scrollt alle .t-mod-main zum Ende.
+      // Dient als visueller Beweis, dass das padding-bottom (Bug-1) die
+      // letzte Zeile NICHT unter die Bottom-Bar schiebt.
+      (function () {
+        const sc = new URLSearchParams(location.search).get('scroll');
+        if (sc === 'bottom') {
+          setTimeout(() => {
+            document.querySelectorAll('.t-mod-main').forEach((el) => {
+              el.scrollTop = el.scrollHeight;
+            });
+          }, 50);
+        }
+      })();
+    </script>
+    <script>
+      // 30 Match-Karten für den 390-px-Scroll-Test
+      (function () {
+        const c = document.getElementById('matches-long');
+        if (!c) return;
+        for (let i = 1; i <= 30; i++) {
+          const teamA = `Team ${String.fromCharCode(64 + ((i - 1) % 8) + 1)}`;
+          const teamB = `Team ${String.fromCharCode(64 + (i % 8) + 1)}`;
+          const hr = 9 + (i % 6);
+          const min = (i * 17) % 60;
+          const score1 = i % 3;
+          const score2 = (i + 1) % 3;
+          const div = document.createElement('div');
+          div.className = 't-match';
+          div.innerHTML = `
+        <div class="t-match-bar"></div>
+        <div class="t-match-meta"><div class="t-match-meta-line">${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')} · Platte ${(i % 4) + 1}</div></div>
+        <div class="t-match-rows">
+          <div class="t-match-team${score1 > score2 ? ' is-winner' : ''}"><span class="name">${teamA}</span></div>
+          <div class="t-match-score" data-area="home-score">${score1}</div>
+          <div class="t-match-team right${score2 > score1 ? ' is-winner' : ''}"><span class="name">${teamB}</span></div>
+          <div class="t-match-score" data-area="away-score">${score2}</div>
+        </div>`;
+          c.appendChild(div);
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,83 @@
+/* ==========================================================================
+   [kru:]nest — Wortmarke
+   --------------------------------------------------------------------------
+   Etappe 1 der Markenuebernahme: NUR die Marke.
+   Palette, Schriften und Layout der App bleiben unveraendert — die
+   Umstellung auf Tinte/Orange und Archivo ist eine eigene Etappe und
+   braucht vorher die Token-Sanierung von main.css/tournament.css.
+
+   Diese Datei wird NACH main.css geladen und definiert ausschliesslich
+   eigene Klassen bzw. ueberschreibt gezielt drei Markenstellen.
+   Sie fasst keine bestehende Regel an.
+   ========================================================================== */
+
+:root {
+  /* Druckfarbe der Wortmarke. Gilt in beiden Themen unveraendert —
+     sie ist Markenfarbe, kein UI-Ton, und haengt deshalb nicht am Theme. */
+  --brand-orange: #de5426;
+  --brand-font: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   Die Wortmarke selbst: zwei Druckplatten, leicht verrutscht.
+   Der Versatz ist in em gesetzt und skaliert deshalb mit jeder Groesse.
+   -------------------------------------------------------------------------- */
+.brandmark {
+  font-family: var(--brand-font);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--text);
+  white-space: nowrap;
+  text-shadow: 0.07em 0.085em 0 var(--brand-orange);
+}
+
+/* --------------------------------------------------------------------------
+   Die drei Stellen, an denen die Marke steht.
+   Die Selektoren sind so spezifisch wie die Regeln in main.css, die sie
+   ueberschreiben — sonst gewinnt dort #loading h2 bzw. .auth-brand h1.
+   -------------------------------------------------------------------------- */
+
+/* 1 — Ladebildschirm */
+#loading h2.brandmark {
+  font-size: 34px;
+  font-weight: 800;
+  font-style: italic;
+  color: var(--text);
+}
+
+/* 2 — Anmeldeseite */
+.auth-brand h1.brandmark {
+  font-size: 40px;
+  font-weight: 800;
+  font-style: italic;
+  color: var(--text);
+  /* ersetzt den weichen Schein aus main.css durch den Versatzdruck */
+  text-shadow: 0.07em 0.085em 0 var(--brand-orange);
+}
+
+/* 3 — Kopfzeile der App */
+.logo-text .brandmark {
+  font-size: 21px;
+}
+
+@media (max-width: 420px) {
+  .logo-text .brandmark {
+    font-size: 19px;
+  }
+  .auth-brand h1.brandmark {
+    font-size: 33px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Das alte Kamera-Zeichen tritt ab.
+   Bewusst ausgeblendet statt geloescht: das Markup bleibt erhalten, damit
+   der Schritt ohne Merge-Risiko ruecknehmbar ist. Entfernt wird es in der
+   Etappe, die ohnehin Kopfzeile und Anmeldeseite umbaut.
+   -------------------------------------------------------------------------- */
+.logo-text .logo-icon,
+.auth-brand .auth-brand-icon {
+  display: none;
+}

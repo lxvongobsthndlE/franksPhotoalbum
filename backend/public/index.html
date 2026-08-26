@@ -6,9 +6,9 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>Franks Fotoalbum</title>
-    <link rel="icon" type="image/x-icon" href="/media/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/media/icon-96x96.png" />
+    <title>[kru:]nest</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/media/brand/icon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/media/brand/icon-96x96.png" />
     <!-- PWA -->
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#8a6a4a" />
@@ -16,13 +16,32 @@
     <!-- iOS PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Fotoalbum" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./media/icon-180x180.png" />
+    <meta name="apple-mobile-web-app-title" content="[kru:]nest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./media/brand/icon-180x180.png" />
     <link
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- Turniermodul-Marke (Artefakt "[kru:]nest Markenuebernahme", 2026-08-26).
+         Archivo war fuer die Wortmarke schon da, aber nur im Schnitt 1,800.
+         Das Modul braucht vier Familien:
+           Archivo         Display  — Screen-Titel, Teamnamen
+           Archivo Narrow  Condensed — Rundennamen, Labels
+           IBM Plex Sans   Fliesstext, Bedienelemente
+           IBM Plex Mono   Staende, Zeiten, Tabellen, Kicker
+         Ein Request statt vier: Google Fonts buendelt das in einer css2-URL. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./style/main.css" />
+    <!-- tokens.css MUSS vor tournament.css stehen: es definiert die
+         Marken-Palette auf .t-mod, tournament.css benutzt sie. Die
+         Datei ist zugleich die Quelle fuer live.html und aushang.html,
+         damit es nur EINE Stelle mit diesen Hex-Werten gibt. -->
+    <link rel="stylesheet" href="./style/tokens.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <link rel="stylesheet" href="./style/brand.css" />
     <script>
       window.APP_CONFIG = {
         authentikBase: 'https://auth.lx-derpi-cloud.de',
@@ -30,6 +49,8 @@
     </script>
     <script type="module" src="./script/auth-oidc.js"></script>
     <script type="module" src="./script/main.js"></script>
+    <script type="module" src="./script/tournament.js"></script>
+    <script type="module" src="./script/tournament-render.js"></script>
   </head>
   <body>
     <div class="toast-container" id="toast-container"></div>
@@ -42,7 +63,7 @@
     </div>
 
     <div id="loading">
-      <h2>Franks Fotoalbum</h2>
+      <h2 class="brandmark">[kru:]nest</h2>
       <div class="spinner"></div>
       <p>Verbinde mit Cloud…</p>
     </div>
@@ -92,7 +113,7 @@
               </g>
             </svg>
           </div>
-          <h1>Franks <span>Fotoalbum</span></h1>
+          <h1 class="brandmark">[kru:]nest</h1>
           <p>Gemeinsame Erinnerungen · Privat &amp; Sicher</p>
         </div>
 
@@ -316,7 +337,8 @@
               />
             </svg>
           </span>
-          Franks <span>Fotoalbum</span><small id="header-group-name">Gemeinsame Erinnerungen</small>
+          <span class="brandmark">[kru:]nest</span
+          ><small id="header-group-name">Gemeinsame Erinnerungen</small>
         </div>
         <span id="hname" style="display: none"></span>
         <div class="user-pill">

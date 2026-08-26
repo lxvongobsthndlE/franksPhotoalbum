@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Aushang</title>
+
+    <!--
+  Der Aushang — ein Blatt für den Tresen.
+
+  Alles auf dieser Seite ist auf eine Frage hin gebaut: Jemand steht drei
+  Meter entfernt und will wissen, wie er den Turnierstand aufs Handy
+  bekommt. Deshalb ist der QR-Code das größte Element, und die Schrift
+  darüber sagt in vier Worten, was er bringt.
+
+  Die Seite druckt bewusst schwarz auf weiß, unabhängig vom Bildschirm-
+  Thema: Ein Aushang geht durch einen Bürodrucker, und ein dunkler
+  Hintergrund kostet dort eine halbe Tonerpatrone.
+-->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;1,800&family=Archivo+Narrow:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500&display=swap"
+    />
+
+    <link rel="stylesheet" href="/style/tokens.css" />
+
+    <style>
+      /* Palette und Schriften kommen aus /style/tokens.css; der body trägt
+   dafür class="t-brand". Siehe live.html für die längere Begründung —
+   kurz: eine Wahrheit für alle Flächen der Marke.
+
+   Der Druckteil unten setzt bewusst eigene, feste Farben statt Tokens.
+   Ein Aushang geht durch einen Bürodrucker, und dort gilt schwarz auf
+   weiß, unabhängig davon, welches Thema der Bildschirm gerade zeigt. */
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: var(--f-body);
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .blatt {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        width: 100%;
+        max-width: 560px;
+        padding: 44px 40px 34px;
+        text-align: center;
+      }
+
+      .mark {
+        font-family: var(--f-disp);
+        font-weight: 800;
+        font-style: italic;
+        font-size: 19px;
+        letter-spacing: -0.03em;
+        color: var(--ink);
+        text-shadow: 0.06em 0.075em 0 var(--brand-orange);
+        margin-bottom: 30px;
+      }
+
+      h1 {
+        font-family: var(--f-disp);
+        font-weight: 800;
+        letter-spacing: -0.028em;
+        font-size: clamp(27px, 5.4vw, 38px);
+        line-height: 1.06;
+        margin: 0;
+        text-wrap: balance;
+      }
+      .ort {
+        font-family: var(--f-cond);
+        font-weight: 600;
+        font-size: 15px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 9px;
+      }
+
+      .claim {
+        font-family: var(--f-disp);
+        font-weight: 700;
+        font-size: 19px;
+        margin: 30px 0 4px;
+        letter-spacing: -0.01em;
+      }
+      .claim-sub {
+        font-size: 15px;
+        color: var(--ink-2);
+        margin: 0;
+      }
+
+      /* Der QR selbst. Weißer Grund auch im dunklen Thema — ein QR-Code wird
+   von Scannern als dunkel-auf-hell erwartet, und Invertieren kostet bei
+   manchen Kameras die Erkennung. */
+      .qr {
+        margin: 24px auto 0;
+        width: min(340px, 74vw);
+        aspect-ratio: 1;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px;
+      }
+      .qr img {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .url {
+        font-family: var(--f-mono);
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-top: 18px;
+        word-break: break-all;
+        line-height: 1.5;
+      }
+      .url-vor {
+        font-family: var(--f-body);
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+
+      .fuss {
+        margin-top: 26px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .drucken {
+        margin-top: 22px;
+        font-family: var(--f-cond);
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: var(--ink);
+        color: var(--panel);
+        border: none;
+        border-radius: 8px;
+        padding: 11px 22px;
+        cursor: pointer;
+      }
+      .drucken:hover {
+        opacity: 0.88;
+      }
+      :focus-visible {
+        outline: 2px solid var(--brand-orange);
+        outline-offset: 3px;
+      }
+
+      .fehler {
+        max-width: 34ch;
+        margin-inline: auto;
+        color: var(--ink-2);
+      }
+
+      /* ── Druck ──────────────────────────────────────────────
+   Ein Blatt, randlos, ohne Bedienelemente. */
+      @media print {
+        body {
+          background: #fff;
+          color: #000;
+          padding: 0;
+          display: block;
+        }
+        .blatt {
+          border: none;
+          border-radius: 0;
+          max-width: none;
+          padding: 0;
+          margin: 0 auto;
+          width: 100%;
+        }
+        .drucken {
+          display: none;
+        }
+        .qr {
+          width: 62mm;
+          border-color: #ccc;
+        }
+        .mark {
+          color: #000;
+          text-shadow: 0.06em 0.075em 0 #de5426;
+        }
+        h1 {
+          font-size: 30pt;
+        }
+        .url {
+          color: #444;
+        }
+        .fuss {
+          color: #444;
+          border-top-color: #ccc;
+        }
+        @page {
+          margin: 18mm;
+        }
+      }
+    </style>
+  </head>
+  <body class="t-brand">
+    <div class="blatt" id="blatt">
+      <p class="fehler">Aushang wird vorbereitet …</p>
+    </div>
+
+    <script type="module">
+      /**
+       * Holt Turniername und Ort über denselben öffentlichen Endpunkt wie die
+       * Zuschauerseite und setzt das Blatt zusammen. Der QR kommt fertig vom
+       * Server — er wird aus dem Token gerechnet, nicht hier im Browser.
+       */
+      const teile = window.location.pathname.split('/').filter(Boolean);
+      const token = teile[0] === 't' ? (teile[1] ?? '') : '';
+      const blatt = document.getElementById('blatt');
+
+      function el(tag, klasse, text) {
+        const n = document.createElement(tag);
+        if (klasse) n.className = klasse;
+        if (text != null) n.textContent = String(text);
+        return n;
+      }
+
+      function fehler(text) {
+        blatt.replaceChildren(
+          Object.assign(el('div', 'mark', '[kru:]nest')),
+          el('p', 'fehler', text)
+        );
+      }
+
+      async function bauen() {
+        if (!token) return fehler('Der Link ist unvollständig.');
+
+        let daten;
+        try {
+          const antwort = await fetch(`/api/tournaments/public/${encodeURIComponent(token)}`, {
+            headers: { Accept: 'application/json' },
+          });
+          if (antwort.status === 404) {
+            return fehler(
+              'Dieser Zuschauer-Link ist nicht mehr gültig. Erstelle in den Turnier-Einstellungen einen neuen.'
+            );
+          }
+          if (!antwort.ok) throw new Error(String(antwort.status));
+          daten = await antwort.json();
+        } catch {
+          return fehler(
+            'Der Aushang konnte nicht geladen werden. Versuch es in einem Moment noch einmal.'
+          );
+        }
+
+        const t = daten.tournament ?? {};
+        document.title = t.name ? `Aushang — ${t.name}` : 'Aushang';
+
+        const stueck = document.createDocumentFragment();
+        stueck.append(el('div', 'mark', '[kru:]nest'));
+        stueck.append(el('h1', null, t.name || 'Turnier'));
+        if (t.location) stueck.append(el('div', 'ort', t.location));
+
+        stueck.append(el('p', 'claim', 'Spielplan und Tabellen live'));
+        stueck.append(el('p', 'claim-sub', 'Code scannen — kein Konto, keine App.'));
+
+        const qr = el('div', 'qr');
+        const bild = el('img');
+        bild.src = `/api/tournaments/public/${encodeURIComponent(token)}/qr.svg`;
+        bild.alt = 'QR-Code zum Turnierstand';
+        qr.append(bild);
+        stueck.append(qr);
+
+        stueck.append(el('div', 'url-vor', 'oder im Browser eingeben:'));
+        stueck.append(el('div', 'url', `${window.location.origin}/t/${token}`));
+
+        stueck.append(
+          el(
+            'div',
+            'fuss',
+            'Ergebnisse trägt die Turnierleitung ein. Der Stand aktualisiert sich von selbst.'
+          )
+        );
+
+        const knopf = el('button', 'drucken', 'Aushang drucken');
+        knopf.type = 'button';
+        knopf.addEventListener('click', () => window.print());
+        stueck.append(knopf);
+
+        blatt.replaceChildren(stueck);
+      }
+
+      bauen();
+    </script>
+  </body>
+</html>

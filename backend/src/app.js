@@ -27,6 +27,7 @@ import changelogRoutes from './routes/changelog.js';
 import feedbackRoutes from './routes/feedback.js';
 import invitesRoutes from './routes/invites.js';
 import exportsRoutes from './routes/exports.js';
+import tournamentsRoutes from './modules/tournament/index.js';
 import groupFeedRoutes from './routes/group-feed.js';
 import groupFeedCommentsRoutes from './routes/group-feed-comments.js';
 import accountDeletionRoutes, {
@@ -121,6 +122,8 @@ app.register(changelogRoutes, { prefix: '/api/changelog' });
 app.register(feedbackRoutes, { prefix: '/api/feedback' });
 app.register(invitesRoutes, { prefix: '/api/invites' });
 app.register(exportsRoutes, { prefix: '/api/exports' });
+app.register(tournamentsRoutes, { prefix: '/api/tournaments' });
+
 app.register(groupFeedRoutes, { prefix: '/api/group-feed' });
 app.register(groupFeedCommentsRoutes, { prefix: '/api/group-feed' });
 app.register(accountDeletionRoutes, { prefix: '/api/account-deletion' });
@@ -129,6 +132,24 @@ app.register(accountDeletionRoutes, { prefix: '/api/account-deletion' });
 app.get('/auth/callback', async (request, reply) => {
   const qs = new URLSearchParams(request.query).toString();
   return reply.redirect(`/?${qs}`);
+});
+
+// Zuschauer-Link: /t/<token> liefert die öffentliche Turnier-Ansicht.
+//
+// Eine eigene, sehr kleine Seite — bewusst NICHT die SPA. Ein Zuschauer
+// ohne Konto soll gar nicht erst den angemeldeten Client laden: kein
+// Login-Zustand, keine mutierenden Knöpfe, kein Admin-Code im Speicher.
+// Die Daten holt sie sich über GET /api/tournaments/public/:token; der
+// Token wird hier nur durchgereicht, geprüft wird er dort.
+app.get('/t/:token', async (request, reply) => {
+  return reply.sendFile('live.html', path.join(__dirname, '../public'));
+});
+
+// Der Aushang: ein Blatt mit großem QR-Code zum Ausdrucken und Aufhängen.
+// Braucht keine eigene Berechtigung — wer den Token hat, hat ohnehin
+// Zugang, und der Aushang zeigt nichts, was die Ansicht nicht zeigt.
+app.get('/t/:token/aushang', async (request, reply) => {
+  return reply.sendFile('aushang.html', path.join(__dirname, '../public'));
 });
 
 // Health Check
@@ -140,7 +161,35 @@ app.get('/health', async (request, reply) => {
 await app.register(fastifyStatic, {
   root: path.join(__dirname, '../public'),
   prefix: '/',
+  // Wir setzen KEINEN Long-Term-Cache für JS/CSS/HTML. Wenn der User
+  // einen Tab offen lässt und wir ein File editieren, soll der nächste
+  // Reload die neue Version sehen — ohne Hard-Reload (Strg+Shift+R).
+  // Warum: dev-with-minio.mjs startet den Server mit `--watch`, aber
+  // der Browser cached Frontend-Assets sehr aggressiv. Ein Hard-Reload
+  // umgeht den Cache, ist aber UX-schlecht. In Production (NODE_ENV !==
+  // 'development') bleibt das Verhalten unverändert.
+  cacheControl: false,
 });
+
+// Dev-Mode: explizit `Cache-Control: no-store` auf JS/CSS/HTML-Responses,
+// damit Browser-F5 (nicht Ctrl+F5) bereits die neue Version zieht.
+// In Production (NODE_ENV=production) ist die Middleware inaktiv.
+if ((process.env.NODE_ENV || 'development') === 'development') {
+  app.addHook('onSend', async (request, reply, payload) => {
+    const url = request.url || '';
+    if (
+      url.startsWith('/script/') ||
+      url.startsWith('/style/') ||
+      url === '/' ||
+      url.endsWith('.html') ||
+      url.endsWith('.js') ||
+      url.endsWith('.css')
+    ) {
+      reply.header('Cache-Control', 'no-store');
+    }
+    return payload;
+  });
+}
 
 const start = async () => {
   try {
@@ -215,7 +264,7 @@ const start = async () => {
 
     console.log('');
     console.log(sep);
-    console.log('  Franks Fotoalbum Backend');
+    console.log('  [kru:]nest Backend');
     console.log(sep);
     lines.forEach((l) => console.log(l));
     console.log(sep);

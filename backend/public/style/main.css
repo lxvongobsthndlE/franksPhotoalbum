@@ -12,7 +12,32 @@
   --green: #3d9e6e;
   --text: #1a1410;
   --text2: #3a2e26;
-  --muted: #8a7e74;
+  /* --muted 2026-08-25 von #8a7e74 auf #70685F abgedunkelt (WCAG 1.4.3).
+     Derselbe Defekt wie --ink-soft im Turniermodul, aber app-weit (Fotos,
+     Alben, Gruppen, Feedback, Turnier-Meta). Gemessen nach WCAG
+     (relative Luminanz, Quotient (L_hell+0.05)/(L_dunkel+0.05)):
+       ALT #8a7e74 (L=0.215859)
+         auf --surface/--card #ffffff (L=1.000000) -> 3.95:1  DURCHGEFALLEN
+         auf --bg              #f8f5f1 (L=0.916121) -> 3.63:1  DURCHGEFALLEN
+         auf --surface-alt     #F5F1E9 (L=0.882063) -> 3.51:1  DURCHGEFALLEN
+       NEU #70685F (L=0.141716)
+         auf --surface/--card  #ffffff              -> 5.48:1  bestanden
+         auf --bg              #f8f5f1              -> 5.04:1  bestanden
+         auf --surface-alt     #F5F1E9              -> 4.86:1  bestanden
+     Der strengste Fall ist --surface-alt: das ist zwar ein Token des
+     Turniermoduls, aber --muted faerbt auch Modul-Klassen aus main.css
+     (z.B. .t-detail-meta), die auf dieser Flaeche liegen koennen.
+     Wert bewusst identisch mit --ink-soft (tournament.css): beide sind
+     "gedaempfter Fliesstext auf hellem Grund", zwei minimal verschiedene
+     Warmgraus dafuer waeren eine Unterscheidung ohne Unterschied.
+     NEBENWIRKUNG GEPRUEFT: 111 Nutzungen, davon 109 als `color` und
+     genau zwei als Flaechenfarbe -- main.css:2121 (.af-status-read
+     border-left) und main.css:2159 (.af-cat-other border-color). Beides
+     sind Raender, kein Hintergrund; fuer Nicht-Text gilt 3:1, und der
+     Wert wird dunkler (3.95 -> 5.48 auf Weiss), der Rand also
+     kontrastreicher. Ein Aufteilen in zwei Tokens ist deshalb nicht
+     noetig -- ein Tausch genuegt. */
+  --muted: #70685f;
   --muted2: #bdb4ac;
   --shadow: 0 1px 8px rgba(40, 25, 15, 0.06), 0 2px 20px rgba(40, 25, 15, 0.04);
   --shadow2: 0 4px 24px rgba(40, 25, 15, 0.1), 0 1px 4px rgba(40, 25, 15, 0.05);
@@ -33,7 +58,20 @@
   --green: #5ec090;
   --text: #ede8e2;
   --text2: #c8c0b8;
-  --muted: #8a8078;
+  /* --muted (dunkel) 2026-08-25 von #8a8078 auf #9C9289 aufgehellt.
+     Der Dunkelmodus war NICHT unauffaellig -- er faellt auf den beiden
+     helleren Flaechen des Sets durch:
+       ALT #8a8078 (L=0.221977)
+         auf --bg      #141210 -> 4.84:1  bestanden
+         auf --surface #1e1c18 -> 4.41:1  DURCHGEFALLEN
+         auf --card    #242220 -> 4.11:1  DURCHGEFALLEN
+       NEU #9C9289 (L=0.294318)
+         auf --bg      #141210 -> 6.13:1
+         auf --surface #1e1c18 -> 5.58:1
+         auf --card    #242220 -> 5.20:1
+     Bemessen ist der Wert am dunklen --card, nicht am --bg -- Karten
+     sind die haeufigste Flaeche unter gedaempftem Text. */
+  --muted: #9c9289;
   --muted2: #5a544e;
   --shadow: 0 1px 8px rgba(0, 0, 0, 0.2), 0 2px 20px rgba(0, 0, 0, 0.15);
   --shadow2: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.15);
@@ -113,6 +151,165 @@ textarea {
 }
 .hidden {
   display: none !important;
+}
+
+/* ── TOURNAMENTS MODULE ── */
+.tournaments-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.tournament-page-shell {
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tournament-empty-state {
+  border: 1px dashed var(--border2);
+  border-radius: 14px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--muted);
+}
+
+.tournament-empty-state h2 {
+  margin: 0 0 6px;
+  color: var(--text2);
+  font-size: 18px;
+}
+
+.tournament-empty-state p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/*
+   .tournament-instance-group
+   .tournament-instance-group-head
+   .tournament-instance-grid
+   wurden 2026-08-13 in den Issue-6-Block unten verschoben und um
+   Volle-Breite-Layout + Phasen-Status-Färbung ergänzt.
+*/
+
+.tournament-instance-card {
+  min-width: 0;
+}
+
+.tournament-instance-actions {
+  align-items: center;
+}
+
+.tournament-instance-empty {
+  grid-column: 1 / -1;
+}
+
+/* ─── Issue 6d (2026-08-13): 'Turnier erstellen'-Button ─────────────── */
+/*
+   Übersteuert .btn-primary (full-width) für den einzigen Use-Case im
+   Header. Höhe und Schrift bleiben identisch zu Standard-Buttons,
+   damit der "Aktualisieren"-Ghost-Button daneben optisch gleichwertig
+   wirkt.
+*/
+.tournament-new-instance-btn {
+  width: auto;
+  margin-top: 0;
+  padding: 10px 18px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(138, 106, 74, 0.22);
+}
+/* Etappe B (2026-08-14): button.tournament-new-instance-btn hat höhere
+   Spezifität (0,1,1) als .btn-primary (0,1,0) und überschreibt dessen
+   `width: 100%`. Der generische .btn-primary-Default soll nur in Modal-
+   Footern gelten, nicht in Headern — Aufräumen erfolgt separat. */
+button.tournament-new-instance-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+/* Etappe B (2026-08-17): defensive Breite für ALLE Buttons in der
+   Turnier-Header-Aktion-Zeile (Klasse wird in main.js:2177 an beide
+   Buttons gehängt: tournament-refresh-btn + tournament-new-instance-btn).
+   Falls .tournament-new-instance-btn je wegfällt, soll der Refresh-
+   Button trotzdem nicht auf full-width fallen. */
+button.tournament-header-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* ─── Issue 6e (2026-08-13): Phasen-Blöcke füllen die Listen-Breite ─── */
+/*
+   Spec §8.0: kein "vergrößertes Handy-Layout". Auf 1920er-Schirmen
+   müssen die Phasen-Gruppen head + Grid die volle Breite der
+   Liste nutzen, nicht in einer schmalen Mittelspalte hängen.
+   Vorher hatte .tournament-page-shell `display: flex; flex-direction: column`
+   ohne explizite `width: 100%` — in einigen Grids rutschte der Inhalt
+   in die schmale `#grid`-Defaultspalte.
+*/
+.tournament-page-shell {
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+}
+
+/* Der Kasten um jede Statusgruppe ist am 26.08. ersatzlos entfallen
+   (Beschwerde 5). Er war gefuellt und gerahmt, in zwei Faellen sogar
+   cremefarben — ein Behaelter um Karten, die selbst Behaelter sind,
+   und ein zweiter Traeger fuer einen Status, den jede Karte schon als
+   Pille zeigt. Ersatz ist eine Mono-Beschriftung: .t-list-group-label
+   in tournament.css, weil sie Marken-Tokens braucht. */
+.tournament-instance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.tournament-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tournament-grid-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.tournament-grid-columns-single {
+  grid-template-columns: minmax(280px, 1fr);
+}
+@media (max-width: 420px) {
+  .tournament-meta-pill {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
+
+/* Bug 15 (2026-08-18, User-Punkt 5): Auf dem Handy leere Phasen-
+   Karten ganz weglassen — bei vier leeren Phasen muss ich nicht
+   an drei leeren Kästen vorbeiscrollen. Die Phasen-Gruppe wird
+   versteckt, sobald ihr einziger Inhalt ein .tournament-empty-
+   Hinweis ist (vom Renderer gesetzt, wenn instances.length === 0).
+   Auf Desktop bleiben die leeren Phasen sichtbar — der User sieht
+   dort schneller, dass er nichts hat. */
+@media (max-width: 480px) {
+  /* Klasse am 26.08. von .tournament-instance-group auf .t-list-group
+     umbenannt (Beschwerde 5). Diese Regel haette den Rename still
+     ueberlebt und nichts mehr getroffen — leere Phasen waeren auf dem
+     Handy zurueckgekommen, ohne dass ein Test es merkt. */
+  .t-list-group:has(> .tournament-instance-grid > .tournament-instance-empty:only-child) {
+    display: none;
+  }
 }
 
 /* ── TOAST ── */
@@ -522,107 +719,6 @@ textarea {
   color: var(--accent);
   margin-bottom: 16px;
   font-weight: 500;
-}
-
-/* ── SSO CARD ─────────────────────────────────────────────── */
-.sso-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: linear-gradient(135deg, #1a1f2e 0%, #222a3a 100%);
-  border: 1px solid rgba(99, 130, 210, 0.25);
-  border-radius: var(--r2);
-  padding: 20px 24px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.18),
-    0 0 0 1px rgba(99, 130, 210, 0.08);
-  animation: fadeUp 0.45s ease;
-}
-[data-theme='light'] .sso-card {
-  background: linear-gradient(135deg, #1e2640 0%, #2a3456 100%);
-}
-.sso-card-inner {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1;
-  min-width: 0;
-}
-.sso-logo-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-}
-.sso-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.sso-card-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.sso-card-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: rgba(150, 170, 230, 0.7);
-}
-.sso-card-desc {
-  font-size: 13px;
-  color: rgba(220, 225, 240, 0.85);
-  font-weight: 400;
-  line-height: 1.4;
-}
-.sso-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #5b7fe8, #7c5dfa);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    opacity 0.18s,
-    transform 0.15s;
-  box-shadow: 0 3px 14px rgba(91, 127, 232, 0.4);
-}
-.sso-btn:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-.sso-btn:active {
-  transform: translateY(0);
-  opacity: 1;
-}
-@media (max-width: 480px) {
-  .sso-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .sso-btn {
-    justify-content: center;
-  }
-  .sso-card-desc {
-    white-space: normal;
-  }
 }
 .field {
   margin-bottom: 18px;
@@ -1557,6 +1653,34 @@ textarea {
   flex: 1;
   overflow-y: auto;
   padding: 30px 28px;
+  min-width: 0;
+}
+
+/* P7 (2026-08-24, User-Liste Punkt 7): Echter Scroller ist #content,
+   NICHT .t-mod-main. Wenn die Mobile-Bottom-Bar (tournament.css) bei
+   .t-mod-Container ≤600 px fixed am Viewport klebt, scrollt der User
+   die letzte Zeile unter die Bar. Mein voriger Fix auf .t-mod-main
+   hat nicht gewirkt, weil .t-mod overflow:hidden hat und der
+   Page-Scroller #content ist.
+
+   Breakpoint @media (max-width: 660px) statt 600 px: Die Bottom-Bar
+   triggert per @container (max-width: 600px) auf .t-mod; das sind
+   viewport ≈660 px (Containerbreite = viewport − 56 px #content-Padding).
+   Großzügigere Schwelle deckt den Bar-Bereich voll ab.
+
+   Ohne Detail-View schadet das Padding-Bottom nicht — unter dem
+   letzten Footer-Element erscheint einfach zusätzlicher Weißraum. */
+@media (max-width: 660px) {
+  #content {
+    /* User-Punkt 3 (2026-08-25): Berechnung explizit — Bottom-Bar-Höhe
+       + iOS Safe-Area + 24 px normaler Abstand. Die 102-px-Variante
+       (56 + 16 + 30) wurde durch die Shorthand-Regel in
+       @media (max-width: 900px) weiter unten überschrieben (gleiche
+       Spezifität, spätere Quelle gewinnt). Daher jetzt zusätzlich
+       padding-bottom AFTER der Shorthand in dem Block — Defense in
+       Depth. */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom) + 24px);
+  }
 }
 .gal-hdr {
   margin-bottom: 20px;
@@ -4083,7 +4207,6 @@ textarea {
 #bottom-nav {
   display: none !important;
 }
-
 @media (max-width: 900px) {
   .hamburger-btn {
     display: flex;
@@ -4165,8 +4288,22 @@ textarea {
     overflow: visible;
   }
   #content {
-    padding: 16px 14px;
+    /* NICHT als Shorthand — das würde padding-bottom aus dem
+       @media-Block oben überschreiben (User-Punkt 3, 2026-08-25).
+       Bottom-Bar-Override kommt weiter unten separat. */
+    padding-top: 16px;
+    padding-right: 14px;
+    padding-left: 14px;
     overflow-x: hidden;
+  }
+  /* User-Punkt 3 (2026-08-25): Bottom-Bar-Override kommt NACH der
+     Shorthand (die wir oben aufgebrochen haben), damit es wirkt.
+     Gilt nur bei Viewport ≤660 px (= @media-Trigger für .t-mod
+     ≤600 px → Bottom-Bar aktiv). */
+  @media (max-width: 660px) {
+    #content {
+      padding-bottom: calc(56px + env(safe-area-inset-bottom) + 24px);
+    }
   }
   .mob-only {
     display: block !important;
@@ -5168,7 +5305,6 @@ textarea {
   opacity: 1;
   visibility: visible;
 }
-
 @media (max-width: 640px) {
   .grid.feed-grid {
     max-width: 100%;
@@ -5304,4 +5440,841 @@ textarea {
 .au-notify-textarea {
   resize: vertical;
   min-height: 54px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TOURNAMENT PHASE 2 — Modals, Tabs, Badges, Bracket-Visualisierung
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Kleiner Button (für kompakte Aktionen in Tabellen/Panels) */
+.btn-sm {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 7px;
+}
+
+/* Status-Badges (für Turnier-Status, Match-Status, Ghost-Markierung) */
+.t-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1;
+}
+.t-badge-planned {
+  background: rgba(120, 130, 150, 0.12);
+  color: #6b7689;
+  border-color: rgba(120, 130, 150, 0.25);
+}
+.t-badge-live {
+  background: rgba(196, 90, 60, 0.14);
+  color: #b85436;
+  border-color: rgba(196, 90, 60, 0.3);
+}
+.t-badge-done {
+  background: rgba(90, 158, 122, 0.15);
+  color: #4a8a6a;
+  border-color: rgba(90, 158, 122, 0.32);
+}
+.t-badge-void {
+  background: rgba(120, 120, 120, 0.1);
+  color: #888;
+  border-color: rgba(120, 120, 120, 0.25);
+}
+
+/* Modal-Variante für die Turnier-Detail-Dialoge.
+   WICHTIG (Phase-3 Fix): Auf Desktop darf die Modal NICHT auf Mobile-Breite
+   (560px) zentriert sein. Wir lassen die Modal die volle sinnvolle Breite nutzen
+   – bis zu einem sinnvollen Maximum, je nach Inhalt. Auf Mobile bleibt sie
+   schmal und nutzt fast die volle Bildschirmbreite. */
+.tournament-detail-dlg {
+  width: min(640px, calc(100vw - 24px));
+  max-width: min(640px, calc(100vw - 24px));
+  padding: 20px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: hidden;
+}
+@media (min-width: 900px) {
+  .tournament-detail-dlg {
+    /* Auf Desktop darf sie breiter werden, damit Bracket-Formulare
+       und Drag&Drop-Listen gut lesbar bleiben. */
+    width: min(820px, calc(100vw - 64px));
+    max-width: min(820px, calc(100vw - 64px));
+  }
+}
+.tournament-detail-dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+.tournament-detail-dlg-head h3 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text2);
+  font-weight: 700;
+}
+.tournament-detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  padding-right: 2px;
+  min-height: 0;
+}
+.tournament-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 0;
+}
+.tournament-detail-label {
+  color: var(--text2);
+  font-weight: 600;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.t-required {
+  color: var(--red, #c0392b);
+  font-weight: 700;
+}
+.t-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.tournament-detail-field input[type='text'],
+.tournament-detail-field input[type='number'],
+.tournament-detail-field select {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--text2);
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 0;
+  font-family: inherit;
+}
+.tournament-detail-field input:focus,
+.tournament-detail-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-l);
+}
+.tournament-detail-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  padding: 6px 0;
+}
+.tournament-detail-checkbox-row input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.tournament-detail-checkbox-row label {
+  cursor: pointer;
+}
+.t-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.tournament-detail-dlg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+/* Die `.re-*`-Regeln des Ergebnis-Modals sind mit A5 (2026-08-25)
+   entfallen. Der Dialog liegt jetzt unter `.t-dialog-host` und
+   nutzt `.t-score-entry*` aus tournament.css — dort, wo auch die
+   Tokens stehen, von denen er lebt. */
+
+/* v3: Teamliste im Detail-Tab */
+.t-team-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border-radius: 8px;
+}
+.t-team-seed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-l);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12px;
+}
+.t-team-name-input {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  min-width: 0;
+}
+.t-team-name-input:hover {
+  border-color: var(--border);
+}
+.t-team-name-input:focus {
+  border-color: var(--accent);
+  background: var(--bg-1);
+  outline: none;
+}
+
+/* v3: Standings / Schedule-Tabellen
+   Bug 14 (2026-08-18): table-layout: fixed + einheitliche Spaltenbreiten
+   über die drei Gruppentabellen und die Dritte-Wertung hinweg, damit
+   sie untereinander fluchten. Außerdem Header-Zahlenspalten rechtsbündig,
+   damit Überschrift und Werte immer dieselbe Ausrichtung haben (User-
+   Hinweis: bei „Pkt." lag die Überschrift mittig, die Zahl ganz rechts —
+   30px Versatz). Pl. + Team linksbündig, der Rest rechtsbündig. */
+.t-standings-table,
+.t-thirds-table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.t-standings-table col,
+.t-thirds-table col {
+  box-sizing: border-box;
+}
+.t-standings-table th,
+.t-standings-table td,
+.t-thirds-table th,
+.t-thirds-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap; /* P2 (2026-08-24): kein Wort-Umbruch in
+                                     schmalen %-Spalten — sonst laufen die
+                                     Überschriften GRUPPE/SP. zu GRUSPE ineinander. */
+  overflow: hidden;
+  text-overflow: ellipsis; /* lange Werte als … kürzen statt umbrechen */
+}
+.t-standings-table th,
+.t-thirds-table th {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Numerische Zellen + ihre Überschriften rechtsbündig.
+   Bug 14: vorher waren die <th> linksbündig (Default), die <td>
+   rechtsbündig — bei kurzen Überschriften wie „Pkt." entsteht
+   sofort der Versatz. Jetzt: gleiche text-align-Eigenschaft für
+   <th> und <td> in jeder Zahlenspalte. */
+.t-standings-table .t-standings-num,
+.t-standings-table th.is-num,
+.t-thirds-table .t-thirds-num,
+.t-thirds-table th.is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.t-standings-table .t-standings-rank,
+.t-standings-table th.is-rank,
+.t-thirds-table .t-thirds-rank,
+.t-thirds-table th.is-rank {
+  text-align: right;
+  color: var(--muted);
+  /* User-Punkt 1 (2026-08-25): nowrap/ellipsis auf der Rank-Zelle
+     rausnehmen. Bei 2-3 Zeichen kann nichts umbrechen — die Regel
+     kürzt hier nur unnötig. Vorher führte das auf Mobile zu "1…" /
+     "P…" weil die Spalte zu schmal war UND die Zelle nichts umbrechen
+     durfte. Mit 14% Pl-Breite ist die Zelle jetzt breit genug für
+     "10." und "Pl.", nowrap/ellipsis ist Ballast. Die globale Regel
+     oben bleibt für die schmalen %-Spalten (Sp/S/U/N) aktiv. */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.t-standings-table .t-standings-team,
+.t-standings-table th.is-team,
+.t-thirds-table .t-thirds-team,
+.t-thirds-table th.is-team {
+  text-align: left;
+}
+.t-standings-table .t-standings-num.is-positive,
+.t-thirds-table .t-thirds-num.is-positive {
+  color: #2e7d32;
+}
+.t-standings-table .t-standings-num.is-negative,
+.t-thirds-table .t-thirds-num.is-negative {
+  color: #c62828;
+}
+.t-standings-table .t-standings-num.is-points,
+.t-thirds-table .t-thirds-num.is-points {
+  font-weight: 700;
+  color: var(--text2);
+}
+/* Bug 14 (2026-08-18): Spaltenbreiten-Fallback für Markup ohne
+   <colgroup>. Der Renderer setzt die Breiten inzwischen explizit
+   per <col>-Element (alle drei Tabellen gleich), aber für eventuelle
+   alte Instanzen ohne colgroup bleiben diese Werte aktiv. Pl. + Mark
+   schmal, Team groß, Gruppe mittig, Zahlenspalten gleich verteilt. */
+.t-standings-table .t-standings-rank,
+.t-thirds-table .t-thirds-rank {
+  width: 44px;
+}
+.t-thirds-table .t-thirds-group {
+  width: 64px;
+}
+.t-standings-table .t-standings-num,
+.t-thirds-table .t-thirds-num {
+  width: 8%;
+}
+
+/* P2 (2026-08-24) — Schmale Modul-Breite (Mobile): 5 unkritische
+   Spalten der Dritten-Tabelle ausblenden, damit die wichtigen Werte
+   (Pl. · Team · Gruppe · Diff · Pkt.) Platz haben. User-Forderung
+   nach Browser-Test: GRUPPE/SP. und BECHER/DIFF überlappten bei
+   360–430 px Modulbreite. Spalten haben data-col-Attribute (siehe
+   spielplan-helpers.js renderBestThirdsTable), dieser Query blendet
+   sie vollständig aus. */
+@container (max-width: 430px) {
+  /* 2026-08-25: der zusaetzliche Hide von data-col="score" (Becher) ist
+     hier RAUS. Er stammte aus P2 (24.08.), also aus der Zeit VOR dem
+     Mobile-Colgroup — damals lief die Tabelle unter allen Breiten mit dem
+     10er-Desktop-Colgroup, und das gemessene "GRUPPE/SP. und BECHER/DIFF
+     ueberlappen" war die Folge der verschobenen Spalten, nicht ein Beleg,
+     dass sechs Spalten nicht passen. Seit P5 (25.08.) hat die Tabelle
+     table-layout: fixed plus nowrap/ellipsis; Spalten koennen gar nicht
+     mehr ueberlappen, sie kuerzen.
+
+     Wichtiger noch: dieser Block hat mit dem 600er-Block unten ZWEI
+     verschiedene Mobile-Formen erzeugt (5 sichtbare Spalten hier,
+     6 dort), waehrend der Renderer nur EINE Mobile-Colgroup kennt.
+     Genau daran ist die Spaltenzuordnung zerbrochen. Es gibt jetzt eine
+     einzige Mobile-Form, definiert im 600er-Block:
+       Pl · Team · Gruppe · Becher · Diff · Pkt   (6 Spalten)
+     Passend dazu THIRDS_COL_WIDTHS_MOBILE in spielplan-helpers.js —
+     wer hier eine Spalte zusaetzlich versteckt oder wieder einblendet,
+     MUSS dort die Breitenliste mitziehen. */
+  .t-thirds-table .t-thirds-team {
+    font-size: 13px;
+  }
+}
+
+/* P5 Re-Fix (2026-08-25, User-Browser-Test): Statt Card-Layout (das
+   zwei Browser-Runden kaputt war) jetzt schlichter Spalten-Hide.
+   Zielzustand auf Mobile (≤600 px Container):
+
+     ┌──────────────────────────────────────────┐
+     │ 1  Team Alpha              9:2  +7   9   │   alles in EINER Zeile
+     │ 2  Team Beta               5:6  -1   3   │   leserlich, kein Overlap
+     └──────────────────────────────────────────┘
+
+   Verdeckt: Sp · S · U · N (4 mittlere Stats-Spalten). Bleibt sichtbar:
+   Pl · Team · Becher (gf:ga) · Diff · Pkt.
+
+   Markup bleibt unverändert — Renderer setzt data-col-Attribute
+   (spielplan-helpers.js renderStandingsGroups + renderBestThirdsTable),
+   dieser Container-Query blendet gezielt aus und schrumpft Schrift +
+   Padding, damit alles in einer Zeile passt. */
+@container (max-width: 600px) {
+  /* Tabelle kompakter, kleinere Schrift, weniger Padding. */
+  .t-mod .t-standings-table,
+  .t-mod .t-thirds-table {
+    font-size: 12px;
+  }
+  /* ----------------------------------------------------------------
+     WARUM HIER `.t-mod ` DAVORSTEHT — VIERTE KASKADENKOLLISION
+     ----------------------------------------------------------------
+     `.t-standings-table` ist ZWEIMAL definiert:
+        tournament.css:1210-1228  (Etappe B.3, Modul-Palette)
+        main.css:5808 ff.         (Bug 14, Layout-Maschinerie)
+     tournament.css wird NACH main.css geladen und setzt dort
+     unbedingt `padding: 8px 10px` und `th { font-size: 11px }`.
+     Beide Selektoren sind (0,0,2,0) — und ein @container-Block erhoeht
+     die Spezifitaet NICHT. Bei Gleichstand gewinnt die Quell-Reihen-
+     folge ueber Stylesheet-Grenzen hinweg: die spaetere Datei.
+     Ergebnis: dieser ganze Mobile-Block war fuer die Gruppentabelle
+     wirkungslos — sie behielt 11px-Ueberschriften und 10px-Polster und
+     kuerzte "BECHER" zu "BEC…", waehrend die Dritten-Tabelle daneben
+     sauber lief.
+
+     Der Beweis, dass es genau das ist: die Ausblend-Regeln weiter unten
+     tragen einen Attribut-Selektor (`th[data-col="played"]`), sind damit
+     (0,0,3,0) und haben immer funktioniert. Nur die Regeln mit (0,0,2,0)
+     fielen aus. Dieselbe Zahl entscheidet, dieselbe Falle wie beim
+     Bodenleisten-Bug in tournament.css.
+
+     `.t-mod ` ist nicht nur ein Spezifitaets-Trick, es ist auch wahr:
+     diese Tabellen existieren ausschliesslich im Turniermodul.
+
+     WER HIER ETWAS AENDERT: wer eine neue Eigenschaft in diesen Block
+     schreibt, muss pruefen, ob tournament.css sie unbedingt setzt —
+     sonst ist die neue Regel still tot. Suchbefehl:
+        grep -n "t-standings-table\|t-thirds-table" tournament.css
+     ---------------------------------------------------------------- */
+  .t-mod .t-standings-table th,
+  .t-mod .t-standings-table td,
+  .t-mod .t-thirds-table th,
+  .t-mod .t-thirds-table td {
+    /* 3px statt 4px horizontal (2026-08-25, im Browser durchgemessen).
+       Bei sechs Spalten sind das 12px, die der Inhalt zurueckbekommt —
+       genau die Spanne, in der die Ueberschriften bei 360px Viewport
+       vom Kuerzen ins Passen kippen. Vertikal bleibt 6px. */
+    padding: 6px 3px;
+  }
+
+  /* Kopfzeilen-Typografie auf Mobile knapper (2026-08-25, gemessen).
+     Der Grund ist eine Eigenart dieser Tabellen: der Platzbedarf der
+     UEBERSCHRIFTEN ist in Pixeln fix, der der Werte nicht. "GRUPPE" und
+     "BECHER" verlangen bei 11px + 0.04em Laufweite je 57px — bei 390px
+     Viewport ist die Tabelle aber nur 288px breit (Kette: 390 - 2x14
+     #content - 2x8 .t-shell - 2x12 .t-mod-main - 2x16 .t-card-body).
+     Sechs Spalten mit vollen Ueberschriften brauchen dort 77% der
+     Breite, es blieben 23% fuer die Teamnamen.
+     10px ohne Laufweite bringt die beiden auf ~47px und macht die
+     Rechnung auf. Die Ueberschriften sind Beiwerk (uppercase, --ink-soft),
+     die WERTE sind der Inhalt — an ihnen darf nicht gespart werden.
+     Gilt nur <= 600px; ab 601px ist die Tabelle breit genug fuer 11px. */
+  .t-mod .t-standings-table th,
+  .t-mod .t-thirds-table th {
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+
+  /* Entscheid Jonas, 2026-08-26: Becher faellt auf dem Handy weg,
+     dafuer kommt "Sp" zurueck. Bleibt: Pl · Team · Sp · Diff · Pkt
+     (weiter 5 Spalten, nur andere dritte).
+     Die Breitenliste STANDINGS_COL_WIDTHS_MOBILE in spielplan-helpers.js
+     ist mitgezogen — beide sind EIN Paar, sonst verschieben sich alle
+     folgenden Spalten um eins. */
+  .t-standings-table th[data-col='score'],
+  .t-standings-table th[data-col='won'],
+  .t-standings-table th[data-col='drawn'],
+  .t-standings-table th[data-col='lost'],
+  .t-standings-table td[data-col='score'],
+  .t-standings-table td[data-col='won'],
+  .t-standings-table td[data-col='drawn'],
+  .t-standings-table td[data-col='lost'] {
+    display: none;
+  }
+
+  /* Beste-Dritte: Sp · S · U · N ausblenden — dieselben vier wie bei
+     Standings. Bleibt: Pl · Team · Gruppe · Becher · Diff · Pkt
+     (6 Spalten). Das ist die EINZIGE Mobile-Form der Tabelle; der
+     (Stand 26.08.: Becher ist raus, es sind fuenf.) Der
+     frueher hier beschriebene "Konflikt mit dem 430-Block" ist am
+     25.08. aufgeloest worden (siehe Kommentar im 430er-Block oben).
+     Die Spaltenzahl haengt an THIRDS_COL_WIDTHS_MOBILE in
+     spielplan-helpers.js — beide muessen zusammen geaendert werden. */
+  .t-thirds-table th[data-col='score'],
+  .t-thirds-table th[data-col='played'],
+  .t-thirds-table th[data-col='won'],
+  .t-thirds-table th[data-col='drawn'],
+  .t-thirds-table th[data-col='lost'],
+  .t-thirds-table td[data-col='score'],
+  .t-thirds-table td[data-col='played'],
+  .t-thirds-table td[data-col='won'],
+  .t-thirds-table td[data-col='drawn'],
+  .t-thirds-table td[data-col='lost'] {
+    display: none;
+  }
+
+  /* Punkte-Spalte rechts ausrichten, mehr Gewicht. */
+  .t-standings-num.is-points,
+  .t-thirds-num.is-points {
+    font-weight: 700;
+    text-align: right;
+  }
+}
+/* Qualifikations-Marker der GRUPPENTABELLE — mit A3 entfernt (2026-08-25).
+   Hier standen bis dahin:
+     .t-standings-row.is-first  { background: rgba(46,125,50,.06) }
+     .t-standings-row.is-second { background: rgba(255,152,0,.05) }
+     .t-standings-row.is-first/.is-second .t-standings-rank::after
+                                { content: " ✓" }
+   Der Redesign-Plan (Teil 1, A3) verlangt fuer die Gruppentabelle
+   ausdruecklich „kein Stern, kein Pfeil, kein Haekchen — nur
+   Hinterlegung und Trennlinie". Beide Signale liegen jetzt in
+   tournament.css auf `.t-standings-row.is-qualified/.is-pending/.is-cutoff`,
+   also dort, wo auch die uebrige Modul-Palette steht.
+
+   Die Klassen `is-first`/`is-second` erzeugt der Renderer nicht mehr —
+   sie kodierten „immer genau zwei steigen auf" und waren bei
+   qualifyPerGroup 1 oder 3 falsch. Wer sie hier wieder einfuehrt, baut
+   diese Annahme zurueck.
+
+   Der Haken der DRITTEN-Tabelle bleibt (naechster Block): dort ist er
+   kein Rang-Marker, sondern sagt, wer von den Drittplatzierten die
+   Top-N-Huerde genommen hat — eine andere Aussage, eigene Pruefliste. */
+/* Dritte-Wertung: der Haken wanderte aus einer eigenen <td class="t-thirds-mark">
+   in die Rank-Zelle, damit die Tabelle dieselbe Spalten-Aufteilung
+   wie die Gruppen-Tabelle hat (Bug 14: konsistente Spaltenanzahl). */
+.t-thirds-row.is-qualified .t-thirds-rank::after {
+  content: ' ✓';
+  margin-left: 4px;
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+/* v3: Beste-Dritte-Tabelle (Bug 9, 2026-08-18). Spec §6.3.1 + §13.7.
+   Eigene Karte UNTER den Gruppen-Karten, zeigt pro-Spiel-normalisierte
+   Werte (Pkt/Sp, Diff/Sp) — die absoluten Werte sind zwischen Gruppen
+   unterschiedlicher Größe nicht vergleichbar. Top-N (config.bestThirds)
+   bekommen grünen Haken, der Rest ist ausgegraut. Bug #13 (2026-08-18):
+   Renderer nutzt jetzt dieselben Spalten wie die normale Gruppentabelle
+   (Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.) plus
+   eine Quali-Markierung rechts. */
+.t-thirds-card {
+  margin-top: 14px;
+}
+.t-thirds-title {
+  font-size: 13px;
+  margin: 0 0 10px 0;
+  font-weight: 700;
+  color: var(--text2);
+}
+.t-thirds-meta-inline {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 6px;
+}
+/* Bug 14 (2026-08-18): Layout, Ausrichtung und Breiten werden jetzt
+   zusammen mit den Gruppen-Tabellen oben definiert (table-layout: fixed,
+   gleiche Spalten-Aufteilung). Hier nur noch die Dritte-spezifischen
+   Spalten: Gruppe-Spalte linksbündig, schmal, muted. */
+.t-thirds-table .t-thirds-group,
+.t-thirds-table th.is-group {
+  color: var(--muted);
+  text-align: left;
+}
+.t-thirds-table .t-thirds-team {
+  font-weight: 500;
+}
+.t-thirds-row.is-qualified {
+  background: rgba(46, 125, 50, 0.06);
+}
+.t-thirds-row.is-out {
+  opacity: 0.55;
+}
+
+/* Match-Result-Modal: Heim vs Gast Header */
+.t-result-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  background: var(--bg);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.t-result-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.t-result-side-right {
+  align-items: flex-end;
+  text-align: right;
+}
+.t-result-side strong {
+  font-size: 14px;
+  color: var(--text2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.t-result-vs {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.t-team-name {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 600;
+}
+
+/* Mobile: weniger Padding, kleinere Match-Cards */
+@media (max-width: 640px) {
+  .t-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TOURNAMENT PHASE 3 — Tabs, Modern Bracket, Drag&Drop, Podium
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Toolbar (innerhalb der Tabs) */
+.t-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Teams-Tab */
+.t-team-name {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Cascade-Warnung Dialog */
+.t-cascade-warn-body {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+.t-cascade-warn-list {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* =============================================================================
+   Slice 3 — Responsive UI (§8 Spec)
+   t-shell: drei-spaltig auf Desktop, responsiv kollabierend auf Tablet/Mobile
+   ============================================================================= */
+
+.t-shell {
+  display: grid;
+  gap: clamp(12px, 2vw, 24px);
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: clamp(8px, 1.5vw, 24px);
+}
+@media (max-width: 767px) {
+  .t-shell {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  .t-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (min-width: 1200px) {
+  .t-shell {
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+  }
+}
+
+/* Hier stand bis 2026-08-25 ein Deklarationsblock OHNE Selektor
+   (display/font-size/white-space/overflow/text-overflow). Der Selektor
+   hiess `.t-schedule-match-teams`; belegt ueber `git log -L` auf diesem
+   Bereich: Commit ee847d8 ("Etappe B Aufraeumen ... Dead-Code-Cleanup")
+   hat den kompletten S3.3-Block (.t-bracket*, .t-schedule-grid,
+   .t-schedule-cell, .t-schedule-match*) geloescht, ist dabei aber eine
+   Zeile zu frueh stehengeblieben: die Selektorzeile
+   `.t-schedule-match-teams {` fiel weg, ihr Rumpf blieb liegen.
+   Der Selektor wird NICHT wiederhergestellt -- er gehoerte zu genau dem
+   toten Spielplan-Raster, das der Cleanup entfernen sollte; die Klasse
+   kommt heute in keinem HTML/JS mehr vor (geprueft ueber public/**).
+   Damit ist der Rumpf ebenfalls tot und faellt weg. Nebeneffekt: die
+   Klammerbilanz der Datei war -2 (eine Klammer hier, eine bei
+   .t-thirds-row.is-out weiter oben) und steht jetzt auf 0.
+   NACHTRAG 2026-08-26: Ein roher Klammer-Zaehler (oeffnende minus
+   schliessende) meldet fuer diese Datei trotzdem +1. Das ist ein
+   Messfehler, kein Defekt: die eine ueberzaehlige oeffnende Klammer
+   steht sieben Zeilen weiter oben IN DIESEM KOMMENTAR, im dort
+   zitierten Selektor. Wer nachmisst, muss Kommentare und Strings
+   vorher maskieren -- dann ist die Bilanz 0. */
+
+/* S4.3 — Match-Detail-Panel: Notiz, Foto, Audit-Log */
+.t-match-audit {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.t-match-audit li {
+  padding: 6px 8px;
+  border-bottom: 1px dashed var(--border);
+  color: var(--muted);
+}
+.t-match-audit li:last-child {
+  border-bottom: none;
+}
+.t-match-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.t-match-photos img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.t-match-audit-details summary {
+  cursor: pointer;
+  padding: 8px 0;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* S3.6 — prefers-reduced-motion: alle Animationen neutralisieren */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* S3.4 — Match-Karte (konsistent über alle Views) */
+.t-match-card {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.t-match-card[role='button'] {
+  cursor: pointer;
+}
+.t-match-card[role='button']:hover {
+  background: var(--bg-3);
+}
+.t-match-card.is-completed {
+  border-color: #c8e6c9;
+}
+.t-match-card.is-live {
+  border-color: #ef5350;
+  box-shadow: 0 0 0 1px rgba(239, 83, 80, 0.3);
+}
+.t-match-home {
+  text-align: right;
+}
+.t-match-away {
+  text-align: left;
+}
+.t-match-score {
+  font-weight: 700;
+  padding: 2px 8px;
+  background: var(--bg-1);
+  border-radius: 4px;
+}
+
+/* ================================================================
+   DRUCKLAYOUT — App-Rahmen (2026-08-25)
+   ================================================================
+   Der modulspezifische Teil steht in tournament.css; hier faellt nur
+   das weg, was zur APP gehoert und auf keinem Ausdruck etwas verloren
+   hat: Kopfleiste, Seitenleiste, Hamburger, Toasts, Modals.
+   Bewusst NICHT auf das Turniermodul eingeschraenkt (kein
+   body:has(.t-mod)): eine Kopfleiste mit Suchfeld gehoert auf keinem
+   Ausdruck dieser App aufs Papier, egal welche Seite gedruckt wird.
+
+   #content ist der echte Seiten-Scroller (siehe P7-Kommentar oben) —
+   im Druck muessen seine overflow- und padding-Klammern fallen,
+   sonst endet der Ausdruck nach der ersten Seite. */
+@media print {
+  #header,
+  #sidebar,
+  .hamburger-btn,
+  .toast,
+  .toast-wrap,
+  .modal,
+  .modal-bg,
+  .dlg-bg,
+  .upload-fab {
+    display: none !important;
+  }
+  /* Papier hat genau EIN Thema — siehe die ausfuehrliche Begruendung
+     im Druck-Block von tournament.css. Hier derselbe Schnitt fuer die
+     App-Tokens; [data-theme=dark] muss mitgenannt werden, weil der
+     Dunkel-Block ganz oben dieselbe Spezifitaet hat. */
+  :root,
+  [data-theme='dark'] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --border: #999999;
+    --border2: #666666;
+    --text: #000000;
+    --text2: #222222;
+    --muted: #3a3a3a;
+    --muted2: #666666;
+    --shadow: none;
+    --shadow2: none;
+  }
+  html,
+  body {
+    background: #fff;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  #app,
+  #app.show {
+    display: block;
+    padding-top: 0;
+    min-height: 0;
+  }
+  #body-wrap {
+    display: block;
+    overflow: visible;
+    min-height: 0;
+  }
+  #content {
+    padding: 0;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
 }

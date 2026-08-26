@@ -5,7 +5,56 @@
   logout,
   apiCall,
   fetchWithAuth,
+  onSessionExpired,
+  forceReauth,
 } from './auth-oidc.js';
+import {
+  renderWizardView,
+  persistConfig,
+  buildGeneratePayload,
+  ensureDraftPromise,
+  syncTeamsToBackend,
+  tournamentStatusPhase,
+  tournamentPhaseLabel,
+  tournamentStatusLabel,
+  tournamentModeLabel,
+  TOURNAMENT_PHASE_ORDER,
+  openConfirmDialog,
+  uploadTournamentLogo,
+  deleteTournamentLogo,
+} from './tournament.js';
+import {
+  sortMatchesBySchedule,
+  applySpielplanFilter,
+  renderFilterChips,
+  renderMatchList,
+  renderAsideNext,
+  renderAsideTables,
+  applyPropagatedMatches,
+  renderStandingsGroups,
+  renderBestThirdsTable,
+  ensureTModResizeObserver,
+} from './spielplan-helpers.js';
+import { renderRulesParagraphs } from './rules-helpers.js';
+import {
+  renderModulKopf,
+  renderSpielplanSectionHead,
+  renderRegelnSectionHead,
+  renderEinstellungenSection,
+  renderDetailSidebar,
+  filterMemberViews,
+  renderTournamentListCard,
+} from './tournament-render.js';
+// Dialoge, die an document.body hängen: Token-Vererbung + Tastatur +
+// Fokus-Rückgabe an EINER Stelle (A5, 2026-08-25).
+import {
+  DIALOG_HOST_CLASS,
+  DIALOG_TOKEN_CLASSES,
+  captureDialogTrigger,
+  restoreDialogTrigger,
+  isDialogCloseKey,
+  isDialogSubmitKey,
+} from './dialog-host.js';
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║         🔐  OIDC AUTHENTICATION (via auth-oidc.js)      ║
@@ -92,6 +141,10 @@ let allProfiles = {},
 let feedPosts = [];
 let feedSkip = 0;
 let feedHasMore = false;
+let tournamentInstances = [];
+let currentTournamentListIsAdmin = false;
+let activeTournamentInstance = null;
+let curTournamentView = 'instances';
 let allAlbums = [];
 let urlCache = {};
 let lbIdx = 0,
@@ -108,6 +161,7 @@ let profileDeletionCandidatesLoaded = false;
 const sidebarUiState = {
   fotosExpanded: false,
   feedExpanded: true,
+  tournamentsExpanded: false,
 };
 const FEED_PAGE_SIZE = 20;
 const FEED_VIEWS = new Set(['all', 'mine', 'mentions', 'saved']);
@@ -138,6 +192,14 @@ let feedMentionState = {
 
 function normalizeFeedView(view) {
   return FEED_VIEWS.has(view) ? view : 'all';
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function normalizeTournamentView(view) {
+  return view === 'instances' ? view : 'dashboard';
 }
 
 function sanitizeFeedPostId(value) {
@@ -407,15 +469,17 @@ function getLastModuleStorageKey(groupId = curGroupId) {
 }
 
 function readLastModuleState(groupId = curGroupId) {
-  const fallback = { module: 'feed', feedView: 'all' };
+  const fallback = { module: 'feed', feedView: 'all', tournamentView: 'dashboard' };
   try {
     const raw = localStorage.getItem(getLastModuleStorageKey(groupId));
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return fallback;
-    const module = parsed.module === 'photos' ? 'photos' : 'feed';
+    const allowedModules = new Set(['feed', 'photos', 'tournaments']);
+    const module = allowedModules.has(parsed.module) ? parsed.module : 'feed';
     const feedView = normalizeFeedView(parsed.feedView);
-    return { module, feedView };
+    const tournamentView = normalizeTournamentView(parsed.tournamentView);
+    return { module, feedView, tournamentView };
   } catch {
     return fallback;
   }
@@ -425,14 +489,20 @@ function applyLastModuleState(groupId = curGroupId) {
   const state = readLastModuleState(groupId);
   curModule = state.module;
   curFeedView = state.feedView;
+  curTournamentView = normalizeTournamentView(state.tournamentView);
   sidebarUiState.feedExpanded = curModule === 'feed';
   sidebarUiState.fotosExpanded = curModule === 'photos';
+  sidebarUiState.tournamentsExpanded = curModule === 'tournaments';
 }
 
 function saveLastModuleState(groupId = curGroupId) {
   try {
-    const module = curModule === 'photos' ? 'photos' : 'feed';
-    const payload = { module, feedView: normalizeFeedView(curFeedView) };
+    const module = ['feed', 'photos', 'tournaments'].includes(curModule) ? curModule : 'feed';
+    const payload = {
+      module,
+      feedView: normalizeFeedView(curFeedView),
+      tournamentView: normalizeTournamentView(curTournamentView),
+    };
     localStorage.setItem(getLastModuleStorageKey(groupId), JSON.stringify(payload));
   } catch {
     // Ignore localStorage failures
@@ -553,10 +623,62 @@ const ICON_HISTORY = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none
 const ICON_MORE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
 const ICON_CHEVRON_RIGHT = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`;
 const ICON_GEAR = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const ICON_EDIT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
 const ICON_UPLOAD = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
 const ICON_HAMBURGER = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`;
 const ICON_FULLSCREEN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 const ICON_SHRINK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+// ── Tab-Bar-Icons (P3, 2026-08-24) ─────────────────────────────────
+// Bottom-Bar auf ≤600 px Modulbreite. Stil identisch zu den vorhandenen
+// Icons oben: viewBox 0 0 24 24, fill="none", stroke="currentColor",
+// stroke-width="2", stroke-linecap/linejoin="round", 22 px. Farbe über
+// currentColor → Nachtmodus-kompatibel.
+//
+// Quelle: Lucide (https://lucide.dev), ISC-Lizenz. User-Wunsch 2026-08-24
+// nach Browser-Screenshot — die selbst gezeichneten SVG-Pfade (z.B. der
+// Bracket mit Boxen + Verbindungspfad) waren inkonsistent mit dem Rest
+// der App. Lucide bietet einen einheitlichen Stil mit klarer Geometrie.
+//
+// Width/height wird absichtlich weggelassen — CSS setzt 22 px via
+// `.t-mod-tab svg` und `.t-mod-more-list svg` (Lucide-SVGs sind
+// standardmäßig 24 px, werden per CSS skaliert).
+// Dasselbe Zeichen wie ICON_TAB_BRACKET, aber mit fester Groesse.
+// Die Leisten-Icons (ICON_GRID, ICON_LINK, ...) tragen ihre Masse als
+// Attribut, weil `.fb .fi` keine svg-Regel hat; die Reiter-Icons lassen
+// sie bewusst weg, weil `.t-mod-tab svg` dort 22px setzt. Wer das
+// Reiter-Icon ungeprueft in die Leiste haengt, bekommt ein SVG in
+// Standardgroesse — 300x150 statt 15x15.
+const ICON_MODULE_TOURNAMENT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`;
+
+const ICON_TAB_GAMES = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></svg>`; // list-checks
+const ICON_TAB_GROUPS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>`; // table-2
+// ICON_TAB_BRACKET dient doppelt: als Reiter fuer "Der Weg zum Titel"
+// UND als Symbol des Moduls in der Seitenleiste. Dort stand bis zum
+// 26.08. ein Emoji (🏆) — als einziger Eintrag der Leiste, alle anderen
+// tragen ein gezeichnetes Icon. Deshalb fiel es heraus, unabhaengig
+// davon, WELCHES Emoji es war.
+//
+// Kein Pokal: der steht fuer den Sieg, nicht fuer die Sache. Das Modul
+// heisst "Turniere" und zeigt meistens einen Spielplan; das Baum-Zeichen
+// sagt genau das. Ein Zeichen, zwei Orte, dieselbe Bedeutung.
+//
+// Nebenwirkung, die den Ausschlag gab: ein SVG nimmt currentColor an und
+// wird im aktiven Zustand orange wie die uebrigen Eintraege. Ein Emoji
+// bleibt immer bunt und ignoriert den Nachtmodus.
+const ICON_TAB_BRACKET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>`; // git-fork
+const ICON_TAB_MORE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`; // more-horizontal
+
+// Sheet-Item-Icons (Bottom-Sheet "Mehr"). Selbe Größe/Stil wie Tab-Icons,
+// ebenfalls Lucide.
+const ICON_SHEET_TEAMS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>`; // users
+const ICON_SHEET_THIRDS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`; // trophy
+const ICON_SHEET_RULES = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>`; // book-open
+const ICON_SHEET_PRINT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`; // printer
+const ICON_SHEET_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`; // settings
+const ICON_SHEET_BACK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`; // arrow-left
+const ICON_SHEET_NEU = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`; // plus
+const ICON_RELOAD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>`; // rotate-cw
 
 // ── TOAST NOTIFICATIONS ─────────────────────────────────
 function toast(msg, type = 'info') {
@@ -568,7 +690,160 @@ function toast(msg, type = 'info') {
   setTimeout(() => t.remove(), 3600);
 }
 
+// ── SITZUNGSENDE: EINGABEN UEBERLEBEN ───────────────────
+// Punkt 4.2 der Uebergabe. Der Kern ist NICHT die Meldung, sondern
+// dass die eingetippten Werte bleiben. Sie ueberleben jetzt auf zwei
+// Wegen, und beide werden gebraucht:
+//
+//   1. Der Dialog bleibt STEHEN. auth-oidc.js leitet beim
+//      gescheiterten Refresh nicht mehr selbst um; das 3:2 steht
+//      also weiter in den Feldern, und nach dem Anmelden in einem
+//      zweiten Tab reicht ein erneutes „Speichern".
+//   2. Wer sich neu anmeldet, verlaesst die Seite — dann traegt
+//      der sessionStorage die Werte durch den Authentik-Umweg.
+//      sessionStorage lebt pro Tab und ueberdauert die
+//      Weiterleitung; genau so kommt auch der accessToken zurueck.
+const PENDING_RESULT_KEY = 'tournament:pendingResultInput';
+// Zwei Stunden: laenger als jede Anmelde-Schleife, kuerzer als ein
+// Turniertag. Ein Entwurf von heute Vormittag darf nicht in das
+// Spiel von heute Nachmittag rutschen.
+const PENDING_RESULT_MAX_ALTER_MS = 2 * 60 * 60 * 1000;
+
+function safeSessionStorage() {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch (e) {
+    return null; // Privater Modus / blockierte Speicherung
+  }
+}
+
+/**
+ * Sichert die Eingaben des offenen Ergebnis-Dialogs.
+ * @returns {boolean} true, wenn wirklich etwas zu sichern war
+ */
+function stashPendingResultInput() {
+  const store = safeSessionStorage();
+  const dlg = document.getElementById('result-entry-modal');
+  if (!store || !dlg) return false;
+  const scoreHome = dlg.querySelector('#re-home')?.value ?? '';
+  const scoreAway = dlg.querySelector('#re-away')?.value ?? '';
+  if (scoreHome === '' && scoreAway === '') return false; // nichts getippt
+  const eintrag = {
+    tournamentId: dlg.dataset.tournamentId || '',
+    matchId: dlg.querySelector('#re-match-id')?.value || '',
+    scoreHome,
+    scoreAway,
+    at: Date.now(),
+  };
+  try {
+    store.setItem(PENDING_RESULT_KEY, JSON.stringify(eintrag));
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[pendingResult] Sichern fehlgeschlagen', e);
+    return false;
+  }
+}
+
+function readPendingResultInput() {
+  const store = safeSessionStorage();
+  if (!store) return null;
+  try {
+    const roh = store.getItem(PENDING_RESULT_KEY);
+    if (!roh) return null;
+    const eintrag = JSON.parse(roh);
+    if (!eintrag || typeof eintrag !== 'object') return null;
+    if (!Number.isFinite(eintrag.at) || Date.now() - eintrag.at > PENDING_RESULT_MAX_ALTER_MS) {
+      store.removeItem(PENDING_RESULT_KEY);
+      return null;
+    }
+    return eintrag;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearPendingResultInput() {
+  const store = safeSessionStorage();
+  if (!store) return;
+  try {
+    store.removeItem(PENDING_RESULT_KEY);
+  } catch (e) {
+    /* nichts zu tun */
+  }
+}
+
+/**
+ * Holt gesicherte Eingaben in einen frisch geoeffneten
+ * Ergebnis-Dialog zurueck. Vorsichtig: nur ins richtige Turnier, nur
+ * wenn das Spiel dort ueberhaupt noch waehlbar ist.
+ *
+ * @returns {boolean} true, wenn etwas zurueckgeholt wurde
+ */
+function restorePendingResultInput(dlg, tournamentId) {
+  if (!dlg) return false;
+  const eintrag = readPendingResultInput();
+  if (!eintrag) return false;
+  if (eintrag.tournamentId && eintrag.tournamentId !== tournamentId) return false;
+  const matchEl = dlg.querySelector('#re-match-id');
+  if (eintrag.matchId && matchEl) {
+    if (matchEl.tagName === 'SELECT') {
+      const gibtEs = Array.from(matchEl.options).some((o) => o.value === eintrag.matchId);
+      // Das Spiel ist inzwischen gespielt oder weg — dann gehoert der
+      // Entwurf nicht mehr hierher.
+      if (!gibtEs) return false;
+      matchEl.value = eintrag.matchId;
+      matchEl.dispatchEvent(new Event('change'));
+    } else if (matchEl.value && matchEl.value !== eintrag.matchId) {
+      return false; // anderes Spiel vorgegeben
+    }
+  }
+  const homeEl = dlg.querySelector('#re-home');
+  const awayEl = dlg.querySelector('#re-away');
+  if (homeEl && eintrag.scoreHome !== '') homeEl.value = eintrag.scoreHome;
+  if (awayEl && eintrag.scoreAway !== '') awayEl.value = eintrag.scoreAway;
+  clearPendingResultInput();
+  toast('Deine zuletzt eingetippten Werte sind wieder da — bitte pruefen und speichern.', 'info');
+  return true;
+}
+
+/**
+ * Meldung beim Sitzungsende. Leitet NICHT von selbst um — genau das
+ * war der Schaden: die Weiterleitung nahm die Eingabe mit, bevor
+ * jemand sie lesen konnte.
+ */
+let sessionExpiredDialogOffen = false;
+async function handleSessionExpired() {
+  if (sessionExpiredDialogOffen) return;
+  sessionExpiredDialogOffen = true;
+  const gesichert = stashPendingResultInput();
+  try {
+    const text = gesichert
+      ? 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Deine eingetippten Werte sind gesichert: sie stehen weiter im Dialog und kommen nach dem Anmelden von selbst zurueck.'
+      : 'Deine Anmeldung ist abgelaufen — der Server nimmt gerade nichts mehr an. Was du bereits gespeichert hast, ist sicher. Melde dich neu an, um weiterzuarbeiten.';
+    const ok = await showConfirmDlg('Anmeldung abgelaufen', text, 'Neu anmelden', 'Spaeter', false);
+    if (ok) await forceReauth();
+  } finally {
+    sessionExpiredDialogOffen = false;
+  }
+}
+
 // ── BOOT ─────────────────────────────────────────────────
+// Issue 2: Beim Tab-Schließen das Wizard-Flag zurücksetzen.
+// pagehide feuert zuverlässiger als beforeunload (auch bei Back/Forward
+// und bei reload), und wir können hier kein async-Cleanup mehr
+// absetzen — das Flag selbst ist die kritische Information.
+window.addEventListener('pagehide', () => {
+  wizardMounted = null;
+});
+
+// Sitzungsende: einmal je Seitenleben anmelden. Der Horcher steht
+// vor allem anderen, damit auch ein Ablauf waehrend des Startens
+// gemeldet wird statt still zu verpuffen.
+onSessionExpired(() => {
+  handleSessionExpired();
+});
+
 window.addEventListener('load', async () => {
   hide('loading');
   show('auth-page');
@@ -799,8 +1074,10 @@ async function startApp() {
   // Load basic UI (albums, etc. - for now kept simple)
   curModule = 'feed';
   curFeedView = 'all';
+  curTournamentView = 'instances';
   sidebarUiState.fotosExpanded = false;
   sidebarUiState.feedExpanded = true;
+  sidebarUiState.tournamentsExpanded = false;
   curFolder = SHARED;
   curAlbum = null;
   curFilter = null;
@@ -855,9 +1132,10 @@ async function startApp() {
   setTimeout(() => renderSidebar(), 100);
   loadAppVersion();
 
-  // Fotos laden
+  // Inhalt laden
   if (curGroupId) {
     if (curModule === 'feed') await loadFeedPosts(true);
+    else if (curModule === 'tournaments') await loadActiveTournamentView(true);
     else await loadPhotos(true);
   } else toast('Keine Gruppe gefunden – ein Album wird automatisch erstellt.', 'info');
 
@@ -966,16 +1244,25 @@ function renderSidebar() {
       ? `${allMembers.length}/${curGroup.maxMembers}`
       : null;
 
-  if (sidebarUiState.feedExpanded && sidebarUiState.fotosExpanded) {
-    if (curModule === 'photos') sidebarUiState.feedExpanded = false;
-    else sidebarUiState.fotosExpanded = false;
+  const expandedModules = [
+    sidebarUiState.feedExpanded ? 'feed' : null,
+    sidebarUiState.fotosExpanded ? 'photos' : null,
+    sidebarUiState.tournamentsExpanded ? 'tournaments' : null,
+  ].filter(Boolean);
+  if (expandedModules.length > 1) {
+    sidebarUiState.feedExpanded = curModule === 'feed';
+    sidebarUiState.fotosExpanded = curModule === 'photos';
+    sidebarUiState.tournamentsExpanded = curModule === 'tournaments';
   }
   const activeHomeModule = sidebarUiState.feedExpanded
     ? 'feed'
     : sidebarUiState.fotosExpanded
       ? 'photos'
-      : null;
+      : sidebarUiState.tournamentsExpanded
+        ? 'tournaments'
+        : null;
   const fotosExpanded = sidebarUiState.fotosExpanded;
+  const tournamentsExpanded = sidebarUiState.tournamentsExpanded;
 
   $('sidebar').innerHTML = `
     <span class="sb-label">Home</span>
@@ -1018,6 +1305,10 @@ function renderSidebar() {
     </button>`
         : ''
     }
+    <button class="fb ${activeHomeModule === 'tournaments' ? 'module-active' : ''}" onclick="switchToTournamentInstances()">
+      <span class="fi">${ICON_MODULE_TOURNAMENT}</span>
+      <span class="fn">Turniere</span>
+    </button>
     <div class="sb-div"></div>
     ${
       activeHomeModule === 'feed'
@@ -1453,9 +1744,13 @@ async function loadSidebarAvatars() {
   // No-op: avatarHtml() is used directly in renderSidebar() now
 }
 async function switchFolder(f) {
+  // BUGFIX Header-Button: vor jeder Auswahl in den Foto-Kontext
+  // zentral aufräumen — keine Turnier-Header-Buttons stehen lassen.
+  await teardownWizard();
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
   sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   curAlbum = null;
   curFilter = f;
@@ -1465,9 +1760,11 @@ async function switchFolder(f) {
   await loadPhotos(true);
 }
 async function switchAlbum(id) {
+  await teardownWizard();
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
   sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   curAlbum = id;
   curFilter = null;
@@ -1501,6 +1798,10 @@ function isCurrentGroupModerator() {
   if (!group) return false;
   if (group.createdBy === me.id) return true;
   return groupDeputies.some((d) => d.id === me.id);
+}
+
+function canManageTournamentPresetsInCurrentGroup() {
+  return isCurrentGroupModerator();
 }
 
 function canDeletePhotoInCurrentGroup(photo) {
@@ -1540,7 +1841,7 @@ function updateUploadShortcutVisibility() {
 
 function setContentMode(mode) {
   const row2 = document.querySelector('.gal-row2');
-  if (row2) row2.style.display = mode === 'feed' ? 'none' : '';
+  if (row2) row2.style.display = mode === 'feed' || mode === 'tournaments' ? 'none' : '';
 }
 
 function clearModuleContentActions() {
@@ -1548,6 +1849,12 @@ function clearModuleContentActions() {
   if (albumAddBtn) albumAddBtn.remove();
   const albumSettingsBtn = document.getElementById('album-rename-btn');
   if (albumSettingsBtn) albumSettingsBtn.remove();
+  const albumShareBtn = document.getElementById('album-share-btn');
+  if (albumShareBtn) albumShareBtn.remove();
+  const tournamentRefreshBtn = document.getElementById('tournament-refresh-btn');
+  if (tournamentRefreshBtn) tournamentRefreshBtn.remove();
+  const tournamentNewInstanceBtn = document.getElementById('tournament-new-instance-btn');
+  if (tournamentNewInstanceBtn) tournamentNewInstanceBtn.remove();
 }
 
 function renderNoModuleOpenState() {
@@ -1578,40 +1885,111 @@ function renderNoModuleOpenState() {
 }
 
 function hasAnyOpenModule() {
-  return !!(sidebarUiState.fotosExpanded || sidebarUiState.feedExpanded);
+  return !!(
+    sidebarUiState.fotosExpanded ||
+    sidebarUiState.feedExpanded ||
+    sidebarUiState.tournamentsExpanded
+  );
 }
 
-async function switchToFeed(view = 'all') {
+async function switchToFeed(view = 'all', { closeSidebarFirst = true } = {}) {
   clearFeedPostTargetState({ removeUrl: true });
   curModule = 'feed';
   curFeedView = normalizeFeedView(view);
   sidebarUiState.feedExpanded = true;
   sidebarUiState.fotosExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
-  closeSidebar();
+  if (closeSidebarFirst) closeSidebar();
   renderSidebar();
+  // Issue 2: Wizard zumachen, falls er noch offen war — ohne diese
+  // Zeile hängt das Flag beim nächsten „Neues Turnier"-Klick.
+  await teardownWizard();
   await loadFeedPosts(true);
+}
+
+async function switchToTournaments(view = 'instances', { closeSidebarFirst = true } = {}) {
+  curModule = 'tournaments';
+  curTournamentView = normalizeTournamentView(view);
+  sidebarUiState.feedExpanded = false;
+  sidebarUiState.fotosExpanded = false;
+  sidebarUiState.tournamentsExpanded = true;
+  saveLastModuleState();
+  if (closeSidebarFirst) closeSidebar();
+  renderSidebar();
+  // Issue 2: Auch beim Wechsel INNERHALB des Turniermoduls (Dashboard
+  // ↔ Instanzen) den Wizard zumachen, sonst zeigt der Klick auf
+  // „Neues Turnier" fälschlich „Wizard ist bereits offen".
+  await teardownWizard();
+  await loadActiveTournamentView(true);
+}
+
+/**
+/**
+ * Zurueck in die Turnier-Uebersicht.
+ *
+ * Nimmt seit dem 26.08. keine Optionen mehr entgegen: solange es den
+ * Auto-Sprung gab, brauchte der Aufrufer ein `forceList`, um ihn zu
+ * unterdruecken. Ohne Sprung gibt es nichts zu unterdruecken — die
+ * Uebersicht ist einfach die Uebersicht.
+ */
+async function switchToTournamentInstances() {
+  // Gegenrichtung zum Aufbau in openTournamentInstance: wer die Liste
+  // oeffnet, ist in keinem Turnier mehr. Ohne dieses Zuruecksetzen bliebe
+  // das Gate der Kopfleiste auf „Detail offen" stehen und der
+  // Erstellen-Knopf fehlte dort, wo er hingehoert.
+  activeTournamentInstance = null;
+  await switchToTournaments('instances');
+}
+
+/**
+ * Zentraler Modul-Wechsel auf „Fotos".
+ *
+ * BUGFIX Header-Button: Lief der User vorher im Turniermodul und hat
+ * dort auf „Neues Turnier" geklickt, blieben die Turnier-Header-Buttons
+ * (über die renderTournamentHeaderActions() ans DOM gehängt wurden)
+ * stehen, wenn er dann in die Foto-Ansicht wechselte. Die alte Logik
+ * hatte fünf verstreute Stellen (toggleSidebarFeed/Fotos/Tournaments,
+ * switchToUser, openPhotoInFotosModule), an denen curModule = 'photos'
+ * gesetzt wurde — aber KEINE rief teardownWizard() auf.
+ *
+ * Diese Funktion ist die einzige Stelle, an der das Aufräumen passiert.
+ * Wer auch immer curModule = 'photos' setzt, delegiert hierher.
+ *
+ * closeSidebar: false (default) — Aufrufer innerhalb einer Sidebar-Toggle
+ * Logik (toggleSidebar*) wollen die Sidebar nicht schließen. Wer von
+ * außerhalb kommt (z.B. ein Foto-Deep-Link), kann true übergeben.
+ */
+async function switchToPhotos({ closeSidebarFirst = false } = {}) {
+  // Zentrales Aufräumen VOR dem Wechsel. Idempotent — wenn nichts zu
+  // tun ist (kein Wizard-Mount, keine Header-Buttons), bleibt sie
+  // wirkungslos. Damit ist egal, von wo aus wir kommen: feed,
+  // tournaments, profil eines users, etc.
+  await teardownWizard();
+  curModule = 'photos';
+  sidebarUiState.fotosExpanded = true;
+  sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
+  saveLastModuleState();
+  if (closeSidebarFirst) closeSidebar();
+  renderSidebar();
+  await loadPhotos(true);
 }
 
 async function toggleSidebarFeed() {
   sidebarUiState.feedExpanded = !sidebarUiState.feedExpanded;
   if (sidebarUiState.feedExpanded) {
-    sidebarUiState.fotosExpanded = false;
-    curModule = 'feed';
-    if (!curFeedView) curFeedView = 'all';
-    curFeedView = normalizeFeedView(curFeedView);
-    saveLastModuleState();
-    renderSidebar();
-    await loadFeedPosts(true);
+    await switchToFeed('all', { closeSidebarFirst: false });
     return;
   }
 
   if (curModule === 'feed') {
     if (sidebarUiState.fotosExpanded) {
-      curModule = 'photos';
-      saveLastModuleState();
-      renderSidebar();
-      await loadPhotos(true);
+      await switchToPhotos();
+      return;
+    }
+    if (sidebarUiState.tournamentsExpanded) {
+      await switchToTournaments('instances');
       return;
     }
     renderSidebar();
@@ -1625,20 +2003,47 @@ async function toggleSidebarFeed() {
 async function toggleSidebarFotos() {
   sidebarUiState.fotosExpanded = !sidebarUiState.fotosExpanded;
   if (sidebarUiState.fotosExpanded) {
-    sidebarUiState.feedExpanded = false;
-    curModule = 'photos';
-    saveLastModuleState();
-    renderSidebar();
-    await loadPhotos(true);
+    await switchToPhotos();
     return;
   }
 
   if (curModule === 'photos') {
     if (sidebarUiState.feedExpanded) {
-      curModule = 'feed';
-      saveLastModuleState();
-      renderSidebar();
-      await loadFeedPosts(true);
+      await switchToFeed('all', { closeSidebarFirst: false });
+      return;
+    }
+    if (sidebarUiState.tournamentsExpanded) {
+      await switchToTournaments('instances', { closeSidebarFirst: false });
+      return;
+    }
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  if (!hasAnyOpenModule()) {
+    renderSidebar();
+    renderNoModuleOpenState();
+    return;
+  }
+
+  renderSidebar();
+}
+
+async function toggleSidebarTournaments() {
+  sidebarUiState.tournamentsExpanded = !sidebarUiState.tournamentsExpanded;
+  if (sidebarUiState.tournamentsExpanded) {
+    await switchToTournaments('instances', { closeSidebarFirst: false });
+    return;
+  }
+
+  if (curModule === 'tournaments') {
+    if (sidebarUiState.feedExpanded) {
+      await switchToFeed('all', { closeSidebarFirst: false });
+      return;
+    }
+    if (sidebarUiState.fotosExpanded) {
+      await switchToPhotos();
       return;
     }
     renderSidebar();
@@ -1686,9 +2091,12 @@ function canShareAlbumToFeed(albumId = curAlbum) {
 }
 
 async function switchToUser(userId) {
+  // BUGFIX Header-Button: vor jedem Foto-Kontext-Wechsel zentral aufräumen.
+  await teardownWizard();
   curModule = 'photos';
   sidebarUiState.fotosExpanded = true;
   sidebarUiState.feedExpanded = false;
+  sidebarUiState.tournamentsExpanded = false;
   saveLastModuleState();
   curAlbum = null;
   curFilter = null;
@@ -1959,6 +2367,5683 @@ async function loadFeedPosts(reset = false) {
     show('empty');
   }
 }
+
+function renderTournamentHeaderActions() {
+  const uploadBtn = $('upload-btn');
+  if (!uploadBtn) return;
+
+  const existingActionButtons = ['tournament-refresh-btn', 'tournament-new-instance-btn'];
+  for (const id of existingActionButtons) {
+    const existing = document.getElementById(id);
+    if (existing) existing.remove();
+  }
+
+  // Nacharbeit (2026-08-26), Beschwerde 3: „das brauch ich da gar nicht
+  // während ich in einem turnier drin bin". `curTournamentView` bleibt
+  // beim Oeffnen eines Turniers auf 'instances' — die Detailansicht ist
+  // ein Unterzustand der Liste, kein eigener View-Wert. Der Knopf hing
+  // allein an diesem Wert und stand deshalb auch im Turnier noch da.
+  // Der zweite Zeuge ist `activeTournamentInstance`: gesetzt heisst
+  // „ein Turnier ist offen", und dann traegt der Modulkopf seine eigene
+  // Aktion. Zwei Aktionsleisten uebereinander gibt es in der Vorlage nicht.
+  const detailOffen = activeTournamentInstance !== null && activeTournamentInstance !== undefined;
+  const isInstancesView =
+    normalizeTournamentView(curTournamentView) === 'instances' && !detailOffen;
+
+  // Rechte-Prüfung, 26.08.2026: „Turnier erstellen" ist eine Admin-Aktion
+  // (POST /api/tournaments antwortet Mitgliedern mit 403). Der Knopf hing
+  // bis hierher allein an isInstancesView — ein Mitglied sah ihn also,
+  // konnte den Wizard durchlaufen und lief erst ganz am Ende in den 403.
+  //
+  // Der P1-Scan hat das nicht gefangen, weil dieser Knopf kein
+  // data-action trägt, sondern über onClick verdrahtet ist. Wer hier
+  // einen weiteren Knopf ergänzt, prüft die Rolle selbst — der Scan
+  // sieht diese Stelle nicht.
+  //
+  // Voreinstellung ist „kein Knopf": renderTournamentHeaderActions läuft
+  // einmal, BEVOR die Liste geladen und currentTournamentListIsAdmin
+  // gesetzt ist. Lieber erscheint der Knopf einen Wimpernschlag später,
+  // als dass ihn kurz jemand sieht, der ihn nicht haben darf.
+  const darfErstellen = currentTournamentListIsAdmin === true;
+
+  const actionButtons = isInstancesView
+    ? [
+        {
+          // Nacharbeit 2026-08-26 (Jonas): „aktualisieren kann bleiben
+          // jedoch kleiner mit einem reload symbol oder so". Aus der
+          // breiten Beschriftung wird ein quadratischer Icon-Knopf; die
+          // Beschriftung bleibt als aria-label und Tooltip erhalten,
+          // damit der Knopf fuer Screenreader und beim Zoegern lesbar ist.
+          id: 'tournament-refresh-btn',
+          label: 'Aktualisieren',
+          icon: ICON_RELOAD,
+          className: 'btn btn-ghost tournament-icon-btn',
+          onClick: () => loadActiveTournamentView(true),
+        },
+        ...(darfErstellen
+          ? [
+              {
+                // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
+                // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
+                // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
+                //
+                // 2026-08-26: Der Knopf steht nur noch in der UEBERSICHT, nie
+                // in einem geoeffneten Turnier — Jonas: „lieber turnier
+                // erstellen als admin in der turnierübersicht". Das Gate dafuer
+                // ist `detailOffen` weiter oben.
+                id: 'tournament-new-instance-btn',
+                label: 'Neu',
+                className: 'btn btn-primary tournament-new-instance-btn',
+                onClick: openTournamentWizard,
+              },
+            ]
+          : []),
+      ]
+    : [];
+
+  let anchor = uploadBtn;
+  for (const item of actionButtons) {
+    const btn = document.createElement('button');
+    btn.id = item.id;
+    btn.className = `${item.className} tournament-header-btn`;
+    btn.type = 'button';
+    if (item.icon) {
+      btn.innerHTML = item.icon;
+      btn.setAttribute('aria-label', item.label);
+      btn.title = item.label;
+    } else {
+      btn.textContent = item.label;
+    }
+    btn.onclick = item.onClick;
+    anchor.after(btn);
+    anchor = btn;
+  }
+}
+
+async function loadActiveTournamentView(reset = false) {
+  if (normalizeTournamentView(curTournamentView) === 'instances') {
+    await loadTournamentInstances(reset);
+    return;
+  }
+  await loadTournamentDashboard(reset);
+}
+
+async function loadTournamentDashboard(reset = false) {
+  if (curModule !== 'tournaments') return;
+  if (!sidebarUiState.tournamentsExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+
+  setContentMode('tournaments');
+  clearModuleContentActions();
+  renderTournamentHeaderActions();
+  hasMore = false;
+  hide('more-btn');
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+  const title = $('gal-title');
+  if (title) title.textContent = 'Turniere - Dashboard';
+
+  const grid = $('grid');
+  if (!grid) return;
+  if (reset) {
+    grid.className = T_LIST_GRID_CLASS;
+    grid.innerHTML =
+      '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  }
+  hide('empty');
+
+  if (!curGroupId) {
+    grid.innerHTML = `
+      <section class="tournament-page-shell">
+        <div class="tournament-empty-state">
+          <h2>Dashboard</h2>
+          <p>Hier erscheint vorerst nichts.</p>
+        </div>
+      </section>`;
+    return;
+  }
+  grid.innerHTML = `
+    <section class="tournament-page-shell">
+      <div class="tournament-empty-state">
+        <h2>Dashboard</h2>
+        <p>Hier erscheint vorerst nichts.</p>
+      </div>
+    </section>`;
+}
+
+async function loadTournamentInstances(reset = false) {
+  if (curModule !== 'tournaments') return;
+  if (!sidebarUiState.tournamentsExpanded) {
+    if (!hasAnyOpenModule()) renderNoModuleOpenState();
+    return;
+  }
+
+  setContentMode('tournaments');
+  clearModuleContentActions();
+  renderTournamentHeaderActions();
+  hasMore = false;
+  hide('more-btn');
+  const uploadBtn = $('upload-btn');
+  if (uploadBtn) uploadBtn.style.display = 'none';
+  const uploadShortcutBtn = $('upload-shortcut-btn');
+  if (uploadShortcutBtn) uploadShortcutBtn.classList.add('hidden');
+  const title = $('gal-title');
+  if (title) title.textContent = 'Turniere';
+
+  const grid = $('grid');
+  if (!grid) return;
+  if (reset) {
+    grid.className = T_LIST_GRID_CLASS;
+    grid.innerHTML =
+      '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
+  }
+  hide('empty');
+
+  if (!curGroupId) {
+    tournamentInstances = [];
+    renderTournamentInstancesPage();
+    return;
+  }
+
+  try {
+    // v3: /api/tournaments/group/:groupId — Antwort ist
+    //   { tournaments: [...], isAdmin, rawCount }
+    // Vorher haben wir `instanceData` direkt als Array behandelt —
+    // weil die Antwort ein Objekt ist, blieb tournamentInstances
+    // immer [] und die Liste zeigte 0 Turniere, obwohl die DB voll
+    // war. Jetzt extrahieren wir explizit das `tournaments`-Feld.
+    const instanceData = await apiCall(
+      `/tournaments/group/${encodeURIComponent(curGroupId)}`,
+      'GET'
+    );
+    tournamentInstances = Array.isArray(instanceData?.tournaments) ? instanceData.tournaments : [];
+    // P1 (2026-08-24, User-Liste): server-derived isAdmin pro Turnier
+    // cachen — renderTournamentInstancesPage braucht es für die Müll-Buttons.
+    currentTournamentListIsAdmin = instanceData?.isAdmin === true;
+    // Rechte-Prüfung 26.08.2026: Die Kopfleiste wurde weiter oben schon
+    // gebaut, damals ohne diesen Wert — für einen Admin fehlte der Knopf
+    // „Turnier erstellen" deshalb noch. Jetzt, wo die Rolle feststeht,
+    // einmal nachziehen.
+    renderTournamentHeaderActions();
+    // Module ist aktiv — Cache-Flag setzen
+    if (typeof window !== 'undefined') window.__tournamentModuleEnabled = true;
+
+    if (activeTournamentInstance?.id) {
+      const stillExists = tournamentInstances.some(
+        (entry) => entry.id === activeTournamentInstance.id
+      );
+      if (!stillExists) activeTournamentInstance = null;
+    }
+
+    // Der Auto-Sprung ist ERSATZLOS ENTFALLEN (2026-08-26, dritte Ansage
+    // von Jonas: „er springt automatisch in das bestehende turnier und ich
+    // werde aus dem eigentlichen turnierauswahlsmenue direkt in das turnier
+    // geworfen").
+    //
+    // Was hier stand: bei genau einem sichtbaren Turnier wurde sofort das
+    // Detail geladen (P4, 24.08.), ab dem 25.08. auch dann, wenn schon ein
+    // Turnier offen war. Begruendung damals: „Wenn es nur eins gibt, ist die
+    // Liste ueberfluessig."
+    //
+    // Sie war es nicht. Die Uebersicht ist der Ort, an dem ein Turnier
+    // ANGELEGT wird — sie hat eine Aufgabe, die von der Anzahl ihrer
+    // Eintraege unabhaengig ist. Eine Ansicht danach zu bemessen, wie voll
+    // sie ist, uebersieht, was sie sonst noch traegt.
+    //
+    // Drei Anlaeufe an drei Tagen haben um diesen Sprung herumgebaut:
+    // Ausnahme-Flag, Ausgang in der Seitenleiste, Erstellen-Weg ins Modul
+    // verlegt. Keiner hat beruehrt, dass eine Ansicht sich selbst
+    // uebersprang. Wer ihn zurueckholen will, braucht dafuer einen Zustand,
+    // der „ich will hier arbeiten" von „ich will schnell rein" trennt — die
+    // Anzahl der Turniere ist dieser Zustand nicht.
+    //
+    // Der Erstellen-Weg im Modul (Seitenleiste + Mehr-Blatt) BLEIBT: wer im
+    // Turnier steckt und ein zweites anlegen will, soll nicht erst
+    // hinausnavigieren muessen. Er haengt nicht am Sprung.
+    renderTournamentInstancesPage();
+  } catch (e) {
+    const icon = $('empty-icon');
+    const text = $('empty-text');
+    const actions = $('empty-actions');
+
+    // Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
+    // Wenn der Backend-Call mit 403 fehlschlägt, war es vermutlich fehlende Mitgliedschaft.
+    if (e?.status === 403 || e?.statusCode === 403) {
+      if (icon) icon.textContent = '🚫';
+      if (text)
+        text.textContent =
+          'Du bist nicht (mehr) Mitglied dieser Gruppe oder hast keine Berechtigung.';
+      if (actions) {
+        actions.innerHTML =
+          '<p class="t-hint">Bitte einen Owner oder Deputy der Gruppe um Zugriff bitten.</p>';
+      }
+      show('empty');
+      grid.innerHTML = '';
+      return;
+    }
+
+    if (icon) icon.textContent = '⚠️';
+    if (text) text.textContent = e.serverMessage || 'Turniere konnten nicht geladen werden.';
+    if (actions) {
+      actions.innerHTML =
+        '<button class="btn" style="background:var(--accent-l);color:var(--accent);border:1px solid #dcc0a0;padding:10px 16px;border-radius:10px" onclick="loadTournamentInstances(true)">Erneut versuchen</button>';
+    }
+    show('empty');
+    grid.innerHTML = '';
+  }
+}
+
+/**
+ * Hinweis: Es gibt keine Modulverwaltung mehr (User-Anweisung August 2026).
+ * Die Funktion activateTournamentModule wurde entfernt — Mitglieder aller Rollen
+ * sehen und nutzen das Turniermodul direkt.
+ */
+
+// tournamentStatusLabel / tournamentStatusPhase / tournamentPhaseLabel
+// sind jetzt in tournament.js exportiert (v3-Mapping, Issue 6, 2026-08-13).
+// Diese Zeile ist absichtlich leer — die Legacy-Funktionen sind entfernt.
+
+/**
+ * A4: Klick-Verdrahtung der Turnierliste.
+ *
+ * Die ganze Karte ist die Aktion, deshalb Delegation auf der Schale statt
+ * inline-onclick pro Knopf. Der Menü-Knopf liegt INNERHALB der Karte —
+ * ohne stopPropagation würde jeder Klick darauf zusätzlich das Turnier
+ * öffnen. Das ist die eine Stelle, an der hier etwas schiefgehen kann.
+ */
+function wireTournamentListInteractions(shell) {
+  if (!shell || shell.dataset.wired === 'true') return;
+  shell.dataset.wired = 'true';
+
+  const closeAllMenus = (except = null) => {
+    shell.querySelectorAll('.t-list-card-menu').forEach((menu) => {
+      if (menu === except) return;
+      menu.hidden = true;
+      const btn = menu.parentElement?.querySelector('[data-action="instance-menu"]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  };
+
+  shell.addEventListener('click', (event) => {
+    const menuBtn = event.target.closest('[data-action="instance-menu"]');
+    if (menuBtn) {
+      // Darf den Karten-Klick NICHT auslösen.
+      event.preventDefault();
+      event.stopPropagation();
+      const menu = menuBtn.parentElement?.querySelector('.t-list-card-menu');
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      closeAllMenus(menu);
+      menu.hidden = !willOpen;
+      menuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      return;
+    }
+
+    const deleteBtn = event.target.closest('[data-action="instance-delete"]');
+    if (deleteBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeAllMenus();
+      deleteTournamentInstance(
+        deleteBtn.dataset.instanceId,
+        deleteBtn.dataset.instanceName || 'Turnier'
+      );
+      return;
+    }
+
+    const card = event.target.closest('[data-action="open-instance"]');
+    closeAllMenus();
+    if (card && card.dataset.instanceId) {
+      openTournamentInstance(card.dataset.instanceId);
+    }
+  });
+
+  // Tastaturbedienung: Enter und Leertaste öffnen die fokussierte Karte.
+  // Ohne das ist role="button" eine Lüge.
+  shell.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeAllMenus();
+      return;
+    }
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+    const card = event.target.closest('[data-action="open-instance"]');
+    if (!card || card !== event.target) return;
+    event.preventDefault();
+    if (card.dataset.instanceId) openTournamentInstance(card.dataset.instanceId);
+  });
+}
+
+function renderTournamentInstancesPage() {
+  const grid = $('grid');
+  if (!grid) return;
+
+  grid.className = T_LIST_GRID_CLASS;
+  // P1 (2026-08-24, User-Liste): server-derived isAdmin statt
+  // canManageTournamentPresetsInCurrentGroup(). Beide decken sich
+  // inhaltlich, aber isAdmin ist die maßgebliche Quelle für die
+  // Render-Gates — und matcht mit dem serverseitigen
+  // requireTournamentWrite-Check 1:1.
+  const isAdmin = currentTournamentListIsAdmin === true;
+  // v3-Phasen-Buckets in fester Reihenfolge (TOURNAMENT_PHASE_ORDER
+  // aus tournament.js). Unbekannte Status landen in 'other'
+  // ("Sonstige") — siehe Spec §13.5 "Keine stillen Annahmen".
+  const groupedInstances = {};
+  for (const phase of TOURNAMENT_PHASE_ORDER) groupedInstances[phase] = [];
+
+  for (const instance of tournamentInstances) {
+    const phase = tournamentStatusPhase(instance.status);
+    groupedInstances[phase].push(instance);
+  }
+
+  const instanceGroupsHtml = Object.entries(groupedInstances)
+    // A4: Leere Phasen erscheinen gar nicht — weder Überschrift noch
+    // "Keine Turniere in dieser Phase". Auf dem Handy scrollte man
+    // sonst an drei leeren Kästen vorbei (Redesign-Plan §3.3).
+    .filter(([, instances]) => instances.length > 0)
+    .map(([phase, instances]) => {
+      const instanceCards = instances
+        .map((instance) =>
+          renderTournamentListCard({
+            instance,
+            phase,
+            isAdmin,
+            phaseLabel: tournamentPhaseLabel(phase),
+            modeLabel: tournamentModeLabel(instance?.mode),
+            icons: { more: ICON_MORE, trash: ICON_TRASH },
+          })
+        )
+        .join('');
+
+      // Beschwerde 5 (2026-08-26): „unter 'bereit' bei der turnierauswahl
+      // ist noch ein kasten im hintergrund". Jede Statusgruppe sass in
+      // einem gerahmten, gefuellten Kasten — hell rgba(255,255,255,.5),
+      // fuer 'live' rgba(255,244,220,.55) und fuer 'other'
+      // rgba(245,222,179,.45) mit Rand #c5a25c. Also genau das Creme,
+      // das aus dem Modul verschwinden sollte, und obendrein ein
+      // Behaelter um Karten, die selbst schon Behaelter sind.
+      //
+      // Die Vorlage kennt an dieser Stelle KEINEN Kasten: eine kleine
+      // Mono-Beschriftung (.grp-lbl) und darunter die Karten. Der Status
+      // steht ausserdem auf jeder Karte als Pille — die Gruppenfarbe
+      // sagte dasselbe ein zweites Mal, nur unschaerfer.
+      //
+      // Die Anzahl bleibt, aber im Label statt in einer eigenen Pille;
+      // die Vorlage setzt Zusatzangaben mit Mittelpunkt an die
+      // Beschriftung ("Beste Dritte · 2 Plaetze frei").
+      return `<section class="t-list-group" data-phase-group="${esc(phase)}">
+        <div class="t-list-group-label">${esc(tournamentPhaseLabel(phase))} · ${instances.length}</div>
+        <div class="tournament-instance-grid">
+          ${instanceCards}
+        </div>
+      </section>`;
+    })
+    .join('');
+
+  // A4: Nur wenn ALLE Phasen leer sind, erscheint ein einzelner
+  // Leerzustand — Admin und Mitglied bekommen unterschiedliche Texte
+  // (Spec §13.2: einem Mitglied ein "Leg eins an" hinzuwerfen, wäre
+  // ein Knopf ohne Funktion).
+  const emptyHtml = `<div class="t-empty-state">
+      <div class="t-empty-state-text">${
+        isAdmin ? 'Noch kein Turnier angelegt.' : 'In dieser Gruppe läuft gerade kein Turnier.'
+      }</div>
+      ${isAdmin ? '<div class="t-empty-state-hint">Leg eins an, um loszulegen.</div>' : ''}
+    </div>`;
+
+  // t-mod bringt die Tokens (--ink, --line, --s4, --r-card …) mit, die
+  // .t-list-card braucht — sie stehen NUR unter .t-mod, nicht global.
+  // t-list-host setzt die Layout-Eigenschaften von .t-mod zurück
+  // (siehe tournament.css, Block LISTEN-HOST).
+  grid.innerHTML = `
+    <section class="tournament-page-shell t-mod t-list-host">
+      ${instanceGroupsHtml || emptyHtml}
+    </section>`;
+
+  wireTournamentListInteractions(grid.querySelector('.t-list-host'));
+}
+
+/**
+ * Snapshot der UI-State VOR einem Re-Render der Detail-View.
+ * Damit beim erneuten Aufbau (z. B. nach Ergebnis-Save) Position,
+ * Tab und Filter erhalten bleiben. User-Punkt 1 (2026-08-18):
+ * „Ergebnisse eintragen klappt einwandfrei — aber nach jedem
+ * Speichern springt die Seite an den Anfang."
+ *
+ * Günstige Stelle: Vor dem API-Call, bevor `grid.innerHTML = ...`
+ * die DOM-Knoten ersetzt. `currentSpielplanFilter` ist ein Modul-
+ * global und überlebt den Re-Render von selbst — nur die DOM-
+ * State-Werte (scrollTop der Main, aktive Tab-Klasse) müssen
+ * bewahrt werden.
+ *
+ * Filter wird NICHT mitgespeichert: er ist schon global, und die
+ * Chip-Reihenfolge im neuen Render liest ihn ohnehin.
+ */
+function captureTournamentViewState() {
+  const main = document.querySelector('.t-mod-main');
+  const activeTab = document.querySelector('.t-mod-nav button.is-active');
+  return {
+    scrollTop: main ? main.scrollTop : 0,
+    activeView: activeTab?.dataset?.view ?? 'spielplan',
+  };
+}
+
+/**
+ * State aus captureTournamentViewState() auf den frisch gerenderten
+ * DOM anwenden. Läuft NACH renderTournamentInstanceDetailV3().
+ *
+ * Reihenfolge ist wichtig: erst Klassen umschalten, dann scrollen.
+ * `main.scrollTop` auf einem noch nicht angezeigten Element würde
+ * der Browser auf 0 clampen (Container muss im Layout sein).
+ */
+function restoreTournamentViewState(state) {
+  if (!state) return;
+  const detail = $('tournament-detail');
+  if (!detail) return;
+  const navBtns = detail.querySelectorAll('.t-mod-nav button[data-view]');
+  const sections = detail.querySelectorAll('main.t-mod-main > section.t-view[data-view]');
+  const target = state.activeView ?? 'spielplan';
+  navBtns.forEach((b) => b.classList.toggle('is-active', b.dataset.view === target));
+  sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === target));
+  // Bug-Fix Etappe B.8 (User-Feedback 2026-08-20): nach Re-Render
+  // (z.B. „Zufällig verteilen" → /redraw → openTournamentInstance) müssen
+  // die Tab-Side-Effects erneut laufen. Sonst ist der Einstellungen-Mount
+  // zwar per CSS-Klasse aktiv, aber loadEinstellungenTab() wurde nicht
+  // aufgerufen → Section ist leer. Symptom beim User: „Einstellungen
+  // sind nach dem Speichern leer, ich muss manuell neu draufklicken".
+  if (typeof handleTournamentTabSideEffects === 'function') {
+    handleTournamentTabSideEffects(target, activeTournamentInstance, detail);
+  }
+  // Scroll erst nach Klassen-Wechsel setzen — sonst springt der
+  // Browser auf den Default-ScrollTop des neuen aktiven Sections.
+  // requestAnimationFrame: wartet einen Frame, damit der Browser
+  // Layout fertig hat (sonst tun sich manche Browser schwer mit
+  // scrollTop auf noch-nicht-sichtbaren Containern).
+  requestAnimationFrame(() => {
+    const main = document.querySelector('.t-mod-main');
+    if (main) {
+      main.scrollTop = state.scrollTop ?? 0;
+    }
+  });
+}
+
+/**
+ * Modul-Scope Tab-Side-Effects (Bug-Fix Etappe B.8).
+ *
+ * Wird sowohl beim Klick auf einen Tab-Button als auch beim
+ * `restoreTournamentViewState` nach einem Re-Render aufgerufen. Ohne
+ * den Restore-Call blieb der Einstellungen-Mount nach jeder Aktion
+ * (redraw, save-groups, etc.) leer, weil openTournamentInstance die
+ * ganze Detail-View neu rendert und dabei die `data-loaded`-Marker +
+ * Mount-Inhalte verliert.
+ *
+ * @param {string} view  Einer von: 'spielplan', 'gruppen',
+ *   'baum', 'teams', 'regeln', 'drucken', 'einstellungen'.
+ * @param {Object|null} t  Tournament-View-Context.
+ * @param {HTMLElement} detail  `#tournament-detail`-Container.
+ */
+
+/**
+ * Modul-Scope Tab-Placeholder (Etappe B.8).
+ *
+ * Ehemals lokal in `renderTournamentInstanceDetailV3` definiert, aber
+ * die Catch-Handler in `handleTournamentTabSideEffects` brauchen es
+ * auch — die Funktion ist auf Modulebene und sieht das lokale
+ * `placeholder` nicht. Daher hier als Modul-Scope-Helper.
+ *
+ * @param {string} label
+ * @param {string} hintEtappe
+ * @returns {string} HTML-String
+ */
+function placeholder(label, hintEtappe) {
+  return `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p class="t-hint"><strong>${esc(label)}</strong> wird gerade gebaut. ${esc(hintEtappe)}</p>
+        </div>
+      </div>`;
+}
+
+/**
+ * Doppelklick-Sperre fuer einen Aktionsknopf (Betriebsfestigkeit A2,
+ * 2026-08-25).
+ *
+ * Fehlerklasse: elf mutierende Aktionen im Turniermodul hatten keine
+ * Sperre. Am teuersten `randomize-groups` → POST
+ * /balance-shuffle-groups: der Server wuerfelt bei JEDEM Aufruf neu
+ * und kennt keinen Vorzustand. Wer zweimal tippt — am Handy, an der
+ * Platte, mit einer Hand — sieht die erste Auslosung aufblitzen und
+ * behaelt eine andere.
+ *
+ * Machart uebernommen von den drei Stellen, die es schon richtig
+ * machten (Ergebnis-Speichern, Paar-Tausch, Fill-KO): Knopf vor dem
+ * `await` sperren, im Fehlerfall wieder freigeben. Hier ist das
+ * einmal aufgeschrieben statt elfmal abgetippt — bewusst KEINE zweite
+ * Machart.
+ *
+ * Zwei Entscheidungen, die nicht beliebig sind:
+ *
+ *   `dataset.busy` statt einer Closure-Variablen, damit die Sperre bei
+ *   delegierten Klicks (ein Listener, viele Knoepfe) am getroffenen
+ *   Element haengt und nicht am Listener.
+ *
+ *   Der vorherige `disabled`-Zustand wird gemerkt und wiederher-
+ *   gestellt: einen Knopf, den der Renderer aus Lock-Gruenden
+ *   deaktiviert hat, darf die Sperre nicht versehentlich freischalten.
+ *
+ * @param {HTMLElement|null} btn
+ * @param {() => any} handler
+ */
+async function runGuardedAction(btn, handler) {
+  if (!btn) return handler();
+  if (btn.dataset && btn.dataset.busy === '1') return undefined;
+  const wasDisabled = btn.disabled === true;
+  if (btn.dataset) btn.dataset.busy = '1';
+  btn.disabled = true;
+  if (typeof btn.setAttribute === 'function') btn.setAttribute('aria-busy', 'true');
+  try {
+    return await handler();
+  } finally {
+    if (btn.dataset) delete btn.dataset.busy;
+    btn.disabled = wasDisabled;
+    if (typeof btn.removeAttribute === 'function') btn.removeAttribute('aria-busy');
+  }
+}
+
+/**
+ * Klick-Listener mit Doppelklick-Sperre. Ersetzt
+ * `btn.addEventListener('click', ...)` ueberall dort, wo der Handler
+ * eine Mutation ausloest.
+ */
+function wireGuardedClick(btn, handler) {
+  if (!btn) return;
+  btn.addEventListener('click', (event) => {
+    runGuardedAction(btn, () => handler(event)).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[wireGuardedClick] Handler hat geworfen', err);
+    });
+  });
+}
+
+/**
+ * Lazy-Ladung eines Tab-Mounts mit ehrlichem Fehlerzustand
+ * (Betriebsfestigkeit A5, 2026-08-25).
+ *
+ * Vorher stand `mount.dataset.loaded = '1'` VOR dem `await`. Schlug
+ * das Laden fehl, blieb die Markierung stehen: Wegklicken und
+ * Zurueckklicken luden nicht mehr nach — der Tab war fuer den Rest
+ * der Sitzung kaputt, und einen Weg zurueck gab es nicht. Die
+ * Listenseite bietet in derselben Lage seit jeher „Erneut versuchen".
+ *
+ * Jetzt drei Zustaende statt zwei:
+ *
+ *   'pending'  laeuft gerade — blockt eine zweite Ladung
+ *   '1'        geladen — Tab-Wechsel holt nicht neu
+ *   (fehlt)    fehlgeschlagen — der naechste Tab-Klick versucht es
+ *              von selbst erneut, und im Mount steht ein Knopf
+ *
+ * @param {HTMLElement|null} mount
+ * @param {string} label   Klartext fuer das Fehlerbild
+ * @param {() => Promise<any>} loader
+ */
+function startTabLoad(mount, label, loader) {
+  if (!mount || typeof loader !== 'function') return;
+  if (mount.dataset.loaded) return;
+  mount.dataset.loaded = 'pending';
+  Promise.resolve()
+    .then(() => loader())
+    .then(() => {
+      mount.dataset.loaded = '1';
+    })
+    .catch((err) => {
+      // Markierung WEG, nicht auf '1' — sonst bleibt der Tab kaputt.
+      delete mount.dataset.loaded;
+      // eslint-disable-next-line no-console
+      console.warn('[tab] Laden fehlgeschlagen: ' + label, err);
+      renderTabLoadError(mount, label, () => startTabLoad(mount, label, loader));
+    });
+}
+
+/**
+ * Fehlerbild eines Tab-Mounts mit „Erneut versuchen" — dasselbe
+ * Angebot, das die Listenseite macht (dort
+ * `loadTournamentInstances(true)`). Ohne den Knopf bleibt dem Nutzer
+ * nur ein Seiten-Neuladen, und das kostet am Turniertag den
+ * Scrollstand und den offenen Tab.
+ */
+function renderTabLoadError(mount, label, wieder, detail) {
+  if (!mount) return;
+  const detailZeile = detail ? `<p class="t-hint t-hint--error">${esc(String(detail))}</p>` : '';
+  mount.innerHTML = `
+      <div class="t-card">
+        <div class="t-card-body">
+          <p class="t-hint">${esc(label)} konnte nicht geladen werden.</p>${detailZeile}
+          <button type="button" class="t-btn t-btn--primary" data-action="retry-tab-load">Erneut versuchen</button>
+        </div>
+      </div>`;
+  const btn = mount.querySelector('[data-action="retry-tab-load"]');
+  if (btn && typeof wieder === 'function') {
+    btn.addEventListener('click', () => {
+      wieder();
+    });
+  }
+}
+
+/**
+ * Drucken-Tab (Auftrag C, 2026-08-25).
+ *
+ * Ersetzt den frueheren Etappe-B.6-Platzhalter. Das Drucklayout
+ * selbst kommt aus dem @media-print-Stylesheet einer Parallel-Spur —
+ * hier steht nur, WAS auf das Papier geht, und der Ausloeser.
+ *
+ * Der Knopf traegt dasselbe data-action wie die beiden Knoepfe in der
+ * Kopfzeile; der Handler dafuer haengt bereits am Detail-Container
+ * (querySelectorAll ueber alle Treffer, Klick ruft window.print()) und
+ * greift diesen Knopf mit, weil er im selben innerHTML steckt. Kein
+ * zweiter Listener, kein zweiter Weg.
+ *
+ * Die Aktion steht in SAFE_DATA_ACTIONS — Mitglieder duerfen drucken.
+ */
+function renderDruckenView() {
+  return `
+      <div class="t-card t-druck-hinweis">
+        <div class="t-card-body">
+          <p>Unten steht, was der Drucker ausgibt — Blatt fuer Blatt. Spielplan nach
+          Uhrzeit, die Gruppentabellen mit voller Bilanz, und der K.-o.-Baum als
+          Klammer im Querformat.</p>
+          <p class="t-hint">Offene Partien tragen ein Eintragefeld: der Bogen wird am
+          Spieltisch ausgefuellt, nicht danach gelesen. Kopf und Fuss tragen den Stand,
+          damit ein ausgehaengtes Blatt datierbar bleibt.</p>
+          <button type="button" class="t-btn t-btn--primary" data-action="print">Jetzt drucken</button>
+        </div>
+      </div>`;
+}
+
+/**
+ * Druckboegen laden und rendern (Fehlerbefund Jonas, 2026-08-26).
+ *
+ * WAS KAPUTT WAR: Bogen 2 („Gruppentabellen") druckte die Kopfzeilen und
+ * darunter nichts — leere Tabellen, und als Gruppenname stand ueberall das
+ * Wort „Gruppe", also der Fallback.
+ *
+ * URSACHE: Der Bogen bekam `activeTournamentInstance`. Dessen `groups`
+ * kommen aus dem Detail-Fetch und beschreiben die EINTEILUNG — id, Teams,
+ * sonst nichts. Die Tabelle mit Punkten, Bilanz und Rang wird an einer
+ * anderen Stelle gerechnet und liegt unter GET /:id/standings. Der
+ * Renderer las also `g.standings` an einem Objekt, das dieses Feld nie
+ * hatte, und `.map()` ueber ein leeres Array liefert brav einen leeren
+ * String. Kein Fehler, keine Warnung — nur ein leeres Blatt.
+ *
+ * Das ist dieselbe Fehlerklasse wie beim Einstellungen-Tab (Notiz der
+ * Nachbar-Session: „Was in der Feldliste fehlt, sieht der Renderer nie").
+ * Ein Renderer, der ein fehlendes Feld als „leer" statt als „unbekannt"
+ * liest, kann den Unterschied nicht melden.
+ *
+ * Nebenbei mitgefixt: `qualifyPerGroup` wurde als `t?.tournament?.…`
+ * gelesen. `t` IST das Turnier-DTO, ein `t.tournament` gibt es nicht —
+ * der Wert war immer undefined und der Bogen faerbte stumm zwei
+ * Aufstiegsplaetze, egal was eingestellt war.
+ */
+async function ladeDruckboegen(t, mount) {
+  if (!t?.id || !mount) return;
+  const rendern = (daten, qualify) => {
+    try {
+      mount.innerHTML = window.spielplanHelpers?.renderDruckboegen
+        ? window.spielplanHelpers.renderDruckboegen(daten, qualify)
+        : '';
+    } catch (err) {
+      // Ein kaputter Bogen darf den Tab nicht mitreissen — der
+      // Drucken-Knopf oben funktioniert auch ohne Vorschau.
+      // eslint-disable-next-line no-console
+      console.warn('[drucken] Vorschau fehlgeschlagen', err);
+      mount.innerHTML = '';
+    }
+  };
+
+  try {
+    const daten = await apiCall(`/tournaments/${encodeURIComponent(t.id)}/standings`, 'GET');
+    // Stale-Guard wie an den sechs anderen Stellen im File: zwischen
+    // Absenden und Antwort kann der Nutzer laengst woanders stehen.
+    if (activeTournamentInstance?.id !== t.id) return;
+    const gruppen = Array.isArray(daten?.groups) ? daten.groups : [];
+    // Die gerechneten Gruppen ERSETZEN die rohe Einteilung — sie tragen
+    // dieselbe Identitaet plus die Tabelle. Der Rest von t bleibt, weil
+    // Bogen 1 und 3 daraus Spielplan und Baum ziehen.
+    rendern(
+      { ...t, groups: gruppen.length ? gruppen : (t.groups ?? []) },
+      daten?.qualifyPerGroup ?? t?.config?.advancePerGroup
+    );
+  } catch (err) {
+    // Ohne Tabellen ist der Spielplan-Bogen immer noch brauchbar —
+    // lieber zwei richtige Blaetter als gar keine Vorschau.
+    // eslint-disable-next-line no-console
+    console.warn('[drucken] Tabellen konnten nicht geladen werden', err);
+    rendern(t, t?.config?.advancePerGroup);
+  }
+}
+function handleTournamentTabSideEffects(view, t, detail) {
+  if (!detail) return;
+  // Drucken-Tab: die Boegen sind die Vorschau UND das, was gedruckt wird.
+  // Immer neu rendern, damit der Stand stimmt — wer nach drei Ergebnissen
+  // druckt, will nicht den Stand von vor drei Ergebnissen.
+  if (view === 'drucken') {
+    const mount = detail.querySelector('[data-tab-body="drucken-mount"]');
+    if (mount) ladeDruckboegen(t, mount);
+  }
+  // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
+  // Spielfelder / Gefahrenzone. Immer re-rendern, damit Status-
+  // Änderungen sichtbar werden (nach jedem Save).
+  if (view === 'einstellungen') {
+    const mount = detail.querySelector('[data-tab-body="einstellungen-mount"]');
+    if (mount) {
+      mount.innerHTML = '';
+      if (t?.id && typeof loadEinstellungenTab === 'function') {
+        // loadEinstellungenTab faengt selbst und zeigt sein Fehlerbild
+        // mit „Erneut versuchen". Der catch hier ist nur die Rueckfall-
+        // ebene, falls schon der Aufruf selbst wirft.
+        loadEinstellungenTab(t, mount).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn('[tab:einstellungen] Laden fehlgeschlagen', err);
+          renderTabLoadError(
+            mount,
+            'Die Einstellungen',
+            () => {
+              handleTournamentTabSideEffects('einstellungen', t, detail);
+            },
+            err && err.message ? err.message : null
+          );
+        });
+      }
+      return;
+    }
+  }
+  // Regeln-Tab: immer rendern, auch bei Mehrfachklick (Edit-Mode zurücksetzen).
+  if (view === 'regeln') {
+    const mount = detail.querySelector('[data-tab-body="regeln-mount"]');
+    if (mount && t?.id && typeof renderRulesView === 'function') {
+      renderRulesView(t.id, mount);
+    }
+    return;
+  }
+  // Teams-Tab (Etappe B.5): Liste + DnD-Reihenfolge, Admin-only edit.
+  // data-loaded-Guard: nach Re-Render ist das Attribut weg (frischer DOM),
+  // also wird der Loader erneut getriggert.
+  if (view === 'teams') {
+    const mount = detail.querySelector('[data-tab-body="teams-mount"]');
+    if (t?.id && typeof loadTeamsTab === 'function') {
+      startTabLoad(mount, 'Die Teamliste', () => loadTeamsTab(t));
+    }
+    return;
+  }
+  // Gruppen-Tab: bestehender Renderer bleibt, bis B.3 die Tabellen-View baut.
+  if (view === 'gruppen') {
+    const mount = detail.querySelector('[data-tab-body="gruppen-mount"]');
+    if (t?.id && typeof loadStandingsTab === 'function') {
+      startTabLoad(mount, 'Die Gruppen-Tabellen', () => loadStandingsTab(t.id));
+    }
+    return;
+  }
+  // Turnierbaum-Tab (Etappe B.4): einmal rendern, danach Re-Fetch
+  // nur über expliziten Reload.
+  if (view === 'baum') {
+    const mount = detail.querySelector('[data-tab-body="baum-mount"]');
+    if (t?.id && typeof loadBracketTab === 'function') {
+      startTabLoad(mount, 'Der Turnierbaum', () => loadBracketTab(t.id));
+    }
+    return;
+  }
+}
+
+async function openTournamentInstance(instanceId) {
+  try {
+    // Bug #12 (User-Punkt 1, 2026-08-18): Vor dem Re-Render Scroll-
+    // Position und aktiven Tab merken, danach wiederherstellen.
+    // Vorher sprang die Seite nach jedem Save an den Anfang.
+    const viewState = captureTournamentViewState();
+    // v3: /api/tournaments/:id — Antwort ist { tournament, teams, stages,
+    // groups, matches, stats, isAdmin, public }. Wir brauchen für die
+    // Detail-View das innere Tournament-DTO + die Top-Level-Listen.
+    // activeTournamentInstance MUSS das innere Tournament-DTO sein, sonst
+    // scheitern alle Vergleiche `activeTournamentInstance?.id ===
+    // instanceId` in den Sub-Renderern (loadStandingsTab, loadScheduleTab,
+    // ...). Vorher wurde die ganze Response gespeichert → .id === undefined
+    // → Sub-Renderer fanden nichts.
+    const res = await apiCall(`/tournaments/${encodeURIComponent(instanceId)}`, 'GET');
+    const instance = res?.tournament ?? res;
+    // Bug #11 (User-Punkt 3, 2026-08-18): Das innere Tournament-DTO
+    // hat KEIN isAdmin — das ist ein Top-Level-Feld der Response.
+    // renderRulesView() las vorher activeTournamentInstance.isAdmin
+    // und bekam undefined → dachte jeder ist Member → Klick auf
+    // „Bearbeiten" blieb wirkungslos. isAdmin explizit auf den
+    // globalen State patchen, damit alle Sub-Views (Rules, später
+    // weitere Admin-Gates) den richtigen Wert sehen.
+    if (instance && typeof instance === 'object') {
+      instance.isAdmin = res?.isAdmin === true;
+    }
+    activeTournamentInstance = instance;
+    // Nacharbeit (2026-08-26, zweite Runde): Die Kopfleiste MUSS hier neu
+    // gebaut werden. Ihr Gate fragt `activeTournamentInstance` ab — aber
+    // gebaut wurde sie zuletzt, als die LISTE offen war, und niemand hat
+    // sie danach angefasst. Das Gate war also richtig und trotzdem ohne
+    // Wirkung: die alten Knoepfe standen einfach noch im DOM.
+    //
+    // Genau dieselbe Mechanik hat die Nachbar-Session bei der
+    // Rollenpruefung beschrieben — Wert setzen und Leiste NICHT neu bauen
+    // heisst, dass der Wert niemanden erreicht. Ein Zustand, den keiner
+    // liest, ist kein Zustand.
+    renderTournamentHeaderActions();
+    // Bug-Fix Etappe B.8.1 (User-Feedback 2026-08-20): die Top-Level-Listen
+    // (teams/groups/matches/stages) auf den globalen `activeTournamentInstance`
+    // patchen, damit `handleTournamentTabSideEffects` über `restoreTournamentViewState`
+    // — das mit `activeTournamentInstance` arbeitet, nicht mit dem lokalen
+    // Spread-T — diese Listen auch sieht. Vorher waren sie nur im lokalen
+    // Argument von `renderTournamentInstanceDetailV3` verfügbar. Symptom:
+    // Nach Balance-Shuffle / Save zeigte `renderGroupsBoard` fälschlich
+    // "Noch keine Gruppen — Turnier muss generiert sein.", obwohl die
+    // Gruppen in der DB vorhanden waren.
+    activeTournamentInstance.teams = Array.isArray(res?.teams) ? res.teams : (instance.teams ?? []);
+    activeTournamentInstance.stages = Array.isArray(res?.stages)
+      ? res.stages
+      : (instance.stages ?? []);
+    activeTournamentInstance.groups = Array.isArray(res?.groups)
+      ? res.groups
+      : (instance.groups ?? []);
+    activeTournamentInstance.matches = Array.isArray(res?.matches)
+      ? res.matches
+      : (instance.matches ?? []);
+    activeTournamentInstance.stats = res?.stats ?? instance.stats ?? null;
+    curTournamentView = 'instances';
+    saveLastModuleState();
+    renderSidebar();
+    // Renderer bekommt sowohl das DTO (für id/name/status/logoUrl/...)
+    // als auch die Top-Level-Listen (für teams/stages/groups/matches).
+    // Bug 1 (2026-08-17): isAdmin kommt vom Server auf Top-Level der
+    // Response (nicht im inneren tournament-Objekt). Vor diesem Fix war
+    // t.isAdmin immer undefined → Renderer hat Member-View angezeigt
+    // → kein "Ergebnis eintragen"-Button.
+    renderTournamentInstanceDetailV3({
+      ...instance,
+      teams: activeTournamentInstance.teams,
+      stages: activeTournamentInstance.stages,
+      groups: activeTournamentInstance.groups,
+      matches: activeTournamentInstance.matches,
+      stats: activeTournamentInstance.stats,
+      isAdmin: res?.isAdmin === true,
+    });
+    // UI-State nach dem Render wiederherstellen. `restoreTournamentViewState`
+    // wird immer aufgerufen, auch wenn kein Capture nötig war — erstes
+    // Öffnen hat state = { scrollTop: 0, activeView: 'spielplan' }, was
+    // ein No-Op ist.
+    restoreTournamentViewState(viewState);
+  } catch (e) {
+    toast(e.serverMessage || 'Turnier-Details konnten nicht geladen werden', 'error');
+    throw e; // Issue 6: navigateToGeneratedInstance fängt diesen Throw
+    // und fällt auf die Liste zurück. Vorher schluckte openTournamentInstance
+    // den Fehler → Wizard-Teardown lief nie → "Wizard bleibt offen".
+  }
+}
+
+/**
+ * Nachladen der Detail-Ansicht NACH einer geglueckten Mutation.
+ *
+ * Betriebsfestigkeit (2026-08-25). `openTournamentInstance` wirft
+ * absichtlich weiter — der Wizard-Teardown haengt an diesem Throw.
+ * Vorher rief jeder Mutations-Handler sie INNERHALB seines eigenen
+ * `try`. Hakte nur das Nachladen, sprang der Mutations-`catch` an und
+ * der Nutzer sah nacheinander
+ *
+ *     „Ergebnis gespeichert (3:2)"   und   „konnte nicht gespeichert werden"
+ *
+ * Er trug es daraufhin erneut ein. Beim Ergebnis-Speichern ist das
+ * besonders teuer: ein zweiter Save mit anderem Score ueberschreibt den
+ * ersten kommentarlos.
+ *
+ * Regel ab jetzt: Die Mutation meldet den MUTATIONS-Ausgang. Ein
+ * hakendes Nachladen ist ein ANSICHTS-Problem und meldet sich als
+ * solches — nie als Fehlschlag der Mutation. Der Aufruf steht deshalb
+ * hinter dem `try`/`catch` der Mutation, und diese Funktion wirft
+ * zusaetzlich nicht: wer sie versehentlich doch in einem `try` aufruft,
+ * kann den Mutations-`catch` trotzdem nicht mehr ausloesen.
+ *
+ * @param {string} tournamentId
+ * @returns {Promise<boolean>} true = Ansicht ist auf dem neuen Stand
+ */
+async function refreshTournamentAfterMutation(tournamentId) {
+  try {
+    await openTournamentInstance(tournamentId);
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[refreshTournamentAfterMutation] Nachladen fehlgeschlagen', e);
+    toast(
+      'Gespeichert. Die Ansicht konnte nicht aktualisiert werden — bitte die Seite neu laden.',
+      'info'
+    );
+    return false;
+  }
+}
+
+/**
+ * v3-Detail-View: App-Shell mit Header + Nav + Hauptbereich + Aside.
+ * Vorlage: `turniermodul-prototyp.html` (Zeilen 388–676).
+ * Etappe B.1: Skelett mit Spielplan-View aktiv, 6 weitere Views als
+ * ehrliche Platzhalter. Spielplan-Inhalt kommt in B.3.
+ *
+ * Erwartetes `t`-Objekt von `openTournamentInstance`:
+ *   id, name, logoUrl, status, phase, mode, isPublic, isAdmin,
+ *   teams[], stages[], groups[], matches[], stats, startsAt, ...
+ */
+/**
+ * Was die Kopfzeile je Ansicht zeigt — Markenuebernahme, 2026-08-26.
+ *
+ * Drei Dinge pro Ansicht, und alle drei sagen etwas anderes:
+ *   titel   WAS sehe ich. Der groesste Text auf dem Screen.
+ *   kontext WELCHE Zahlen gelten hier. Wird dem Turniernamen im Kicker
+ *           angehaengt, statt ihn zu ersetzen — der Name bleibt immer
+ *           lesbar, auch wenn man drei Ansichten weit geklickt hat.
+ *   aktion  Die EINE Sache, die man von hier aus tun will. Steht rechts
+ *           in Orange. Ansichten ohne sinnvolle Einzelaktion bekommen
+ *           keine — ein leerer Knopf ist schlimmer als kein Knopf.
+ *
+ * `kontext` ist eine Funktion, weil die Zahlen erst zur Laufzeit
+ * feststehen; sie bekommt das Turnier-Objekt und darf '' liefern.
+ */
+// Zaehlwort-Helfer fuer den Kicker. Steht hier, weil die Tabelle
+// darunter sechsmal dieselbe Ein-/Mehrzahl-Frage stellt.
+const zw = (n, ein, viele) => (n ? `${n} ${n === 1 ? ein : viele}` : '');
+
+const T_VIEW_CHROME = {
+  spielplan: {
+    titel: 'Spielplan',
+    kicker: (t) => [t.name, t.startsAt ? fmtDate(t.startsAt) : ''].filter(Boolean).join(' · '),
+    aktion: { label: 'Teams', view: 'teams' },
+  },
+  gruppen: {
+    titel: 'Gruppen',
+    kicker: (t) =>
+      [
+        zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+        zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
+        zw(Array.isArray(t.matches) ? t.matches.length : 0, 'Spiel', 'Spiele'),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    aktion: { label: 'Regelwerk', view: 'regeln' },
+  },
+  baum: {
+    // Titel und Aktion, zweite Runde (Jonas, 2026-08-26):
+    //   "hier jetzt ist es tatsaechlich zu knapp ... aber da kann auch
+    //    einfach KO-PHASE stehen. und mach teilen hier weg. lieber auch
+    //    regelwerk hin wie bei gruppenphase."
+    //
+    // ABWEICHUNG VON DER VORLAGE: das Artefakt nennt diese Ansicht "Der
+    // Weg zum Titel" und setzt rechts "Teilen". Der Titel ist mit 17
+    // Zeichen im Display-Schnitt breiter als der Platz neben einer
+    // Aktion — gemessen im Browser, nicht geschaetzt. "K.-o.-Phase" sagt
+    // dasselbe in einem Drittel der Breite.
+    //
+    // "Teilen" faellt weg, weil es hier die einzige Ansicht waere, deren
+    // Aktion nichts mit der Ansicht zu tun hat. "Regelwerk" ist dagegen
+    // genau die Frage, die am K.-o.-Tisch aufkommt — und es steht schon
+    // bei den Gruppen, also lernt man den Ort einmal statt zweimal.
+    titel: 'K.-o.-Phase',
+    kicker: (t) =>
+      [
+        zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+        tournamentModeLabel(t.mode) || '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    aktion: { label: 'Regelwerk', view: 'regeln' },
+  },
+  teams: {
+    titel: 'Teams',
+    kicker: (t) =>
+      [
+        zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+        zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    aktion: null,
+  },
+  regeln: {
+    titel: 'Regelwerk',
+    kicker: (t) => t.name || '',
+    aktion: {
+      label: 'Bearbeiten',
+      handlung: 'regelwerk-bearbeiten',
+      wenn: (t) => t.isAdmin === true,
+    },
+  },
+  drucken: { titel: 'Drucken', kicker: (t) => t.name || '', aktion: null },
+  einstellungen: {
+    titel: 'Einstellungen',
+    kicker: () => 'Nur du als Organisator siehst diesen Bereich',
+    aktion: { label: 'Fertig', view: 'spielplan' },
+  },
+};
+
+/**
+ * Zieht Titel, Kicker-Zusatz und Aktion der Kopfzeile auf die neue
+ * Ansicht nach. Wird bei jedem Tab-Wechsel gerufen — auch aus dem
+ * Bottom-Sheet und aus `restoreTournamentViewState`, sonst steht nach
+ * einem Re-Render der Titel der vorherigen Ansicht im Kopf.
+ *
+ * Fail-soft: fehlt die Ansicht in der Tabelle, bleibt der Kopf stehen,
+ * statt leer zu werden. Eine neue View ohne Eintrag ist ein
+ * Schoenheitsfehler, kein kaputter Screen.
+ */
+function applyViewChrome(detail, view, t) {
+  if (!detail) return;
+  const chrome = T_VIEW_CHROME[view];
+  if (!chrome) return;
+
+  const titleEl = detail.querySelector('[data-view-title]');
+  if (titleEl) titleEl.textContent = chrome.titel;
+
+  // Markenuebernahme Nacharbeit (2026-08-26): Der Kicker wird je Ansicht
+  // GANZ neu geschrieben, nicht mehr aus einem festen Sockel plus Zusatz
+  // zusammengesetzt. Der Sockel trug Name, Datum, Phase und
+  // Oeffentlich-Status — fuenf Segmente in einer nowrap-Zeile, von denen
+  // auf 390px das letzte mitten im Wort abbrach. Und ausgerechnet das
+  // letzte war der ansichtsabhaengige Teil, also der einzige, der etwas
+  // ueber DIESE Ansicht sagte. Die Vorlage zeigt hoechstens drei
+  // Segmente, je Ansicht andere.
+  const kickEl = detail.querySelector('.t-mod-kicker-text');
+  if (kickEl) {
+    let text = '';
+    try {
+      text = chrome.kicker ? chrome.kicker(t) || '' : '';
+    } catch {
+      text = '';
+    }
+    kickEl.textContent = text;
+  }
+
+  const actEl = detail.querySelector('[data-view-action]');
+  if (actEl) {
+    // Eine Aktion kann an eine Bedingung geknuepft sein ("Teilen" nur mit
+    // Zuschauer-Link, "Bearbeiten" nur fuer Organisatoren). Faellt die
+    // Bedingung, gibt es keinen Ersatzknopf — der Platz bleibt leer.
+    let erlaubt = !!chrome.aktion;
+    if (erlaubt && typeof chrome.aktion.wenn === 'function') {
+      try {
+        erlaubt = chrome.aktion.wenn(t) === true;
+      } catch {
+        erlaubt = false;
+      }
+    }
+    delete actEl.dataset.view;
+    delete actEl.dataset.handlung;
+    if (erlaubt) {
+      actEl.textContent = chrome.aktion.label;
+      if (chrome.aktion.view) actEl.dataset.view = chrome.aktion.view;
+      if (chrome.aktion.handlung) actEl.dataset.handlung = chrome.aktion.handlung;
+      actEl.hidden = false;
+    } else {
+      actEl.hidden = true;
+    }
+  }
+}
+
+function renderTournamentInstanceDetailV3(t) {
+  try {
+    const grid = $('grid');
+    if (!grid) return;
+
+    // Nacharbeit (2026-08-26): teamCount, phase, modeLabel und logoHtml
+    // sind hier ersatzlos entfallen. Sie speisten den alten Kopf mit
+    // Logo, Untertitel und zwei Badges; seit der Kopf Kicker + Titel +
+    // eine Aktion traegt, waren es vier zugewiesene und nie gelesene
+    // Werte. Stehengebliebene Zuweisungen sind kein harmloser Rest —
+    // sie halten einen Zustand am Leben, den niemand mehr pflegt, und
+    // lassen Quelltext-Waechter gruen bleiben, deren Schutz laengst weg ist.
+    // Was der Kopf braucht, holt applyViewChrome() aus T_VIEW_CHROME.
+    const isAdmin = t.isAdmin === true;
+
+    // P3 (2026-08-24): Mobile Bottom-Bar-Komposition je nach Modus.
+    // ko_only hat keine Gruppen → Teams wandert in Position 2 der Bar.
+    // groups_only hat kein KO → Teams wandert in Position 3 der Bar.
+    // groups_ko (Default): Standard-Reihenfolge.
+    // Ergebnis: IMMER genau 3 View-Buttons + "Mehr" in der Bottom-Bar.
+    const tabIcons = {
+      spielplan: { icon: ICON_TAB_GAMES, label: 'Spiele' },
+      gruppen: { icon: ICON_TAB_GROUPS, label: 'Gruppen' },
+      baum: { icon: ICON_TAB_BRACKET, label: 'Baum' },
+      teams: { icon: ICON_SHEET_TEAMS, label: 'Teams' },
+      regeln: { icon: ICON_SHEET_RULES, label: 'Regeln' },
+      drucken: { icon: ICON_SHEET_PRINT, label: 'Drucken' },
+      einstellungen: { icon: ICON_SHEET_SETTINGS, label: 'Einstellungen' },
+    };
+    const isKoOnly = t.mode === 'ko_only';
+    const isGroupsOnly = t.mode === 'groups_only';
+    let barPrimary;
+    if (isKoOnly) {
+      barPrimary = ['spielplan', 'teams', 'baum'];
+    } else if (isGroupsOnly) {
+      barPrimary = ['spielplan', 'gruppen', 'teams'];
+    } else {
+      barPrimary = ['spielplan', 'gruppen', 'baum'];
+    }
+    const allViews = Object.keys(tabIcons);
+    // P1 (2026-08-24, User-Liste): Mitglieder sehen kein Einstellungen-Tab.
+    // Sidebar / Bottom-Bar / Sheet filtern die View raus, sobald !isAdmin.
+    // Logik liegt in tournament-render.js, damit sie testbar ist.
+    const memberViews = filterMemberViews({ allViews, isAdmin });
+    const sheetViews = memberViews.filter((v) => !barPrimary.includes(v));
+
+    const barButtonsHtml = barPrimary
+      .map((v, i) => {
+        const cfg = tabIcons[v];
+        const activeCls = i === 0 ? ' is-active' : '';
+        return `<button type="button" class="t-mod-tab${activeCls}" data-view="${v}" aria-label="${cfg.label}">${cfg.icon}<span>${cfg.label}</span></button>`;
+      })
+      .join('\n            ');
+
+    const sheetButtonsHtml = sheetViews
+      .map((v) => {
+        const cfg = tabIcons[v];
+        return `<button type="button" data-view="${v}">${cfg.icon}<span>${cfg.label}</span></button>`;
+      })
+      .join('\n            ');
+
+    // Markenuebernahme Etappe 2 (2026-08-26): der Kopf dreht sich um.
+    // Vorher war der TURNIERNAME der grosse Titel und die Ansicht stand
+    // nur im Reiter. Das hiess: auf jedem der sieben Screens stand
+    // dasselbe Wort ganz oben, und wo man war, musste man unten ablesen.
+    // Jetzt traegt der Titel die ANSICHT ("Spielplan", "Gruppen"), und
+    // das Turnier wandert in den Kicker darueber.
+    //
+    // Nacharbeit am selben Tag: die BADGES sind hier ersatzlos raus — der
+    // Oeffentlich-Status ist eine Einstellung und steht dort, wo man ihn
+    // aendert.
+    // Nacharbeit (2026-08-26): Der Kicker traegt keinen Sockel mehr und
+    // keinen Zurueck-Knopf. Die Vorlage zeigt an dieser Stelle NUR Text —
+    // der Weg zurueck liegt im Mehr-Blatt, wo die uebrigen Ortswechsel
+    // auch liegen. Ein Knopf im Kicker sah aus wie eine Brotkrume und
+    // verhielt sich wie ein Reiter; zwei Bedeutungen auf einer Zeile.
+    // Den Text setzt applyViewChrome() je Ansicht, siehe T_VIEW_CHROME.
+    //
+    // Das LOGO kommt mit der dritten Artefakt-Fassung zurueck. Es war in
+    // derselben Nacharbeit mit den Badges hinausgefallen; das Artefakt
+    // widerspricht dem ausdruecklich und gibt ihm den Modulkopf als
+    // festen Platz („0 → 3" in der Bilanz). Markup und Regel dazu stehen
+    // in renderModulKopf — eine Wahrheit fuer App und Pruefstand.
+    const headerHtml = renderModulKopf({
+      t,
+      titel: 'Spielplan',
+      cacheBust: t?.logoUrl ? Date.now() : null,
+    });
+
+    // Spielplan-View-Inhalt: kommt in Schritt 3.
+    // Platzhalter zeigt ehrlich, was sie noch nicht können — vgl. Module-Scope
+    // `placeholder`-Helper direkt vor `handleTournamentTabSideEffects`.
+    const groupsViewHtml = `<div data-tab-body="gruppen-mount"></div>`;
+
+    // Bug 15 (2026-08-18, User-Punkt: „Mobile ist der Hauptfall"):
+    // „Zeitplan neu" gehört in die Spielplan-View, nicht in den
+    // globalen Header. Auf Mobile frisst der Header sonst ein
+    // Drittel des Bildschirms mit drei Buttons untereinander.
+    // Außerdem wandern alle zeitplan-relevanten Aktionen dort hin,
+    // wo der User das Turnier sieht. Admin-only.
+    const showReschedule = isAdmin && t.status !== 'finished';
+
+    // Nacharbeit (2026-08-26): Die Aktionszeile unter dem Kopf ist
+    // ersatzlos gestrichen. Sie war eine eigene Zeile mit Panel-Grund,
+    // in der unterhalb von 900px beide Knoepfe per @container ausgeblendet
+    // wurden — uebrig blieb ein einzelnes Drei-Punkte-Menue, allein auf
+    // voller Breite. Und dessen zwei Eintraege waren Dubletten: „Zurueck
+    // zur Liste" fuehrt dorthin, wo die Bodenleiste ohnehin hinfuehrt,
+    // „Drucken" ist eine eigene Ansicht mit eigenem Reiter.
+    // Der Weg zurueck steht jetzt einmal, im Mehr-Blatt.
+    // Die Vorlage kennt zwischen Kopf und Inhalt nichts.
+
+    // Host-Klasse setzen, BEVOR wir innerHTML schreiben. Analog zum
+    // Wizard-Pattern (t-wizard-host): hebt das `tournaments-grid`-
+    // Karten-Raster aus main.css auf, damit .t-mod die volle Breite
+    // bekommt und .t-shells Drei-Spalten-Grid greifen kann.
+    // Wird von switchToTournamentInstances() → loadTournamentInstances()
+    // → grid.className = T_LIST_GRID_CLASS wieder entfernt.
+    grid.className = T_DETAIL_HOST_CLASS;
+    grid.innerHTML = `
+      <div class="t-mod" id="tournament-detail" data-tournament-id="${esc(t.id)}">
+        <header class="t-mod-header">
+          ${headerHtml}
+        </header>
+        <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
+            ${barButtonsHtml}
+            <button type="button" class="t-mod-tab" data-action="open-more-menu" aria-haspopup="dialog" aria-label="Weitere Ansichten">${ICON_TAB_MORE}<span>Mehr</span></button>
+        </div>
+        <div class="t-mod-more-sheet" id="t-more-sheet" data-open="false" role="dialog" aria-label="Weitere Ansichten" aria-modal="true">
+          <button type="button" class="t-mod-more-overlay" data-action="close-more" aria-label="Schließen"></button>
+          <div class="t-mod-more-panel" role="document">
+            <button type="button" class="t-mod-more-close" data-action="close-more" aria-label="Schließen">✕</button>
+            <h2 class="t-mod-more-title">Mehr</h2>
+            <nav class="t-mod-more-list">
+              ${sheetButtonsHtml}
+              <button type="button" data-action="back">${ICON_SHEET_BACK}<span>Zurück zur Übersicht</span></button>
+              ${isAdmin ? `<button type="button" data-action="new-tournament">${ICON_SHEET_NEU}<span>Neues Turnier</span></button>` : ''}
+            </nav>
+          </div>
+        </div>
+        <div class="t-shell">
+          ${renderDetailSidebar({ isAdmin })}
+          <main class="t-mod-main">
+            <section class="t-view is-active" data-view="spielplan" data-tournament-id="${esc(t.id)}">
+              ${renderSpielplanSectionHead({ isAdmin, t })}
+            </section>
+            <section class="t-view" data-view="gruppen">
+              ${groupsViewHtml}
+            </section>
+            <section class="t-view" data-view="baum">
+              <div data-tab-body="baum-mount"></div>
+            </section>
+            <section class="t-view" data-view="teams">
+              <div data-tab-body="teams-mount"></div>
+            </section>
+            <section class="t-view" data-view="regeln">
+              ${renderRegelnSectionHead({ isAdmin })}
+            </section>
+            <section class="t-view" data-view="drucken">
+              ${renderDruckenView()}
+              <div data-tab-body="drucken-mount"></div>
+            </section>
+            ${renderEinstellungenSection({ isAdmin })}
+          </main>
+          <aside class="t-mod-aside">
+            <div class="t-aside-block">
+              <div class="t-section-label">Als Nächstes</div>
+              <div id="t-aside-next"></div>
+            </div>
+            <div class="t-aside-block">
+              <div class="t-section-label">Plattenbelegung</div>
+              <div id="t-aside-tables"></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    `;
+
+    // Etappe B.1: nur Tab-Switching binden. Spielplan-Inhalt, Filter,
+    // Aside-Befüllung und Modals folgen in B.3/B.4/B.5.
+    const detail = $('tournament-detail');
+    if (!detail) return;
+
+    const navBtns = detail.querySelectorAll('.t-mod-nav button[data-view]');
+    const tabBtns = detail.querySelectorAll('.t-mod-tabs button[data-view]');
+    const sections = detail.querySelectorAll('main.t-mod-main > section.t-view[data-view]');
+
+    // Bug 15 (2026-08-18, Mobile): Es gibt zwei Tab-Leisten — die
+    // vertikale .t-mod-nav (Desktop) und die horizontale .t-mod-tabs
+    // (Mobile, scrollbar). Beide müssen synchron sein: Klick in einer
+    // schaltet die andere mit um. Sonst wirkt die Tab-Leiste auf dem
+    // Handy tot.
+    const allTabBtns = [...navBtns, ...tabBtns];
+    function switchToView(view, sourceBtn) {
+      allTabBtns.forEach((b) =>
+        b.classList.toggle('is-active', b === sourceBtn || b.dataset.view === view)
+      );
+      sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === view));
+      // Markenuebernahme: der Kopf traegt die Ansicht, also muss er hier mit.
+      applyViewChrome(detail, view, t);
+    }
+
+    // Die Aktion rechts im Kopf ist selbst ein Ansichts-Wechsel
+    // ("Teams", "Regelwerk"). Sie laeuft ueber denselben Weg wie die
+    // Reiter, damit Leiste, Sheet und Kopf nie auseinanderlaufen.
+    const headAction = detail.querySelector('[data-view-action]');
+    if (headAction) {
+      headAction.addEventListener('click', () => {
+        const ziel = headAction.dataset.view;
+        if (ziel) {
+          switchToView(ziel, null);
+          handleTournamentTabSideEffects(ziel, t, detail);
+          return;
+        }
+        // Nacharbeit (2026-08-26): Nicht jede Kopf-Aktion der Vorlage ist
+        // ein Ansichtswechsel — „Teilen" und „Bearbeiten" sind Handlungen.
+        // Statt sie hier ein zweites Mal zu verdrahten, reichen wir den
+        // Klick an das Bedienelement weiter, das die Handlung ohnehin
+        // schon traegt. Eine Handlung, ein Handler.
+        //
+        // Die beiden Ziele stehen BEWUSST als ausgeschriebene Selektoren
+        // da und nicht als `[data-action="${wert}"]`. Der erste Versuch war
+        // interpoliert — und der Selektor-Drift-Detektor wurde daraufhin
+        // rot: ein einziger dynamisch gebauter data-action-Selektor
+        // schaltet seine Gegenrichtungs-Pruefung fuer ALLE data-action-Werte
+        // ab. Eine Zeile Bequemlichkeit haette den Waechter fuer das ganze
+        // Modul blind gemacht. Ausgeschrieben prueft er auch diese zwei mit.
+        // NACHTRAG am selben Tag, ausgeloest vom Selektor-Drift-Detektor:
+        // hier standen zwei `querySelector(...).click()`-Weiterleitungen an
+        // Knoepfe in anderen Ansichten. Der Detektor hat sie als TOTE
+        // SELEKTOREN gemeldet, nachdem beide Knoepfe entfallen waren — und
+        // damit einen Fehler gefunden, den ich sonst ausgeliefert haette:
+        // "Bearbeiten" im Regelwerk-Kopf haette beim Klick nichts getan.
+        //
+        // Die Lehre steckt schon im Weiterleiten selbst. Ein Knopf, der
+        // einen anderen Knopf klickt, haengt daran, dass dieser gerade im
+        // DOM steht — "Teilen" haette nur funktioniert, wenn der Nutzer
+        // vorher im Einstellungen-Tab war. Kein Fehler, kein Hinweis,
+        // einfach nichts. Jetzt ruft jede Kopf-Aktion die Handlung direkt.
+        const handlung = headAction.dataset.handlung;
+        if (handlung === 'regelwerk-bearbeiten') {
+          switchToView('regeln', null);
+          handleTournamentTabSideEffects('regeln', t, detail);
+          enterRulesEditMode(t.id);
+        }
+      });
+    }
+
+    // Erststand: die Detailansicht oeffnet auf dem Spielplan.
+    applyViewChrome(detail, 'spielplan', t);
+
+    // Side-Effects pro Tab. Werden in beiden Leisten getriggert (die
+    // Buttons haben identische data-view-Werte).
+    //
+    // Etappe B.8: Die Logik wurde in `handleTournamentTabSideEffects`
+    // (Modul-Scope) extrahiert, damit `restoreTournamentViewState`
+    // sie nach einem Re-Render erneut aufrufen kann. Sonst blieb der
+    // Einstellungen-Mount nach jeder Save-Aktion leer.
+    allTabBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view;
+        switchToView(view, btn);
+        handleTournamentTabSideEffects(view, t, detail);
+      });
+    });
+
+    // P3 (2026-08-24): Bottom-Sheet „Mehr" — Toggle + Item-Klicks.
+    // Sheet-Items haben data-view, werden also über dieselbe
+    // switchToView/Side-Effects-Logik verarbeitet wie die Bar-Buttons.
+    const sheet = detail.querySelector('.t-mod-more-sheet');
+    const moreBtn = detail.querySelector('[data-action="open-more-menu"]');
+    if (sheet && moreBtn) {
+      const openSheet = () => {
+        sheet.dataset.open = 'true';
+        sheet.querySelector('.t-mod-more-list button')?.focus();
+      };
+      const closeSheet = () => {
+        sheet.dataset.open = 'false';
+        moreBtn.focus();
+      };
+      moreBtn.addEventListener('click', openSheet);
+      detail.querySelectorAll('[data-action="close-more"]').forEach((btn) => {
+        btn.addEventListener('click', closeSheet);
+      });
+      // Sheet-Items: schließen + Tab-Wechsel + Side-Effects
+      detail.querySelectorAll('.t-mod-more-list button[data-view]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const view = btn.dataset.view;
+          closeSheet();
+          switchToView(view, btn);
+          handleTournamentTabSideEffects(view, t, detail);
+        });
+      });
+      // Escape-Taste schließt das Sheet
+      detail.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sheet.dataset.open === 'true') closeSheet();
+      });
+    }
+
+    // Header-Aktionen: Zurück + Drucken. Bug 15 Politur
+    // (2026-08-18): beide Aktionen gibt es jetzt zweimal im DOM — einmal
+    // als inline-Button (Desktop/Tablet) und einmal als Menü-Item im
+    // Kontextmenü (Mobile). querySelectorAll bindet beide Sätze, sonst
+    // bekommt nur der erste Match einen Listener.
+    detail.querySelectorAll('[data-action="back"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (typeof switchToTournamentInstances === 'function') {
+          switchToTournamentInstances();
+        } else {
+          history.back();
+        }
+      });
+    });
+    detail.querySelectorAll('[data-action="print"]').forEach((btn) => {
+      btn.addEventListener('click', () => window.print());
+    });
+
+    // „Neues Turnier" aus dem geoeffneten Turnier heraus (2026-08-26,
+    // zweite Beschwerde). Der Wizard mountet in `grid`, und `grid` traegt
+    // im Detail die Host-Klasse T_DETAIL_HOST_CLASS — direkt aufmachen
+    // wuerde ihn in eine Schale setzen, die fuer die Detailansicht
+    // eingerichtet ist. Deshalb erst regulaer in die Uebersicht wechseln
+    // (die den Grid-Zustand zuruecksetzt und den Wizard-Rest abraeumt),
+    // dann oeffnen. Ein Weg, nicht zwei.
+    //
+    detail.querySelectorAll('[data-action="new-tournament"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await switchToTournamentInstances();
+        await openTournamentWizard();
+      });
+    });
+
+    // Bug 15 Politur (2026-08-18): Kontextmenü-Toggle für Mobile.
+    // Klick auf den ⋮-Button öffnet/schließt das Dropdown. Outside-Click
+    // schließt es. Escape-Taste ebenfalls. ARIA-Status wird mitgezogen.
+    const menu = detail.querySelector('.t-mod-menu');
+    if (menu) {
+      const toggle = menu.querySelector('.t-mod-menu-toggle');
+      const setOpen = (open) => {
+        menu.dataset.open = open ? 'true' : 'false';
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setOpen(menu.dataset.open !== 'true');
+      });
+      // Beim Klick auf einen Menü-Eintrag: Menü schließen.
+      menu.querySelectorAll('.t-mod-menu-list button').forEach((item) => {
+        item.addEventListener('click', () => setOpen(false));
+      });
+      // Outside-Click: Menü schließen.
+      // (Listener wird beim nächsten Re-Render überschrieben — `detail`
+      // ist frisch, also keine Akkumulation. Aber für Sicherheit: vorher
+      // entfernen wäre overkill; wir verlassen uns auf den GC.)
+      document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target)) setOpen(false);
+      });
+      // Escape-Taste.
+      detail.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && menu.dataset.open === 'true') {
+          setOpen(false);
+          toggle.focus();
+        }
+      });
+    }
+    // Regeln-Tab Aktionen. Header-Button „Bearbeiten" ist statisch
+    // gerendert (im Markup oben), Mount-Buttons „Speichern"/„Abbrechen"
+    // werden dynamisch von renderRulesView gebaut → wir delegieren
+    // auf den Mount, damit renderRulesView die Buttons nicht jedes Mal
+    // neu binden muss.
+    // Der fruehere „Bearbeiten"-Knopf im Regelwerk-View-Kopf ist am
+    // 26.08. entfallen (er stand dort ein zweites Mal, siehe
+    // renderRegelnSectionHead). Der Einstieg liegt jetzt im Modulkopf
+    // und ruft enterRulesEditMode direkt.
+    const regelnMount = detail.querySelector('[data-tab-body="regeln-mount"]');
+    if (regelnMount) {
+      regelnMount.addEventListener('click', (e) => {
+        const action = e.target?.closest?.('[data-action]')?.dataset?.action;
+        if (action === 'save-rules') {
+          saveRules(t.id);
+        } else if (action === 'cancel-rules') {
+          cancelRulesEditMode(t.id);
+        }
+      });
+    }
+
+    // Spielplan-Zähler im Nav.
+    const cnt = $('cnt-matches');
+    if (cnt) {
+      const total = Array.isArray(t.matches) ? t.matches.length : 0;
+      const open = (t.matches || []).filter((m) => !m.isFinished).length;
+      cnt.textContent = total > 0 ? ` (${open}/${total})` : '';
+    }
+
+    // Etappe B.3: Spielplan-Body füllen (Filter + Liste + Aside).
+    renderSpielplan(t);
+    bindSpielplanInteractions(t);
+  } catch (err) {
+    console.error('[renderTournamentInstanceDetailV3] threw', err);
+    toast('Detail-View konnte nicht aufgebaut werden: ' + (err?.message || err), 'error');
+  }
+}
+
+// ── SPIELPLAN (Etappe B.3) ───────────────────────────────────────
+// Eine einzige Quelle für Filter, Liste und Aside. Re-Render
+// erfolgt über `currentSpielplanFilter`-Setter → renderSpielplan().
+//
+// Sortierung strikt nach scheduledAt asc, Tie: field asc, nulls last
+// (User-Vorgabe: Der Spielplan ist ein Plan — was um 14:00 lief, steht
+// über dem, was um 14:20 kommt. „Nur offene" gibt es als Filter).
+//
+// Die Pure-Functions (sortMatchesBySchedule, applySpielplanFilter,
+// renderFilterChips, renderMatchList, renderAsideNext, renderAsideTables)
+// leben in spielplan-helpers.js — getestet von dort, hier nur
+// Composition mit DOM-Zugriff.
+let currentSpielplanFilter = 'alle';
+
+// Top-Level: Filter-Chips + gefilterte Liste + Aside. Idempotent —
+// wird bei jedem Filter-Klick erneut aufgerufen.
+function renderSpielplan(t) {
+  const filtersEl = $('t-filters');
+  const listEl = $('t-schedule-list');
+  const nextEl = $('t-aside-next');
+  const tablesEl = $('t-aside-tables');
+  if (!filtersEl || !listEl) return;
+
+  const matches = Array.isArray(t.matches) ? t.matches : [];
+  const groups = Array.isArray(t.groups) ? t.groups : [];
+  const isAdmin = t.isAdmin === true;
+
+  const sorted = sortMatchesBySchedule(matches);
+  filtersEl.innerHTML = renderFilterChips(sorted, groups, currentSpielplanFilter);
+
+  const filtered = applySpielplanFilter(sorted, currentSpielplanFilter);
+  listEl.innerHTML = renderMatchList(filtered, isAdmin);
+
+  if (nextEl) nextEl.innerHTML = renderAsideNext(sorted);
+  if (tablesEl) tablesEl.innerHTML = renderAsideTables(sorted);
+}
+
+// Event-Delegation: ein Listener auf der Section reicht für alle
+// Filter-Chips UND die Match-Aktion-Buttons.
+function bindSpielplanInteractions(t) {
+  const section = document.querySelector('section.t-view[data-view="spielplan"]');
+  if (!section || section.dataset.bound === '1') return;
+  section.dataset.bound = '1';
+
+  section.addEventListener('click', (e) => {
+    // Nacharbeit (2026-08-26), Beschwerde 4: Das Aufklappmenue ist
+    // entfallen, die Chips stehen wieder in einer scrollenden Reihe
+    // (siehe renderFilterChips). Damit faellt hier der Trigger-Zweig weg
+    // und der Zweig fuer die Menue-Eintraege — es gibt nur noch Chips.
+    // Filter-Chip. Vierte Fassung: zurueck zu Chips, aber nur die vier
+    // der Vorlage — damit passt die Reihe ohne Seitwaerts-Scrollen.
+    const chip = e.target.closest('.t-chip[data-filter]');
+    if (chip && section.contains(chip)) {
+      currentSpielplanFilter = chip.dataset.filter;
+      renderSpielplan(t);
+      return;
+    }
+    // Match-Aktion "Ergebnis"
+    const action = e.target.closest('[data-action="enter-result"]');
+    if (action && section.contains(action)) {
+      const matchId = action.dataset.matchId;
+      if (matchId) openResultEntryModal(t.id, matchId, t.matches || []);
+      return;
+    }
+    // Header-Aktion: Modal mit Dropdown aller offenen Matches öffnen.
+    const header = e.target.closest('[data-action="enter-result-pick"]');
+    if (header && section.contains(header)) {
+      openResultEntryModal(t.id, null, t.matches || []);
+      return;
+    }
+  });
+
+  // Der Click-Outside-Listener fuer das Filter-Dropdown ist mit dem
+  // Dropdown selbst entfallen (2026-08-26, Beschwerde 4). Er hing am
+  // `document` und lief bei JEDEM Klick der ganzen Anwendung mit, um
+  // etwas zuzuklappen, das es nicht mehr gibt. Eine Chip-Reihe hat
+  // keinen offenen Zustand, den man schliessen muesste.
+}
+
+/**
+ * v3: Publish / Unpublish-Toggle.
+ */
+async function togglePublishV3(tournamentId, makePublic) {
+  if (!tournamentId) return;
+  let saved = false;
+  try {
+    const endpoint = makePublic ? 'publish' : 'unpublish';
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/${endpoint}`, 'POST');
+    toast(makePublic ? 'Turnier veröffentlicht' : 'Öffentlich widerrufen', 'success');
+    saved = true;
+  } catch (e) {
+    toast(e.serverMessage || 'Aktion fehlgeschlagen', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+/**
+ * v3: Tabelle (Standings) in das "gruppen"-View laden.
+ * Schreibt in den neuen Mount [data-tab-body="gruppen-mount"], nicht in
+ * das alte `[data-tab-body="groups"]` der v2-Shell.
+ *
+ * Spec §13.7 Spaltenfolge: Pl. · Team · Sp. · S · U · N · Becher · Diff · Pkt.
+ * Spaltenbezeichnung „Becher" / „Tore" / „Punkte" richtet sich nach der
+ * Sportart des Turniers (Spec §5.4): Bierpong → Becher, Fußball → Tore,
+ * Sonstiges → Punkte.
+ *
+ * Bug 8 (2026-08-18): Vorher wurden `s.wins` / `s.draws` / `s.losses` /
+ * `s.goalDifference` gelesen — die Engine liefert aber `won` / `drawn` /
+ * `lost` / `goalDiff`. Resultat: alle Werte 0 außer Pkt. Außerdem fehlte
+ * die Spalte „Sp." (played) und „Becher" wurde als Score-Label in Spalte
+ * 3 statt als Doppelwert (erzielt:kassiert) in Spalte 7 angezeigt.
+ */
+async function loadStandingsTab(tournamentId) {
+  if (!tournamentId) return;
+  const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
+  if (!mount) return;
+  mount.innerHTML =
+    '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Tabellen…</p></div></div>';
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/standings`, 'GET');
+    // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
+    // Absenden und der Antwort kann der Nutzer laengst in einem anderen
+    // Turnier stehen — Turnier A oeffnen, schnell zu B wechseln, und die
+    // Tabelle von A landete im Mount von B. Der Guard steht
+    // an sechs weiteren Stellen im File woertlich so.
+    if (activeTournamentInstance?.id !== tournamentId) return;
+    const groups = data.groups || [];
+    const scoreLabel = data.scoreLabel || 'Punkte';
+
+    if (groups.length === 0) {
+      mount.innerHTML =
+        '<div class="t-card"><div class="t-card-body"><p class="t-hint">Keine Gruppen vorhanden.</p></div></div>';
+      return;
+    }
+
+    const hasAnyRows = groups.some((g) => (g.standings || []).length > 0);
+    if (!hasAnyRows) {
+      mount.innerHTML =
+        '<div class="t-card"><div class="t-card-body"><p class="t-hint">Noch keine Gruppenspiele absolviert.</p></div></div>';
+      return;
+    }
+
+    const groupsHtml = renderStandingsGroups(groups, scoreLabel, data.qualifyPerGroup);
+    // Beste Dritte (Spec §6.3.1, §13.7). Wird nur gerendert, wenn das
+    // Turnier überhaupt welche zulässt (config.bestThirds > 0). Die
+    // Render-Funktion gibt einen leeren String zurück, wenn nichts da
+    // ist — also unbedenklich, hier zu konkatenieren.
+    const bestThirdsHtml = renderBestThirdsTable(data.bestThirds);
+    mount.innerHTML = groupsHtml + bestThirdsHtml;
+    // Nacharbeit 2026-08-26 (Entscheid Jonas): Hier stand der grosse
+    // Aufruf „K.-o.-Phase starten" samt Hinweiskarte, angehaengt unter
+    // den Gruppentabellen. Er ist ersatzlos entfallen und liegt jetzt als
+    // kleiner Notfallknopf im Einstellungen-Tab.
+    //
+    // Der Grund ist nicht Platz, sondern Zustaendigkeit: das Fuellen der
+    // K.-o.-Phase passiert automatisch, sobald das letzte Gruppenspiel
+    // eingetragen ist. Ein Knopf, der nur erscheint, WENN die Automatik
+    // versagt hat, steht ausgerechnet dann da, wenn niemand mit einer
+    // Aufforderung rechnet — und er steht in der Ansicht, in der man
+    // Ergebnisse liest, nicht in der man Dinge repariert.
+    //
+    // Die Route und ihr Handler sind unveraendert; nur der Einstieg ist
+    // umgezogen. Siehe renderEinstellungen -> Block „Notfall".
+    // P5-Truncation 2026-08-25: ResizeObserver auf .t-mod, der beim
+    // Crossen der 600-px-Grenze die Tabellen mit der passenden
+    // Colgroup neu rendert. Refresh-Callback re-fetched nicht (zu
+    // teuer), sondern greift auf die zuletzt geladenen groups zurück.
+    // Da loadStandingsTab ohnehin die Quelle der Wahrheit ist, rufen
+    // wir sie rekursionsfrei via refreshStandingsTab() auf.
+    ensureTModResizeObserver(() =>
+      refreshStandingsTab(
+        tournamentId,
+        groups,
+        data.bestThirds,
+        scoreLabel,
+        // P5-Re-Fix-3 (2026-08-25): Args für den Re-Render des Buttons
+        // nach Resize — Bedingungen bleiben über Crossen der 600-px-Grenze
+        // identisch, also reicht die Referenz auf das aktive Turnier. Wir
+        // übergeben nur ein Args-Objekt, wenn die Bedingungen erfüllt sind,
+        // damit refreshStandingsTab nicht versehentlich einen Button für
+        // Member oder nicht-groups_ko-Modi rendert.
+        tournament?.isAdmin === true &&
+          tournament?.mode === 'groups_ko' &&
+          allGroupsFinished &&
+          bracketHasPlaceholders
+          ? { tournament }
+          : null,
+        // A3: dieselbe Qualifikationszahl wie beim Erst-Render, sonst
+        // wechselt die Einfaerbung beim Crossen der 600-px-Grenze.
+        data.qualifyPerGroup
+      )
+    );
+  } catch (e) {
+    if (activeTournamentInstance?.id !== tournamentId) return;
+    mount.innerHTML = `<div class="t-card"><div class="t-card-body"><p class="t-hint">Tabellen konnten nicht geladen werden.</p></div></div>`;
+    toast(e.serverMessage || 'Tabelle konnte nicht geladen werden', 'error');
+    // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
+    // es den Tab als geladen und der „Erneut versuchen"-Knopf
+    // erscheint nie. Der Kartentext oben bleibt als Rueckfall fuer
+    // Direktaufrufe (die Funktion steht im Export-Block).
+    throw e;
+  }
+}
+
+/**
+ * Re-Render-Helfer für ResizeObserver (P5-Truncation 2026-08-25).
+ * Greift auf die zuletzt geladenen Daten zurück statt neu zu fetchen
+ * — beim Crossen der 600-px-Grenze will der User keinen Loading-Spinner,
+ * nur eine andere Spaltenbreite. Scroll-Position wird im Observer
+ * gesichert und nach dem Paint wiederhergestellt.
+ *
+ * P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" wird nach
+ * dem Re-Render wieder angehängt, weil innerHTML ihn sonst wegfegt.
+ * Bedingungen (isAdmin, mode, Flags) bleiben über Resize identisch —
+ * kein Re-Fetch nötig.
+ */
+function refreshStandingsTab(
+  tournamentId,
+  groups,
+  bestThirds,
+  scoreLabel,
+  fillKoButtonArgs,
+  qualifyPerGroup
+) {
+  const mount = document.querySelector('[data-tab-body="gruppen-mount"]');
+  if (!mount) return;
+  if (!groups) return; // kein Vorlauf → still ignorieren
+  // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Der Observer feuert
+  // beim Crossen der 600-px-Grenze, also potenziell lange nach dem Laden.
+  // Steht der Nutzer inzwischen in einem anderen Turnier, wuerden hier
+  // die Tabellen des alten in dessen Mount gemalt.
+  if (activeTournamentInstance?.id !== tournamentId) return;
+  const groupsHtml = renderStandingsGroups(groups, scoreLabel, qualifyPerGroup);
+  const bestThirdsHtml = renderBestThirdsTable(bestThirds);
+  mount.innerHTML = groupsHtml + bestThirdsHtml;
+  // Der KO-Knopf und der Gruppen-Umschalter sind hier beide entfallen
+  // (2026-08-26): der Knopf liegt jetzt im Einstellungen-Tab, und die
+  // Gruppen stehen wieder untereinander statt hinter einem Schalter.
+  void fillKoButtonArgs;
+}
+
+/**
+ * Turnierbaum-Tab rendern (Etappe B.4).
+ *
+ * Spec §8.2: KO-Phase als links-nach-rechts-Baum, Runden = Spalten,
+ * Verbindungslinien zwischen den Spielen. Reiner Read-View — keine
+ * Aktionen am Baum selbst; Ergebnisse werden weiter über den
+ * Spielplan-Tab eingetragen, danach propagiert die Engine die Sieger
+ * ins Folge-Match und der nächste loadBracketTab zeigt den neuen Slot.
+ *
+ * Lazy: einmal rendern, dataset.loaded verhindert Re-Fetch bei
+ * Tab-Wechsel (wie loadStandingsTab).
+ */
+async function loadBracketTab(tournamentId) {
+  if (!tournamentId) return;
+  const mount = document.querySelector('[data-tab-body="baum-mount"]');
+  if (!mount) return;
+  mount.innerHTML =
+    '<div class="t-card"><div class="t-card-body"><p class="t-hint">Lade Turnierbaum…</p></div></div>';
+  try {
+    const data = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/bracket`, 'GET');
+    // Stale-Guard (Betriebsfestigkeit A4, 2026-08-25): Zwischen dem
+    // Absenden und der Antwort kann der Nutzer laengst in einem anderen
+    // Turnier stehen — Turnier A oeffnen, schnell zu B wechseln, und die
+    // Baum    von A landete im Mount von B. Der Guard steht
+    // an sechs weiteren Stellen im File woertlich so.
+    if (activeTournamentInstance?.id !== tournamentId) return;
+    const matches = Array.isArray(data && data.matches) ? data.matches : [];
+    // P5-Re-Fix (2026-08-25): Die zwei neuen Flags aus dem /bracket-
+    // Response (allGroupsFinished + bracketHasPlaceholders) ersetzen
+    // die alte Heuristik `matches.length === 0`. Die alte Heuristik
+    // hat den Button nie gezeigt, sobald die KO-Stage generiert war
+    // (matches.length > 0, aber Slots haben Platzhalter → Render
+    // zeigt „Sieger VF 1" usw.). Das war der Hauptbug, der User aus
+    // jeder vor-Generierung-Turniersituation ausgesperrt hat.
+    const allGroupsFinished = data?.allGroupsFinished === true;
+    const bracketHasPlaceholders = data?.bracketHasPlaceholders === true;
+    const renderer =
+      (window.spielplanHelpers &&
+        window.spielplanHelpers.bracket &&
+        window.spielplanHelpers.bracket.renderBracket) ||
+      (globalThis.spielplanHelpers &&
+        globalThis.spielplanHelpers.bracket &&
+        globalThis.spielplanHelpers.bracket.renderBracket);
+    if (typeof renderer !== 'function') {
+      throw new Error('Bracket-Renderer nicht verfügbar (spielplan-helpers.js nicht geladen)');
+    }
+    mount.innerHTML = renderer(matches);
+    wireBracketTabs(mount); // Mobile-Tab-Leiste + Scroll-Spy (Desktop: Tabs via CSS versteckt)
+
+    // P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" wurde vom
+    // Bracket-Tab HIERHER zum Gruppen-Tab verschoben (User-Feedback:
+    // „mach den ko phase starten button lieber bei den gruppen hin
+    // ganz ganz unten"). Im Bracket-Tab ist er nicht mehr nötig, der
+    // User sucht ihn nicht dort — die Gruppentabellen sind der
+    // natürliche Anker, weil sie direkt zeigen, was fertig ist.
+    // Mitglieder sehen weiterhin keinen Button (isAdmin-Gate).
+  } catch (e) {
+    if (activeTournamentInstance?.id !== tournamentId) return;
+    mount.innerHTML =
+      '<div class="t-card"><div class="t-card-body"><p class="t-hint">Turnierbaum konnte nicht geladen werden.</p></div></div>';
+    toast((e && e.serverMessage) || 'Turnierbaum konnte nicht geladen werden', 'error');
+    // Weiterwerfen: startTabLoad braucht das Signal, sonst markiert
+    // es den Tab als geladen und der „Erneut versuchen"-Knopf
+    // erscheint nie. Der Kartentext oben bleibt als Rueckfall fuer
+    // Direktaufrufe (die Funktion steht im Export-Block).
+    throw e;
+  }
+}
+
+/**
+ * P3 (2026-08-24) + P5-Re-Fix (2026-08-25): Hängt einen Fallback-Button
+ * „K.-o.-Phase starten" an die Bracket-Mount, wenn der automatische
+ * maybeFillKoFromGroupFinish-Trigger nicht gegriffen hat (z.B. weil die
+ * Gruppenphase schon vor diesem Fix abgeschlossen wurde). Click →
+ * POST /:id/fill-ko → Re-Render des Brackets.
+ *
+ * User-Forderung P5 (2026-08-25): "Eine Wahrheit, zwei Auslöser." —
+ * der manuelle Knopf ruft dieselbe Funktion wie der automatische Weg.
+ * Antwort ist `{ ok, updatedCount, qualifiers, matches, firstMatchup? }`
+ * — wir zeigen den Toast mit dem ersten Matchup, damit der User sofort
+ * sieht, was passiert ist.
+ */
+/**
+ * K.-o.-Phase von Hand aus den Gruppenergebnissen fuellen.
+ *
+ * Bis 2026-08-26 hiess diese Funktion `wireFillKoButton` und tat zwei
+ * Dinge: sie BAUTE einen grossen Aufruf-Knopf samt Hinweiskarte unter den
+ * Gruppentabellen und haengte den Handler daran. Der Knopf ist auf
+ * Entscheid von Jonas in den Einstellungen-Tab gewandert („als
+ * notfallknopf wenns nicht geht aus irgendeinem grund"), und damit bleibt
+ * hier nur noch die Handlung.
+ *
+ * Das ist auch die sauberere Trennung: wer den Knopf zeichnet, entscheidet
+ * ueber Ort und Optik; was er tut, steht an einer Stelle. „Eine Wahrheit,
+ * zwei Ausloeser" (P5, 2026-08-25) gilt unveraendert — der automatische
+ * Weg ueber maybeFillKoFromGroupFinish ruft dieselbe Route.
+ */
+async function fuelleKoPhaseVonHand(tournament) {
+  if (!tournament?.id) return;
+  let erfolg = false;
+  try {
+    const result = await apiCall(
+      `/tournaments/${encodeURIComponent(tournament.id)}/fill-ko`,
+      'POST'
+    );
+    const mu = result?.firstMatchup;
+    const msg =
+      mu?.home && mu?.away
+        ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+        : 'K.-o.-Phase gefüllt';
+    toast(msg, 'success');
+    erfolg = true;
+  } catch (e) {
+    // Die drei Faelle, die hier wirklich vorkommen, bekommen einen
+    // eigenen Satz. Alles andere faellt auf die Servermeldung zurueck —
+    // eine erfundene Erklaerung waere schlimmer als eine technische.
+    const roh = String(e?.message ?? '');
+    const errorMsg = /group_phase_not_complete/.test(roh)
+      ? 'Die Gruppenphase ist noch nicht abgeschlossen — es fehlen Ergebnisse.'
+      : /bracket_already_filled/.test(roh)
+        ? 'Die K.-o.-Phase steht bereits. Hier ist nichts zu reparieren.'
+        : e?.serverMessage || 'K.-o.-Phase konnte nicht gefüllt werden';
+    toast(errorMsg, /bracket_already_filled/.test(roh) ? 'info' : 'error');
+  }
+  if (erfolg) {
+    await refreshTournamentAfterMutation(tournament.id);
+  }
+}
+
+/**
+ * P5-Re-Fix (2026-08-25): Modal mit drei Buttons, das nach einem
+ * Save-Ablehnung erscheint, wenn ein Gruppenscore nachträglich geändert
+ * wurde NACHDEM die K.-o.-Phase schon befüllt war. User-Forderung:
+ * "Zeig mir eine Warnung, dass sich die Qualifikation ändern könnte, und
+ * biete an, die K.-o.-Phase neu zu setzen. Nicht still überschreiben."
+ *
+ * Drei Optionen:
+ *   - "Abbrechen" — User hat das Save eigentlich nicht gewollt (zu spät,
+ *     Save ist bereits durch — aber zumindest kein Bracket-Override).
+ *   - "Bracket beibehalten" — neues Gruppenergebnis steht in der DB, das
+ *     Bracket wird NICHT aktualisiert (z.B. wenn nur ein Tippfehler war,
+ *     der die Qualifikation nicht verschiebt).
+ *   - "K.-o.-Phase neu setzen" — POST /:id/fill-ko aufrufen, Bracket
+ *     wird neu qualifiziert.
+ *
+ * Da openConfirmDialog nur zwei Buttons unterstützt, ist das hier ein
+ * eigenes Inline-Modal mit drei Buttons — klein, klar, kein
+ * zusätzliches CSS nötig (wir nutzen die bestehenden dlg-Klassen).
+ */
+function openBracketRefillConfirmDialog(tournamentId) {
+  if (!tournamentId) return;
+  // Bereits ein Dialog offen → nicht doppelt rendern.
+  if (document.getElementById('bracket-refill-modal')) return;
+  const dlg = document.createElement('div');
+  dlg.id = 'bracket-refill-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>K.-o.-Phase neu qualifizieren?</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <div class="tournament-detail-dlg-body">
+        <p>Du hast gerade ein Gruppenspiel-Ergebnis geändert. Die K.-o.-Phase ist
+          aber bereits befüllt — wenn sich durch deine Änderung die
+          Qualifikation verschiebt, stimmt das Bracket jetzt nicht mehr.</p>
+        <p>Wie willst du vorgehen?</p>
+        <ul class="t-list t-list--bullets">
+          <li><strong>Abbrechen:</strong> Modal zu, Bracket bleibt wie es ist
+            (dein geändertes Gruppenergebnis bleibt trotzdem gespeichert).</li>
+          <li><strong>Bracket beibehalten:</strong> Das Bracket wird nicht
+            angefasst — sinnvoll, wenn deine Änderung die Qualifikation
+            nicht verschiebt.</li>
+          <li><strong>K.-o.-Phase neu setzen:</strong> Das Bracket wird
+            komplett neu qualifiziert — Folge-Matches, die bereits
+            ausgespielt waren, bleiben mit ihren Scores erhalten, aber
+            die Slots bekommen die neuen Teams.</li>
+        </ul>
+      </div>
+      <div class="tournament-card-actions">
+        <button type="button" class="btn btn-ghost" data-action="cancel">Abbrechen</button>
+        <button type="button" class="btn btn-secondary" data-action="keep">Bracket beibehalten</button>
+        <button type="button" class="btn btn-primary" data-action="refill">K.-o.-Phase neu setzen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const close = () => dlg.remove();
+
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.dataset.action === 'close') {
+      close();
+      return;
+    }
+    const action = e.target.dataset && e.target.dataset.action;
+    if (action === 'cancel') {
+      close();
+    } else if (action === 'keep') {
+      close();
+      toast('K.-o.-Bracket bleibt unverändert', 'info');
+    } else if (action === 'refill') {
+      // Buttons sperren, damit User nicht doppelt klickt.
+      const buttons = dlg.querySelectorAll('button');
+      buttons.forEach((b) => {
+        b.disabled = true;
+      });
+      apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fill-ko`, 'POST')
+        .then((result) => {
+          const mu = result?.firstMatchup;
+          const msg =
+            mu?.home && mu?.away
+              ? `K.-o.-Phase neu gesetzt: ${mu.home} trifft auf ${mu.away}`
+              : 'K.-o.-Phase neu gesetzt';
+          toast(msg, 'success');
+          close();
+          return refreshTournamentAfterMutation(tournamentId);
+        })
+        .catch((e2) => {
+          toast(e2?.serverMessage || 'K.-o.-Phase konnte nicht neu gesetzt werden', 'error');
+          buttons.forEach((b) => {
+            b.disabled = false;
+          });
+        });
+    }
+  });
+}
+
+/**
+ * Verdrahtet die Runden-Tab-Leiste oberhalb des Brackets.
+ *
+ * Spec §13.8 (Mobile-Pflicht): "Runden-Tabs zum direkten Springen, die
+ * aktuell sichtbare ist hervorgehoben." Auf Desktop sind die Tabs via CSS
+ * ausgeblendet (display:none), aber wir hängen die Listener trotzdem an —
+ * billig, robust.
+ *
+ * - Click-Handler: Klick auf einen Tab scrollt die zugehörige .bracket-col
+ *   in den Snap-Anfang von .bracket-wrap (smooth scrollIntoView).
+ * - Scroll-Spy: IntersectionObserver auf .bracket-col-Kinder mit root
+ *   = .bracket-wrap. Sobald eine Spalte > 50% sichtbar ist, wird ihr
+ *   Tab hervorgehoben (.is-active).
+ *
+ * @param {HTMLElement} root   Container, in dem der Bracket-Tab montiert wurde
+ */
+function wireBracketTabs(root) {
+  if (!root) return;
+  const wrap = root.querySelector('.bracket-wrap');
+  const tabs = root.querySelectorAll('.bracket-tab');
+  const cols = root.querySelectorAll('.bracket-col[data-bracket-col]');
+  if (!wrap || !tabs.length || !cols.length) return;
+
+  // Click-Handler
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const label = tab.dataset.bracketTab;
+      if (!label || typeof wrap.querySelector !== 'function') return;
+      // data-bracket-col enthält Sonderzeichen-gefährliche Strings →
+      // CSS.escape sichert den Selektor ab.
+      const target = wrap.querySelector(`.bracket-col[data-bracket-col="${CSS.escape(label)}"]`);
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+      }
+    });
+  });
+
+  // Scroll-Spy via IntersectionObserver
+  if (typeof IntersectionObserver === 'function') {
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio > 0.5) {
+            const label = entry.target.dataset.bracketCol;
+            tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.bracketTab === label));
+          }
+        });
+      },
+      { root: wrap, threshold: [0, 0.5, 1] }
+    );
+    cols.forEach((col) => io.observe(col));
+  }
+
+  // Nacharbeit (2026-08-26): Hier stand „Initial: erster Tab aktiv" und
+  // setzte `is-active` blind auf tabs[0]. Das hat zwei Dinge kaputtgemacht.
+  //
+  // Erstens hat es die Arbeit des Renderers ueberschrieben: der rechnet
+  // die AKTUELLE Runde aus (die erste, in der noch etwas offen ist) und
+  // markiert sie bereits. Danach war entweder die falsche Runde markiert
+  // oder — wenn die aktuelle nicht die erste war — gleich ZWEI.
+  //
+  // Zweitens zeigte der Baum beim Oeffnen trotzdem die erste Runde, weil
+  // die Spalten scroll-snap-Seiten sind und der Scrollstand bei 0 anfing.
+  // Man sah also „Halbfinale" markiert und Viertelfinal-Karten darunter.
+  // Die Vorlage ist da eindeutig: „darunter die aktuelle Runde".
+  //
+  // Jetzt: der Renderer bestimmt die Runde, und der Scrollstand folgt ihr.
+  // `behavior: 'instant'` ist Absicht — ein Sprung beim Oeffnen ist kein
+  // Uebergang, den man sehen soll, sondern der Ausgangszustand.
+  const aktiverTab = root.querySelector('.bracket-tab.is-active');
+  if (aktiverTab) {
+    const label = aktiverTab.dataset.bracketTab;
+    const spalte = label
+      ? wrap.querySelector(`.bracket-col[data-bracket-col="${CSS.escape(label)}"]`)
+      : null;
+    if (spalte && typeof spalte.scrollIntoView === 'function') {
+      spalte.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'start' });
+    }
+  } else if (tabs[0]) {
+    // Fail-open: hat der Renderer keine Runde markiert (alles gespielt),
+    // ist die erste die ehrlichste Voreinstellung.
+    tabs[0].classList.add('is-active');
+  }
+}
+
+/**
+ * Teams-Tab rendern (Etappe B.5).
+ *
+ * Spec §1.2/§13.2: Admin-only für Edit (Rename + DnD-Reihenfolge).
+ * Member sehen Read-View mit der gesetzten Reihenfolge.
+ *
+ * Datenquelle: t.teams aus dem View-Kontext (vom Server mitgegeben
+ * beim Tournament-Detail-Fetch). Eine separate GET-Route ist nicht
+ * nötig — die Liste wird beim Tab-Wechsel ohnehin neu gerendert.
+ *
+ * @param {Object} t  Tournament-View-Objekt mit .id, .isAdmin, .status, .teams
+ */
+async function loadTeamsTab(t) {
+  if (!t || !t.id) return;
+  const mount = document.querySelector('[data-tab-body="teams-mount"]');
+  if (!mount) return;
+  const isAdmin = t.isAdmin === true;
+  // Reorder ist nur erlaubt im Status 'draft' — nach Generierung ist
+  // die Setzreihenfolge fix, weil die Engine sie als Bracket-Seed liest
+  // (Spec §6.1: "Bei KO entscheidet die Reihenfolge, gegen wen man spielt").
+  const reorderable = isAdmin && t.status === 'draft';
+
+  const renderer =
+    (window.spielplanHelpers && window.spielplanHelpers.renderTeamsList) ||
+    (globalThis.spielplanHelpers && globalThis.spielplanHelpers.renderTeamsList);
+  if (typeof renderer !== 'function') {
+    mount.innerHTML =
+      '<div class="t-card"><div class="t-card-body"><p class="t-hint">Teams-Renderer nicht verfügbar.</p></div></div>';
+    return;
+  }
+  const teams = Array.isArray(t.teams) ? t.teams : [];
+  mount.innerHTML = renderer(teams, { isAdmin, reorderable });
+
+  wireTeamsList(mount, t, { isAdmin, reorderable });
+}
+
+/**
+ * Verdrahtet die Teams-Liste: Inline-Rename (Admin) + Pointer-DnD
+ * (Admin + reorderable). Beide Features sind exklusiv — bei DnD wird
+ * das Input nicht als Drag-Quelle gewertet, sodass Rename und DnD
+ * sich nicht in die Quere kommen.
+ */
+function wireTeamsList(mount, t, { isAdmin, reorderable }) {
+  if (!mount) return;
+  const list = mount.querySelector('[data-role="teams-list"]');
+  if (!list) return;
+
+  if (isAdmin) {
+    // Inline-Rename: Klick auf den Namen öffnet ein <input>. Speichern
+    // per Enter oder Blur. Abbrechen per Escape.
+    list.addEventListener('click', (e) => {
+      const nameEl = e.target.closest('[data-role="team-name"]');
+      if (!nameEl) return;
+      const row = nameEl.closest('.t-team-row');
+      if (!row) return;
+      startInlineRename(row, t);
+    });
+  }
+
+  if (reorderable) {
+    attachTeamsDnD(list, t);
+  }
+}
+
+/**
+ * Etappe B.7: Lädt den Einstellungen-Tab.
+ *
+ * Reine Render-Funktion — keine Daten-Fetch. Wir nutzen den
+ * `t`-View-Kontext, den openTournamentInstance bereits in `currentTournament`
+ * (bzw. der lokalen `t`-Variable) ablegt.
+ *
+ * @param {Object} t  Vollständiger Turnier-View-Kontext (id, name, status, groups, teams, matches, config, isAdmin).
+ * @param {HTMLElement} mount  Container-Element [data-tab-body="einstellungen-mount"].
+ */
+async function loadEinstellungenTab(t, mount) {
+  // Etappe B.8: try/catch um den gesamten Renderer. Wenn openTournamentInstance
+  // neu lädt und die Datenform anders ist als der Renderer erwartet, soll
+  // der User einen Fehlertext sehen — nicht eine leere Seite.
+  try {
+    if (!t || !t.id || !mount) return;
+    const renderer = window.spielplanHelpers && window.spielplanHelpers.renderEinstellungen;
+    if (typeof renderer !== 'function') {
+      mount.innerHTML =
+        '<div class="t-card"><div class="t-card-body"><p class="t-hint">Einstellungen-Renderer nicht verfügbar.</p></div></div>';
+      return;
+    }
+    const finishedCount = Array.isArray(t.matches)
+      ? t.matches.filter((m) => m && m.isFinished === true).length
+      : 0;
+    const html = renderer(
+      {
+        tournament: {
+          id: t.id,
+          name: t.name,
+          status: t.status,
+          // Etappe B.8: startedAt an den Renderer durchreichen.
+          startedAt: t.startedAt ?? null,
+          config: t.config || {},
+          // Zuschauer-Link (26.08.2026): Diese Aufzählung ist eine
+          // Allowlist — was hier fehlt, sieht der Renderer nie. Beim
+          // Einbau des Link-Blocks fehlten genau diese zwei Felder:
+          // Die Freigabe landete in der Datenbank, der Block zeigte aber
+          // weiter „Link erstellen", weil isPublic bei ihm undefined war.
+          // Wer den Einstellungen-Tab um ein Feld erweitert, erweitert
+          // auch diese Zeile — sonst rendert er gegen undefined.
+          isPublic: t.isPublic === true,
+          publicToken: t.publicToken ?? null,
+          // Block „Turnierlogo": ohne dieses Feld zeigte der Block
+          // dauerhaft „kein Logo", auch wenn eines hochgeladen war.
+          logoUrl: t.logoUrl ?? null,
+        },
+        teams: Array.isArray(t.teams) ? t.teams : [],
+        groups: Array.isArray(t.groups) ? t.groups : [],
+        matches: Array.isArray(t.matches) ? t.matches : [],
+      },
+      { isAdmin: t.isAdmin === true, finishedCount }
+    );
+    mount.innerHTML = html;
+    wireEinstellungen(mount, t, { finishedCount });
+  } catch (err) {
+    console.error('[loadEinstellungenTab] failed', err);
+    // Fehlerbild mit „Erneut versuchen" statt einer Sackgasse — der
+    // Wiederholungsweg ist derselbe Aufruf mit demselben Mount.
+    renderTabLoadError(
+      mount,
+      'Die Einstellungen',
+      () => {
+        loadEinstellungenTab(t, mount);
+      },
+      err && err.message ? err.message : String(err)
+    );
+  }
+}
+
+/**
+ * Verdrahtet alle Action-Buttons im Einstellungen-Tab.
+ * Event-Delegation am Mount — wir reagieren auf data-action-Attribute.
+ */
+/**
+ * Stepper verdrahten: − und + verändern das Feld in ihrer Mitte.
+ *
+ * Delegation am Mount statt ein Listener je Knopf — der Einstellungen-Tab
+ * wird bei jeder Änderung neu gerendert, und einzeln gebundene Listener
+ * gingen dabei verloren. Genau diese Klasse Fehler hat der
+ * Selektor-Drift-Detektor heute schon zweimal aufgedeckt.
+ *
+ * Bewusst NICHT an `wireGuardedClick`: hier wird nichts gespeichert. Der
+ * Stepper ändert eine Zahl im Formular; gespeichert wird sie erst von
+ * „Zeitplan neu berechnen" bzw. „Jetzt verschieben", und DIE hängen an
+ * der Sperre. Eine Sperre am Stepper würde nur so aussehen, als sei hier
+ * etwas zu schützen.
+ *
+ * `input` wird ausgelöst, damit alles, was am Feld hängt, den neuen Wert
+ * sieht — der Stepper darf sich nicht anders verhalten als Tippen.
+ */
+function wireStepper(mount) {
+  if (!mount || mount.dataset.stepperBound === '1') return;
+  mount.dataset.stepperBound = '1';
+  mount.addEventListener('click', (ev) => {
+    const knopf = ev.target.closest('.t-step-btn[data-step]');
+    if (!knopf || !mount.contains(knopf)) return;
+    const feld = knopf.parentElement?.querySelector('.t-step-wert');
+    if (!feld) return;
+
+    const richtung = Number(knopf.dataset.step) || 0;
+    const schritt = Number(feld.step) || 1;
+    const min = feld.min === '' ? -Infinity : Number(feld.min);
+    const max = feld.max === '' ? Infinity : Number(feld.max);
+    // Ein leeres oder vertipptes Feld darf nicht zu NaN führen — dann
+    // stünde nach einem Klick "NaN" im Formular und der nächste Klick
+    // käme nicht mehr heraus.
+    const jetzt = Number.isFinite(Number(feld.value))
+      ? Number(feld.value)
+      : Number.isFinite(min)
+        ? min
+        : 0;
+    const neu = Math.min(max, Math.max(min, jetzt + richtung * schritt));
+    if (neu === jetzt) return;
+    feld.value = String(neu);
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+function wireEinstellungen(mount, t, { finishedCount }) {
+  if (!mount) return;
+
+  // Stepper zuerst: sie gehoeren zur FORM der Zeile, nicht zu einer
+  // einzelnen Aktion, und muessen auch dann laufen, wenn weiter unten
+  // eine Verdrahtung wegen fehlender Rechte uebersprungen wird.
+  wireStepper(mount);
+
+  // Etappe B.8.1 — board ist Shared-Resource für saveGroupsFallback + Pair-Swap.
+  const board = mount.querySelector('[data-role="groups-board"]');
+
+  // ─── Klappbare Blöcke (D6) ───────────────────────────────────────
+  // Auf jeden Section-Header klicken → data-collapsed toggeln.
+  mount.querySelectorAll('[data-action="toggle-section"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const section = btn.closest('.t-settings-section');
+      if (!section) return;
+      const collapsed = section.getAttribute('data-collapsed') === 'true';
+      section.setAttribute('data-collapsed', String(!collapsed));
+      btn.setAttribute('aria-expanded', String(!collapsed));
+    });
+  });
+
+  // ─── Turnierlogo ──────────────────────────────────────────────────
+  // Der Knopf öffnet nur die Dateiauswahl; die eigentliche Arbeit hängt
+  // am change-Ereignis des versteckten Eingabefelds. Deshalb liegt hier
+  // kein wireGuardedClick um den Upload selbst — der Doppelklick-Schutz
+  // sitzt am Knopf, und ein zweites Öffnen des Dateidialogs ist folgenlos.
+  const logoBtn = mount.querySelector('[data-action="upload-logo"]');
+  const logoInput = mount.querySelector('[data-logo-file-input]');
+  if (logoBtn && logoInput) {
+    wireGuardedClick(logoBtn, async () => {
+      logoInput.click();
+    });
+    logoInput.addEventListener('change', async () => {
+      const datei = logoInput.files?.[0];
+      // Abbruch im Dateidialog liefert eine leere Auswahl — kein Fehler.
+      if (!datei) return;
+      await uploadLogo(t.id, datei);
+      // Zurücksetzen, sonst löst dieselbe Datei beim zweiten Mal kein
+      // change-Ereignis aus und der Austausch wirkt wirkungslos.
+      logoInput.value = '';
+    });
+  }
+
+  const logoRemoveBtn = mount.querySelector('[data-action="remove-logo"]');
+  if (logoRemoveBtn) {
+    wireGuardedClick(logoRemoveBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Logo entfernen',
+        message:
+          'Das Logo wird gelöscht und verschwindet aus dem Turnierkopf, ' +
+          'vom Ausdruck und von der Zuschauer-Seite. Du kannst jederzeit ' +
+          'ein neues hochladen.',
+        confirmLabel: 'Entfernen',
+        danger: true,
+      });
+      if (ok?.cancelled) return;
+      await removeLogo(t.id);
+    });
+  }
+
+  // ─── Zuschauer-Link (Spec §11) ────────────────────────────────────
+  const createLinkBtn = mount.querySelector('[data-action="create-public-link"]');
+  if (createLinkBtn) {
+    wireGuardedClick(createLinkBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Zuschauer-Link erstellen',
+        message:
+          'Jeder, der den Link bekommt, kann Tabellen, Spielplan und ' +
+          'Ergebnisse mitlesen — ohne Konto. Ändern kann darüber niemand ' +
+          'etwas, und Spielernamen werden nicht mit veröffentlicht. ' +
+          'Du kannst den Link jederzeit widerrufen.',
+        confirmLabel: 'Link erstellen',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await createPublicLink(t.id);
+    });
+  }
+
+  const revokeLinkBtn = mount.querySelector('[data-action="revoke-public-link"]');
+  if (revokeLinkBtn) {
+    wireGuardedClick(revokeLinkBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Zuschauer-Link widerrufen',
+        message:
+          'Der Link wird sofort ungültig — auch bei allen, die ihn schon ' +
+          'haben. Das lässt sich nicht rückgängig machen: Eine spätere ' +
+          'Freigabe erzeugt einen neuen Link, der alte bleibt tot.',
+        confirmLabel: 'Widerrufen',
+        danger: true,
+      });
+      if (ok?.cancelled) return;
+      await revokePublicLink(t.id);
+    });
+  }
+
+  const aushangBtn = mount.querySelector('[data-action="open-aushang"]');
+  if (aushangBtn) {
+    wireGuardedClick(aushangBtn, async () => {
+      const feld = mount.querySelector('[data-public-url]');
+      if (!feld?.value) return;
+      window.open(`${feld.value}/aushang`, '_blank', 'noopener');
+    });
+  }
+
+  // Kopieren ist harmlos wiederholbar, hängt aber trotzdem am selben
+  // Helfer wie alles andere hier: Der Abdeckungstest kennt zu Recht keine
+  // Ausnahme, und ein doppelter Klick spart so auch den doppelten Toast.
+  const copyLinkBtn = mount.querySelector('[data-action="copy-public-link"]');
+  if (copyLinkBtn) {
+    wireGuardedClick(copyLinkBtn, async () => {
+      const feld = mount.querySelector('[data-public-url]');
+      if (!feld) return;
+      try {
+        await navigator.clipboard.writeText(feld.value);
+        toast('Link kopiert.', 'success');
+      } catch {
+        // Ohne Zwischenablage-Recht (oder ohne HTTPS) bleibt der Weg über
+        // das Markieren — dann ist Auswählen hilfreicher als eine
+        // Fehlermeldung.
+        feld.select();
+        toast('Der Link ist markiert — jetzt kopieren.', 'info');
+      }
+    });
+  }
+
+  // ─── Aktionen ─────────────────────────────────────────────────────
+  // Turnier starten — Etappe B.8.
+  const startBtn = mount.querySelector('[data-action="start-tournament"]');
+  if (startBtn && !startBtn.disabled) {
+    wireGuardedClick(startBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Turnier starten',
+        message:
+          'Ab jetzt sind Team-Anzahl, Modus, Reihenfolge und Gruppen gesperrt. ' +
+          'Spielfeld-Namen, Zeiten und Ergebnisse bleiben änderbar. ' +
+          'Du kannst das Turnier später zurücksetzen, solange keine Ergebnisse vorliegen.',
+        confirmLabel: 'Turnier starten',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await startTournament(t.id);
+    });
+  }
+
+  // Zurück zu Entwurf — Etappe B.8 (Spielplan bleibt erhalten, D8).
+  const revertBtn = mount.querySelector('[data-action="revert-to-draft"]');
+  if (revertBtn) {
+    wireGuardedClick(revertBtn, async () => {
+      let typedName = null;
+      if (finishedCount > 0) {
+        const dlg = await openConfirmDialog({
+          title: 'Zurück zu Entwurf',
+          message:
+            `${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet. ` +
+            'Wenn du zurücksetzt, werden die Ergebnisse verworfen. Der vorhandene ' +
+            'Spielplan bleibt bestehen — du kannst danach Teams und Gruppen ändern und neu starten.\n\n' +
+            'Tippe zur Bestätigung den Turniernamen:',
+          expectedName: t.name,
+          confirmLabel: 'Zurücksetzen',
+        });
+        if (dlg.cancelled) return;
+        typedName = dlg.typedName;
+      } else {
+        const ok = await showConfirmDlg(
+          'Zurück zu Entwurf',
+          'Turnier zurücksetzen? Der vorhandene Spielplan bleibt bestehen — du kannst danach Teams und Gruppen anpassen und neu starten.',
+          'Zurücksetzen',
+          'Abbrechen',
+          false
+        );
+        if (!ok) return;
+      }
+      await revertToDraft(t.id, typedName);
+    });
+  }
+
+  // Offene Spiele verschieben — Etappe B.8 (Turnier-Day-Use-Case).
+  const shiftBtn = mount.querySelector('[data-action="shift-open"]');
+  if (shiftBtn) {
+    wireGuardedClick(shiftBtn, async () => {
+      await shiftOpenMatches(t.id, mount);
+    });
+  }
+
+  // Spieldauer / Plattenzahl → Auto-Reschedule.
+  const rescheduleAutoBtn = mount.querySelector('[data-action="reschedule-auto"]');
+  if (rescheduleAutoBtn) {
+    wireGuardedClick(rescheduleAutoBtn, async () => {
+      await rescheduleAuto(t.id, mount, t.name);
+    });
+  }
+
+  // Turnier abschließen — simple Confirm ohne Namenseingabe.
+  const finishBtn = mount.querySelector('[data-action="finish-tournament"]');
+  if (finishBtn) {
+    wireGuardedClick(finishBtn, async () => {
+      const ok = await showConfirmDlg(
+        'Turnier abschließen',
+        `Turnier "${t.name}" wirklich abschließen? Statuswechsel ist reversibel — alle Ergebnisse bleiben erhalten.`,
+        'Abschließen',
+        'Abbrechen',
+        false
+      );
+      if (!ok) return;
+      await finishTournament(t.id);
+    });
+  }
+
+  // ─── Setzreihenfolge ──────────────────────────────────────────────
+  // Etappe B.8: Bug-Fix. wireTeamsList wurde vorher NUR in loadTeamsTab
+  // aufgerufen — der Seeding-Block im Einstellungen-Tab zeigte Teams mit
+  // Drag-Handle und Edit-Hint, aber Klicks/DnD taten nichts.
+  if (t.isAdmin === true) {
+    const seedingTeamsList = mount.querySelector('[data-role="teams-list"]');
+    if (seedingTeamsList && typeof wireTeamsList === 'function') {
+      wireTeamsList(mount, t, { isAdmin: true, reorderable: true });
+    }
+  }
+
+  // Notfall-Block (2026-08-26): K.-o.-Phase von Hand aus den Gruppen
+  // fuellen. Der Weg dorthin ist derselbe wie beim automatischen Trigger
+  // — „eine Wahrheit, zwei Ausloeser" (P5, 2026-08-25) gilt unveraendert,
+  // nur dass der zweite Ausloeser jetzt hier sitzt statt unter den
+  // Gruppentabellen. An wireGuardedClick, weil die Route mutiert.
+  const koNotfallBtn = mount.querySelector('[data-action="start-ko-phase"]');
+  if (koNotfallBtn) {
+    wireGuardedClick(koNotfallBtn, async () => {
+      await fuelleKoPhaseVonHand(t);
+    });
+  }
+
+  // Neu auslosen (Seeding-Block) — Etappe B.8 Bug-Fix: fehlte im wireEinstellungen.
+  const redrawSeedingBtn = mount.querySelector('[data-action="redraw-seeding"]');
+  if (redrawSeedingBtn) {
+    wireGuardedClick(redrawSeedingBtn, async () => {
+      if (finishedCount > 0) {
+        toast(
+          'Bereits beendete Spiele — Setzreihenfolge kann nicht mehr geändert werden.',
+          'error'
+        );
+        return;
+      }
+      const ok = await openConfirmDialog({
+        title: 'Setzreihenfolge neu auslosen',
+        message:
+          'Die Setzreihenfolge der Teams wird per Zufall neu verteilt. ' +
+          (t.status === 'draft'
+            ? 'Das Turnier ist noch nicht generiert — die neue Reihenfolge fließt beim nächsten Generieren ein.'
+            : 'Achtung: bereits generierte Spielpläne werden neu berechnet.'),
+        confirmLabel: 'Neu auslosen',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await redrawSeeding(t.id, t.name, finishedCount);
+    });
+  }
+
+  // ─── Gruppeneinteilung ────────────────────────────────────────────
+  // Etappe B.8 (User-Feedback 2026-08-20): „Zufällig verteilen" ruft
+  // jetzt die NEUE Route /balance-shuffle-groups auf, NICHT mehr /redraw.
+  // Hintergrund: /redrow shuffelt nur die `seed`-Spalte (KO-Seed), aber
+  // NICHT die GroupMemberships — der User klickte darauf und sah keine
+  // Änderung. Die neue Route mischt die Teams zwischen den vorhandenen
+  // Gruppen, behält aber deren Größen (User-Spec: „Teams tauschen,
+  // Gruppengröße muss gleich bleiben").
+  const randomBtn = mount.querySelector('[data-action="randomize-groups"]');
+  if (randomBtn) {
+    wireGuardedClick(randomBtn, async () => {
+      // Lock-Check vorne (UX, nicht Sicherheit): das Backend lehnt sowieso
+      // mit 409 ab. Aber so bekommt der User sofort Feedback statt eines
+      // stummen Fehlers nach dem Confirm.
+      const lockState =
+        typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor
+          ? window.tournamentLocks.lockStateFor(
+              { status: t.status, startedAt: t.startedAt },
+              finishedCount
+            )
+          : null;
+      if (lockState && lockState.canEditGroups && !lockState.canEditGroups.allowed) {
+        toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
+        return;
+      }
+      // Seit dem 26.08. ziehen die SPIELE mit (Entscheid Jonas): wer die
+      // Einteilung aendert, aendert den Spielplan der Gruppenphase. Der
+      // Dialog muss deshalb sagen, was verlorengeht — und ab einem
+      // beendeten Spiel den Turniernamen verlangen, wie bei jeder anderen
+      // zerstoerenden Aktion.
+      const verliertErgebnisse = finishedCount > 0;
+      const ok = await openConfirmDialog({
+        title: 'Zufällig verteilen',
+        message: verliertErgebnisse
+          ? `Die Teams werden neu gemischt — und der Spielplan der Gruppenphase ` +
+            `wird dabei neu erzeugt. ${finishedCount} bereits eingetragene ` +
+            `Ergebnis${finishedCount === 1 ? '' : 'se'} gehen verloren, und die ` +
+            `K.-o.-Phase wird zurückgesetzt.`
+          : 'Die Teams werden zwischen den vorhandenen Gruppen neu gemischt. ' +
+            'Gruppengrößen bleiben gleich. Der Spielplan der Gruppenphase wird ' +
+            'dabei neu erzeugt — es sind noch keine Ergebnisse eingetragen.',
+        expectedName: verliertErgebnisse ? t.name : null,
+        confirmLabel: 'Neu mischen',
+        danger: verliertErgebnisse,
+      });
+      if (ok?.cancelled) return;
+      await balanceShuffleGroups(t.id, t.name, finishedCount);
+    });
+  }
+
+  // Etappe B.8.1: Paar-Klick-Tausch (User-Forderung „nur Tausch,
+  // Größe bleibt gleich"). Zwei Team-Klicks aus verschiedenen Gruppen
+  // → Tausch-Bar mit „X ↔ Y tauschen"-Button.
+  const swapBar = mount.querySelector('[data-role="swap-bar"]');
+  const swapBarLabel = mount.querySelector('[data-role="swap-bar-label"]');
+  const swapConfirmBtn = mount.querySelector('[data-action="confirm-swap"]');
+  const swapCancelBtn = mount.querySelector('[data-action="cancel-swap"]');
+  if (board && swapBar && swapConfirmBtn && swapCancelBtn) {
+    // State nur modul-lokal — beim Re-Render wird die Auswahl sowieso
+    // weg sein, weil der Renderer durch `openTournamentInstance` neu
+    // gemountet wird.
+    const selected = []; // [{ teamId, name, groupKey, el }]
+    const updateBar = () => {
+      if (selected.length === 0) {
+        swapBar.hidden = true;
+        board
+          .querySelectorAll('.t-group-team-card.is-selected')
+          .forEach((c) => c.classList.remove('is-selected'));
+      } else {
+        swapBar.hidden = false;
+        const names = selected.map((s) => s.name).join(' ↔ ');
+        swapBarLabel.textContent = `Tausch: ${names}`;
+        swapConfirmBtn.disabled = !(
+          selected.length === 2 && selected[0].groupKey !== selected[1].groupKey
+        );
+      }
+    };
+    // Klick auf Team-Karte → Auswahl toggeln.
+    board.querySelectorAll('[data-action="select-for-swap"]').forEach((card) => {
+      card.addEventListener('click', () => {
+        if (card.classList.contains('is-disabled')) return;
+        const teamId = card.getAttribute('data-team-id');
+        const teamName = card.getAttribute('data-team-name') ?? 'Team';
+        const groupKey = card.getAttribute('data-group-key') ?? '';
+        const idx = selected.findIndex((s) => s.teamId === teamId);
+        if (idx >= 0) {
+          // Bereits ausgewählt → abwählen.
+          selected.splice(idx, 1);
+          card.classList.remove('is-selected');
+        } else {
+          // Max 2. Wenn schon 2 gewählt, ersetze das erste.
+          if (selected.length >= 2) {
+            const first = selected.shift();
+            first.el.classList.remove('is-selected');
+          }
+          selected.push({ teamId, name: teamName, groupKey, el: card });
+          card.classList.add('is-selected');
+        }
+        updateBar();
+      });
+    });
+    swapCancelBtn.addEventListener('click', () => {
+      while (selected.length) {
+        const s = selected.pop();
+        s.el.classList.remove('is-selected');
+      }
+      updateBar();
+    });
+    swapConfirmBtn.addEventListener('click', async () => {
+      if (selected.length !== 2) return;
+      if (selected[0].groupKey === selected[1].groupKey) {
+        toast('Wähle zwei Teams aus verschiedenen Gruppen.', 'error');
+        return;
+      }
+      // Lock-Check vor UX.
+      const lockState =
+        typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor
+          ? window.tournamentLocks.lockStateFor(
+              { status: t.status, startedAt: t.startedAt },
+              finishedCount
+            )
+          : null;
+      if (lockState && lockState.canEditGroups && !lockState.canEditGroups.allowed) {
+        toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
+        return;
+      }
+      swapConfirmBtn.disabled = true;
+      let saved = false;
+      try {
+        // Dieselbe Regel wie bei „Zufaellig verteilen" — zwei Tueren in
+        // denselben Raum duerfen nicht verschieden streng sein.
+        const swapBody = { swaps: [[selected[0].teamId, selected[1].teamId]] };
+        if (finishedCount > 0) swapBody.confirmTournamentName = t.name;
+        const swapRes = await apiCall(
+          `/tournaments/${encodeURIComponent(t.id)}/groups/swaps`,
+          'POST',
+          swapBody
+        );
+        const neuS = swapRes?.spielplanNeu;
+        toast(
+          neuS
+            ? `${selected[0].name} ↔ ${selected[1].name} getauscht — ` +
+                `${neuS.spieleNachher} Gruppenspiele neu angesetzt`
+            : `${selected[0].name} ↔ ${selected[1].name} getauscht`,
+          'success'
+        );
+        saved = true;
+      } catch (e) {
+        if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
+          toast('Gruppeneinteilung ist gesperrt — Turnier läuft schon.', 'error');
+        } else {
+          toast(e.serverMessage || 'Tausch fehlgeschlagen', 'error');
+        }
+        swapConfirmBtn.disabled = false;
+      }
+      if (saved) {
+        await refreshTournamentAfterMutation(t.id);
+      }
+    });
+  }
+
+  // ─── Spielfelder ──────────────────────────────────────────────────
+  // Speichern (Spielfelder-Editor) — PATCH /:id/fields.
+  const saveFieldsBtn = mount.querySelector('[data-action="save-fields"]');
+  if (saveFieldsBtn) {
+    wireGuardedClick(saveFieldsBtn, async () => {
+      const editor = mount.querySelector('.t-fields-editor');
+      if (!editor) return;
+      const out = window.spielplanHelpers?.serializeFieldsInput?.(editor);
+      if (!out || !out.ok) {
+        toast(out?.error || 'Spielfeld-Eingabe ungültig', 'error');
+        return;
+      }
+      await saveFieldsConfig(t.id, out.fields);
+    });
+  }
+
+  // Abbrechen (Spielfelder-Editor). Der Knopf wurde gerendert und vom
+  // Render-Test geprüft, hatte aber keinen Handler: der Nutzer klickte
+  // „Abbrechen", seine Eingaben blieben stehen und er hielt sie für
+  // verworfen. Es gibt keine Route dafür — der Editor wird schlicht aus
+  // der gespeicherten Konfiguration neu aufgebaut.
+  const resetFieldsBtn = mount.querySelector('[data-action="reset-fields"]');
+  if (resetFieldsBtn) {
+    resetFieldsBtn.addEventListener('click', () => {
+      const editor = mount.querySelector('.t-fields-editor');
+      if (!editor) return;
+      // `defaultValue` trägt den Wert aus dem value-Attribut, das der
+      // Renderer aus der gespeicherten Konfiguration geschrieben hat.
+      // Damit ist der Zurücksetz-Punkt immer der Serverstand — ohne
+      // eine zweite Datenquelle, die auseinanderlaufen könnte.
+      editor.querySelectorAll('.t-field-name, .t-fields-count').forEach((input) => {
+        input.value = input.defaultValue;
+      });
+      toast('Änderungen verworfen', 'info');
+    });
+  }
+
+  // ─── Gefahrenzone ─────────────────────────────────────────────────
+  // Alle Ergebnisse löschen — POST /:id/reset-results mit confirmTournamentName.
+  const resetBtn = mount.querySelector('[data-action="reset-results"]');
+  if (resetBtn) {
+    wireGuardedClick(resetBtn, async () => {
+      const dlg = await openConfirmDialog({
+        title: 'Alle Ergebnisse löschen',
+        message:
+          'Alle Spielergebnisse werden zurückgesetzt — Scores, Status und KO-Sieger verschwinden. ' +
+          'Dieser Schritt ist nicht umkehrbar.\n\nTippe zur Bestätigung den Turniernamen:',
+        expectedName: t.name,
+        confirmLabel: 'Ergebnisse löschen',
+      });
+      if (dlg.cancelled) return;
+      await resetResults(t.id, dlg.typedName);
+    });
+  }
+
+  // Turnier löschen — DELETE /:id mit confirmTournamentName.
+  const deleteBtn = mount.querySelector('[data-action="delete-tournament"]');
+  if (deleteBtn) {
+    wireGuardedClick(deleteBtn, async () => {
+      const dlg = await openConfirmDialog({
+        title: 'Turnier löschen',
+        message:
+          `Turnier "${t.name}" wird vollständig gelöscht — inklusive aller Teams, Gruppen, Spiele und Logos. ` +
+          'Dieser Schritt ist nicht umkehrbar.\n\nTippe zur Bestätigung den Turniernamen:',
+        expectedName: t.name,
+        confirmLabel: 'Turnier löschen',
+      });
+      if (dlg.cancelled) return;
+      await deleteTournamentWithConfirm(t.id, t.name, dlg.typedName);
+    });
+  }
+
+  // Etappe B.8.1: DnD wurde komplett durch Paar-Klick-Tausch ersetzt
+  // (siehe Selection-Block weiter oben). Kein DnD-Init mehr nötig.
+}
+
+// ─── Etappe B.8 Action-Backend-Anbindungen (start / revert / shift / reschedule) ──────
+
+async function startTournament(tournamentId) {
+  let saved = false;
+  try {
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/start`, 'POST', {});
+    const at = res?.startedAt ? new Date(res.startedAt).toLocaleString('de-DE') : 'jetzt';
+    toast(
+      `Turnier ist gestartet (${at}) — Sperren für Team-Anzahl, Modus und Reihenfolge greifen jetzt.`,
+      'success'
+    );
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Turnier konnte nicht gestartet werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+/**
+ * Turnierlogo hochladen oder austauschen.
+ *
+ * Nutzt den Helfer aus tournament.js, statt den Aufruf ein zweites Mal zu
+ * schreiben: Er wertet die Fehlercodes des Servers aus, und zwei Stellen
+ * mit derselben Auswertung laufen früher oder später auseinander.
+ */
+async function uploadLogo(tournamentId, datei) {
+  const res = await uploadTournamentLogo(tournamentId, datei);
+  if (!res.ok) {
+    // Die Codes des Servers in Sätze übersetzen, die sagen, was zu tun ist.
+    const text =
+      res.code === 'unsupported_format'
+        ? 'Dieses Format geht nicht. Nimm PNG, JPEG oder WebP.'
+        : res.code === 'logo_too_large'
+          ? 'Das Bild ist größer als 5 MB. Nimm eine kleinere Datei.'
+          : res.error || 'Logo konnte nicht hochgeladen werden';
+    toast(text, 'error');
+    return;
+  }
+  toast('Logo gespeichert.', 'success');
+  await refreshTournamentAfterMutation(tournamentId);
+}
+
+async function removeLogo(tournamentId) {
+  const res = await deleteTournamentLogo(tournamentId);
+  if (!res.ok) {
+    toast(res.error || 'Logo konnte nicht entfernt werden', 'error');
+    return;
+  }
+  toast('Logo entfernt.', 'success');
+  await refreshTournamentAfterMutation(tournamentId);
+}
+
+/**
+ * Zuschauer-Link erteilen (Spec §11).
+ *
+ * Die Route ist idempotent: Ein zweiter Klick auf einen bereits aktiven
+ * Link gibt denselben zurück, statt einen neuen zu erzeugen. Deshalb
+ * unterscheidet die Rückmeldung, ob wirklich etwas Neues entstanden ist —
+ * sonst läse sich ein wirkungsloser Klick wie ein erfolgreicher.
+ */
+async function createPublicLink(tournamentId) {
+  let saved = false;
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/public`,
+      'POST',
+      {}
+    );
+    toast(
+      res?.created
+        ? 'Zuschauer-Link ist erstellt — du findest ihn gleich hier zum Kopieren.'
+        : 'Der Zuschauer-Link war bereits aktiv.',
+      'success'
+    );
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Zuschauer-Link konnte nicht erstellt werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function revokePublicLink(tournamentId) {
+  let saved = false;
+  try {
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/public`, 'DELETE', {});
+    toast('Zuschauer-Link ist widerrufen — die Adresse führt jetzt ins Leere.', 'success');
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Zuschauer-Link konnte nicht widerrufen werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function revertToDraft(tournamentId, confirmName) {
+  let saved = false;
+  try {
+    const body = confirmName ? { confirmTournamentName: confirmName } : {};
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/revert-to-draft`, 'POST', body);
+    toast('Turnier ist wieder im Entwurf — Spielplan ist erhalten geblieben.', 'success');
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Zurücksetzen fehlgeschlagen', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function shiftOpenMatches(tournamentId, mount) {
+  const input = mount?.querySelector?.('[data-shift-minutes]');
+  const minutes = parseInt(input?.value ?? '0', 10);
+  if (!Number.isFinite(minutes) || minutes === 0) {
+    toast('Bitte eine Zahl ungleich 0 eingeben (positiv oder negativ).', 'error');
+    return;
+  }
+  let saved = false;
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/shift-open-matches`,
+      'POST',
+      { minutes }
+    );
+    const n = res?.shiftedCount ?? 0;
+    toast(
+      `${n} offene${n === 1 ? 's' : ''} Spiel${n === 1 ? '' : 'e'} verschoben (${minutes > 0 ? '+' : ''}${minutes} min).`,
+      'success'
+    );
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Verschieben fehlgeschlagen', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function rescheduleAuto(tournamentId, mount, tournamentName) {
+  const durEl = mount?.querySelector?.('[data-reschedule-duration]');
+  const fieldsEl = mount?.querySelector?.('[data-reschedule-fields]');
+  const pauseEl = mount?.querySelector?.('[data-reschedule-pause]');
+  const duration = parseInt(durEl?.value ?? '30', 10);
+  const parallelFields = parseInt(fieldsEl?.value ?? '4', 10);
+  const pause = parseInt(pauseEl?.value ?? '0', 10);
+  if (!Number.isFinite(duration) || duration < 5 || duration > 240) {
+    toast('Spieldauer muss zwischen 5 und 240 Minuten liegen.', 'error');
+    return;
+  }
+  if (!Number.isFinite(parallelFields) || parallelFields < 1 || parallelFields > 12) {
+    toast('Plattenzahl muss zwischen 1 und 12 liegen.', 'error');
+    return;
+  }
+  if (!Number.isFinite(pause) || pause < 0 || pause > 60) {
+    toast('Pause muss zwischen 0 und 60 Minuten liegen.', 'error');
+    return;
+  }
+  let saved = false;
+  try {
+    // 1) Config schreiben.
+    //
+    // `slotMinutes` MUSS mitgeschrieben werden. Die Engine nimmt den
+    // groessten der drei Werte — matchDuration + Pause gegen den
+    // gespeicherten slotMinutes (engine/schedule.js:122). Bliebe der
+    // alte Wert stehen (der Wizard legt ihn als Dauer + Pause an), waere
+    // eine VERKUERZUNG hier wirkungslos: wer die Pause von 5 auf 0
+    // stellt, bekaeme weiter den alten 35-Minuten-Takt.
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
+      config: {
+        schedule: {
+          matchDurationMinutes: duration,
+          pauseAfterMatches: pause,
+          parallelFields,
+          slotMinutes: duration + pause,
+        },
+      },
+    });
+    // 2) Reschedule triggern.
+    // Der zweite Parameter ist der Turniername, den der
+    // Bestaetigungsdialog erwartet — hier stand frueher der
+    // Literal-String 'AUTO'. Sind Spiele bereits beendet, verlangt
+    // rescheduleTournament eine Eingabe: der Nutzer haette „AUTO"
+    // tippen muessen statt des Turniernamens, den der Dialog ihm
+    // ansagt. Die drei anderen Aufrufer geben den echten Namen.
+    const name = tournamentName || activeTournamentInstance?.name || '';
+    const ok = await rescheduleTournament(tournamentId, name);
+    if (ok) {
+      toast(
+        `Zeitplan neu berechnet (${duration} min Spiel, ${pause} min Pause, ${parallelFields} Platten).`,
+        'success'
+      );
+      saved = true;
+    }
+  } catch (e) {
+    toast(e?.serverMessage || 'Reschedule fehlgeschlagen', 'error');
+  }
+  if (saved) await refreshTournamentAfterMutation(tournamentId);
+}
+
+// ─── Etappe B.7 Action-Backend-Anbindungen ───────────────────────
+
+async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
+  let saved = false;
+  try {
+    const body = {};
+    if (finishedCount > 0) {
+      // Confirm-Handshake wäre redundant — wir haben es schon im Frontend geprüft.
+      // Backend lehnt ohne Confirm ab, deshalb geben wir den Turniernamen mit.
+      body.confirmTournamentName = tournamentName;
+    }
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/redraw`,
+      'POST',
+      body
+    );
+    toast(`Setzreihenfolge neu ausgelost (${res?.teams?.length ?? 0} Teams)`, 'success');
+    saved = true;
+  } catch (e) {
+    toast(e.serverMessage || 'Setzreihenfolge konnte nicht neu ausgelost werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+/**
+ * Etappe B.8: Balancierter Zufallsmix der Teams zwischen den vorhandenen
+ * Gruppen. **Größen bleiben gleich** (User-Spec 2026-08-20).
+ *
+ * `POST /api/tournaments/:id/balance-shuffle-groups` — server-seitige
+ * Implementierung (siehe routes.js). Diese Funktion ist nur der
+ * Fetch-Wrapper.
+ *
+ * @param {string} tournamentId
+ */
+/**
+ * @param {string} tournamentId
+ * @param {string} [tournamentName] Pflicht, sobald ein Spiel beendet ist —
+ *   die Route verlangt seit dem 26.08. den Namen zur Bestaetigung, weil
+ *   das Neuverteilen den Spielplan der Gruppenphase neu erzeugt.
+ * @param {number} [finishedCount]
+ */
+async function balanceShuffleGroups(tournamentId, tournamentName, finishedCount = 0) {
+  let saved = false;
+  try {
+    const body = finishedCount > 0 ? { confirmTournamentName: tournamentName } : {};
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/balance-shuffle-groups`,
+      'POST',
+      body
+    );
+    const neu = res?.spielplanNeu;
+    toast(
+      neu
+        ? `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, ` +
+            `${neu.spieleNachher} Gruppenspiele neu angesetzt`
+        : `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, Größe pro Gruppe gleich`,
+      'success'
+    );
+    saved = true;
+  } catch (e) {
+    if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
+      toast('Gruppeneinteilung ist gesperrt — Turnier läuft schon.', 'error');
+    } else {
+      toast(e.serverMessage || 'Gruppen konnten nicht neu gemischt werden', 'error');
+    }
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function saveGroupsAssignment(tournamentId, groupsPayload) {
+  let saved = false;
+  try {
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/groups`, 'PATCH', {
+      groups: groupsPayload,
+    });
+    toast('Gruppeneinteilung gespeichert', 'success');
+    saved = true;
+  } catch (e) {
+    if (e.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
+      toast('Bereits Spiele beendet — Gruppenzuordnung gesperrt', 'error');
+    } else {
+      toast(e.serverMessage || 'Gruppeneinteilung konnte nicht gespeichert werden', 'error');
+    }
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function saveFieldsConfig(tournamentId, fieldsPayload) {
+  let saved = false;
+  try {
+    const res = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}/fields`, 'PATCH', {
+      fields: fieldsPayload,
+    });
+    if (res?.warnings?.length > 0) {
+      const dropped = res.warnings.find((w) => w.type === 'fields_dropped');
+      if (dropped) {
+        toast(
+          `${dropped.droppedIds.length} Spielfeld(er) entfernt — Spielplan-Einträge wurden auf null gesetzt`,
+          'info'
+        );
+      }
+    } else {
+      toast(`Spielfelder gespeichert (${res?.fields?.length ?? fieldsPayload.length})`, 'success');
+    }
+    saved = true;
+  } catch (e) {
+    if (e.status === 409 && /fields_locked/.test(e.serverMessage || '')) {
+      toast('Spielfelder sind nach der Generierung gesperrt', 'error');
+    } else {
+      toast(e.serverMessage || 'Spielfelder konnten nicht gespeichert werden', 'error');
+    }
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function finishTournament(tournamentId) {
+  let saved = false;
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/finish`,
+      'POST',
+      {}
+    );
+    toast(
+      `Turnier abgeschlossen${res?.alreadyFinished ? ' (war schon abgeschlossen)' : ''}`,
+      'success'
+    );
+    saved = true;
+  } catch (e) {
+    toast(e.serverMessage || 'Turnier konnte nicht abgeschlossen werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function resetResults(tournamentId, confirmName) {
+  let saved = false;
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/reset-results`,
+      'POST',
+      {
+        confirmTournamentName: confirmName,
+      }
+    );
+    toast(`${res?.resetCount ?? 0} Ergebnisse zurückgesetzt`, 'success');
+    saved = true;
+  } catch (e) {
+    if (e.status === 409 && /reset_results_locked/.test(e.serverMessage || '')) {
+      toast('Turniername stimmt nicht', 'error');
+    } else if (e.status === 400 && /no_results_to_reset/.test(e.serverMessage || '')) {
+      toast('Keine Ergebnisse zum Zurücksetzen', 'info');
+    } else {
+      toast(e.serverMessage || 'Ergebnisse konnten nicht zurückgesetzt werden', 'error');
+    }
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+/**
+ * Variante der existierenden deleteTournamentInstance mit echtem
+ * confirmTournamentName-Handshake (Spec §13.10). Wir wrappen den
+ * existierenden showConfirmDlg-Call, damit wir dem Server den
+ * typedName mitgeben können — der DELETE-Handler verlangt ihn
+ * bei einem bereits abgeschlossenen Turnier.
+ */
+async function deleteTournamentWithConfirm(instanceId, instanceName, confirmName) {
+  try {
+    // apiCall() aus auth-oidc.js setzt Authorization: Bearer <token>
+    // automatisch und macht 401-Auto-Refresh + Retry. raw fetch würde
+    // denselben Bug erzeugen wie in tournament.js vor dem dortigen
+    // Fix (siehe main.js:6392-6394). P2-Folge-Fix (2026-08-25):
+    // DELETE schlug mit 401 fehl, sobald die 15-min-Token-Lifetime
+    // abgelaufen war — der Refresh-Token blieb 7 Tage gültig.
+    await apiCall(`/tournaments/${encodeURIComponent(instanceId)}`, 'DELETE', {
+      confirmTournamentName: confirmName,
+    });
+    if (activeTournamentInstance?.id === instanceId) activeTournamentInstance = null;
+    toast('Turnier gelöscht', 'success');
+    await loadTournamentInstances(true);
+  } catch (e) {
+    if (
+      e.status === 409 &&
+      /delete_locked_results_present/.test(e.serverCode || e.serverMessage || '')
+    ) {
+      toast('Turniername stimmt nicht', 'error');
+      return;
+    }
+    toast(e.serverMessage || e.message || 'Turnier konnte nicht gelöscht werden', 'error');
+  }
+}
+
+/**
+ * Etappe B.7: Pointer-DnD für das Groups-Board (Admin).
+ *
+ * Teams-Karten können zwischen den Spalten verschoben werden. Nach
+ * DnD muss der User „Speichern" klicken — wir schicken das Ergebnis
+ * NICHT automatisch, damit er noch abbrechen kann.
+ *
+ * Basiert auf demselben Pattern wie attachTeamsDnD (main.js:3272):
+ * Pointer-Events, kein HTML5-DnD-Set (für Touch-Support), Drag-Image
+ * wird geklont, Placeholder behält die Höhe.
+ */
+function attachGroupsDnD(board) {
+  if (!board) return;
+  const cards = board.querySelectorAll('.t-group-team-card');
+
+  cards.forEach((card) => {
+    card.addEventListener('pointerdown', (e) => {
+      // Klick auf Inline-Edit-Inputs (falls vorhanden) nicht als DnD werten.
+      if (e.target.closest('input, button, textarea, select')) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+      const startCard = card;
+      const startList = card.parentElement;
+      const rect = card.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+
+      // Ghost = bewegliches Karten-Klon
+      const ghost = card.cloneNode(true);
+      ghost.classList.add('is-dragging');
+      ghost.style.position = 'fixed';
+      ghost.style.left = `${rect.left}px`;
+      ghost.style.top = `${rect.top}px`;
+      ghost.style.width = `${rect.width}px`;
+      document.body.appendChild(ghost);
+
+      // Original-Karte wird unsichtbar (placeholder pattern)
+      card.classList.add('is-placeholder');
+      card.style.height = `${rect.height}px`;
+
+      function onPointerMove(ev) {
+        ghost.style.left = `${ev.clientX - offsetX}px`;
+        ghost.style.top = `${ev.clientY - offsetY}px`;
+
+        // Welche Liste ist unter dem Cursor?
+        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+        const targetList = target?.closest('.t-groups-column-list');
+        if (targetList && targetList !== card.parentElement) {
+          // Vor dem ersten Kind einfügen
+          if (!targetList.contains(card)) {
+            targetList.appendChild(card);
+          }
+        }
+      }
+
+      function onPointerUp() {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        ghost.remove();
+        card.classList.remove('is-placeholder');
+        card.style.height = '';
+        // Wenn die Karte immer noch in der gleichen Liste ist (kein Move),
+        // war das ein Tap — kein Placeholder-Restyle nötig.
+        void startList;
+      }
+
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+      e.preventDefault();
+    });
+  });
+}
+
+/**
+ * Inline-Rename eines Teams. Verwandelt die Name-Span in ein Input,
+ * speichert per Enter oder Blur, bricht per Escape ab.
+ *
+ * Bei `team_name_taken` (409) wird das Input zurück in den alten
+ * Namen verwandelt — die Fehlermeldung kommt via toast().
+ */
+function startInlineRename(row, t) {
+  if (!row || row.dataset.renaming === 'true') return;
+  const teamId = row.dataset.teamId;
+  const oldName = row.dataset.teamName || '';
+  if (!teamId) return;
+
+  row.dataset.renaming = 'true';
+  const nameEl = row.querySelector('[data-role="team-name"]');
+  if (!nameEl) {
+    row.dataset.renaming = '';
+    return;
+  }
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.className = 't-team-name-input';
+  input.setAttribute('aria-label', 'Teamname bearbeiten');
+  input.maxLength = 60;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const finish = async (commit) => {
+    if (committed) return;
+    committed = true;
+    const next = commit ? input.value.trim() : oldName;
+    // Bei gleichen Namen kein PATCH — spart Round-Trip + verhindert
+    // 409 bei identischem Namen.
+    if (commit && next && next !== oldName) {
+      try {
+        await apiCall(
+          `/tournaments/${encodeURIComponent(t.id)}/teams/${encodeURIComponent(teamId)}`,
+          'PATCH',
+          { name: next }
+        );
+        row.dataset.teamName = next;
+        // Row neu rendern mit dem neuen Namen, damit Marker-Initial +
+        // Edit-Hint wieder stimmen — wir ersetzen die ganze Row,
+        // damit DnD-Listener auf der Liste intakt bleiben.
+        const newName = document.createElement('span');
+        newName.className = 't-team-name';
+        newName.dataset.role = 'team-name';
+        newName.textContent = next;
+        input.replaceWith(newName);
+        // Marker-Initial aktualisieren.
+        const marker = row.querySelector('.t-team-marker');
+        if (marker) marker.textContent = next.trim().charAt(0).toUpperCase() || '?';
+        row.dataset.renaming = '';
+        toast('Teamname gespeichert.', 'success');
+      } catch (e) {
+        // Server hat abgelehnt (409 duplicate o.ä.) — wir bauen das
+        // Input zurück in die alte Anzeige, damit der User die
+        // Fehlermeldung im Kontext sieht.
+        const restored = document.createElement('span');
+        restored.className = 't-team-name';
+        restored.dataset.role = 'team-name';
+        restored.textContent = oldName;
+        input.replaceWith(restored);
+        row.dataset.renaming = '';
+        toast((e && e.serverMessage) || 'Teamname konnte nicht gespeichert werden.', 'error');
+      }
+    } else {
+      const restored = document.createElement('span');
+      restored.className = 't-team-name';
+      restored.dataset.role = 'team-name';
+      restored.textContent = oldName;
+      input.replaceWith(restored);
+      row.dataset.renaming = '';
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+/**
+ * Pointer-basiertes DnD für die Teams-Tab-Reihenfolge (Etappe B.5).
+ *
+ * Idiom 1:1 wie der Wizard-Step-2 (siehe tournament.js:attachTeamDnD).
+ * Pointer-Events statt HTML5-Drag, weil HTML5-Drag auf Mobile häufig
+ * gar nicht feuert und Touch+mouse-Drag-Drop-Verhalten uneinheitlich
+ * ist. Touch + Mouse funktionieren mit Pointer-Events identisch.
+ *
+ * Nach Drop:
+ *   1. POST PATCH /:id/teams/reorder mit der neuen ID-Reihenfolge
+ *   2. Server liefert aktualisierte Teams → wir re-rendern die Liste,
+ *      damit Seed-Labels (#1, #2, …) wieder stimmen.
+ *   3. Bei Fehler (409 locked, 409 dup, Netz) machen wir einen
+ *      Reload via loadTeamsTab, um den Server-State wieder zu zeigen.
+ */
+function attachTeamsDnD(list, t) {
+  if (list.dataset.tTeamsDndBound === 'true') return;
+  list.dataset.tTeamsDndBound = 'true';
+
+  const THRESHOLD = 5;
+  let drag = null;
+
+  list.addEventListener('pointerdown', (e) => {
+    const row = e.target.closest('.t-team-row');
+    if (!row || !list.contains(row)) return;
+    // Während Inline-Rename aktiv: kein Drag.
+    if (row.dataset.renaming === 'true') return;
+    // Eingabefeld + Drag-Handle sind beide Drag-Quellen, der Rest
+    // (Name-Span, Marker) nicht — wir wollen, dass der User den
+    // Griff oder einen leeren Bereich der Row greift.
+    const handle = e.target.closest('.t-team-drag-handle');
+    const input = e.target.closest('input');
+    if (!handle && !input && !e.target.closest('.t-team-marker')) return;
+    const idx = Array.prototype.indexOf.call(list.children, row);
+    if (idx < 0) return;
+    drag = {
+      row,
+      index: idx,
+      startY: e.clientY,
+      offsetY: e.clientY - row.getBoundingClientRect().top,
+      active: false,
+      pointerId: e.pointerId,
+      placeholder: null,
+    };
+    row.setPointerCapture(e.pointerId);
+  });
+
+  list.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const dy = e.clientY - drag.startY;
+    if (!drag.active) {
+      if (Math.abs(dy) < THRESHOLD) return;
+      drag.active = true;
+      drag.row.classList.add('is-dragging');
+      const ph = document.createElement('li');
+      ph.className = 't-team-row t-team-row--placeholder';
+      ph.style.height = drag.row.offsetHeight + 'px';
+      drag.placeholder = ph;
+      drag.row.parentNode.insertBefore(ph, drag.row);
+      drag.row.style.position = 'absolute';
+      drag.row.style.left = '0';
+      drag.row.style.right = '0';
+      drag.row.style.width = '100%';
+    }
+    drag.row.style.top = e.clientY - drag.offsetY + 'px';
+
+    const others = Array.from(
+      list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)')
+    );
+    const draggedMid = e.clientY;
+    let targetIdx = others.length;
+    for (let i = 0; i < others.length; i++) {
+      const r = others[i].getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      if (draggedMid < mid) {
+        targetIdx = i;
+        break;
+      }
+    }
+    const ref = others[targetIdx] || null;
+    if (ref) list.insertBefore(drag.placeholder, ref);
+    else list.appendChild(drag.placeholder);
+  });
+
+  const cancel = () => {
+    if (!drag) return;
+    if (drag.active && drag.placeholder) {
+      drag.placeholder.remove();
+      drag.row.style.position = '';
+      drag.row.style.left = '';
+      drag.row.style.right = '';
+      drag.row.style.width = '';
+      drag.row.style.top = '';
+      drag.row.classList.remove('is-dragging');
+    }
+    drag = null;
+  };
+
+  const commit = async () => {
+    if (!drag || !drag.active) {
+      drag = null;
+      return;
+    }
+    const phIdx = Array.prototype.indexOf.call(list.children, drag.placeholder);
+    drag.placeholder.remove();
+    drag.row.style.position = '';
+    drag.row.style.left = '';
+    drag.row.style.right = '';
+    drag.row.style.width = '';
+    drag.row.style.top = '';
+    drag.row.classList.remove('is-dragging');
+    const movedId = drag.row.dataset.teamId;
+    const currentIds = Array.from(
+      list.querySelectorAll('.t-team-row:not(.is-dragging):not(.t-team-row--placeholder)')
+    ).map((el) => el.dataset.teamId);
+    // Index nach Drop = phIdx, abzüglich der Drag-Row, falls dahinter.
+    const adjusted = phIdx > drag.index ? phIdx - 1 : phIdx;
+    const order = currentIds.slice();
+    const [moved] = order.splice(drag.index, 1);
+    order.splice(adjusted, 0, moved);
+
+    drag = null;
+
+    // Wenn die Reihenfolge nicht geändert wurde → kein Server-Round-Trip.
+    const originalOrder = Array.from(list.querySelectorAll('.t-team-row')).map(
+      (el) => el.dataset.teamId
+    );
+    // Beim DnD war die gerenderte Reihenfolge = originalOrder (gleicher Screenshot).
+    // Wenn unsere berechnete order der gerenderten Reihenfolge entspricht, ist
+    // effektiv nichts passiert.
+    const same =
+      order.length === originalOrder.length && order.every((id, i) => id === originalOrder[i]);
+    if (same) return;
+
+    try {
+      const res = await apiCall(`/tournaments/${encodeURIComponent(t.id)}/teams/reorder`, 'PATCH', {
+        order,
+      });
+      // Server liefert die Teams in der neuen Reihenfolge mit aktualisierten seeds.
+      const updated = res && Array.isArray(res.teams) ? res.teams : null;
+      const mount = document.querySelector('[data-tab-body="teams-mount"]');
+      if (!mount) return;
+      const renderer = window.spielplanHelpers && window.spielplanHelpers.renderTeamsList;
+      if (!renderer) return;
+      // Re-Render mit den Server-Daten — ist die Single Source of Truth.
+      mount.innerHTML = renderer(updated || order.map((id) => ({ id })), {
+        isAdmin: true,
+        reorderable: true,
+      });
+      // DnD nach Re-Render neu binden.
+      wireTeamsList(mount, t, { isAdmin: true, reorderable: true });
+      toast('Reihenfolge gespeichert.', 'success');
+    } catch (e) {
+      // 409 gesperrt oder Validierung — wir holen den aktuellen Stand.
+      toast((e && e.serverMessage) || 'Reihenfolge konnte nicht gespeichert werden.', 'error');
+      // Reload des Tabs, damit der User den echten Stand sieht.
+      const mount = document.querySelector('[data-tab-body="teams-mount"]');
+      if (mount) {
+        mount.dataset.loaded = '';
+        loadTeamsTab(t).catch(() => {});
+      }
+    }
+  };
+
+  list.addEventListener('pointerup', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (drag.active) commit();
+    else drag = null;
+  });
+  list.addEventListener('pointercancel', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    cancel();
+  });
+}
+
+/**
+ * Regeln-Tab rendern (Spec §8.4 Info-Seite, User-Punkt 5).
+ *
+ * Plain-Text-Anzeige mit Paragraphs. Admins bekommen zusätzlich
+ * einen „Bearbeiten"-Button, der die Anzeige gegen ein Textarea
+ * austauscht. Members sehen read-only.
+ *
+ * Bewusst KEINE Formatierung: kein Markdown, kein HTML, keine Listen.
+ * Ein langer Absatz mit hartem Umbruch wird zu einer Zeile mit <br>s
+ * — das ist die maximale „Formatierung", die wir zulassen.
+ *
+ * Datenquelle: `activeTournamentInstance.rules` (vom GET /:id DTO).
+ * Bei aktivem Edit-Mode wird die `rules` im mount-Element als
+ * dataset-Attribut zwischengespeichert, damit ein Tab-Wechsel den
+ * Edit-Mode nicht verwirft.
+ */
+function renderRulesView(tournamentId, mount) {
+  const t =
+    typeof activeTournamentInstance === 'object' && activeTournamentInstance?.id === tournamentId
+      ? activeTournamentInstance
+      : null;
+  const rules = t?.rules ?? '';
+  const isAdmin = !!t?.isAdmin;
+  const isEditing = mount.dataset.editing === '1';
+
+  // Edit-Modus: Textarea + Save/Cancel.
+  if (isAdmin && isEditing) {
+    mount.innerHTML = `
+      <div class="t-card">
+        <div class="t-card-body">
+          <textarea
+            class="t-rules-textarea"
+            data-tab-body="regeln-textarea"
+            rows="14"
+            maxlength="10000"
+            aria-label="Regelwerk bearbeiten"
+            placeholder="Regelwerk hier eingeben. Leerzeilen trennen Absätze. Keine Formatierung.">${esc(rules)}</textarea>
+          <div class="t-rules-meta">
+            <span data-tab-body="regeln-counter">${rules.length}/10000 Zeichen</span>
+            <div class="spacer"></div>
+            <button type="button" class="t-btn t-btn--ghost" data-action="cancel-rules">Abbrechen</button>
+            <button type="button" class="t-btn t-btn--primary" data-action="save-rules">Speichern</button>
+          </div>
+          <p class="t-hint">Absätze durch Leerzeilen trennen. Sonderzeichen sind erlaubt, HTML wird nicht ausgewertet.</p>
+        </div>
+      </div>
+    `;
+    const textarea = mount.querySelector('textarea');
+    const counter = mount.querySelector('[data-tab-body="regeln-counter"]');
+    textarea?.addEventListener('input', () => {
+      counter.textContent = `${textarea.value.length}/10000 Zeichen`;
+    });
+    return;
+  }
+
+  // Read-Mode (Member ODER Admin ohne Edit).
+  const body = rulesHelpers.renderRulesParagraphs(rules);
+  const emptyHint =
+    body === ''
+      ? `<div class="t-card"><div class="t-card-body"><p class="t-hint">${
+          isAdmin
+            ? 'Noch keine Regeln hinterlegt. Klick auf „Bearbeiten" fügt sie hinzu.'
+            : 'Noch keine Regeln hinterlegt.'
+        }</p></div></div>`
+      : '';
+  mount.innerHTML =
+    emptyHint ||
+    `
+    <div class="t-card">
+      <div class="t-card-body">
+        <div class="t-rules-paragraphs">${body}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bearbeiten-Button: vom Read-Mode in den Edit-Mode wechseln.
+ * Lokaler Handler, der an den Header-Button gebunden wird.
+ */
+function enterRulesEditMode(tournamentId) {
+  const mount = document.querySelector('[data-tab-body="regeln-mount"]');
+  if (!mount) return;
+  mount.dataset.editing = '1';
+  renderRulesView(tournamentId, mount);
+}
+
+/**
+ * Speichern-Handler: PATCH /api/tournaments/:id mit { rules }.
+ * Bei Erfolg: activeTournamentInstance.rules aktualisieren und
+ * zurück in den Read-Mode.
+ */
+async function saveRules(tournamentId) {
+  const mount = document.querySelector('[data-tab-body="regeln-mount"]');
+  const textarea = mount?.querySelector('textarea[data-tab-body="regeln-textarea"]');
+  if (!mount || !textarea) return;
+  const newRules = textarea.value;
+  const saveBtn = mount.querySelector('[data-action="save-rules"]');
+  const cancelBtn = mount.querySelector('[data-action="cancel-rules"]');
+  if (saveBtn) saveBtn.disabled = true;
+  if (cancelBtn) cancelBtn.disabled = true;
+  try {
+    const updated = await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
+      rules: newRules,
+    });
+    if (
+      updated?.tournament?.rules !== undefined &&
+      typeof activeTournamentInstance === 'object' &&
+      activeTournamentInstance?.id === tournamentId
+    ) {
+      activeTournamentInstance.rules = updated.tournament.rules;
+    }
+    delete mount.dataset.editing;
+    renderRulesView(tournamentId, mount);
+    toast('Regelwerk gespeichert', 'success');
+  } catch (e) {
+    if (saveBtn) saveBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
+    toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+  }
+}
+
+function cancelRulesEditMode(tournamentId) {
+  const mount = document.querySelector('[data-tab-body="regeln-mount"]');
+  if (!mount) return;
+  delete mount.dataset.editing;
+  renderRulesView(tournamentId, mount);
+}
+
+/**
+ * Etappe B (2026-08-17): Dead-Code-Removed.
+ *
+ * Entfernt: loadScheduleTab, loadBracketTab, loadScheduleGridTab,
+ * attachScheduleDragDrop. Alle suchten
+ * `[data-tab-body="matches|bracket|schedule"]`-Elemente, die in der
+ * v3-View (`.t-mod` mit Filter-Chips + .t-match-Karten) nicht mehr
+ * existieren.
+ *
+ * Falls Etappe B.4 (Bracket-Tab) den DnD-Renderer zurückbringt, muss
+ * er an die v3-Struktur (`.t-mod > main > section[data-view="baum"]`)
+ * angepasst werden, nicht an die alte Tab-Shell.
+ *
+ * Falls Etappe B.7 (Zeitplan-Tab) wieder DnD im Spielplan braucht,
+ * gehört der Handler in `bindSpielplanInteractions` (Zeile ~2700),
+ * nicht in eine eigene `attachScheduleDragDrop`-Funktion.
+ */
+
+// ─── v3: Wizard — Delegation an tournament.js ─────────────────────────
+// Etappe A (2026-08-11): v2-Wizard-Code (openTournamentWizard Body +
+// renderWizardStep + parseTeamsTextarea + attachSeedListDragDrop +
+// WIZARD_*-Konstanten) wurde entfernt. Die v3-Wizard-Implementierung
+// lebt komplett in backend/public/script/tournament.js
+// (renderWizardView, buildPatchPayload, persistConfig, buildGeneratePayload).
+//
+// Dieser Wrapper bleibt in main.js, weil der "Neues Turnier"-Button
+// hier verdrahtet ist. Er mounted den v3-Wizard ins #grid und reicht
+// onGenerate an die v3-API durch. onStateChange ruft persistConfig mit
+// den geänderten Feldern auf (Draft-Auto-Save, Spec §1.2 / Schnitt 2.5).
+
+/**
+ * v3: Regelwerk speichern.
+ */
+async function saveTournamentRules(tournamentId) {
+  if (!tournamentId) return;
+  const ta = document.getElementById('t-rules-text');
+  if (!ta) return;
+  try {
+    await apiCall(`/tournaments/${encodeURIComponent(tournamentId)}`, 'PATCH', {
+      rulesText: ta.value,
+    });
+    toast('Regelwerk gespeichert', 'success');
+  } catch (e) {
+    toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+  }
+}
+
+/**
+ * v3: Beamer-View öffnen.
+ * Spec §8.6: read-only, große Schrift, 5s auto-reload.
+ */
+function openTournamentBeamer(tournamentId) {
+  if (!tournamentId) return;
+  window.open(
+    `/tournament/${encodeURIComponent(tournamentId)}/beamer`,
+    `beamer-${tournamentId}`,
+    'noopener,noreferrer'
+  );
+}
+
+/**
+ * Helper: Platzhalter-Struktur lesbar formatieren (Spec §6.3.2 z.B. "Sieger VF1")
+ */
+function formatPlaceholder(p) {
+  if (!p) return '';
+  if (typeof p === 'string') return p;
+  if (p.label) return p.label;
+  if (p.fromMatch) return p.fromMatch;
+  return '';
+}
+
+/**
+ * v3: Zeitplan neu terminieren — POST /tournaments/:id/reschedule.
+ *
+ * Wenn schon Ergebnisse da sind, verlangt der Server eine Bestätigung
+ * per Turniernamen (§13.10). Wir fragen vorher mit demselben
+ * Confirm-Dialog wie beim Generate nach.
+ *
+ * @returns {Promise<boolean>} true bei Erfolg, false bei Abbruch.
+ */
+async function rescheduleTournament(tournamentId, tournamentName) {
+  if (!tournamentId) return false;
+  try {
+    // Erst ohne confirmTournamentName — der Server antwortet dann
+    // 409 mit finishedMatches > 0, wenn nötig.
+    let res = await fetchWithAuth(`/tournaments/${encodeURIComponent(tournamentId)}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    if (res.status === 409) {
+      const body = await res.json().catch(() => ({}));
+      if (body?.needsConfirmation && body?.finishedMatches > 0) {
+        // Bestätigung per Turniernamen einholen.
+        const dlg = await openConfirmDialog({
+          title: 'Zeitplan neu terminieren?',
+          message:
+            `${body.finishedMatches} Spiel${body.finishedMatches === 1 ? '' : 'e'} ` +
+            `ist/sind bereits beendet — deren Ergebnisse und Sieger bleiben erhalten, ` +
+            `nur die Zeiten werden neu berechnet.\n\n` +
+            `Tippe zur Bestätigung den Turniernamen:`,
+          expectedName: tournamentName,
+          confirmLabel: 'Neu terminieren',
+        });
+        if (dlg.cancelled) return false;
+        res = await fetchWithAuth(`/tournaments/${encodeURIComponent(tournamentId)}/reschedule`, {
+          method: 'POST',
+          body: JSON.stringify({ confirmTournamentName: dlg.typedName }),
+        });
+      } else {
+        toast(body?.message || 'Reschedule fehlgeschlagen', 'error');
+        return false;
+      }
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast(body?.message || 'Zeitplan konnte nicht neu terminiert werden', 'error');
+      return false;
+    }
+
+    const data = await res.json();
+    const finishedNote =
+      data.finishedCountAtTimeOfReschedule > 0
+        ? ` (${data.finishedCountAtTimeOfReschedule} Ergebnis${data.finishedCountAtTimeOfReschedule === 1 ? '' : 'se'} erhalten)`
+        : '';
+    toast(`Zeitplan neu terminiert — ${data.rescheduledCount} Spiele${finishedNote}`, 'success');
+    return true;
+  } catch (e) {
+    toast('Zeitplan konnte nicht neu terminiert werden: ' + (e?.message || e), 'error');
+    return false;
+  }
+}
+
+/**
+ * v3: Modal zum Eintragen eines Ergebnisses.
+ */
+/**
+ * v3 Etappe B.4 — Ergebnis-Modal für beide Wege.
+ *
+ * Aufruf-Varianten (gleicher Modal-Inhalt, kleiner Layout-Unterschied):
+ *
+ *   1. Per Match-Karte:     openResultEntryModal(t.id, matchId, matches)
+ *      → Match-ID ist vorgegeben, das Dropdown entfällt, der User sieht
+ *        sofort Heim/Gast/Zeit/Tisch für DIESES Match.
+ *
+ *   2. Per Header-Button:   openResultEntryModal(t.id, null, matches)
+ *      → Ein Dropdown mit allen offenen Matches sortiert nach
+ *        scheduledAt asc, nulls last, Tie: field asc. Bei Wechsel
+ *        aktualisiert sich der Info-Block (Heim/Gast/Zeit/Tisch).
+ *
+ * Submit:
+ *   POST /api/tournaments/:id/matches/:matchId/result
+ *   Body: { scoreHome, scoreAway }
+ *   Response: { ok, match, propagated: [...] } — `propagated` zählt
+ *             KO-Folgespiele, deren Sieger sich durch dieses Ergebnis
+ *             umgesetzt hat.
+ *
+ * Nach dem Speichern:
+ *   - Toast mit Score + ggf. „N Folgespiele aktualisiert"
+ *   - Modal schließt
+ *   - Detail-View wird IMMER via openTournamentInstance() neu geladen.
+ *     Vorher (Bug 2026-08-18) wurde bei Cascade ein In-Place-Patch
+ *     gemacht (applyPropagatedMatches) — der hat aber die Score-Karte
+ *     des GERADE gespeicherten Matches NICHT aktualisiert. Resultat:
+ *     das Match blieb in der Liste stale, der User dachte der Save
+ *     hätte nicht geklappt und speicherte doppelt. Jetzt: immer full
+ *     re-fetch, das ist die einzige korrekte Lösung.
+ *     KEIN Browser-Reload — nur ein re-render. KO-Brackets zeigen
+ *     den richtigen Sieger, Aside zeigt das nächste offene Spiel.
+ */
+async function openResultEntryModal(tournamentId, matchId = null, allMatches = []) {
+  if (!tournamentId) return;
+  closeTournamentDetailModalById('result-entry-modal');
+
+  // Match-Liste normalisieren + sortieren.
+  const matches = Array.isArray(allMatches) ? allMatches : [];
+  // Open + scheduled first; falls scheduledAt fehlt → ans Ende.
+  const openSorted = sortMatchesBySchedule(matches.filter((m) => !m.isFinished && m.id)).map(
+    (m) => ({ id: m.id, m })
+  );
+
+  const findMatch = (id) => matches.find((m) => m.id === id) || null;
+  const initialMatch = matchId ? findMatch(matchId) : null;
+
+  // Wenn ein preset existiert, aber nicht (mehr) in matches ist → das
+  // Modal kann nicht arbeiten. Statt eines Crashes: Toast + Abbruch.
+  if (matchId && !initialMatch) {
+    toast('Match nicht gefunden — bitte Detail-View neu laden', 'error');
+    return;
+  }
+
+  const labelFor = (m) => {
+    if (!m) return '';
+    const homeName = m.home?.name || 'offen';
+    const awayName = m.away?.name || 'offen';
+    const timeStr = m.scheduledTime ? `${m.scheduledTime} ` : '';
+    const tischStr = typeof m.field === 'number' ? `· Platte ${m.field} ` : '';
+    const labelStr = m.label ? `· ${m.label} ` : '';
+    return `${timeStr}${tischStr}${labelStr}· ${homeName} – ${awayName}`.trim();
+  };
+
+  // Hilfsfunktion für die kleinen Subline (HF 1 · 10:00 · Platte 1).
+  // Eine Zeile, grau — keine separate Vorschau-Box mehr.
+  const sublineFor = (m) => {
+    if (!m) return '';
+    const parts = [];
+    if (m.label) parts.push(esc(m.label));
+    if (m.scheduledTime) parts.push(esc(m.scheduledTime));
+    if (typeof m.field === 'number') parts.push(`Platte ${m.field}`);
+    return parts.join(' · ');
+  };
+
+  // ── A5 (2026-08-25): Der Dialog hängt an document.body ───────────
+  // …also AUSSERHALB von .t-mod, wo alle Turnier-Tokens definiert sind.
+  // Ohne die Klasse t-mod erbt er keinen einzigen davon: Radien fielen
+  // auf 0, Rahmen auf `none`, Abstände auf 0 — er sah aus wie aus einer
+  // anderen Anwendung. DIALOG_HOST_CLASS ist die eine Wahrheit dafür,
+  // Begründung in dialog-host.js. `--sheet` markiert den Dialog, der
+  // auf dem Handy von unten einfährt (nicht jeder soll das).
+  const trigger = captureDialogTrigger(document);
+  const dlg = document.createElement('div');
+  dlg.id = 'result-entry-modal';
+  // Fuer stashPendingResultInput: der Entwurf gehoert zu genau diesem
+  // Turnier und darf nicht in einem anderen wieder auftauchen.
+  dlg.dataset.tournamentId = tournamentId;
+  dlg.className = `${DIALOG_HOST_CLASS} t-dialog-host--sheet`;
+  dlg.innerHTML = `
+    <div class="t-dialog" role="dialog" aria-modal="true" aria-labelledby="re-title">
+      <div class="t-dialog-head">
+        <div class="t-dialog-head-text">
+          <div id="re-subline" class="t-dialog-subline" aria-live="polite"></div>
+          <h3 class="t-dialog-title" id="re-title">Ergebnis eintragen</h3>
+        </div>
+        <button type="button" class="t-dialog-close" data-action="close" aria-label="Schließen">✕</button>
+      </div>
+      <form id="result-entry-form" class="t-dialog-body">
+        ${
+          initialMatch
+            ? `<input type="hidden" id="re-match-id" value="${esc(initialMatch.id)}">`
+            : openSorted.length
+              ? `<div class="t-field">
+                  <label class="t-field-label" for="re-match-id">Welches Spiel?</label>
+                  <select id="re-match-id" class="t-field-select" required>
+                    <option value="">— offenes Spiel wählen —</option>
+                    ${openSorted
+                      .map(({ id, m }) => `<option value="${esc(id)}">${esc(labelFor(m))}</option>`)
+                      .join('')}
+                  </select>
+                </div>`
+              : `<p class="t-hint">Keine offenen Spiele vorhanden — bitte zuerst Spiele generieren.</p>`
+        }
+        <div class="t-score-entry">
+          <div class="t-score-entry-row">
+            <span class="t-score-entry-team">
+              <i class="t-dot" id="re-home-dot"></i>
+              <span class="name" id="re-home-name">–</span>
+            </span>
+            <input id="re-home" type="number" min="0" inputmode="numeric" required
+                   class="t-score-entry-input" placeholder="–" aria-label="Punkte Heimteam">
+          </div>
+          <div class="t-score-entry-row">
+            <span class="t-score-entry-team">
+              <i class="t-dot" id="re-away-dot"></i>
+              <span class="name" id="re-away-name">–</span>
+            </span>
+            <input id="re-away" type="number" min="0" inputmode="numeric" required
+                   class="t-score-entry-input" placeholder="–" aria-label="Punkte Gastteam">
+          </div>
+        </div>
+      </form>
+      <div class="t-dialog-foot">
+        <button type="button" class="t-btn" data-action="close">Abbrechen</button>
+        <button type="submit" form="result-entry-form" class="t-btn t-btn--primary">Speichern</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  // ── Eine Schliess-Wahrheit für alle fünf Wege ────────────────────
+  // Backdrop-Klick, ✕, Abbrechen, Escape und erfolgreiches Speichern
+  // laufen alle hier durch. Nur so ist sicher, dass der keydown-
+  // Horcher wieder abgeräumt wird UND der Fokus zum auslösenden
+  // Element zurückkehrt.
+  let dialogClosed = false;
+  function onDialogKeyDown(e) {
+    // Selbstheilung: Wenn jemand den Dialog an uns vorbei aus dem DOM
+    // genommen hat (closeTournamentDetailModalById), horchen wir
+    // sonst bis zum Seitenende weiter.
+    if (!dlg.isConnected) {
+      document.removeEventListener('keydown', onDialogKeyDown);
+      return;
+    }
+    if (isDialogCloseKey(e)) {
+      e.preventDefault();
+      closeDialog();
+    }
+  }
+  function closeDialog() {
+    if (dialogClosed) return;
+    dialogClosed = true;
+    document.removeEventListener('keydown', onDialogKeyDown);
+    dlg.remove();
+    // Nach erfolgreichem Speichern lädt die Detail-Ansicht neu; der
+    // auslösende Knopf ist dann nicht mehr im Dokument. Dann kehrt der
+    // Fokus bewusst nirgendwohin zurück (siehe restoreDialogTrigger).
+    restoreDialogTrigger(trigger);
+  }
+  document.addEventListener('keydown', onDialogKeyDown);
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.dataset.action === 'close') closeDialog();
+  });
+
+  const mIdInput = dlg.querySelector('#re-match-id');
+  const sublineEl = dlg.querySelector('#re-subline');
+  const homeNameEl = dlg.querySelector('#re-home-name');
+  const awayNameEl = dlg.querySelector('#re-away-name');
+  const homeDotEl = dlg.querySelector('#re-home-dot');
+  const awayDotEl = dlg.querySelector('#re-away-dot');
+  const setHomeAway = (m) => {
+    if (!m) {
+      homeNameEl.textContent = '–';
+      awayNameEl.textContent = '–';
+      homeDotEl.style.background = 'var(--line)';
+      awayDotEl.style.background = 'var(--line)';
+      sublineEl.textContent = '';
+      return;
+    }
+    homeNameEl.textContent = m.home?.name || 'offen';
+    awayNameEl.textContent = m.away?.name || 'offen';
+    homeDotEl.style.background = m.home?.color || 'var(--line)';
+    awayDotEl.style.background = m.away?.color || 'var(--line)';
+    sublineEl.textContent = sublineFor(m);
+  };
+
+  // Initial-Befüllung (preset oder leer bei Dropdown).
+  if (initialMatch) setHomeAway(initialMatch);
+
+  // Bei Dropdown-Wechsel Subline + Teamnamen neu setzen.
+  if (mIdInput && mIdInput.tagName === 'SELECT') {
+    mIdInput.addEventListener('change', () => {
+      const m = findMatch(mIdInput.value);
+      setHomeAway(m);
+    });
+  }
+
+  const formEl = dlg.querySelector('#result-entry-form');
+
+  // ── Fokus beim Öffnen ──────────────────────────────────────────
+  // Ins erste Punktefeld, nicht auf den Dialog. Ist kein Spiel
+  // vorgegeben, muss der User erst eins wählen — dann gehört der
+  // Fokus ins Auswahlfeld.
+  // Gesicherte Eingaben eines abgelaufenen Versuchs zurueckholen,
+  // BEVOR der Fokus gesetzt wird — sonst steht der Cursor in einem
+  // Feld, dessen Inhalt sich gleich noch aendert.
+  restorePendingResultInput(dlg, tournamentId);
+
+  const firstField =
+    mIdInput && mIdInput.tagName === 'SELECT' ? mIdInput : dlg.querySelector('#re-home');
+  if (firstField) firstField.focus();
+
+  // ── Enter speichert ───────────────────────────────────────────
+  // Die Knöpfe stehen jetzt im Fussbereich, also AUSSERHALB des
+  // <form> (nur per form="…" zugeordnet). Die implizite Absende-
+  // Logik der Browser ist in dieser Konstellation uneinheitlich —
+  // deshalb lösen wir selbst aus und unterbinden mit
+  // preventDefault() das mögliche zweite, native Absenden.
+  for (const el of dlg.querySelectorAll('.t-score-entry-input, .t-field-select')) {
+    el.addEventListener('keydown', (e) => {
+      if (!isDialogSubmitKey(e)) return;
+      e.preventDefault();
+      if (typeof formEl.requestSubmit === 'function') formEl.requestSubmit();
+      else formEl.dispatchEvent(new Event('submit', { cancelable: true }));
+    });
+  }
+
+  formEl.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // Trace-ID für strukturiertes Logging (Bug 7, 2026-08-18). Eine ID
+    // pro Save-Klick, geht als x-trace-id-Header an den Server UND in
+    // jede Konsolen-Zeile dieses Lebenszyklus. Wenn der User wieder
+    // "Ergebnis erscheint nicht" meldet, brauchen wir nur diese ID, um
+    // Frontend + Backend zu korrelieren.
+    //
+    // Logs sind IMMER aktiv (Bug 7 ist User-blocking — der User muss
+    // beim nächsten Fehlversuch einfach die Konsole öffnen und uns die
+    // Trace-ID geben). Wer sie leiser haben will:
+    //   window.tournamentTraceSilent = true
+    const traceId = 'cli-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+    const tlog = (...args) => {
+      if (typeof window === 'undefined' || window.tournamentTraceSilent !== true) {
+        // eslint-disable-next-line no-console
+        console.log(`[trace-${traceId}]`, ...args);
+      }
+    };
+    tlog('modal:submit', { tournamentId, modalMatchId: matchId });
+
+    const mId = mIdInput?.value?.trim();
+    if (!mId) {
+      tlog('submit:abort no-match-id');
+      toast('Bitte zuerst ein Match auswählen', 'error');
+      return;
+    }
+    const sh = Number(dlg.querySelector('#re-home').value);
+    const sa = Number(dlg.querySelector('#re-away').value);
+    if (!Number.isInteger(sh) || !Number.isInteger(sa) || sh < 0 || sa < 0) {
+      tlog('submit:abort invalid-scores', { sh, sa });
+      toast('Ergebnisse müssen nicht-negative ganze Zahlen sein', 'error');
+      return;
+    }
+    tlog('submit:scores-ok', { mId, sh, sa });
+    const submitBtn = dlg.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    let saved = false;
+    try {
+      tlog('apiCall:request', { method: 'POST', mId, sh, sa });
+      const result = await apiCall(
+        `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(mId)}/result`,
+        'POST',
+        { scoreHome: sh, scoreAway: sa },
+        { headers: { 'x-trace-id': traceId } }
+      );
+      tlog('apiCall:response', {
+        propagated: result?.propagated,
+        matchId: result?.match?.id,
+        propagatedMatchesCount: result?.propagatedMatches?.length,
+        koFill: result?.koFill,
+      });
+      const propagated = Array.isArray(result?.propagated) ? result.propagated.length : 0;
+      const undoNote = propagated
+        ? ` (${propagated} Folgespiel${propagated === 1 ? '' : 'e'} aktualisiert)`
+        : '';
+      toast(`Ergebnis gespeichert (${sh} : ${sa})${undoNote}`, 'success');
+      // P5-Re-Fix (2026-08-25): Wenn der Server beim Speichern die
+      // K.-o.-Phase automatisch befüllt hat, zeigen wir einen ZUSÄTZ-
+      // lichen Toast "K.-o.-Phase steht: Team X trifft auf Team Y".
+      // Vorher: Server-Log hatte die Info, der User sah nichts —
+      // Hauptursache für "der Baum füllt sich nicht" Missverständnis.
+      if (result?.koFill?.filled) {
+        const mu = result.koFill.firstMatchup;
+        const koMsg =
+          mu?.home && mu?.away
+            ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+            : 'K.-o.-Phase gefüllt';
+        // Kurze Verzögerung, damit der Save-Toast nicht doppelt wirkt.
+        setTimeout(() => toast(koMsg, 'success'), 350);
+        tlog('ko-fill:toast-shown', { updatedCount: result.koFill.updatedCount });
+      } else if (result?.bracketWasAlreadyFilled) {
+        // User hat ein Gruppenscore nachträglich geändert, NACHDEM die
+        // K.-o.-Phase schon befüllt war. Server hat den Auto-Fill
+        // abgelehnt (siehe maybeFillKoFromGroupFinish, P5-Re-Fix).
+        // Wir warnen und bieten "neu setzen" an. Modal mit drei Buttons:
+        // Abbrechen / Brackets lassen / Brackets neu qualifizieren.
+        tlog('ko-fill:warn-already-filled');
+        // Kurze Verzögerung, damit der Save-Toast nicht überdeckt wird.
+        setTimeout(() => openBracketRefillConfirmDialog(tournamentId), 400);
+      }
+      tlog('toast:shown');
+      // Gespeichert — ein gesicherter Entwurf desselben Spiels waere
+      // ab jetzt eine Falle (er wuerde den Score beim naechsten
+      // Oeffnen erneut vorschlagen).
+      clearPendingResultInput();
+      closeDialog();
+      tlog('modal:removed');
+
+      // BUG 7 (2026-08-18, "Ergebnis erscheint nicht in der Liste"):
+      //   Die vorherige Optimierung hat bei Cascade nur die FOLGE-
+      //   Matches in-place gepatcht (applyPropagatedMatches) und einen
+      //   full-reload ÜBERSPRUNGEN. Das hat dazu geführt, dass die
+      //   Score-Karte des GERADE gespeicherten Matches stale blieb
+      //   (z. B. VF 3 zeigte weiter "– : –", obwohl das Ergebnis in
+      //   der DB stand). Der User sah nur den aktualisierten Cascade-
+      //   target und dachte, der Save hätte nicht geklappt → Doppel-
+      //   speicherung.
+      //
+      //   Fix: IMMER full re-fetch nach Score-Save. Die In-Place-Patch-
+      //   Funktion bleibt im Code (kann anderswo nützlich sein), wird
+      //   hier aber nicht mehr aufgerufen. Die 200-500ms sind es wert,
+      //   weil das die einzige korrekte Lösung für konsistente UI ist.
+      //
+      //   applyPropagatedMatches patcht nur Folge-Matches. Es müsste
+      //   AUCH die Source-Match-Karte (Score + isFinished + winner-
+      //   highlight) aktualisieren, damit der in-place-Pfad korrekt
+      //   wäre. Das wäre mehr Code für eine ~200ms-Optimierung, die
+      //   der User als "Speichern unzuverlässig" wahrnimmt.
+      saved = true;
+    } catch (err) {
+      tlog('submit:error', { message: err?.message, status: err?.status });
+      // eslint-disable-next-line no-console
+      console.error(`[trace-${traceId}] submit failed:`, err);
+      submitBtn.disabled = false;
+      toast(err.serverMessage || 'Ergebnis konnte nicht gespeichert werden', 'error');
+    }
+    if (saved) {
+      tlog('view:refresh start (always-full-refresh)');
+      await refreshTournamentAfterMutation(tournamentId);
+      tlog('view:refresh end');
+      tlog('submit:done');
+    }
+  });
+}
+
+/**
+ * v3 S4.3 — Match-Detail-Panel (Spec §8.3).
+ * Zeigt Match-Daten, Notizfeld, Foto-Upload, Audit-Log.
+ */
+async function openMatchDetailModal(tournamentId, matchId) {
+  if (!tournamentId || !matchId) return;
+  closeTournamentDetailModalById('match-detail-modal');
+  const dlg = document.createElement('div');
+  dlg.id = 'match-detail-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>📋 Match-Details</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <div id="md-body" class="tournament-detail-form">
+        <p class="t-hint">Lade Match…</p>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.dataset.action === 'close') dlg.remove();
+  });
+  const body = dlg.querySelector('#md-body');
+  try {
+    const data = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`,
+      'GET'
+    );
+    const m = data.match || data;
+    const home = m.teamHome?.name || formatPlaceholder(m.placeholderHome) || 'TBD';
+    const away = m.teamAway?.name || formatPlaceholder(m.placeholderAway) || 'TBD';
+    const meta = m.metadata && typeof m.metadata === 'object' ? m.metadata : {};
+    const audit = Array.isArray(meta.audit) ? meta.audit : [];
+    const photos = Array.isArray(meta.photos) ? meta.photos : [];
+    const auditHtml =
+      audit.length === 0
+        ? '<p class="t-hint">Noch keine Audit-Einträge.</p>'
+        : `<ul class="t-match-audit">${audit.map((a) => `<li><strong>${esc(new Date(a.at).toLocaleString('de-DE'))}</strong> · ${esc(a.action)} ${a.detail ? '· ' + esc(a.detail) : ''}${a.user ? ' · ' + esc(a.user) : ''}</li>`).join('')}</ul>`;
+    const photosHtml =
+      photos.length === 0
+        ? ''
+        : `<div class="t-match-photos">${photos.map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="Match-Foto" loading="lazy"></a>`).join('')}</div>`;
+    body.innerHTML = `
+      <div class="t-match-card ${m.isFinished ? 'is-completed' : m.isLive ? 'is-live' : ''}">
+        <span class="t-match-home">${esc(home)}</span>
+        <span class="t-match-score">${m.scoreHome ?? '–'} : ${m.scoreAway ?? '–'}</span>
+        <span class="t-match-away">${esc(away)}</span>
+      </div>
+      <div class="t-grid-2">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Status</span>
+          <input type="text" value="${esc(m.status || 'scheduled')}" disabled>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Schiedsrichter / Tisch</span>
+          <input type="text" id="md-venue" value="${esc(m.venueLabel || '')}" placeholder="Tisch 1 – Schiri Max">
+        </label>
+      </div>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Notiz</span>
+        <textarea id="md-notes" rows="4" placeholder="Was ist passiert? Verletzungen, besondere Vorkommnisse...">${esc(meta.notes || '')}</textarea>
+      </label>
+      <label class="tournament-detail-field">
+        <span class="tournament-detail-label">Foto(s) hochladen</span>
+        <input type="file" id="md-photo" accept="image/*" multiple>
+        <span class="t-hint">Max. 5 MB pro Bild. Werden in der MinIO-Bucket "tournament-assets" gespeichert.</span>
+      </label>
+      ${photosHtml}
+      <details class="t-match-audit-details">
+        <summary>📜 Audit-Log (${audit.length})</summary>
+        ${auditHtml}
+      </details>
+      <div class="tournament-card-actions">
+        <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+        <button type="button" class="btn btn-primary" id="md-save">💾 Speichern</button>
+      </div>
+    `;
+    dlg.querySelector('#md-save').addEventListener('click', async () => {
+      const notes = dlg.querySelector('#md-notes').value;
+      const venue = dlg.querySelector('#md-venue').value;
+      const photoFiles = dlg.querySelector('#md-photo').files;
+      const newPhotos = [];
+      for (const f of photoFiles || []) {
+        if (f.size > 5 * 1024 * 1024) {
+          toast(`Bild ${f.name} > 5MB`, 'error');
+          continue;
+        }
+        try {
+          const up = await uploadTournamentMatchPhoto(f, tournamentId, matchId);
+          newPhotos.push({ url: up.url, uploadedAt: new Date().toISOString() });
+        } catch (e) {
+          toast(`Upload ${f.name} fehlgeschlagen`, 'error');
+        }
+      }
+      const mergedPhotos = [...photos, ...newPhotos];
+      const newAudit = [
+        ...audit,
+        {
+          at: new Date().toISOString(),
+          action: 'edit',
+          detail: notes ? 'Notiz aktualisiert' : 'Felder aktualisiert',
+        },
+      ];
+      let saved = false;
+      try {
+        await apiCall(
+          `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}`,
+          'PATCH',
+          {
+            venueLabel: venue,
+            metadata: { ...meta, notes, photos: mergedPhotos, audit: newAudit },
+          }
+        );
+        toast('Match aktualisiert', 'success');
+        dlg.remove();
+        saved = true;
+      } catch (e) {
+        toast(e.serverMessage || 'Speichern fehlgeschlagen', 'error');
+      }
+      if (saved) {
+        await refreshTournamentAfterMutation(tournamentId);
+      }
+    });
+  } catch (err) {
+    body.innerHTML = `<p class="t-hint">Fehler: ${esc(err.serverMessage || err.message)}</p>`;
+  }
+}
+
+/**
+ * Upload eines Match-Fotos via MinIO Signed URL.
+ */
+async function uploadTournamentMatchPhoto(file, tournamentId, matchId) {
+  // Lade Signed URL
+  const sig = await apiCall(
+    `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(matchId)}/photo-upload`,
+    'POST',
+    {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    }
+  );
+  if (!sig?.uploadUrl) throw new Error('Keine Upload-URL erhalten');
+  const put = await fetch(sig.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!put.ok) throw new Error(`Upload HTTP ${put.status}`);
+  return { url: sig.publicUrl };
+}
+
+async function openTournamentStandings(instanceId) {
+  await openTournamentInstance(instanceId);
+  const standingsEl = document.getElementById('tournament-standings-section');
+  if (standingsEl) standingsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function deleteTournamentInstance(instanceId, instanceName) {
+  // P2 (2026-08-24): Vorheriger showConfirmDlg hatte kein Texteingabe-
+  // Feld — bei bereits abgeschlossenen Turnieren antwortet der Server
+  // 409 `delete_locked_results_present` (Spec §13.10). Wir verwenden
+  // jetzt openConfirmDialog mit expectedName, das denselben Handshake
+  // wie deleteTournamentWithConfirm macht.
+  const dlg = await openConfirmDialog({
+    title: 'Turnier löschen',
+    message:
+      `Turnier "${instanceName || 'ohne Namen'}" wird vollständig gelöscht — ` +
+      'inklusive aller Teams, Gruppen, Spiele und Ergebnisse. ' +
+      'Dieser Schritt ist nicht umkehrbar.\n\nTippe zur Bestätigung den Turniernamen:',
+    expectedName: instanceName || '',
+    confirmLabel: 'Turnier löschen',
+  });
+  if (dlg.cancelled) return;
+
+  await deleteTournamentWithConfirm(instanceId, instanceName, dlg.typedName);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Phase 2: Tournament UI Modals + Bracket-Visualisierung
+// ──────────────────────────────────────────────────────────────────────
+
+// Hilfsfunktion: Anzeigename für einen Teilnehmer-Slot (Match.homeParticipant etc.).
+// Behandelt User-Teilnehmer, Ghost-Teilnehmer und leere Slots (TBD).
+function getTournamentParticipantDisplayName(participant, instance) {
+  if (!participant) return 'TBD';
+  // user join (vom Backend mitgeliefert wenn vorhanden)
+  if (participant.user) {
+    const visible = getVisibleName(participant.user, participant.user.displayNameField);
+    if (visible) return visible;
+  }
+  // Ghost: displayName-Snapshot
+  if (participant.displayName) return participant.displayName;
+  // Fallback: Team-Name (bei team/pair-Modus)
+  if (participant.team?.name) return participant.team.name;
+  // Letzter Fallback: ID
+  return participant.id ? `Teilnehmer ${participant.id.slice(0, 6)}` : 'TBD';
+}
+
+function getTournamentInstanceParticipantById(instance, participantId) {
+  if (!instance || !participantId) return null;
+  return (instance.participants || []).find((entry) => entry.id === participantId) || null;
+}
+
+function getTournamentMatchDisplayNames(match, instance) {
+  const home = getTournamentInstanceParticipantById(instance, match.homeParticipantId);
+  const away = getTournamentInstanceParticipantById(instance, match.awayParticipantId);
+  return {
+    homeName: getTournamentParticipantDisplayName(home, instance),
+    awayName: getTournamentParticipantDisplayName(away, instance),
+  };
+}
+
+function tournamentStatusBadgeHtml(status) {
+  const map = {
+    planned: { label: 'Geplant', cls: 't-badge t-badge-planned' },
+    in_progress: { label: 'Laufend', cls: 't-badge t-badge-live' },
+    completed: { label: 'Abgeschlossen', cls: 't-badge t-badge-done' },
+    void: { label: 'Ungültig', cls: 't-badge t-badge-void' },
+  };
+  const info = map[status] || { label: status || '-', cls: 't-badge t-badge-planned' };
+  return `<span class="${info.cls}">${esc(info.label)}</span>`;
+}
+
+// ── Modal: Team anlegen ───────────────────────────────────────────────
+async function openCreateTournamentTeamModal(instanceId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+
+  closeTournamentDetailModalById('tournament-team-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-team-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Team hinzufügen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-team-form" class="tournament-detail-form">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Teamname <span class="t-required">*</span></span>
+          <input id="tt-name" type="text" maxlength="80" required placeholder="z. B. Team Nord, FC Bayern, …" autofocus>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Seed <span class="t-hint">(optional, 1 = Top-Seed)</span></span>
+          <input id="tt-seed" type="number" min="1" step="1" placeholder="z. B. 1, 2, 3, …">
+          <span class="t-hint">Wird vom Bracket-Generator für die Setzliste verwendet. Leer = unsortiert.</span>
+        </label>
+        <div class="tournament-detail-checkbox-row">
+          <input id="tt-ghost" type="checkbox" checked>
+          <label for="tt-ghost">Teilnehmer sofort als Ghost anlegen (kein User nötig)</label>
+        </div>
+        <p class="t-hint">Im Team-Modus bekommt jedes Team einen Teilnehmer-Slot. Mit Ghost kannst du Teams anlegen, ohne dass schon ein User zugeordnet ist.</p>
+        <div id="tournament-team-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" id="tournament-team-submit">Anlegen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-team-form');
+  const msg = dlg.querySelector('#tournament-team-msg');
+  const submitBtn = dlg.querySelector('#tournament-team-submit');
+  const nameInput = dlg.querySelector('#tt-name');
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = nameInput.value.trim();
+    const seedRaw = dlg.querySelector('#tt-seed').value.trim();
+    const seed = seedRaw ? Number(seedRaw) : null;
+    if (!name) {
+      msg.textContent = 'Teamname ist erforderlich';
+      msg.classList.remove('hidden');
+      msg.className = 'msg msg-error';
+      return;
+    }
+    if (seedRaw && (!Number.isInteger(seed) || seed < 1)) {
+      msg.textContent = 'Seed muss eine positive ganze Zahl sein';
+      msg.classList.remove('hidden');
+      msg.className = 'msg msg-error';
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Wird angelegt…';
+    let saved = false;
+    try {
+      const { team } = await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/teams`,
+        'POST',
+        { name, seed }
+      );
+      // Optional: Ghost-Teilnehmer direkt mit anlegen
+      if (dlg.querySelector('#tt-ghost')?.checked) {
+        try {
+          await apiCall(
+            `/tournaments/instances/${encodeURIComponent(instanceId)}/participants`,
+            'POST',
+            { teamId: team.id, displayName: team.name, seed }
+          );
+        } catch (ghostErr) {
+          // Ghost-Fehler ist nicht kritisch (Team ist da)
+          console.warn('Ghost-Teilnehmer konnte nicht angelegt werden', ghostErr);
+        }
+      }
+      toast('Team angelegt', 'success');
+      close();
+      saved = true;
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Team konnte nicht angelegt werden';
+      msg.classList.remove('hidden');
+      msg.className = 'msg msg-error';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Anlegen';
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+      await loadActiveTournamentView(false);
+    }
+  });
+
+  nameInput?.focus();
+}
+
+// ── Modal: Teilnehmer hinzufügen (Ghost oder User) ─────────────────────
+async function openAddTournamentParticipantModal(instanceId, options = {}) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const mode = instance?.preset?.participantMode || 'team';
+  const initialMode = options.prefillUserId ? 'user' : 'ghost';
+
+  closeTournamentDetailModalById('tournament-add-participant-modal');
+
+  // Team-Dropdown (für team/pair-Modus)
+  const teamOptions = (instance.teams || [])
+    .map(
+      (t) =>
+        `<option value="${esc(t.id)}">${esc(t.name)}${t.seed ? ` · Seed ${t.seed}` : ''}</option>`
+    )
+    .join('');
+
+  // User-Dropdown: Gruppenmitglieder, die noch NICHT Teilnehmer sind
+  const takenUserIds = new Set((instance.participants || []).map((p) => p.userId).filter(Boolean));
+  const memberOptions = (groupMembers || [])
+    .map((m) => m?.user || m)
+    .filter((u) => u?.id && !takenUserIds.has(u.id))
+    .map((u) => {
+      const name = getVisibleName(u, u.displayNameField) || u.name || u.username || u.email;
+      return `<option value="${esc(u.id)}">${esc(name)} (${esc(u.username || u.email || '')})</option>`;
+    })
+    .join('');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-add-participant-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Teilnehmer hinzufügen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-add-participant-form" class="tournament-detail-form">
+        <div class="tournament-detail-tab-row" role="tablist">
+          <button type="button" class="t-tab ${initialMode === 'ghost' ? 'active' : ''}" data-mode="ghost" role="tab">👻 Ghost (kein User)</button>
+          ${mode !== 'team' || memberOptions ? `<button type="button" class="t-tab ${initialMode === 'user' ? 'active' : ''}" data-mode="user" role="tab">👤 User zuordnen</button>` : ''}
+        </div>
+        <div class="tournament-detail-tab-panel ${initialMode !== 'ghost' ? 'hidden' : ''}" data-panel="ghost">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Anzeigename <span class="t-required">*</span></span>
+            <input id="tad-displayName" type="text" maxlength="80" required placeholder="z. B. Team A, Spieler 7, …">
+            <span class="t-hint">Erscheint im Bracket und in den Standings, bis ein User zugeordnet wird.</span>
+          </label>
+          ${
+            mode !== 'individual'
+              ? `
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Team <span class="t-required">*</span></span>
+            <select id="tad-teamId" required>
+              <option value="">— Bitte wählen —</option>
+              ${teamOptions}
+            </select>
+          </label>`
+              : ''
+          }
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Seed <span class="t-hint">(optional)</span></span>
+            <input id="tad-seed" type="number" min="1" step="1" placeholder="z. B. 1, 2, 3, …">
+          </label>
+        </div>
+        <div class="tournament-detail-tab-panel ${initialMode === 'ghost' ? 'hidden' : ''}" data-panel="user">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Gruppenmitglied <span class="t-required">*</span></span>
+            <select id="tad-userId" required>
+              <option value="">— Bitte wählen —</option>
+              ${memberOptions}
+            </select>
+            <span class="t-hint">Nur Mitglieder, die noch nicht Teilnehmer dieses Turniers sind.</span>
+          </label>
+          ${
+            mode !== 'individual'
+              ? `
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Team ${mode !== 'individual' ? '<span class="t-required">*</span>' : '<span class="t-hint">(optional)</span>'}</span>
+            <select id="tad-teamId-user" ${mode !== 'individual' ? 'required' : ''}>
+              <option value="">${mode !== 'individual' ? '— Bitte wählen —' : '— Kein Team —'}</option>
+              ${teamOptions}
+            </select>
+            ${mode !== 'individual' ? '<span class="t-hint">Im Team-Modus ist ein Team Pflicht.</span>' : ''}
+          </label>`
+              : ''
+          }
+        </div>
+        <div id="tournament-add-participant-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" id="tournament-add-participant-submit">Hinzufügen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-add-participant-form');
+  const msg = dlg.querySelector('#tournament-add-participant-msg');
+  const submitBtn = dlg.querySelector('#tournament-add-participant-submit');
+
+  // Tab-Logik
+  dlg.querySelectorAll('.t-tab').forEach((tabBtn) => {
+    tabBtn.addEventListener('click', () => {
+      const targetMode = tabBtn.dataset.mode;
+      dlg.querySelectorAll('.t-tab').forEach((b) => b.classList.toggle('active', b === tabBtn));
+      dlg.querySelectorAll('.tournament-detail-tab-panel').forEach((p) => {
+        p.classList.toggle('hidden', p.dataset.panel !== targetMode);
+      });
+    });
+  });
+
+  // Prefill: vorausgewählten User setzen (für "Teilnehmer aus Gruppe hinzufügen")
+  if (options.prefillUserId) {
+    const sel = dlg.querySelector('#tad-userId');
+    if (sel) sel.value = options.prefillUserId;
+  }
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const activeMode = dlg.querySelector('.t-tab.active')?.dataset.mode || 'ghost';
+    const body = {};
+    if (activeMode === 'ghost') {
+      body.displayName = dlg.querySelector('#tad-displayName').value.trim();
+      const teamId = dlg.querySelector('#tad-teamId')?.value;
+      if (teamId) body.teamId = teamId;
+      const seedRaw = dlg.querySelector('#tad-seed').value.trim();
+      if (seedRaw) body.seed = Number(seedRaw);
+    } else {
+      body.userId = dlg.querySelector('#tad-userId').value;
+      const teamId = dlg.querySelector('#tad-teamId-user')?.value;
+      if (teamId) body.teamId = teamId;
+    }
+    if (!body.displayName && !body.userId) {
+      msg.textContent = 'Entweder Anzeigename oder User erforderlich';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Wird hinzugefügt…';
+    let saved = false;
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/participants`,
+        'POST',
+        body
+      );
+      toast('Teilnehmer hinzugefügt', 'success');
+      close();
+      saved = true;
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Teilnehmer konnte nicht hinzugefügt werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Hinzufügen';
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+      await loadActiveTournamentView(false);
+    }
+  });
+}
+
+// ── Modal: Ghost-Teilnehmer nachträglich User zuordnen ───────────────
+async function openAssignUserToParticipantModal(instanceId, participantId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  const participant = getTournamentInstanceParticipantById(instance, participantId);
+  if (!participant) {
+    toast('Teilnehmer nicht gefunden', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+
+  const takenUserIds = new Set((instance.participants || []).map((p) => p.userId).filter(Boolean));
+  const memberOptions = (groupMembers || [])
+    .map((m) => m?.user || m)
+    .filter((u) => u?.id && !takenUserIds.has(u.id))
+    .map((u) => {
+      const name = getVisibleName(u, u.displayNameField) || u.name || u.username || u.email;
+      return `<option value="${esc(u.id)}">${esc(name)} (${esc(u.username || u.email || '')})</option>`;
+    })
+    .join('');
+
+  closeTournamentDetailModalById('tournament-assign-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-assign-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>User zuordnen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-assign-form" class="tournament-detail-form">
+        <p class="t-hint">Aktueller Slot: <strong>${esc(participant.displayName || '(leer)')}</strong>
+          ${participant.team?.name ? ` · Team ${esc(participant.team.name)}` : ''}</p>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Gruppenmitglied <span class="t-required">*</span></span>
+          <select id="tas-userId" required>
+            <option value="">— Bitte wählen —</option>
+            ${memberOptions}
+          </select>
+        </label>
+        <div id="tournament-assign-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Zuordnen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-assign-form');
+  const msg = dlg.querySelector('#tournament-assign-msg');
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const userId = dlg.querySelector('#tas-userId').value;
+    if (!userId) {
+      msg.textContent = 'Bitte ein Mitglied auswählen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    let saved = false;
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/participants/${encodeURIComponent(participantId)}`,
+        'PATCH',
+        { op: 'assign_user', userId }
+      );
+      toast('User zugeordnet', 'success');
+      close();
+      saved = true;
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Zuordnung fehlgeschlagen';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+    }
+  });
+}
+
+// ── Modal: Match anlegen (mit Dropdowns) ─────────────────────────────
+async function openCreateTournamentMatchModal(instanceId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const participants = instance.participants || [];
+  if (participants.length < 2) {
+    toast('Mindestens zwei Teilnehmer erforderlich', 'error');
+    return;
+  }
+  const rounds = (instance.rounds || []).slice().sort((a, b) => a.roundNumber - b.roundNumber);
+  const roundOptions = rounds
+    .map((r) => `<option value="${esc(r.id)}">Runde ${r.roundNumber} · ${esc(r.name)}</option>`)
+    .join('');
+
+  const nextMatchNumber = (instance.matches?.length || 0) + 1;
+  const participantOptions = participants
+    .map((p) => {
+      const name = getTournamentParticipantDisplayName(p, instance);
+      const seedTag = p.seed ? ` · Seed ${p.seed}` : '';
+      const ghostTag = !p.userId ? ' · 👻' : '';
+      return `<option value="${esc(p.id)}">${esc(name)}${seedTag}${ghostTag}</option>`;
+    })
+    .join('');
+
+  closeTournamentDetailModalById('tournament-match-create-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-match-create-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Match hinzufügen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-match-create-form" class="tournament-detail-form">
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Runde <span class="t-hint">(optional)</span></span>
+          <select id="tmc-roundId">
+            <option value="">— Keine spezifische Runde —</option>
+            ${roundOptions}
+          </select>
+        </label>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Match-Nummer <span class="t-required">*</span></span>
+          <input id="tmc-matchNumber" type="number" min="1" step="1" required value="${nextMatchNumber}">
+        </label>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Heim <span class="t-hint">(optional, leer = TBD)</span></span>
+            <select id="tmc-home">
+              <option value="">— TBD —</option>
+              ${participantOptions}
+            </select>
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Gast <span class="t-hint">(optional, leer = TBD)</span></span>
+            <select id="tmc-away">
+              <option value="">— TBD —</option>
+              ${participantOptions}
+            </select>
+          </label>
+        </div>
+        <label class="tournament-detail-field">
+          <span class="tournament-detail-label">Venue / Tisch <span class="t-hint">(optional)</span></span>
+          <input id="tmc-venue" type="text" maxlength="80" placeholder="z. B. Tisch 1, Feld A, …">
+        </label>
+        <div id="tournament-match-create-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Anlegen</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-match-create-form');
+  const msg = dlg.querySelector('#tournament-match-create-msg');
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const matchNumber = Number(dlg.querySelector('#tmc-matchNumber').value);
+    if (!Number.isInteger(matchNumber) || matchNumber < 1) {
+      msg.textContent = 'Match-Nummer muss eine positive ganze Zahl sein';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const body = {
+      matchNumber,
+      status: 'planned',
+    };
+    const roundId = dlg.querySelector('#tmc-roundId').value;
+    if (roundId) body.roundId = roundId;
+    const home = dlg.querySelector('#tmc-home').value;
+    const away = dlg.querySelector('#tmc-away').value;
+    if (home) body.homeParticipantId = home;
+    if (away) body.awayParticipantId = away;
+    const venue = dlg.querySelector('#tmc-venue').value.trim();
+    if (venue) body.venueLabel = venue;
+    let saved = false;
+    try {
+      await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches`,
+        'POST',
+        body
+      );
+      toast('Match angelegt', 'success');
+      close();
+      saved = true;
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Match konnte nicht angelegt werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+    }
+  });
+}
+
+// ── Modal: Match-Ergebnis eintragen ─────────────────────────────────
+async function openRecordMatchResultModal(instanceId, matchId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  const match = (instance?.matches || []).find((m) => m.id === matchId);
+  if (!instance || !match) {
+    toast('Match nicht gefunden', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  if (!match.homeParticipantId || !match.awayParticipantId) {
+    toast('Match hat keine vollständige Teilnehmerzuordnung', 'error');
+    return;
+  }
+
+  const home = getTournamentInstanceParticipantById(instance, match.homeParticipantId);
+  const away = getTournamentInstanceParticipantById(instance, match.awayParticipantId);
+  const homeName = getTournamentParticipantDisplayName(home, instance);
+  const awayName = getTournamentParticipantDisplayName(away, instance);
+
+  closeTournamentDetailModalById('tournament-match-result-modal');
+
+  const dlg = document.createElement('div');
+  dlg.id = 'tournament-match-result-modal';
+  dlg.className = 'dlg-bg';
+  dlg.innerHTML = `
+    <div class="dlg tournament-detail-dlg" role="dialog" aria-modal="true">
+      <div class="tournament-detail-dlg-head">
+        <h3>Ergebnis eintragen</h3>
+        <button type="button" class="modal-x" data-action="close">✕</button>
+      </div>
+      <form id="tournament-match-result-form" class="tournament-detail-form">
+        <div class="t-result-header">
+          <div class="t-result-side">
+            <span class="t-hint">Heim</span>
+            <strong>${esc(homeName)}</strong>
+          </div>
+          <div class="t-result-vs">vs</div>
+          <div class="t-result-side t-result-side-right">
+            <span class="t-hint">Gast</span>
+            <strong>${esc(awayName)}</strong>
+          </div>
+        </div>
+        <div class="t-grid-2">
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Score Heim <span class="t-required">*</span></span>
+            <input id="tmr-home" type="number" step="1" required value="0">
+          </label>
+          <label class="tournament-detail-field">
+            <span class="tournament-detail-label">Score Gast <span class="t-required">*</span></span>
+            <input id="tmr-away" type="number" step="1" required value="0">
+          </label>
+        </div>
+        <div class="tournament-detail-checkbox-row">
+          <input id="tmr-draw" type="checkbox">
+          <label for="tmr-draw">Unentschieden (kein Sieger)</label>
+        </div>
+        <div class="t-hint" id="tmr-winner-preview">
+          <span>Sieger: <strong>${esc(homeName)}</strong> (anhand der Scores)</span>
+        </div>
+        <div id="tournament-match-result-msg" class="msg hidden"></div>
+        <div class="tournament-detail-dlg-actions">
+          <button type="button" class="btn btn-ghost" data-action="close">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const form = dlg.querySelector('#tournament-match-result-form');
+  const msg = dlg.querySelector('#tournament-match-result-msg');
+  const homeInput = dlg.querySelector('#tmr-home');
+  const awayInput = dlg.querySelector('#tmr-away');
+  const drawCheckbox = dlg.querySelector('#tmr-draw');
+  const previewEl = dlg.querySelector('#tmr-winner-preview');
+
+  function updatePreview() {
+    const hs = Number(homeInput.value);
+    const as = Number(awayInput.value);
+    if (drawCheckbox.checked) {
+      previewEl.innerHTML = `<span>Unentschieden – kein Auto-Advance ins nächste Match.</span>`;
+      return;
+    }
+    if (!Number.isFinite(hs) || !Number.isFinite(as)) {
+      previewEl.innerHTML = `<span class="t-hint">Bitte gültige Zahlen eingeben.</span>`;
+      return;
+    }
+    if (hs === as) {
+      previewEl.innerHTML = `<span>Scores sind gleich – bitte "Unentschieden" anhaken oder einen Sieger festlegen.</span>`;
+      return;
+    }
+    const winner = hs > as ? homeName : awayName;
+    previewEl.innerHTML = `<span>Sieger: <strong>${esc(winner)}</strong> → wird ins nächste Match eingetragen (Auto-Advance)</span>`;
+  }
+  homeInput.addEventListener('input', updatePreview);
+  awayInput.addEventListener('input', updatePreview);
+  drawCheckbox.addEventListener('change', updatePreview);
+
+  function close() {
+    dlg.remove();
+  }
+  dlg.addEventListener('click', (event) => {
+    if (event.target === dlg) close();
+    if (event.target?.dataset?.action === 'close') close();
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const homeScore = Number(homeInput.value);
+    const awayScore = Number(awayInput.value);
+    const isDraw = drawCheckbox.checked;
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) {
+      msg.textContent = 'Scores müssen Zahlen sein';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    if (!isDraw && homeScore === awayScore) {
+      msg.textContent = 'Bei Gleichstand bitte "Unentschieden" anhaken';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+      return;
+    }
+    const winnerParticipantId = isDraw
+      ? null
+      : homeScore > awayScore
+        ? match.homeParticipantId
+        : match.awayParticipantId;
+    let saved = false;
+    try {
+      const result = await apiCall(
+        `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/result`,
+        'PATCH',
+        {
+          isDraw,
+          winnerParticipantId,
+          results: [
+            {
+              participantId: match.homeParticipantId,
+              score: homeScore,
+              outcome: isDraw ? 'draw' : homeScore > awayScore ? 'win' : 'loss',
+            },
+            {
+              participantId: match.awayParticipantId,
+              score: awayScore,
+              outcome: isDraw ? 'draw' : awayScore > homeScore ? 'win' : 'loss',
+            },
+          ],
+        }
+      );
+      toast('Ergebnis gespeichert', 'success');
+      close();
+
+      // Phase 4: Cascade-Warnung anzeigen, falls downstream-Matches betroffen sind
+      if (result?.cascadeWarning && result.cascadeWarning.count > 0) {
+        const affectedList = result.cascadeWarning.affected
+          .map((a) => `<li>Match #${a.matchNumber}</li>`)
+          .join('');
+        const ok = await showConfirmDlg(
+          'Cascade-Warnung',
+          `<div class="t-cascade-warn-body">${result.cascadeWarning.count} nachgelagerte${result.cascadeWarning.count === 1 ? 's' : ''} Match${result.cascadeWarning.count === 1 ? '' : 'es'} hat${result.cascadeWarning.count === 1 ? '' : 'ten'} bereits ein Ergebnis und basiert auf diesem Match.<br>Möchtest du diese zurücksetzen?<ul class="t-cascade-warn-list">${affectedList}</ul></div>`,
+          'Zurücksetzen',
+          'Beibehalten',
+          true
+        );
+        if (ok) {
+          try {
+            await apiCall(
+              `/tournaments/instances/${encodeURIComponent(instanceId)}/matches/${encodeURIComponent(matchId)}/cascade-reset`,
+              'POST'
+            );
+            toast(`${result.cascadeWarning.count} downstream Matches zurückgesetzt`, 'success');
+          } catch (cascadeErr) {
+            toast('Cascade-Reset fehlgeschlagen', 'error');
+          }
+        }
+      }
+
+      saved = true;
+    } catch (e) {
+      msg.textContent = e.serverMessage || 'Ergebnis konnte nicht gespeichert werden';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hidden');
+    }
+    if (saved) {
+      await refreshTournamentAfterMutation(instanceId);
+    }
+  });
+}
+
+// ── Confirm + Bracket generieren ─────────────────────────────────────
+async function generateTournamentBracket(instanceId) {
+  const instance = activeTournamentInstance?.id === instanceId ? activeTournamentInstance : null;
+  if (!instance) {
+    toast('Turnier-Instanz nicht geladen', 'error');
+    return;
+  }
+  if (!canManageTournamentPresetsInCurrentGroup()) {
+    toast('Keine Berechtigung', 'error');
+    return;
+  }
+  const participantCount = (instance.participants || []).length;
+  const matchCount = (instance.matches || []).length;
+  const hasUncompleted = (instance.matches || []).some(
+    (m) => m.status !== 'completed' && m.status !== 'void'
+  );
+
+  let warning = '';
+  if (hasUncompleted) {
+    warning = `\n\n⚠️ Es gibt bereits nicht abgeschlossene Matches (${matchCount} insgesamt). Diese werden ersetzt.`;
+  }
+
+  const ok = await showConfirmDlg(
+    'Bracket generieren',
+    `Bracket für "${instance.name}" mit ${participantCount} Teilnehmern bauen?${warning}`,
+    'Generieren',
+    'Abbrechen',
+    true
+  );
+  if (!ok) return;
+
+  let saved = false;
+  try {
+    const result = await apiCall(
+      `/tournaments/instances/${encodeURIComponent(instanceId)}/bracket/generate`,
+      'POST',
+      {}
+    );
+    if (result?.generated) {
+      const { matches, byesApplied, stageType } = result.generated;
+      const byeNote = byesApplied > 0 ? ` · ${byesApplied} BYE${byesApplied === 1 ? '' : 's'}` : '';
+      toast(`Bracket gebaut: ${matches} Matches (${stageType})${byeNote}`, 'success');
+    } else {
+      toast('Bracket generiert', 'success');
+    }
+    saved = true;
+  } catch (e) {
+    toast(e.serverMessage || 'Bracket konnte nicht generiert werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(instanceId);
+    await loadActiveTournamentView(false);
+  }
+}
+
+// Helper: Modal anhand ID schließen (idempotent)
+function closeTournamentDetailModalById(id) {
+  document.getElementById(id)?.remove();
+}
+
+// ─── v3-Wizard-Wrapper (delegiert an tournament.js) ─────────────────
+// Etappe A: openTournamentWizard ist jetzt nur noch ein Mount-Punkt für
+// renderWizardView. Step-Renderer, Validierung, PATCH-Persistenz und
+// Generate-Logik leben in tournament.js (buildPatchPayload, persistConfig,
+// buildGeneratePayload). Hier nur:
+//
+//   1. Initial-State mit curGroupId aufsetzen.
+//   2. #grid auf Wizard-Host umschalten (überschreibt das Foto-Grid,
+//      damit der Wizard nicht in eine 260px-Spalte gezwängt wird).
+//   3. Galerie-Header-Buttons (Aktualisieren / Neues Turnier) ausblenden,
+//      damit man nicht versehentlich einen zweiten Wizard öffnen kann.
+//   4. renderWizardView ins #grid mounten.
+//   5. onStateChange → persistConfig mit changedFields (Draft-Auto-Save).
+//   6. onGenerate → POST /api/tournaments/:id/generate mit buildGeneratePayload.
+//   7. onCancel → #grid + Header-Buttons zurück, Listenansicht neu laden.
+const WIZARD_HOST_CLASS = 't-wizard-host';
+/**
+ * Klassen des #grid in der TURNIERLISTE.
+ *
+ * Hier stand dreimal `'grid tournaments-grid'`. Das `grid` war der
+ * Fehler: `.grid` (main.css:2601) und `.tournaments-grid` (main.css:156)
+ * haben dieselbe Spezifitaet (0,1,0) und stehen in DERSELBEN Datei —
+ * also gewinnt die spaetere Quelle, nicht die speziellere. Die
+ * Turnierliste lief deshalb im FOTO-Raster
+ * (`repeat(auto-fill, minmax(260px, 1fr))`), die eine Listen-Sektion
+ * belegte genau eine Spalte von ~260px, und die Turniernamen wurden auf
+ * "d..." gekuerzt, waehrend rechts der halbe Bildschirm leer blieb.
+ *
+ * Siebtes Mal dasselbe Muster in diesem Modul: der Selektor einer Regel
+ * sagt nicht, wogegen sie gewinnt.
+ *
+ * Als Konstante, weil es drei Stellen sind (zwei Ladezustaende und die
+ * Ausgabe). Beim ersten Anlauf habe ich genau eine davon erwischt — die
+ * mit dem Spinner — und der Fehler blieb sichtbar.
+ */
+const T_LIST_GRID_CLASS = 'tournaments-grid';
+const T_DETAIL_HOST_CLASS = 't-detail-host';
+const WIZARD_HIDDEN_HEADER_BUTTONS = ['tournament-refresh-btn', 'tournament-new-instance-btn'];
+
+function hideTournamentHeaderButtons() {
+  // Buttons werden komplett entfernt statt nur display:none zu setzen.
+  // Hintergrund: in der Vorgänger-Version waren die Buttons trotz
+  // display:none noch als brauner Balken sichtbar — entweder durch
+  // CSS-Spezifität aus einer später geladenen Regel oder durch
+  // Pseudo-Elemente mit background. remove() räumt beide Risiken ab.
+  // Beim Schließen ruft loadActiveTournamentView() ohnehin
+  // renderTournamentHeaderActions() auf, das die Buttons neu baut.
+  for (const id of WIZARD_HIDDEN_HEADER_BUTTONS) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+}
+
+function showTournamentHeaderButtons() {
+  // Buttons werden NICHT wiederhergestellt — sie werden durch
+  // loadActiveTournamentView() ohnehin über renderTournamentHeaderActions()
+  // neu gebaut. Diese Funktion bleibt nur als API-Stub, falls ein
+  // späterer Aufrufer sie vor loadActiveTournamentView() braucht.
+  for (const id of WIZARD_HIDDEN_HEADER_BUTTONS) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+}
+
+async function openTournamentWizard() {
+  if (!curGroupId) {
+    toast('Keine aktive Gruppe ausgewählt', 'error');
+    return;
+  }
+
+  // Falls der Wizard schon offen ist: nicht doppelt mounten.
+  if (wizardMounted) {
+    toast('Turnier-Erstellung ist bereits offen', 'info');
+    return;
+  }
+
+  closeTournamentDetailModalById('tournament-wizard-modal');
+
+  const initialState = {
+    // step wird mit Absicht NICHT gesetzt. DEFAULT_WIZARD_STATE.step
+    // (in tournament.js) ist 1, und renderWizardView korrigiert in
+    // jeden Fall einen ungültigen Wert. Wenn wir hier 'step: 1'
+    // setzen würden, könnte ein späterer Bug im Wrapper den Wizard
+    // wieder bei Schritt 0 starten lassen — und kein Entwurf würde
+    // angelegt. Daher: nur die Daten, nicht die Schritt-Nummer.
+    groupId: curGroupId,
+    tournamentId: null,
+    name: '',
+    date: new Date().toISOString().slice(0, 10),
+    location: '',
+    sport: 'becher',
+    teams: [],
+    mode: 'groups_ko',
+    numGroups: 2,
+    distributionMethod: 'snake',
+    pointsWin: 3,
+    pointsDraw: 1,
+    pointsLoss: 0,
+    tiebreakers: ['points', 'goalDiff', 'goalsFor', 'headToHead'],
+    advancePerGroup: 2,
+    bestThirdsCount: 0,
+    thirdPlaceMatch: false,
+    numTables: 1,
+    tableNames: [],
+    startTime: '10:00',
+    matchDuration: 30,
+    pauseMinutes: 0,
+  };
+
+  const prevStep = { value: -1 };
+  // Step-Keys spiegeln tournament.js: 1=Grunddaten, 2=Teams,
+  // 3=Modus, 4=Qualifikation, 5=Zusammenfassung. Pro Step-Wechsel
+  // senden wir die Felder, die dort erfasst werden, per PATCH ans
+  // Backend (Draft-Auto-Save, Spec §1.2).
+  const knownFieldsByStep = {
+    1: ['name', 'date', 'location', 'sport', 'numTables', 'tableNames'],
+    2: ['teams'],
+    3: [
+      'mode',
+      'numGroups',
+      'distributionMethod',
+      'pointsWin',
+      'pointsDraw',
+      'pointsLoss',
+      'tiebreakers',
+    ],
+    4: ['advancePerGroup', 'bestThirdsCount', 'thirdPlaceMatch'],
+    5: ['startTime', 'matchDuration', 'pauseMinutes'],
+  };
+
+  const onStateChange = async (state) => {
+    if (!state.tournamentId) return;
+    const stepIdx = Number(state.step) || 1;
+    const prev = prevStep.value;
+    if (prev === stepIdx) return;
+    prevStep.value = stepIdx;
+
+    // Beim Verlassen von Step 2 (Teams): Teams inkrementell zum Server
+    // syncen. Vorher wurden nur Config/meta gepatcht, nicht die Teams
+    // selbst — POST /generate brach dann mit "Mindestens 2 Teams
+    // erforderlich" ab, obwohl der User Teams eingetragen hatte.
+    // Ursache war: Wizard baute state.teams auf, sendete sie aber NIE.
+    if (prev === 2) {
+      try {
+        const sync = await syncTeamsToBackend(state);
+        if (!sync.ok) {
+          console.warn('[wizard] syncTeamsToBackend failed:', sync);
+        } else if (sync.added > 0 || sync.removed > 0) {
+          console.info(
+            `[wizard] teams synced: +${sync.added} / -${sync.removed} (total ${sync.teamCount})`
+          );
+        }
+      } catch (err) {
+        console.warn('[wizard] syncTeamsToBackend threw', err);
+      }
+    }
+
+    const fields = knownFieldsByStep[Math.max(1, prev)] || [];
+    if (fields.length === 0) return;
+    try {
+      await persistConfig(state, { changedFields: fields });
+    } catch (err) {
+      console.warn('[wizard] persistConfig failed', err);
+    }
+  };
+
+  const onGenerate = async (state, opts) => {
+    // Wenn noch keine tournamentId da ist (z. B. weil der POST in
+    // Step 1 fehlgeschlagen war und der User trotzdem durchgeklickt
+    // hat), versuchen wir genau EINMAL, den Entwurf nachzureichen.
+    // ensureDraftPromise ist single-flight + idempotent: legt nur an,
+    // wenn noch keine ID existiert.
+    if (!state.tournamentId && curGroupId) {
+      const retry = await ensureDraftPromise(state, { groupId: curGroupId });
+      if (!state.tournamentId) {
+        // Auch der Retry hat nicht gereicht — jetzt erst blockieren.
+        console.error(
+          '[wizard] onGenerate: state.tournamentId fehlt nach Retry.\n' + '  state.groupId =',
+          state.groupId,
+          '\n' + '  opts.groupId (für die Turnier-Erstellung) wurde übergeben =',
+          !!curGroupId,
+          '\n' + '  state.__draftError =',
+          state.__draftError || '(leer)',
+          '\n' + '  → Wahrscheinlichste Ursache: keine Berechtigung oder Server nicht erreichbar.'
+        );
+        return {
+          ok: false,
+          body: {
+            error: 'draft_missing',
+            message:
+              'Der Turnier-Entwurf konnte nicht in der Datenbank angelegt werden. ' +
+              (state.__draftError ? `Ursache: ${state.__draftError} ` : '') +
+              'Bitte lade die Seite neu (Strg+F5) und versuche es erneut. ' +
+              'Falls der Fehler bleibt, prüfe die Browser-Konsole auf rote Fehlerzeilen.',
+          },
+        };
+      }
+    }
+
+    // Hier ist die letzte Verteidigungslinie: ohne tournamentId geht
+    // der Generate-Aufruf wirklich nicht. Mock-Modus / leerer Pfad.
+    if (!state.tournamentId) {
+      return {
+        ok: false,
+        body: {
+          error: 'draft_missing',
+          message:
+            'Der Turnier-Entwurf fehlt — das passiert nur, wenn keine Gruppe aktiv ist. ' +
+            'Bitte wechsle in eine Gruppe und versuche es erneut.',
+        },
+      };
+    }
+
+    const payload = buildGeneratePayload(state, opts);
+
+    // Letzte Verteidigungslinie: einmal Teams syncen, BEVOR wir
+    // /generate aufrufen. Falls onStateChange (z. B. durch schnelles
+    // Durchklicken) nicht gelaufen ist, holen wir das hier nach.
+    // syncTeamsToBackend ist idempotent (Server skippt Duplikate),
+    // also kostet ein zweiter Sync nichts.
+    try {
+      const sync = await syncTeamsToBackend(state);
+      if (!sync.ok) {
+        return {
+          ok: false,
+          body: {
+            error: sync.error || 'teams_sync_failed',
+            message:
+              sync.message ||
+              'Die Teams konnten nicht zum Server übertragen werden. ' +
+                'Bitte prüfe die Browser-Konsole und versuche es erneut.',
+          },
+        };
+      }
+    } catch (err) {
+      console.warn('[wizard] pre-generate syncTeamsToBackend threw', err);
+    }
+
+    // apiCall() aus auth-oidc.js setzt Authorization: Bearer <token>
+    // automatisch und macht 401-Auto-Refresh. raw fetch hier wäre
+    // derselbe Bug wie in tournament.js vor diesem Fix.
+    const data = await apiCall(
+      `/tournaments/${encodeURIComponent(state.tournamentId)}/generate`,
+      'POST',
+      payload
+    );
+    // Diagnose: ID merken, damit der User per
+    //   inspectTournament() oder
+    //   GET /api/tournaments/<id>/standings
+    // direkt prüfen kann, was in der DB gelandet ist.
+    window.__lastGeneratedTournamentId = state.tournamentId;
+    console.info(
+      '%c✅ Turnier generiert',
+      'color:#2c8a4f;font-weight:bold',
+      '\nID:',
+      state.tournamentId,
+      '\nName:',
+      state.name,
+      '\nPrüfen mit: inspectTournament("' + state.tournamentId + '")'
+    );
+    // Issue 2: Mount-Flag freigeben — nach erfolgreichem Generate ist
+    // der Wizard durch. Sonst blockt der nächste Klick auf
+    // „Neues Turnier" mit „Wizard ist bereits offen".
+    wizardMounted = null;
+    return { ok: true, body: data };
+  };
+
+  // Issue 2: Letzte Verteidigungslinie für onGenerate. Wenn apiCall
+  // wirft oder syncTeams mitten im Lauf eskaliert, MUSS wizardMounted
+  // freigegeben werden — sonst hängt der User fest. Wir wrappen den
+  // ganzen onGenerate-Body in try/catch, der am Ende das Flag löst.
+  // (Innerhalb der Funktion haben wir mehrere {ok:false}-Returns für
+  // Geschäftsregel-Verstöße; diese setzen das Flag NICHT — bewusst,
+  // damit der User den Wizard noch bedienen kann, um z. B. fehlende
+  // Teams nachzutragen.)
+  //
+  // Issue 6 (2026-08-13): nach erfolgreichem Generate → Wizard SOFORT
+  // schließen, dann Turnier-Ansicht des NEUEN Turniers öffnen. Vorher
+  // blieb der Wizard-Mount stehen und der User landete im Nirvana
+  // ("TURNIER TAUCHT IN DER LISTE NICHT AUF" + "KEINE WEITERLEITUNG").
+  // Reihenfolge ist wichtig:
+  //   1. teardownWizard()  → räumt Wizard-Host-Klasse, innerHTML, Title
+  //                          und wizardMounted-Flag auf. Macht den
+  //                          "Turnier generieren"-Button sofort
+  //                          unerreichbar — kein Mehrfachklick mehr.
+  //   2. openTournamentInstance() / loadActiveTournamentView() →
+  //                          rendert die Ziel-Ansicht in das jetzt
+  //                          leere grid.
+  // Ohne Schritt 1 blieb die alte Ansicht stehen und wurde nur teilweise
+  // überschrieben → der User sah weiter den Wizard-Button.
+  const navigateToGeneratedInstance = async (tournamentId) => {
+    await teardownWizard();
+    if (!tournamentId) {
+      await loadActiveTournamentView(true);
+      return;
+    }
+    try {
+      await openTournamentInstance(tournamentId);
+    } catch (err) {
+      console.warn('[wizard] post-generate openTournamentInstance failed:', err);
+      // Fallback: Liste neu laden, damit der User das neue Turnier
+      // überhaupt irgendwo sieht (es ist nach Generate als 'generated'
+      // status in der DB und MUSS unter "Bereit" auftauchen).
+      await loadActiveTournamentView(true);
+    }
+  };
+
+  const onGenerateSafe = async (state, opts) => {
+    try {
+      const result = await onGenerate(state, opts);
+      if (result && result.ok) {
+        // Wizard lebt noch, bis die Detail-View steht. Erst danach
+        // wizardMounted lösen (Issue 2).
+        await navigateToGeneratedInstance(state.tournamentId);
+      }
+      return result;
+    } catch (err) {
+      console.warn('[wizard] onGenerate threw (outer):', err);
+      wizardMounted = null;
+      return {
+        ok: false,
+        body: {
+          error: 'generate_failed',
+          message:
+            'Beim Generieren ist ein unerwarteter Fehler aufgetreten. ' +
+            'Bitte prüfe die Browser-Konsole und versuche es erneut.',
+        },
+      };
+    }
+  };
+
+  const onCancel = async () => {
+    // Issue 2: Aufräumen über die zentrale teardownWizard()-Funktion.
+    // Damit fahren onCancel und alle externen Aufrufer (Modul-Wechsel,
+    // Gruppen-Wechsel, pagehide) exakt dieselbe Sequenz — keine Drift
+    // zwischen den Pfaden.
+    await teardownWizard();
+    await loadActiveTournamentView(true);
+  };
+
+  const wizardEl = renderWizardView({
+    // groupId MUSS als Top-Level-Option übergeben werden, nicht nur
+    // in initialState. tournament.js liest opts.groupId (siehe
+    // ensureDraftPromise() und Step-1-„Weiter"-Handler), um den
+    // Live-Modus vom Mock-Modus zu unterscheiden. Wenn opts.groupId
+    // fehlt, geht der Wizard stillschweigend in den Mock-Modus und
+    // legt keinen Entwurf in der DB an.
+    groupId: curGroupId,
+    initialState,
+    onStateChange,
+    onGenerate: onGenerateSafe,
+    onCancel,
+  });
+
+  // Diagnose: prüft die Kette direkt am Einstieg. Wenn groupId hier
+  // undefined ist, ist der Fehler im Wrapper. Wenn der Wizard dann
+  // trotzdem keinen POST absetzt, liegt es in tournament.js.
+  console.log(
+    '[wizard] mount: groupId=%s, tournamentId=%s',
+    curGroupId || '(none)',
+    initialState.tournamentId || '(none)'
+  );
+
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  // Auf Wizard-Host umschalten (CSS t-wizard-host überschreibt das
+  // Foto-Grid aus main.css). Reihenfolge: erst Klasse setzen,
+  // dann leeren, dann Wizard anhängen — sonst flackert kurz das
+  // alte Foto-Grid.
+  grid.className = WIZARD_HOST_CLASS;
+  grid.innerHTML = '';
+  grid.appendChild(wizardEl);
+  // Galerie-Titel auf "Neues Turnier" setzen. Vorherigen Wert
+  // merken, damit onCancel ihn wiederherstellen kann. Daten-Attribute
+  // statt Closure-Variable, weil onCancel als async callback
+  // definiert ist und diese im Aufrufer-Scope liegt.
+  const title = $('gal-title');
+  if (title && !title.dataset.tWizardTitle) {
+    title.dataset.tWizardPrevTitle = title.textContent;
+    title.dataset.tWizardTitle = '1';
+    title.textContent = 'Turnier erstellen';
+  }
+  hideTournamentHeaderButtons();
+  wizardMounted = wizardEl;
+}
+
+// Mount-Handle, damit andere Stellen (loadActiveTournamentView etc.)
+// den Wizard bei Bedarf zerstören können.
+let wizardMounted = null;
+
+/**
+ * Issue 2 — Zentrales Aufräumen für den Wizard-Mount.
+ *
+ * Wird in ALLEN Ausstiegs-Pfaden aufgerufen:
+ *   1. onCancel (User klickt „Abbrechen")
+ *   2. onGenerate Erfolg (Server hat das Turnier angelegt)
+ *   3. onGenerate Fehler (apiCall wirft, syncTeams eskaliert, …)
+ *   4. switchToFeed / switchToTournaments / switchToPhotos (User
+ *      wechselt das Modul, ohne den Wizard zu schließen)
+ *   5. switchToGroup (User wechselt die Gruppe)
+ *   6. pagehide (Tab wird geschlossen — kein async-Cleanup möglich,
+ *      aber das Flag muss konsistent sein)
+ *
+ * Ohne diesen Block blieb wizardMounted nach Generate-Success auf dem
+ * alten Element stehen — der nächste Klick auf „Neues Turnier" zeigte
+ * dann „Wizard ist bereits offen", obwohl gar keiner mehr im DOM war.
+ *
+ * Die Funktion ist idempotent: wenn nichts zu tun ist (kein Mount,
+ * keine Daten-Attribute am Titel), läuft sie ohne Effekt durch.
+ */
+async function teardownWizard() {
+  wizardMounted = null;
+  const grid = document.getElementById('grid');
+  if (grid) {
+    grid.classList.remove(WIZARD_HOST_CLASS);
+    grid.innerHTML = '';
+  }
+  const title = $('gal-title');
+  if (title && title.dataset.tWizardTitle === '1') {
+    title.textContent = title.dataset.tWizardPrevTitle || 'Gemeinsamer Ordner';
+    delete title.dataset.tWizardTitle;
+    delete title.dataset.tWizardPrevTitle;
+  }
+  showTournamentHeaderButtons();
+}
+
+/**
+ * Diagnose-Helper: alles aus der DB zu einem Turnier in die Konsole
+ * schreiben. Solange die v3-Ansicht (Etappe B) fehlt, ist das der
+ * schnellste Weg für den User zu prüfen, was generate() tatsächlich
+ * geschrieben hat — Teams, Gruppen, Spielzahl, Config.
+ *
+ * Aufruf in der DevTools-Konsole:
+ *   inspectTournament('abc123')              → ein Turnier
+ *   inspectTournament()                      → letztes im Wizard
+ *                                              erzeugtes Turnier
+ *   await inspectTournament('abc123')        → Promise, falls gewartet
+ *
+ * Output: 4 console.group-Blöcke (Tournament / Teams / Gruppen /
+ * Matches), plus eine Kurzfassung mit Counts + wichtigen Config-Werten.
+ *
+ * Verwendet GET /api/tournaments/:id (liefert teams, stages, groups,
+ * matches, stats in einer Antwort — kein Hin-und-Her).
+ */
+async function inspectTournament(tournamentId) {
+  const id =
+    tournamentId || (typeof window !== 'undefined' ? window.__lastGeneratedTournamentId : null);
+  if (!id) {
+    console.warn(
+      '[inspectTournament] Keine ID übergeben und kein __lastGeneratedTournamentId gesetzt.'
+    );
+    return null;
+  }
+  let res;
+  try {
+    res = await apiCall(`/tournaments/${encodeURIComponent(id)}`, 'GET');
+  } catch (err) {
+    console.error('[inspectTournament] Fetch fehlgeschlagen:', err);
+    return null;
+  }
+  const t = res?.tournament || res;
+  const teams = res?.teams ?? [];
+  const stages = res?.stages ?? [];
+  const groups = res?.groups ?? [];
+  const matches = res?.matches ?? [];
+  const stats = res?.stats ?? {};
+
+  console.group(`🏆 Turnier: ${t?.name || id} (${id})`);
+  console.log('Status:', t?.status, '| Modus:', t?.mode);
+  console.log('Sport:', t?.sport, '→ Spaltenbezeichnung:', t?.scoreLabel);
+  console.log('Ort:', t?.location ?? '(leer)');
+  console.log('Tische:', t?.tableLabels ?? '(automatisch)');
+  console.log('Config (Engine):', t?.config);
+  console.log('Stats:', stats);
+
+  console.group(`👥 Teams (${teams.length})`);
+  for (const team of teams) {
+    console.log(
+      `  • [${team.seed ?? '-'}] ${team.name}${team.color ? ' (' + team.color + ')' : ''}`
+    );
+  }
+  console.groupEnd();
+
+  console.group(`📦 Stages (${stages.length})`);
+  for (const stage of stages) {
+    console.log(`  • Stage ${stage.orderIndex + 1}: ${stage.name} (${stage.type})`);
+  }
+  console.groupEnd();
+
+  console.group(`🗂️  Gruppen (${groups.length})`);
+  for (const g of groups) {
+    const mems = g.memberships || [];
+    console.group(`  ${g.name || g.key} (${mems.length} Teams)`);
+    for (const m of mems) {
+      console.log(`    • ${m.team?.name ?? m.teamId}`);
+    }
+    console.groupEnd();
+  }
+  console.groupEnd();
+
+  console.group(`⚽ Spiele (${matches.length})`);
+  const byStatus = matches.reduce((acc, m) => {
+    acc[m.status] = (acc[m.status] || 0) + 1;
+    return acc;
+  }, {});
+  console.log('Nach Status:', byStatus);
+  const byStage = matches.reduce((acc, m) => {
+    const key = m.stageId || '?';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  console.log('Pro Stage-ID:', byStage);
+  // Erste 5 + letzte 2 Spiele
+  if (matches.length > 0) {
+    console.log('Erste Spiele:');
+    for (const m of matches.slice(0, 5)) {
+      console.log(
+        `  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`
+      );
+    }
+    if (matches.length > 7) {
+      console.log(`  ... (${matches.length - 7} weitere)`);
+      for (const m of matches.slice(-2)) {
+        console.log(
+          `  #${m.matchNumber} ${m.teamHome?.name ?? 'TBD'} vs ${m.teamAway?.name ?? 'TBD'} — ${m.status}`
+        );
+      }
+    }
+  }
+  console.groupEnd();
+
+  console.groupEnd();
+  console.log('➡️  Für Detail-Tabellen: GET /api/tournaments/' + id + '/standings und /schedule');
+  return res;
+}
+// Auf window exposen, damit der User es aus der DevTools-Konsole
+// aufrufen kann, ohne es erst aus dem Modul zu importieren.
+window.inspectTournament = inspectTournament;
 
 function feedEntityHref(post) {
   if (!post) return '';
@@ -3164,9 +9249,12 @@ async function openPhotoInFotosModule(photoId, uploaderId = null) {
     if (photo.groupId && photo.groupId !== curGroupId) await switchGroup(photo.groupId);
     const resolvedUploaderId = uploaderId || photo.uploaderId || photo?.uploader?.id || null;
 
+    // BUGFIX Header-Button: vor Foto-Kontext-Wechsel zentral aufräumen.
+    await teardownWizard();
     curModule = 'photos';
     sidebarUiState.fotosExpanded = true;
     sidebarUiState.feedExpanded = false;
+    sidebarUiState.tournamentsExpanded = false;
     saveLastModuleState();
     curAlbum = null;
     curFilter = null;
@@ -8334,6 +14422,10 @@ async function switchGroup(groupId) {
   } catch (e) {}
   invalidateCounts();
   renderGroupSwitcher();
+  // Issue 2: Wenn der Wizard gerade offen war, beim Gruppenwechsel
+  // sauber zumachen — sonst zeigt der nächste Klick auf „Neues Turnier"
+  // fälschlich „Wizard ist bereits offen".
+  await teardownWizard();
   // Reload everything for new group
   await loadGroupMembers();
   curAlbum = null;
@@ -8349,6 +14441,8 @@ async function switchGroup(groupId) {
   renderGroupSwitcher();
   if (curModule === 'feed' && sidebarUiState.feedExpanded) {
     await loadFeedPosts(true);
+  } else if (curModule === 'tournaments' && sidebarUiState.tournamentsExpanded) {
+    await loadActiveTournamentView(true);
   } else {
     await loadPhotos(true);
   }
@@ -11261,7 +17355,29 @@ Object.assign(window, {
   closeSidebar,
   toggleSidebarFotos,
   toggleSidebarFeed,
+  toggleSidebarTournaments,
   switchToFeed,
+  switchToTournaments,
+  switchToPhotos,
+  switchToTournamentInstances,
+  loadActiveTournamentView,
+  loadTournamentDashboard,
+  loadTournamentInstances,
+  openTournamentInstance,
+  openTournamentStandings,
+  loadEinstellungenTab,
+  redrawSeeding,
+  balanceShuffleGroups,
+  saveGroupsAssignment,
+  saveFieldsConfig,
+  finishTournament,
+  resetResults,
+  deleteTournamentWithConfirm,
+  deleteTournamentInstance,
+  openResultEntryModal,
+  loadStandingsTab,
+  togglePublishV3,
+  renderTournamentInstanceDetailV3,
   openPhotoInFotosModule,
   openUploaderPhotosFromFeed,
   openSharePhotoToFeedModal,
@@ -11514,6 +17630,15 @@ Object.assign(window, {
   copyCurrentImageId,
   toggleLbMenu,
   closeLbMenu,
+  // Phase 2: neue Turnier-Modals + Bracket-Generator
+  openCreateTournamentTeamModal,
+  openAddTournamentParticipantModal,
+  openAssignUserToParticipantModal,
+  openCreateTournamentMatchModal,
+  openRecordMatchResultModal,
+  generateTournamentBracket,
+  // Phase 4: Wizard + Scheduling
+  openTournamentWizard,
   // Utility (gebraucht von HTML onclick z.B. dz-onclick)
   $,
   onThumbLoad,

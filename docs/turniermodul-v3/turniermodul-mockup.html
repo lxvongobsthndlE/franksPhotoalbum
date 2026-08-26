@@ -1,0 +1,986 @@
+<title>Turniermodul Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* ============================================================
+   Turniermodul — Mockup
+   Tokens: hell = :root, dunkel = media + [data-theme]
+   ============================================================ */
+:root{
+  --ground:#E7EBE7; --panel:#FFFFFF; --raised:#F2F5F1; --sunk:#EDF1ED;
+  --line:#D3DBD4; --line-soft:#E3E9E3;
+  --ink:#0D1B1E; --ink-2:#3B4B4D; --muted:#6B7C7D;
+  --brass:#8F5F10; --brass-soft:#F4E8CE;
+  --ice:#0E6B85; --ice-soft:#DCEEF3;
+  --qual:#2B764F; --qual-soft:#DAECE1;
+  --danger:#A03325;
+  --shadow:0 1px 2px rgba(13,27,30,.06), 0 18px 44px rgba(13,27,30,.12);
+  --shadow-s:0 1px 2px rgba(13,27,30,.05);
+  --f-disp:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#060E0F; --panel:#0E1F22; --raised:#152C30; --sunk:#0A1A1D;
+    --line:#204248; --line-soft:#173236;
+    --ink:#E9F1EF; --ink-2:#BFD0CE; --muted:#89A0A1;
+    --brass:#E3AC45; --brass-soft:rgba(227,172,69,.14);
+    --ice:#7BC9DE; --ice-soft:rgba(123,201,222,.14);
+    --qual:#6DBA93; --qual-soft:rgba(109,186,147,.14);
+    --danger:#E4705F;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 30px 70px rgba(0,0,0,.6);
+    --shadow-s:0 1px 0 rgba(255,255,255,.03);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#060E0F; --panel:#0E1F22; --raised:#152C30; --sunk:#0A1A1D;
+  --line:#204248; --line-soft:#173236;
+  --ink:#E9F1EF; --ink-2:#BFD0CE; --muted:#89A0A1;
+  --brass:#E3AC45; --brass-soft:rgba(227,172,69,.14);
+  --ice:#7BC9DE; --ice-soft:rgba(123,201,222,.14);
+  --qual:#6DBA93; --qual-soft:rgba(109,186,147,.14);
+  --danger:#E4705F;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 30px 70px rgba(0,0,0,.6);
+  --shadow-s:0 1px 0 rgba(255,255,255,.03);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-body);
+     font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:6px}
+
+.pg{max-width:1200px;margin:0 auto;padding:40px 24px 72px;display:flex;flex-direction:column;gap:56px}
+
+/* ---------- Masthead ---------- */
+.pg-head{display:flex;flex-direction:column;gap:10px;max-width:62ch}
+.eyebrow{margin:0;font-family:var(--f-disp);font-size:13px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--brass)}
+.pg-head h1{margin:0;font-family:var(--f-disp);font-weight:700;font-size:clamp(38px,6vw,64px);
+  line-height:.96;letter-spacing:-.01em;text-wrap:balance}
+.pg-head p{margin:0;color:var(--ink-2)}
+
+/* ---------- Hero-Raster ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:48px;align-items:start}
+@media (max-width:940px){.hero{grid-template-columns:1fr;justify-items:center}}
+
+.side{display:flex;flex-direction:column;gap:28px;max-width:460px}
+.side h2{margin:0 0 8px;font-family:var(--f-disp);font-size:13px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.side p{margin:0;color:var(--ink-2)}
+
+.sw-row{display:flex;gap:8px;flex-wrap:wrap}
+.sw{display:flex;flex-direction:column;gap:6px;width:84px}
+.sw i{display:block;height:44px;border-radius:8px;border:1px solid var(--line)}
+.sw b{font-family:var(--f-disp);font-size:13px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-2)}
+.sw span{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+
+.spec{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px;
+  display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-s)}
+.spec-row{display:flex;flex-direction:column;gap:2px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.spec-row:last-child{border-bottom:0;padding-bottom:0}
+.spec-row .big{font-family:var(--f-disp);font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:1.1}
+.spec-row .big.body{font-family:var(--f-body);font-size:19px;font-weight:500;letter-spacing:0}
+.spec-row .big.mono{font-family:var(--f-mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.spec-row small{font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+
+/* ============================================================
+   TELEFON
+   ============================================================ */
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px}
+.phone{width:390px;height:824px;border-radius:44px;background:var(--panel);
+  border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;
+  display:flex;flex-direction:column;position:relative}
+@media (max-width:430px){
+  .pg{padding:28px 12px 56px}
+  .phone{width:100%;max-width:390px;height:740px;border-radius:30px}
+}
+.stage-note{margin:0;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;
+  color:var(--muted);text-transform:uppercase}
+
+.pf-status{height:42px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;font-family:var(--f-mono);font-size:12px;font-weight:600;color:var(--ink);
+  background:var(--panel)}
+.pf-status .bars{display:flex;align-items:flex-end;gap:2px}
+.pf-status .bars i{display:block;width:3px;border-radius:1px;background:var(--ink)}
+.pf-status .bars i:nth-child(1){height:4px}
+.pf-status .bars i:nth-child(2){height:6px}
+.pf-status .bars i:nth-child(3){height:8px}
+.pf-status .bars i:nth-child(4){height:10px;opacity:.35}
+.pf-status .batt{width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;position:relative;opacity:.85}
+.pf-status .batt::before{content:"";position:absolute;inset:2px;right:7px;background:var(--ink);border-radius:1px}
+
+.pf-body{flex:1 1 auto;min-height:0;position:relative}
+.scr{position:absolute;inset:0;display:none;flex-direction:column}
+.scr.is-on{display:flex}
+
+/* Kopf jedes Screens */
+.scr-head{flex:0 0 auto;padding:8px 18px 12px;background:var(--panel);
+  border-bottom:1px solid var(--line-soft);display:flex;flex-direction:column;gap:2px}
+.scr-head .kicker{margin:0;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted)}
+.scr-head .titlerow{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.scr-head h3{margin:0;font-family:var(--f-disp);font-size:29px;font-weight:700;
+  letter-spacing:-.005em;line-height:1.1}
+.scr-head .act{font-family:var(--f-disp);font-size:14px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--brass)}
+
+.scr-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:14px 18px 26px;display:flex;flex-direction:column;gap:16px;background:var(--sunk)}
+.scr-body::-webkit-scrollbar{width:0}
+
+/* Bausteine */
+.sec-label{margin:0;font-family:var(--f-disp);font-size:13px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);display:flex;align-items:center;
+  justify-content:space-between;gap:10px}
+.sec-label span{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:none}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow-s);overflow:hidden}
+.hint{margin:0;font-size:12.5px;color:var(--muted);line-height:1.45}
+
+/* Chips / Segmente */
+.chips{display:flex;gap:7px;overflow-x:auto;margin:0 -18px;padding:0 18px 2px}
+.chips::-webkit-scrollbar{height:0}
+.chip{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);border-radius:999px;
+  padding:6px 13px;font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap;
+  display:flex;align-items:center;gap:6px;transition:background .15s,border-color .15s,color .15s}
+.chip .n{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.chip[aria-pressed="true"] .n{color:var(--panel);opacity:.65}
+
+.seg{display:flex;gap:3px;background:var(--sunk);border:1px solid var(--line);
+  border-radius:11px;padding:3px}
+.seg button{flex:1;border-radius:8px;padding:7px 8px;font-family:var(--f-disp);font-size:15px;
+  font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:.15s}
+.seg button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow-s)}
+
+/* Status-Punkte */
+.state{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.state.live{color:var(--ice)}
+.state.done{color:var(--muted)}
+.state.open{color:var(--brass)}
+.live .dot{animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+@media (prefers-reduced-motion:reduce){.live .dot{animation:none}}
+
+/* ---------- Live-Karte ---------- */
+.live-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  overflow:hidden;box-shadow:var(--shadow-s);position:relative}
+.live-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ice)}
+.live-top{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 6px 16px}
+.live-meta{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;color:var(--muted);
+  text-transform:uppercase}
+.live-teams{padding:2px 14px 12px 16px;display:flex;flex-direction:column;gap:7px}
+.lt{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lt .nm{font-family:var(--f-disp);font-size:24px;font-weight:600;line-height:1.05}
+.lt .sc{font-family:var(--f-mono);font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+.lt.lead .nm,.lt.lead .sc{color:var(--ice)}
+.live-foot{border-top:1px solid var(--line-soft);display:flex}
+.live-foot button{flex:1;padding:12px;font-family:var(--f-disp);font-size:15px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--brass)}
+.live-foot button+button{border-left:1px solid var(--line-soft);color:var(--ink-2)}
+
+/* ---------- Spielplan-Zeilen ---------- */
+.slot{display:flex;flex-direction:column;gap:8px}
+.slot-time{display:flex;align-items:center;gap:10px}
+.slot-time b{font-family:var(--f-mono);font-size:12px;font-weight:600;color:var(--ink);letter-spacing:.04em}
+.slot-time i{flex:1;height:1px;background:var(--line-soft)}
+.match{display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:11px 13px;box-shadow:var(--shadow-s);text-align:left;width:100%}
+.match .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.match .tn{font-family:var(--f-disp);font-size:19px;font-weight:600;line-height:1.15}
+.match .sc{font-family:var(--f-mono);font-size:15px;font-weight:600;
+  font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.match .lose .tn,.match .lose .sc{color:var(--muted);font-weight:500}
+.match .win .sc{color:var(--brass)}
+.match-meta{display:flex;align-items:center;gap:8px;margin-top:2px;padding-top:7px;
+  border-top:1px solid var(--line-soft)}
+.match-meta .f{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted);
+  text-transform:uppercase}
+.match-meta .sp{flex:1}
+.match.pending{border-style:dashed;background:transparent}
+.match.pending .tn{color:var(--ink-2)}
+
+/* ---------- Gruppen ---------- */
+.grp-head{display:flex;align-items:baseline;justify-content:space-between;padding:13px 15px 9px}
+.grp-head h4{margin:0;font-family:var(--f-disp);font-size:22px;font-weight:700;letter-spacing:.02em}
+.grp-head span{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+table.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.tbl th{font-family:var(--f-mono);font-size:9.5px;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);text-align:right;padding:0 0 7px}
+table.tbl th:first-child{text-align:center;padding-left:15px}
+table.tbl th:nth-child(2){text-align:left;padding-left:9px}
+table.tbl th:last-child{padding-right:15px}
+table.tbl td{padding:9px 0;border-top:1px solid var(--line-soft);text-align:right;
+  font-family:var(--f-mono);font-size:13px;color:var(--ink-2)}
+table.tbl td.rank{width:34px;text-align:center;padding-left:15px;font-size:12px;
+  color:var(--muted);position:relative}
+table.tbl td.team{text-align:left;padding-left:9px;font-family:var(--f-disp);font-size:19px;
+  font-weight:600;color:var(--ink);line-height:1.2;width:44%}
+table.tbl td.pts{padding-right:15px;font-weight:600;color:var(--ink)}
+tr.q td{background:var(--qual-soft)}
+tr.q td.rank{color:var(--qual);font-weight:600}
+tr.q td.rank::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--qual)}
+tr.q1 td{background:var(--brass-soft)}
+tr.q1 td.rank{color:var(--brass)}
+tr.q1 td.rank::before{background:var(--brass)}
+.form{display:flex;gap:3px;justify-content:flex-end;padding:9px 15px 12px}
+.form i{width:16px;height:4px;border-radius:2px;background:var(--line);display:block}
+.form i.w{background:var(--qual)}
+.form i.l{background:var(--danger);opacity:.55}
+.grp-foot{border-top:1px solid var(--line-soft);padding:9px 15px;display:flex;
+  align-items:center;justify-content:space-between;gap:8px}
+.grp-foot .lg{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.grp-foot .lg em{width:8px;height:8px;border-radius:2px;background:var(--brass);display:block}
+.note-in{padding:10px 14px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted)}
+
+/* ---------- Turnierbaum ---------- */
+.map{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px 11px;
+  box-shadow:var(--shadow-s);display:flex;flex-direction:column;gap:9px}
+.map-top{display:flex;align-items:baseline;justify-content:space-between}
+.map-top b{font-family:var(--f-disp);font-size:17px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase}
+.map-top span{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+.map svg{width:100%;height:auto;display:block}
+.map-legend{display:flex;gap:14px;font-family:var(--f-mono);font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted)}
+.map-legend b{display:flex;align-items:center;gap:5px;font-weight:500}
+.map-legend i{width:12px;height:2px;display:block;background:currentColor}
+
+.ko{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  box-shadow:var(--shadow-s)}
+.ko-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  border-bottom:1px solid var(--line-soft)}
+.ko-head b{font-family:var(--f-disp);font-size:15px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase}
+.ko-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;
+  position:relative}
+.ko-row+.ko-row{border-top:1px solid var(--line-soft)}
+.ko-row .nm{font-family:var(--f-disp);font-size:21px;font-weight:600;line-height:1.1;
+  display:flex;align-items:center;gap:8px}
+.ko-row .seed{font-family:var(--f-mono);font-size:10px;color:var(--muted);border:1px solid var(--line);
+  border-radius:4px;padding:1px 4px;letter-spacing:.04em}
+.ko-row .sc{font-family:var(--f-mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.ko-row.lose .nm,.ko-row.lose .sc{color:var(--muted);font-weight:500}
+.ko-row.win::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brass)}
+.ko-row.win .sc{color:var(--brass)}
+.ko-foot{padding:8px 14px;border-top:1px solid var(--line-soft);font-family:var(--f-mono);
+  font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+
+/* Finale-Karte */
+.final{border-radius:16px;padding:1px;
+  background:linear-gradient(140deg,var(--brass),transparent 55%,var(--brass));
+  box-shadow:var(--shadow-s)}
+.final-in{background:var(--panel);border-radius:15px;padding:15px 16px 14px;
+  display:flex;flex-direction:column;gap:12px}
+.final-top{display:flex;align-items:center;gap:9px}
+.final-top b{font-family:var(--f-disp);font-size:16px;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--brass)}
+.final-top .when{margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--muted);
+  letter-spacing:.06em}
+.final-pair{display:flex;flex-direction:column;gap:10px}
+.fp .who{font-family:var(--f-disp);font-size:26px;font-weight:700;line-height:1;letter-spacing:-.005em}
+.fp.tbd .who{color:var(--muted);font-weight:600}
+.vs{display:flex;align-items:center;gap:9px;color:var(--muted)}
+.vs i{flex:1;height:1px;background:var(--line)}
+.vs span{font-family:var(--f-disp);font-size:13px;letter-spacing:.2em;text-transform:uppercase}
+.trophy-slot{display:flex;align-items:center;gap:11px;border:1px dashed var(--brass);
+  border-radius:11px;padding:10px 12px;background:var(--brass-soft)}
+.trophy-slot .txt{display:flex;flex-direction:column}
+.trophy-slot b{font-family:var(--f-disp);font-size:17px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--brass)}
+.trophy-slot small{font-size:11.5px;color:var(--ink-2)}
+
+/* Ganzer Baum */
+.tree-wrap{margin:0 -18px;padding:4px 18px 10px;overflow-x:auto}
+.tree-wrap::-webkit-scrollbar{height:0}
+.tree{display:flex;gap:30px;min-width:max-content;padding:2px 0;align-items:stretch}
+.tcol{display:flex;flex-direction:column;gap:8px}
+.tcol-label{flex:0 0 auto;height:15px;font-family:var(--f-disp);font-size:12px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.tcol-body{flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-around;gap:22px}
+.pair{display:flex;flex-direction:column;gap:22px;position:relative}
+.pair::after{content:"";position:absolute;left:calc(100% + 15px);top:25%;bottom:25%;
+  border-left:1px solid var(--line)}
+.tm{width:154px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;position:relative;box-shadow:var(--shadow-s)}
+.tm::after{content:"";position:absolute;left:100%;top:50%;width:15px;border-top:1px solid var(--line)}
+.tcol--sf .tm::before,.tcol--f .tm::before{content:"";position:absolute;right:100%;top:50%;
+  width:15px;border-top:1px solid var(--line)}
+.tm .r{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px}
+.tm .r+.r{border-top:1px solid var(--line-soft)}
+.tm .r .n{font-family:var(--f-disp);font-size:16px;font-weight:600;line-height:1.1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm .r .s{font-family:var(--f-mono);font-size:13px;font-weight:600;
+  font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.tm .r.lose .n,.tm .r.lose .s{color:var(--muted);font-weight:500}
+.tm .r.win{background:var(--brass-soft)}
+.tm .r.win .s{color:var(--brass)}
+.tm.tbd{border-style:dashed;background:transparent}
+.tm.tbd .r .n{color:var(--muted)}
+.champ{width:154px;border-radius:10px;border:1px dashed var(--brass);background:var(--brass-soft);
+  padding:11px 10px;display:flex;flex-direction:column;align-items:center;gap:5px;
+  text-align:center;position:relative}
+.champ::before{content:"";position:absolute;right:100%;top:50%;width:15px;
+  border-top:1px dashed var(--brass)}
+.champ b{font-family:var(--f-disp);font-size:15px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--brass)}
+.champ small{font-family:var(--f-mono);font-size:10px;color:var(--muted);letter-spacing:.04em}
+
+/* ---------- Einstellungen ---------- */
+.status-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px;
+  display:flex;flex-direction:column;gap:11px;box-shadow:var(--shadow-s);position:relative;overflow:hidden}
+.status-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ice)}
+.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.status-grid div{display:flex;flex-direction:column;gap:1px}
+.status-grid b{font-family:var(--f-mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.status-grid small{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+
+.list{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  box-shadow:var(--shadow-s)}
+.li{display:flex;align-items:center;gap:12px;padding:12px 14px;width:100%;text-align:left}
+.li+.li{border-top:1px solid var(--line-soft)}
+.li .lb{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.li .lb b{font-weight:500;font-size:14.5px}
+.li .lb small{font-size:11.5px;color:var(--muted)}
+.li .val{font-family:var(--f-mono);font-size:13px;color:var(--ink-2);white-space:nowrap}
+.li .chev{color:var(--muted);flex:0 0 auto}
+.li--stack{flex-direction:column;align-items:stretch;gap:9px}
+
+.switch{width:44px;height:26px;border-radius:999px;background:var(--line);position:relative;
+  flex:0 0 auto;transition:background .18s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .18s}
+.switch[aria-checked="true"]{background:var(--qual)}
+.switch[aria-checked="true"]::after{transform:translateX(18px)}
+@media (prefers-reduced-motion:reduce){.switch,.switch::after{transition:none}}
+
+.stepper{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:9px;
+  padding:2px;flex:0 0 auto;background:var(--sunk)}
+.stepper button{width:28px;height:26px;border-radius:7px;font-size:16px;line-height:1;color:var(--ink-2)}
+.stepper button:hover{background:var(--panel)}
+.stepper .v{min-width:54px;text-align:center;font-family:var(--f-mono);font-size:13px;font-weight:600}
+
+.list--danger{border-color:var(--danger)}
+.list--danger .li b{color:var(--danger)}
+
+/* ---------- Bottom-Nav ---------- */
+.pf-nav{flex:0 0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;
+  padding:7px 10px 14px;background:var(--panel);border-top:1px solid var(--line)}
+.nav-i{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 2px 4px;
+  border-radius:12px;color:var(--muted);transition:color .15s,background .15s}
+.nav-i span{font-family:var(--f-disp);font-size:12.5px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase}
+.nav-i svg{width:23px;height:23px}
+.nav-i:hover{color:var(--ink-2)}
+.nav-i[aria-selected="true"],.nav-i[aria-selected="true"]:hover{color:var(--brass);background:var(--brass-soft)}
+
+/* ---------- Entscheid-Karten ---------- */
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 20px;
+  display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-s)}
+.note b{font-family:var(--f-disp);font-size:19px;font-weight:600;letter-spacing:.03em}
+.note .tag{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--brass)}
+.note p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.5}
+.pg-foot{margin:0;font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.04em;
+  border-top:1px solid var(--line);padding-top:18px}
+</style>
+
+<div class="pg">
+
+  <header class="pg-head">
+    <p class="eyebrow">[kru:]nest &middot; Turniermodul v3</p>
+    <h1>Flutlicht statt Formular</h1>
+    <p>Ein Entwurf f&uuml;r das Turniermodul am Handy: Broadcast-Optik aus dem Sport, Bottom-Nav
+       statt Kopfleiste, und ein K.-o.-Baum, der auf 390&nbsp;px lesbar bleibt. Alles unten ist
+       bedienbar &mdash; tipp dich durch die Leiste und die Umschalter.</p>
+  </header>
+
+  <section class="hero">
+    <div class="side">
+      <div>
+        <h2>Palette</h2>
+        <p>Petrol-Schwarz als Grund, Messing als einziger Akzent &mdash; es markiert ausschlie&szlig;lich
+           den Weg zum Titel. Eis f&uuml;r &bdquo;l&auml;uft gerade&ldquo;, Gr&uuml;n f&uuml;r
+           &bdquo;qualifiziert&ldquo;: Zustandsfarbe und Akzent bleiben getrennt.</p>
+      </div>
+      <div class="sw-row">
+        <div class="sw"><i style="background:var(--ground)"></i><b>Grund</b><span>Petrol</span></div>
+        <div class="sw"><i style="background:var(--panel)"></i><b>Fl&auml;che</b><span>Panel</span></div>
+        <div class="sw"><i style="background:var(--brass)"></i><b>Messing</b><span>Titel</span></div>
+        <div class="sw"><i style="background:var(--ice)"></i><b>Eis</b><span>L&auml;uft</span></div>
+        <div class="sw"><i style="background:var(--qual)"></i><b>Gr&uuml;n</b><span>Quali</span></div>
+      </div>
+      <div>
+        <h2>Schriften</h2>
+        <div class="spec">
+          <div class="spec-row">
+            <div class="big">Netzroller &middot; Halbfinale</div>
+            <small>Barlow Condensed 600/700 &mdash; Teams, Runden, &Uuml;berschriften</small>
+          </div>
+          <div class="spec-row">
+            <div class="big body">Ergebnis erfassen und Baum f&uuml;llen</div>
+            <small>IBM Plex Sans 400/500 &mdash; Flie&szlig;text, Bedienelemente</small>
+          </div>
+          <div class="spec-row">
+            <div class="big mono">3 : 1 &nbsp; 14:30 &nbsp; +7</div>
+            <small>IBM Plex Mono 500/600 &mdash; St&auml;nde, Zeiten, Tabellen</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="phone">
+        <div class="pf-status">
+          <span>14:32</span>
+          <span style="display:flex;align-items:center;gap:7px">
+            <span class="bars"><i></i><i></i><i></i><i></i></span>
+            <span class="batt"></span>
+          </span>
+        </div>
+
+        <div class="pf-body">
+
+          <!-- ================= SPIELPLAN ================= -->
+          <section class="scr is-on" id="scr-plan" role="tabpanel" aria-label="Spielplan">
+            <div class="scr-head">
+              <p class="kicker">Fr&uuml;hjahrsturnier &middot; Sa 18. April</p>
+              <div class="titlerow"><h3>Spielplan</h3><span class="act">Teams</span></div>
+            </div>
+            <div class="scr-body">
+
+              <div class="live-card">
+                <div class="live-top">
+                  <span class="state live"><span class="dot"></span>L&auml;uft &middot; Satz 4</span>
+                  <span class="live-meta">Platte 2 &middot; Gruppe C</span>
+                </div>
+                <div class="live-teams">
+                  <div class="lt lead"><span class="nm">Netzroller</span><span class="sc">2</span></div>
+                  <div class="lt"><span class="nm">Kantengl&uuml;ck</span><span class="sc">1</span></div>
+                </div>
+                <div class="live-foot">
+                  <button type="button">Ergebnis erfassen</button>
+                  <button type="button">Details</button>
+                </div>
+              </div>
+
+              <div class="chips" role="group" aria-label="Filter">
+                <button class="chip" type="button" aria-pressed="true" data-filter>Alle <span class="n">18</span></button>
+                <button class="chip" type="button" aria-pressed="false" data-filter>Offen <span class="n">7</span></button>
+                <button class="chip" type="button" aria-pressed="false" data-filter>L&auml;uft <span class="n">1</span></button>
+                <button class="chip" type="button" aria-pressed="false" data-filter>Fertig <span class="n">10</span></button>
+              </div>
+
+              <div class="slot">
+                <div class="slot-time"><b>14:30</b><i></i><span class="state open"><span class="dot"></span>Als N&auml;chstes</span></div>
+                <button class="match" type="button">
+                  <span class="row"><span class="tn">Tafelrunde</span><span class="sc">&ndash;</span></span>
+                  <span class="row"><span class="tn">Stille Post</span><span class="sc">&ndash;</span></span>
+                  <span class="match-meta"><span class="f">Gruppe C &middot; Platte 1</span><span class="sp"></span><span class="f">20 Min</span></span>
+                </button>
+                <button class="match" type="button">
+                  <span class="row"><span class="tn">Effet &amp; Co.</span><span class="sc">&ndash;</span></span>
+                  <span class="row"><span class="tn">Randlage</span><span class="sc">&ndash;</span></span>
+                  <span class="match-meta"><span class="f">Gruppe B &middot; Platte 3</span><span class="sp"></span><span class="f">20 Min</span></span>
+                </button>
+              </div>
+
+              <div class="slot">
+                <div class="slot-time"><b>14:00</b><i></i><span class="state done">Gespielt</span></div>
+                <button class="match" type="button">
+                  <span class="row win"><span class="tn">Blaue Hummeln</span><span class="sc">3</span></span>
+                  <span class="row lose"><span class="tn">Kellerkinder</span><span class="sc">1</span></span>
+                  <span class="match-meta"><span class="f">Gruppe A &middot; Platte 1</span><span class="sp"></span><span class="f">Best&auml;tigt</span></span>
+                </button>
+                <button class="match" type="button">
+                  <span class="row lose"><span class="tn">Halbdistanz</span><span class="sc">0</span></span>
+                  <span class="row win"><span class="tn">Schmetterhand</span><span class="sc">3</span></span>
+                  <span class="match-meta"><span class="f">Gruppe B &middot; Platte 3</span><span class="sp"></span><span class="f">Best&auml;tigt</span></span>
+                </button>
+              </div>
+
+              <div class="slot">
+                <div class="slot-time"><b>15:15</b><i></i><span class="state done">K.-o.-Runde</span></div>
+                <div class="match pending">
+                  <span class="row"><span class="tn">Sieger Gruppe A</span><span class="sc">&ndash;</span></span>
+                  <span class="row"><span class="tn">Dritter Gruppe C</span><span class="sc">&ndash;</span></span>
+                  <span class="match-meta"><span class="f">Viertelfinale &middot; Platte 1</span><span class="sp"></span><span class="f">Wartet auf Gruppen</span></span>
+                </div>
+              </div>
+
+              <p class="hint">Der Spielplan verschiebt sich automatisch mit, sobald ein Spiel l&auml;nger
+                 dauert &mdash; du musst keine Uhrzeiten nachtragen.</p>
+            </div>
+          </section>
+
+          <!-- ================= GRUPPEN ================= -->
+          <section class="scr" id="scr-grp" role="tabpanel" aria-label="Gruppen">
+            <div class="scr-head">
+              <p class="kicker">12 Teams &middot; 3 Gruppen &middot; 18 Spiele</p>
+              <div class="titlerow"><h3>Gruppen</h3><span class="act">Regelwerk</span></div>
+            </div>
+            <div class="scr-body">
+              <div class="seg" role="tablist" aria-label="Gruppe w&auml;hlen">
+                <button type="button" role="tab" aria-selected="true" data-seg="grp" data-target="g-a">Gruppe A</button>
+                <button type="button" role="tab" aria-selected="false" data-seg="grp" data-target="g-b">Gruppe B</button>
+                <button type="button" role="tab" aria-selected="false" data-seg="grp" data-target="g-c">Gruppe C</button>
+              </div>
+
+              <div class="card" id="g-a" data-panel="grp">
+                <div class="grp-head"><h4>Gruppe A</h4><span>4 von 6 Spielen</span></div>
+                <table class="tbl">
+                  <thead><tr><th>Pl.</th><th>Team</th><th>Sp</th><th>Diff</th><th>Pkt</th></tr></thead>
+                  <tbody>
+                    <tr class="q q1"><td class="rank">1</td><td class="team">Blaue Hummeln</td><td>3</td><td>+6</td><td class="pts">6</td></tr>
+                    <tr class="q"><td class="rank">2</td><td class="team">Netzroller</td><td>2</td><td>+2</td><td class="pts">4</td></tr>
+                    <tr><td class="rank">3</td><td class="team">Tafelrunde</td><td>3</td><td>&minus;1</td><td class="pts">2</td></tr>
+                    <tr><td class="rank">4</td><td class="team">Kellerkinder</td><td>2</td><td>&minus;7</td><td class="pts">0</td></tr>
+                  </tbody>
+                </table>
+                <div class="form"><i class="w"></i><i class="w"></i><i class="l"></i><i class="w"></i><i></i></div>
+                <div class="grp-foot">
+                  <span class="lg"><em></em>Pl&auml;tze 1&ndash;2 ziehen direkt ein</span>
+                  <span class="state open"><span class="dot"></span>2 offen</span>
+                </div>
+              </div>
+
+              <div class="card" id="g-b" data-panel="grp" hidden>
+                <div class="grp-head"><h4>Gruppe B</h4><span>3 von 6 Spielen</span></div>
+                <table class="tbl">
+                  <thead><tr><th>Pl.</th><th>Team</th><th>Sp</th><th>Diff</th><th>Pkt</th></tr></thead>
+                  <tbody>
+                    <tr class="q q1"><td class="rank">1</td><td class="team">Schmetterhand</td><td>2</td><td>+5</td><td class="pts">4</td></tr>
+                    <tr class="q"><td class="rank">2</td><td class="team">Effet &amp; Co.</td><td>2</td><td>+1</td><td class="pts">3</td></tr>
+                    <tr><td class="rank">3</td><td class="team">Die Unbeugsamen</td><td>1</td><td>0</td><td class="pts">1</td></tr>
+                    <tr><td class="rank">4</td><td class="team">Randlage</td><td>1</td><td>&minus;6</td><td class="pts">0</td></tr>
+                  </tbody>
+                </table>
+                <div class="form"><i class="w"></i><i class="l"></i><i class="w"></i><i></i><i></i></div>
+                <div class="grp-foot">
+                  <span class="lg"><em></em>Pl&auml;tze 1&ndash;2 ziehen direkt ein</span>
+                  <span class="state open"><span class="dot"></span>3 offen</span>
+                </div>
+              </div>
+
+              <div class="card" id="g-c" data-panel="grp" hidden>
+                <div class="grp-head"><h4>Gruppe C</h4><span>3 von 6 Spielen</span></div>
+                <table class="tbl">
+                  <thead><tr><th>Pl.</th><th>Team</th><th>Sp</th><th>Diff</th><th>Pkt</th></tr></thead>
+                  <tbody>
+                    <tr class="q q1"><td class="rank">1</td><td class="team">Topspin Bande</td><td>2</td><td>+4</td><td class="pts">4</td></tr>
+                    <tr class="q"><td class="rank">2</td><td class="team">Kantengl&uuml;ck</td><td>2</td><td>+2</td><td class="pts">3</td></tr>
+                    <tr><td class="rank">3</td><td class="team">Halbdistanz</td><td>1</td><td>&minus;2</td><td class="pts">1</td></tr>
+                    <tr><td class="rank">4</td><td class="team">Stille Post</td><td>1</td><td>&minus;4</td><td class="pts">0</td></tr>
+                  </tbody>
+                </table>
+                <div class="form"><i class="w"></i><i class="w"></i><i></i><i></i><i></i></div>
+                <div class="grp-foot">
+                  <span class="lg"><em></em>Pl&auml;tze 1&ndash;2 ziehen direkt ein</span>
+                  <span class="state live"><span class="dot"></span>1 l&auml;uft</span>
+                </div>
+              </div>
+
+              <p class="sec-label">Beste Dritte <span>2 Pl&auml;tze frei</span></p>
+              <div class="card">
+                <table class="tbl">
+                  <tbody>
+                    <tr class="q"><td class="rank">1</td><td class="team">Die Unbeugsamen</td><td>1</td><td>0</td><td class="pts">1</td></tr>
+                    <tr class="q"><td class="rank">2</td><td class="team">Halbdistanz</td><td>1</td><td>&minus;2</td><td class="pts">1</td></tr>
+                    <tr><td class="rank">3</td><td class="team">Tafelrunde</td><td>3</td><td>&minus;1</td><td class="pts">2</td></tr>
+                  </tbody>
+                </table>
+                <p class="note-in">Die zwei besten Drittplatzierten r&uuml;cken ins Viertelfinale nach.
+                  Gewertet wird erst, wenn alle Gruppen durch sind.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= TURNIERBAUM ================= -->
+          <section class="scr" id="scr-tree" role="tabpanel" aria-label="Turnierbaum">
+            <div class="scr-head">
+              <p class="kicker">8 Teams &middot; Einfaches K.-o.-System</p>
+              <div class="titlerow"><h3>Der Weg zum Titel</h3><span class="act">Teilen</span></div>
+            </div>
+            <div class="scr-body">
+              <div class="seg" role="tablist" aria-label="Ansicht">
+                <button type="button" role="tab" aria-selected="true" data-seg="tree" data-target="t-rounds">Runden</button>
+                <button type="button" role="tab" aria-selected="false" data-seg="tree" data-target="t-full">Ganzer Baum</button>
+              </div>
+
+              <div id="t-rounds" data-panel="tree" style="display:flex;flex-direction:column;gap:16px">
+
+                <div class="map">
+                  <div class="map-top"><b>Halbfinale</b><span>Runde 2 von 3</span></div>
+                  <svg viewBox="0 0 300 84" role="img" aria-label="Mini-Ansicht des Turnierbaums, aktuelle Runde Halbfinale">
+                    <g fill="none" stroke="var(--line)" stroke-width="2" stroke-linecap="round">
+                      <path d="M14 12h30M14 30h30M14 54h30M14 72h30"/>
+                      <path d="M44 12h20v18H44M44 54h20v18H44"/>
+                      <path d="M64 21h16M64 63h16"/>
+                    </g>
+                    <g fill="none" stroke="var(--brass)" stroke-width="2.4" stroke-linecap="round">
+                      <path d="M80 21h34M80 63h34"/>
+                      <path d="M114 21h22v42h-22"/>
+                    </g>
+                    <g fill="none" stroke="var(--line)" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 4">
+                      <path d="M136 42h44"/>
+                    </g>
+                    <g fill="none" stroke="var(--brass)" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 4">
+                      <path d="M180 42h42"/>
+                    </g>
+                    <circle cx="234" cy="42" r="7" fill="none" stroke="var(--brass)" stroke-width="2" stroke-dasharray="3 3"/>
+                    <text x="250" y="46" font-family="Barlow Condensed, sans-serif" font-size="13"
+                          letter-spacing="1.4" fill="var(--muted)">TITEL</text>
+                  </svg>
+                  <div class="map-legend">
+                    <b style="color:var(--muted)"><i></i>Gespielt</b>
+                    <b style="color:var(--brass)"><i></i>Aktuelle Runde</b>
+                    <b style="color:var(--muted)"><i style="opacity:.5"></i>Offen</b>
+                  </div>
+                </div>
+
+                <div class="chips" role="group" aria-label="Runde w&auml;hlen">
+                  <button class="chip" type="button" aria-pressed="false" data-filter>Viertelfinale <span class="n">4/4</span></button>
+                  <button class="chip" type="button" aria-pressed="true" data-filter>Halbfinale <span class="n">0/2</span></button>
+                  <button class="chip" type="button" aria-pressed="false" data-filter>Finale <span class="n">0/1</span></button>
+                </div>
+
+                <div class="ko">
+                  <div class="ko-head"><b>Halbfinale 1</b><span class="state open"><span class="dot"></span>15:45 &middot; Platte 1</span></div>
+                  <div class="ko-row"><span class="nm"><span class="seed">A1</span>Blaue Hummeln</span><span class="sc">&ndash;</span></div>
+                  <div class="ko-row"><span class="nm"><span class="seed">B2</span>Effet &amp; Co.</span><span class="sc">&ndash;</span></div>
+                  <div class="ko-foot">Sieger zieht ins Finale &middot; Verlierer spielt um Platz 3</div>
+                </div>
+
+                <div class="ko">
+                  <div class="ko-head"><b>Halbfinale 2</b><span class="state open"><span class="dot"></span>16:10 &middot; Platte 2</span></div>
+                  <div class="ko-row"><span class="nm"><span class="seed">C1</span>Topspin Bande</span><span class="sc">&ndash;</span></div>
+                  <div class="ko-row"><span class="nm"><span class="seed">A2</span>Netzroller</span><span class="sc">&ndash;</span></div>
+                  <div class="ko-foot">Sieger zieht ins Finale &middot; Verlierer spielt um Platz 3</div>
+                </div>
+
+                <p class="sec-label">Endspiel</p>
+                <div class="final">
+                  <div class="final-in">
+                    <div class="final-top">
+                      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brass)"
+                           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5.5H5.5A2.5 2.5 0 0 0 8 10.5"/>
+                        <path d="M16 5.5h2.5A2.5 2.5 0 0 1 16 10.5"/><path d="M12 13v3.5"/><path d="M9 20h6"/>
+                      </svg>
+                      <b>Finale</b><span class="when">17:00 &middot; Platte 1</span>
+                    </div>
+                    <div class="final-pair">
+                      <div class="fp tbd"><span class="who">Sieger HF&nbsp;1</span></div>
+                      <div class="vs"><i></i><span>gegen</span><i></i></div>
+                      <div class="fp tbd"><span class="who">Sieger HF&nbsp;2</span></div>
+                    </div>
+                    <div class="trophy-slot">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--brass)"
+                           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5.5H5.5A2.5 2.5 0 0 0 8 10.5"/>
+                        <path d="M16 5.5h2.5A2.5 2.5 0 0 1 16 10.5"/><path d="M12 13v3.5"/><path d="M9 20h6"/>
+                      </svg>
+                      <span class="txt"><b>Titel noch offen</b><small>Wird heute um 17:00 ausgespielt</small></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="t-full" data-panel="tree" hidden style="display:flex;flex-direction:column;gap:12px">
+                <div class="tree-wrap">
+                  <div class="tree">
+                    <div class="tcol">
+                      <span class="tcol-label">Viertelfinale</span>
+                      <div class="tcol-body">
+                        <div class="pair">
+                          <div class="tm">
+                            <div class="r win"><span class="n">Blaue Hummeln</span><span class="s">3</span></div>
+                            <div class="r lose"><span class="n">Halbdistanz</span><span class="s">0</span></div>
+                          </div>
+                          <div class="tm">
+                            <div class="r lose"><span class="n">Kantengl&uuml;ck</span><span class="s">1</span></div>
+                            <div class="r win"><span class="n">Effet &amp; Co.</span><span class="s">3</span></div>
+                          </div>
+                        </div>
+                        <div class="pair">
+                          <div class="tm">
+                            <div class="r win"><span class="n">Topspin Bande</span><span class="s">3</span></div>
+                            <div class="r lose"><span class="n">Die Unbeugsamen</span><span class="s">2</span></div>
+                          </div>
+                          <div class="tm">
+                            <div class="r lose"><span class="n">Tafelrunde</span><span class="s">1</span></div>
+                            <div class="r win"><span class="n">Netzroller</span><span class="s">3</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="tcol tcol--sf">
+                      <span class="tcol-label">Halbfinale</span>
+                      <div class="tcol-body">
+                        <div class="pair">
+                          <div class="tm">
+                            <div class="r"><span class="n">Blaue Hummeln</span><span class="s">&ndash;</span></div>
+                            <div class="r"><span class="n">Effet &amp; Co.</span><span class="s">&ndash;</span></div>
+                          </div>
+                          <div class="tm">
+                            <div class="r"><span class="n">Topspin Bande</span><span class="s">&ndash;</span></div>
+                            <div class="r"><span class="n">Netzroller</span><span class="s">&ndash;</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="tcol tcol--f">
+                      <span class="tcol-label">Finale</span>
+                      <div class="tcol-body">
+                        <div class="tm tbd">
+                          <div class="r"><span class="n">Sieger HF 1</span><span class="s">&ndash;</span></div>
+                          <div class="r"><span class="n">Sieger HF 2</span><span class="s">&ndash;</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="tcol">
+                      <span class="tcol-label">Titel</span>
+                      <div class="tcol-body">
+                        <div class="champ">
+                          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--brass)"
+                               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5.5H5.5A2.5 2.5 0 0 0 8 10.5"/>
+                            <path d="M16 5.5h2.5A2.5 2.5 0 0 1 16 10.5"/><path d="M12 13v3.5"/><path d="M9 20h6"/>
+                          </svg>
+                          <b>Offen</b><small>17:00 Uhr</small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p class="hint">Wisch nach links f&uuml;r die sp&auml;teren Runden. Die Spalten sind bewusst
+                   schmal &mdash; so passen zwei Runden gleichzeitig ins Bild, ohne dass Namen abschneiden.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= EINSTELLUNGEN ================= -->
+          <section class="scr" id="scr-set" role="tabpanel" aria-label="Einstellungen">
+            <div class="scr-head">
+              <p class="kicker">Nur du als Organisator siehst diesen Bereich</p>
+              <div class="titlerow"><h3>Einstellungen</h3><span class="act">Fertig</span></div>
+            </div>
+            <div class="scr-body">
+
+              <div class="status-card">
+                <span class="state live"><span class="dot"></span>Turnier l&auml;uft seit 13:00</span>
+                <div class="status-grid">
+                  <div><b>10</b><small>Gespielt</small></div>
+                  <div><b>8</b><small>Offen</small></div>
+                  <div><b>3</b><small>Platten</small></div>
+                </div>
+              </div>
+
+              <p class="sec-label">Turnier</p>
+              <div class="list">
+                <button class="li" type="button">
+                  <span class="lb"><b>Name</b></span>
+                  <span class="val">Fr&uuml;hjahrsturnier 2026</span>
+                  <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button class="li" type="button">
+                  <span class="lb"><b>Datum</b></span>
+                  <span class="val">Sa, 18. April</span>
+                  <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button class="li" type="button">
+                  <span class="lb"><b>Ort</b><small>Vereinsheim, Halle 2</small></span>
+                  <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+
+              <p class="sec-label">Spielbetrieb</p>
+              <div class="list">
+                <div class="li li--stack">
+                  <span class="lb"><b>Spielmodus</b><small>Gilt f&uuml;r den gesamten Ablauf</small></span>
+                  <div class="seg" role="tablist" aria-label="Spielmodus">
+                    <button type="button" role="tab" aria-selected="true" data-seg="mode" data-target="m-1">Gruppen + K.o.</button>
+                    <button type="button" role="tab" aria-selected="false" data-seg="mode" data-target="m-2">Nur Gruppen</button>
+                    <button type="button" role="tab" aria-selected="false" data-seg="mode" data-target="m-3">Nur K.o.</button>
+                  </div>
+                </div>
+                <div class="li">
+                  <span class="lb"><b>Spieldauer</b><small>inkl. 5 Min Puffer</small></span>
+                  <span class="stepper"><button type="button" data-step="-1" aria-label="Spieldauer verringern">&minus;</button><span class="v">20 Min</span><button type="button" data-step="1" aria-label="Spieldauer erh&ouml;hen">+</button></span>
+                </div>
+                <div class="li">
+                  <span class="lb"><b>Platten</b><small>parallel bespielt</small></span>
+                  <span class="stepper"><button type="button" data-step="-1" aria-label="Platten verringern">&minus;</button><span class="v">3</span><button type="button" data-step="1" aria-label="Platten erh&ouml;hen">+</button></span>
+                </div>
+                <button class="li" type="button">
+                  <span class="lb"><b>Gruppen neu auslosen</b><small>Verteilt 12 Teams gleichm&auml;&szlig;ig</small></span>
+                  <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+
+              <p class="sec-label">Sichtbarkeit</p>
+              <div class="list">
+                <div class="li">
+                  <span class="lb"><b>F&uuml;r Mitglieder sichtbar</b><small>Sonst sehen es nur Organisatoren</small></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="F&uuml;r Mitglieder sichtbar"></button>
+                </div>
+                <div class="li">
+                  <span class="lb"><b>Alle d&uuml;rfen Ergebnisse eintragen</b><small>Aktuell nur du</small></span>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Alle d&uuml;rfen Ergebnisse eintragen"></button>
+                </div>
+                <div class="li">
+                  <span class="lb"><b>Beamer-Ansicht</b><small>Gro&szlig;e Tabelle ohne Bedienelemente</small></span>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Beamer-Ansicht"></button>
+                </div>
+              </div>
+
+              <p class="sec-label">Gefahrenzone</p>
+              <div class="list list--danger">
+                <button class="li" type="button">
+                  <span class="lb"><b>K.-o.-Baum neu setzen</b><small>&Uuml;berschreibt die aktuellen Paarungen</small></span>
+                  <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button class="li" type="button">
+                  <span class="lb"><b>Turnier l&ouml;schen</b><small>Alle Ergebnisse gehen verloren</small></span>
+                  <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <p class="note-in">Zum L&ouml;schen tippst du den Turniernamen ab &mdash; ein Fehlgriff
+                  kostet sonst den ganzen Nachmittag.</p>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- ================= BOTTOM-NAV ================= -->
+        <nav class="pf-nav" role="tablist" aria-label="Bereiche">
+          <button class="nav-i" type="button" role="tab" aria-selected="true" data-nav="scr-plan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="16" rx="3.5"/><path d="M3 10h18"/>
+              <path d="M8 3v4M16 3v4"/><path d="M7.5 14.5h4M7.5 17.5h7"/>
+            </svg><span>Spielplan</span>
+          </button>
+          <button class="nav-i" type="button" role="tab" aria-selected="false" data-nav="scr-grp">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="3.5"/><path d="M3 9.5h18"/><path d="M9.5 9.5V20"/>
+            </svg><span>Gruppen</span>
+          </button>
+          <button class="nav-i" type="button" role="tab" aria-selected="false" data-nav="scr-tree">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 6.5h4.5v11H4"/><path d="M8.5 12h5"/><circle cx="16.5" cy="12" r="2.8"/>
+            </svg><span>Baum</span>
+          </button>
+          <button class="nav-i" type="button" role="tab" aria-selected="false" data-nav="scr-set">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 8h9"/><path d="M18.5 8H20"/><circle cx="15.7" cy="8" r="2.3"/>
+              <path d="M4 16h3.3"/><path d="M12.8 16H20"/><circle cx="10" cy="16" r="2.3"/>
+            </svg><span>Einstellungen</span>
+          </button>
+        </nav>
+      </div>
+      <p class="stage-note">390 &times; 824 &middot; bedienbar</p>
+    </div>
+  </section>
+
+  <!-- ================= ENTSCHEIDE ================= -->
+  <section>
+    <p class="eyebrow" style="margin-bottom:14px">Vier Entscheide</p>
+    <div class="notes">
+      <div class="note">
+        <span class="tag">Navigation</span>
+        <b>Die Leiste geht nach unten</b>
+        <p>Vier Ziele, Daumenreichweite, immer sichtbar. Oben steht nur noch, wo du bist &mdash;
+           der Platz, den die alte Tab-Zeile brauchte, geh&ouml;rt jetzt dem Spielplan.</p>
+      </div>
+      <div class="note">
+        <span class="tag">Turnierbaum</span>
+        <b>Erst der Weg, dann der Baum</b>
+        <p>Ein klassischer Baum ist auf 390&nbsp;px unlesbar. Deshalb oben eine Mini-Karte mit dem
+           Titelweg, darunter die aktuelle Runde als volle Karten &mdash; und der ganze Baum
+           bleibt einen Umschalter entfernt.</p>
+      </div>
+      <div class="note">
+        <span class="tag">Gruppen</span>
+        <b>Der Rang tr&auml;gt die Farbe</b>
+        <p>Qualifikation liest man am Band links, nicht an einem Symbol. F&uuml;nf Spalten,
+           Mono-Ziffern, feste Team-Breite &mdash; nichts schneidet ab, auch nicht bei
+           &bdquo;Die Unbeugsamen&ldquo;.</p>
+      </div>
+      <div class="note">
+        <span class="tag">Einstellungen</span>
+        <b>Listen statt Formular</b>
+        <p>Gruppiert wie eine Systemeinstellung: Wert rechts, Erkl&auml;rung klein darunter,
+           Schalter und Stepper direkt bedienbar. Die Gefahrenzone steht unten und sieht auch so aus.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="pg-foot">Mockup &middot; Barlow Condensed / IBM Plex Sans / IBM Plex Mono &middot; hell und dunkel getrennt getokent</p>
+</div>
+
+<script>
+(function(){
+  var nav = document.querySelectorAll('[data-nav]');
+  nav.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      nav.forEach(function(b){ b.setAttribute('aria-selected', String(b === btn)); });
+      document.querySelectorAll('.scr').forEach(function(s){
+        s.classList.toggle('is-on', s.id === btn.dataset.nav);
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-seg]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var group = btn.dataset.seg;
+      document.querySelectorAll('[data-seg="' + group + '"]').forEach(function(b){
+        b.setAttribute('aria-selected', String(b === btn));
+      });
+      document.querySelectorAll('[data-panel="' + group + '"]').forEach(function(p){
+        p.hidden = (p.id !== btn.dataset.target);
+      });
+    });
+  });
+
+  document.querySelectorAll('.chips').forEach(function(row){
+    row.addEventListener('click', function(e){
+      var chip = e.target.closest('[data-filter]');
+      if (!chip) return;
+      row.querySelectorAll('[data-filter]').forEach(function(c){
+        c.setAttribute('aria-pressed', String(c === chip));
+      });
+    });
+  });
+
+  document.querySelectorAll('.switch').forEach(function(sw){
+    sw.addEventListener('click', function(){
+      sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+    });
+  });
+
+  document.querySelectorAll('.stepper').forEach(function(st){
+    var out = st.querySelector('.v');
+    var unit = /Min/.test(out.textContent) ? ' Min' : '';
+    var step = unit ? 5 : 1, min = unit ? 10 : 1, max = unit ? 45 : 8;
+    st.addEventListener('click', function(e){
+      var b = e.target.closest('[data-step]');
+      if (!b) return;
+      var cur = parseInt(out.textContent, 10) + (parseInt(b.dataset.step, 10) * step);
+      cur = Math.max(min, Math.min(max, cur));
+      out.textContent = cur + unit;
+    });
+  });
+})();
+</script>

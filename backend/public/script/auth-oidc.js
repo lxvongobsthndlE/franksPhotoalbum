@@ -8,6 +8,64 @@ const TOKEN_REFRESH_INTERVAL = 14 * 60 * 1000; // Refresh 1 min before expiry (1
 let accessToken = null;
 let refreshTokenTimeout = null;
 
+// ── SITZUNGSENDE ────────────────────────────────────────────
+// Punkt 4.2 der Uebergabe (turniermodul-uebergabe.md), gefixt am
+// 2026-08-25. Vorher endete ein gescheiterter Refresh in
+// `await logout()` — und logout() setzt `window.location.href`.
+// Am Turniertag hiess das: Ergebnis-Dialog offen, 3:2 getippt,
+// Refresh-Cookie abgelaufen → Weiterleitung zu Authentik, Eingabe
+// weg, ohne Meldung und ohne Rueckfrage.
+//
+// Jetzt entscheidet das UI, wann umgeleitet wird. Dieses Modul
+// meldet nur: „die Sitzung ist zu Ende" — und faehrt sonst nichts
+// herunter. Der Redirect passiert erst in `forceReauth()`, also
+// nachdem der Nutzer zugestimmt und das UI seine Eingaben
+// gesichert hat.
+let sessionExpired = false;
+const sessionExpiredHandlers = new Set();
+
+/** Meldet das Sitzungsende genau EINMAL je Ablauf. */
+function notifySessionExpired(reason) {
+  if (sessionExpired) return;
+  sessionExpired = true;
+  for (const fn of sessionExpiredHandlers) {
+    try {
+      fn({ reason });
+    } catch (e) {
+      console.error('session-expired handler failed:', e);
+    }
+  }
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new CustomEvent('auth:session-expired', { detail: { reason } }));
+    } catch (e) {
+      /* CustomEvent fehlt (aelterer Browser) — die Handler oben haben schon gefeuert */
+    }
+  }
+}
+
+/**
+ * Meldet einen Horcher an, der beim Sitzungsende gerufen wird.
+ * Rueckgabe: Funktion zum Abmelden.
+ */
+export function onSessionExpired(fn) {
+  if (typeof fn !== 'function') return () => {};
+  sessionExpiredHandlers.add(fn);
+  return () => sessionExpiredHandlers.delete(fn);
+}
+
+export function isSessionExpired() {
+  return sessionExpired;
+}
+
+/**
+ * Der bewusste Weg zur Neu-Anmeldung. Nur HIER wird umgeleitet —
+ * und nur, weil jemand es ausgeloest hat.
+ */
+export async function forceReauth() {
+  await logout();
+}
+
 // ── CHECK LOGIN STATUS ──────────────────────────────────────
 export async function checkSession() {
   try {
@@ -24,6 +82,7 @@ export async function checkSession() {
     }
 
     // Start refresh timer
+    sessionExpired = false;
     startTokenRefreshTimer();
     return data.user;
   } catch (e) {
@@ -75,6 +134,7 @@ export async function handleOIDCCallback(code, state) {
     accessToken = token;
 
     // Start token refresh timer
+    sessionExpired = false;
     startTokenRefreshTimer();
 
     return { user, inviteResult, loginContext };
@@ -102,12 +162,23 @@ async function refreshAccessToken() {
     const { accessToken: newToken } = await response.json();
     sessionStorage.setItem('accessToken', newToken);
     accessToken = newToken;
+    sessionExpired = false;
 
     return newToken;
   } catch (e) {
     console.error('Token refresh failed:', e);
-    await logout();
-    throw e;
+    // HIER stand der Zwangs-Logout. logout() setzt window.location.href —
+    // die Seite war weg, bevor irgendwer etwas melden oder sichern
+    // konnte. Stattdessen: melden und einen erkennbaren Fehler werfen.
+    // Wer umleiten will, ruft forceReauth().
+    const err = new Error('Deine Anmeldung ist abgelaufen.');
+    err.code = 'session_expired';
+    err.serverMessage = 'Deine Anmeldung ist abgelaufen. Bitte neu anmelden.';
+    err.serverCode = 'session_expired';
+    err.status = 401;
+    err.cause = e;
+    notifySessionExpired('refresh_failed');
+    throw err;
   }
 }
 
@@ -115,9 +186,21 @@ async function refreshAccessToken() {
 function startTokenRefreshTimer() {
   clearTimeout(refreshTokenTimeout);
   refreshTokenTimeout = setTimeout(() => {
-    refreshAccessToken().then(() => {
-      startTokenRefreshTimer(); // Reschedule after refresh
-    });
+    refreshAccessToken()
+      .then(() => {
+        startTokenRefreshTimer(); // Reschedule after refresh
+      })
+      .catch(() => {
+        // Ohne diesen catch war das eine unbehandelte Rejection —
+        // und weil refreshAccessToken frueher selbst ausgeloggt hat,
+        // flog der Nutzer mitten in der Arbeit raus, ausgeloest von
+        // einem Timer, den er nicht gestartet hat.
+        //
+        // notifySessionExpired() ist in refreshAccessToken schon
+        // gelaufen; das UI zeigt seinen Dialog. Kein neuer Timer:
+        // der Refresh-Cookie ist abgelaufen, ein zweiter Versuch in
+        // 14 Minuten waere nur eine weitere Absage.
+      });
   }, TOKEN_REFRESH_INTERVAL);
 }
 
@@ -160,10 +243,10 @@ async function parseApiResponse(response) {
 }
 
 // ── API CALL HELPER WITH AUTO-AUTHORIZATION ────────────────
-export async function apiCall(endpoint, method = 'GET', body = null) {
+export async function apiCall(endpoint, method = 'GET', body = null, extra = {}) {
   const options = {
     method,
-    headers: {},
+    headers: { ...(extra?.headers || {}) },
     credentials: 'include', // Include cookies (for refresh token)
   };
 
@@ -191,7 +274,7 @@ export async function apiCall(endpoint, method = 'GET', body = null) {
         let serverCode = '';
         try {
           const j = await parseApiResponse(retryResponse);
-          serverMsg = j?.error || j?.message || '';
+          serverMsg = j?.message || j?.error || '';
           serverCode = j?.code || '';
         } catch (_) {}
         const err = new Error(serverMsg || `HTTP ${retryResponse.status}`);
@@ -208,7 +291,13 @@ export async function apiCall(endpoint, method = 'GET', body = null) {
       let serverCode = '';
       try {
         const j = await response.json();
-        serverMsg = j.error || j.message || '';
+        // Reihenfolge ist wichtig und darf nicht gedreht werden: die
+        // Turnier-Routen antworten mit { error: '<code>', message:
+        // '<deutscher Satz>' }. Wer `error` zuerst nimmt, zeigt dem
+        // Nutzer `groups_locked` statt der Meldung. handleError()
+        // liefert nur `error` — dort steht der Text drin, also greift
+        // der Fallback.
+        serverMsg = j.message || j.error || '';
         serverCode = j.code || '';
       } catch (_) {}
       const err = new Error(serverMsg || `HTTP ${response.status}`);
@@ -238,6 +327,18 @@ export async function fetchWithAuth(endpoint, options = {}) {
 
   if (accessToken && !requestOptions.headers.Authorization) {
     requestOptions.headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  // Ein String-Body ist bei uns immer JSON. Ohne Content-Type setzt der
+  // Browser `text/plain`, und Fastify hat dafür keinen Parser — die
+  // Antwort ist dann 415, obwohl der Aufruf inhaltlich korrekt ist.
+  // FormData/Blob bleiben unangetastet: dort muss der Browser die
+  // Boundary selbst setzen.
+  const hasContentType = Object.keys(requestOptions.headers).some(
+    (h) => h.toLowerCase() === 'content-type'
+  );
+  if (typeof requestOptions.body === 'string' && !hasContentType) {
+    requestOptions.headers['Content-Type'] = 'application/json';
   }
 
   let response = await fetch(url, requestOptions);
