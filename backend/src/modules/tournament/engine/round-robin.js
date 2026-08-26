@@ -1,21 +1,33 @@
 /**
- * Round-Robin-Spielplan (Berger-Tabelle). Spec §5.2.
+ * Round-Robin-Spielplan (Berger-Tabelle / Circle-Method). Spec §5.2.
  *
  * Bei n Teams:
  *   - n gerade: n-1 Runden, n/2 Spiele pro Runde → n(n-1)/2 Spiele.
  *   - n ungerade: n Runden, (n-1)/2 Spiele pro Runde, ein BYE pro Runde.
  *
- * Heimbalance:
- *   Wir verwenden **zyklische Rotation** statt "Team 1 bleibt fix" (Spec §5.2
- *   Schritt 2). Begründung: Mit fixiertem Anker (Standard-Berger) bekommt das
- *   Anker-Team in jeder Runde ein Heim-Spiel, was die Balance bei geradem n
- *   strukturell unmöglich macht (für n=4 z.B. sind 6 Heim-Slots auf 4 Teams
- *   zu verteilen — 1,5 pro Team ist nicht ganzzahlig). Zyklische Rotation
- *   lässt jedes Team gleichmäßig durch alle Positionen wandern und erreicht
- *   für jedes n eine Heim-Balance von max-min ≤ 1. §5.2 #3 (Balance)
- *   bekommt Vorrang vor §5.2 #2 (Anker fix).
+ * Verfahren: EIN Team steht fest (Anker, Position 0), die übrigen n-1
+ * rotieren um es herum. Gepaart wird der Anker mit dem Kopf des Rings,
+ * danach jeweils von außen nach innen.
  *
- * Rückgabe: Array<Array<{ home, away, round }>>
+ * Warum der Anker fest steht (Korrektur 2026-08-26):
+ *   Vorher rotierten ALLE Positionen zyklisch, ausdrücklich um die
+ *   Heimbalance zu retten. Das erzeugte aber keinen Round-Robin mehr:
+ *   Eine Vollrotation hat die Periode n/2, nicht n-1 — ab der Hälfte
+ *   wiederholen sich die Paarungen spiegelbildlich. Bei 8 Teams kamen so
+ *   12 der 28 Begegnungen doppelt vor und 12 überhaupt nicht, bei jeder
+ *   Teamzahl ≥ 3 dasselbe Muster. Die Spielanzahl stimmte, die Anzahl
+ *   Spiele je Team stimmte, die Heimbalance stimmte — nur die Tabelle am
+ *   Ende war erlogen, weil manche Teams zweimal gegeneinander antraten
+ *   und andere nie. Alle vier bestehenden Tests waren grün.
+ *
+ *   Die Heimbalance war nie der Grund, den Anker zu lösen: Der Anker
+ *   bekommt jede zweite Runde die Auswärtsseite, und die übrigen Paare
+ *   tauschen die Seite nach ihrer Position im Ring. Damit bleibt die
+ *   Spanne max-min ≤ 1 — geprüft für n = 3..16 —, ohne die Paarungen
+ *   zu beschädigen. §5.2 #2 (Anker fix) und #3 (Balance) sind kein
+ *   Widerspruch; sie wurden nur gegeneinander ausgespielt.
+ *
+ * Rückgabe: { schedule: Array<Array<{ home, away, round, isBye }>>, hasBye }
  *   - home/away sind Team-IDs oder 'BYE' (bei ungerader Anzahl).
  *   - Spiele gegen BYE werden im Aufrufer ausgefiltert (Spec §5.2: keine
  *     Match-Records gegen BYE).
@@ -36,28 +48,45 @@ export function buildRoundRobin(teamIds) {
 
   const n = teams.length;
   const rounds = n - 1;
-  const matchesPerRound = n / 2;
   const schedule = [];
 
-  // Zyklische Rotation: erstes Element ans Ende, alle anderen rücken vor.
-  // Vorteil ggü. fixiertem Anker: jedes Team wandert durch alle Positionen.
-  let rotation = teams.slice();
+  const anker = teams[0];
+  let ring = teams.slice(1); // n-1 Einträge, rotieren um den Anker
+
   for (let r = 0; r < rounds; r++) {
     const round = [];
-    for (let m = 0; m < matchesPerRound; m++) {
-      const home = rotation[m];
-      const away = rotation[n - 1 - m];
+
+    // Anker gegen den Kopf des Rings. Die Seite alterniert je Runde —
+    // sonst hätte der Anker in jeder Runde Heimrecht, und genau das war
+    // der (berechtigte) Einwand gegen die Standard-Berger-Tabelle.
+    const gegner = ring[0];
+    const ankerHeim = r % 2 === 0;
+    round.push({
+      home: ankerHeim ? anker : gegner,
+      away: ankerHeim ? gegner : anker,
+      round: r + 1,
+      isBye: anker === 'BYE' || gegner === 'BYE',
+    });
+
+    // Übrige Paare: von außen nach innen durch den Ring.
+    for (let i = 1; i < n / 2; i++) {
+      const a = ring[i];
+      const b = ring[n - 1 - i];
+      // Seite nach Ringposition, damit sich Heim/Auswärts über die Teams
+      // verteilt statt sich auf einer Ringhälfte zu sammeln.
+      const aHeim = i % 2 === 1;
       round.push({
-        home,
-        away,
+        home: aHeim ? a : b,
+        away: aHeim ? b : a,
         round: r + 1,
-        isBye: home === 'BYE' || away === 'BYE',
+        isBye: a === 'BYE' || b === 'BYE',
       });
     }
+
     schedule.push(round);
 
-    // Zyklische Rotation (statt Anker fix): rotation[0] → rotation[n-1]
-    rotation = [...rotation.slice(1), rotation[0]];
+    // Ring um eine Position weiterdrehen (letztes Element nach vorn).
+    ring = [ring[ring.length - 1], ...ring.slice(0, -1)];
   }
 
   return { schedule, hasBye };
@@ -77,7 +106,7 @@ export function buildRoundRobinMatches(teamIds) {
         teamHome: m.home,
         teamAway: m.away,
         bracketPos: pos++,
-        // Slot (1..n/2) kann zur späteren Spielzeit-Berechnung genutzt werden
+        // Spieltag (1-basiert); der Zeitplaner bildet daraus seine Blöcke.
         roundNumber: m.round,
       });
     }

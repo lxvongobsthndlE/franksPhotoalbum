@@ -82,3 +82,85 @@ describe('buildRoundRobinMatches', () => {
     expect(rounds).toEqual([1, 2, 3]);
   });
 });
+describe('Vollständigkeit: jede Begegnung genau einmal (Regression 2026-08-26)', () => {
+  // Der Bug, den diese Gruppe verhindert: Die frühere Implementierung
+  // rotierte ALLE Positionen zyklisch statt einer festen Ankerposition.
+  // Eine Vollrotation hat die Periode n/2, nicht n-1 — ab der Hälfte
+  // wiederholten sich die Paarungen spiegelbildlich. Bei 8 Teams kamen so
+  // 12 der 28 Begegnungen doppelt vor und 12 überhaupt nicht.
+  //
+  // Bemerkenswert ist, was dabei NICHT auffiel: Die Anzahl der Spiele war
+  // korrekt, die Anzahl Spiele je Team war korrekt, die Heimbalance war
+  // korrekt. Alle vier damaligen Tests waren grün. Gezählt wurde, was
+  // leicht zu zählen ist; niemand fragte, ob die Paarungen stimmen.
+  const paare = (ids) => {
+    const { schedule } = buildRoundRobin(ids);
+    const raus = [];
+    for (const runde of schedule) {
+      for (const m of runde) {
+        if (m.isBye) continue;
+        raus.push([m.home, m.away].sort().join('|'));
+      }
+    }
+    return raus;
+  };
+
+  for (const n of [3, 4, 5, 6, 7, 8, 9, 10, 12, 16]) {
+    it(`${n} Teams: alle ${(n * (n - 1)) / 2} Begegnungen, keine doppelt`, () => {
+      const ids = Array.from({ length: n }, (_, i) => `T${i + 1}`);
+      const gespielt = paare(ids);
+
+      const zaehler = new Map();
+      for (const p of gespielt) zaehler.set(p, (zaehler.get(p) ?? 0) + 1);
+
+      const doppelt = [...zaehler].filter(([, c]) => c > 1).map(([p]) => p);
+      expect(doppelt).toEqual([]);
+
+      const fehlend = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const k = [ids[i], ids[j]].sort().join('|');
+          if (!zaehler.has(k)) fehlend.push(k);
+        }
+      }
+      expect(fehlend).toEqual([]);
+      expect(gespielt.length).toBe((n * (n - 1)) / 2);
+    });
+  }
+
+  it('kein Team spielt zweimal in derselben Runde', () => {
+    for (const n of [4, 5, 6, 7, 8, 9]) {
+      const ids = Array.from({ length: n }, (_, i) => `T${i + 1}`);
+      const { schedule } = buildRoundRobin(ids);
+      for (const runde of schedule) {
+        const gesehen = new Set();
+        for (const m of runde) {
+          for (const t of [m.home, m.away]) {
+            if (t === 'BYE') continue;
+            expect(gesehen.has(t), `${t} zweimal in einer Runde (n=${n})`).toBe(false);
+            gesehen.add(t);
+          }
+        }
+      }
+    }
+  });
+
+  it('Heimbalance bleibt ≤ 1 bei gerader Teamzahl — für jedes n, nicht nur für 4', () => {
+    // Der feste Anker war der Verdacht, an dem die alte Implementierung
+    // scheiterte: Er hätte in jeder Runde Heimrecht. Die alternierende
+    // Seite löst das, ohne die Paarungen anzufassen.
+    for (const n of [4, 6, 8, 10, 12, 16]) {
+      const ids = Array.from({ length: n }, (_, i) => `T${i + 1}`);
+      const { schedule } = buildRoundRobin(ids);
+      const heim = new Map(ids.map((t) => [t, 0]));
+      for (const runde of schedule) {
+        for (const m of runde) {
+          if (m.isBye) continue;
+          heim.set(m.home, heim.get(m.home) + 1);
+        }
+      }
+      const werte = [...heim.values()];
+      expect(Math.max(...werte) - Math.min(...werte), `n=${n}`).toBeLessThanOrEqual(1);
+    }
+  });
+});
