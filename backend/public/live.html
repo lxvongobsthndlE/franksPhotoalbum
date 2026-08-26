@@ -51,7 +51,9 @@ body{
 }
 :focus-visible{outline:2px solid var(--flare);outline-offset:2px;border-radius:4px}
 
-.page{max-width:860px;margin:0 auto;padding:0 14px calc(40px + env(safe-area-inset-bottom))}
+/* Unten Luft für die Stand-Pille (.lr), die fest über der Seite liegt —
+   sonst deckt sie die letzte Zeile der Fußzeile zu. */
+.page{max-width:860px;margin:0 auto;padding:0 14px calc(84px + env(safe-area-inset-bottom))}
 
 /* ── Kopf ───────────────────────────────────────────── */
 .head{padding:26px 0 18px}
@@ -217,6 +219,79 @@ tr.is-qual td:first-child{box-shadow:inset 3px 0 0 var(--qual)}
      hinsehen, wäre die falsche Sparsamkeit. */
   th.opt,td.opt{display:none}
 }
+
+/* ── Stand & Aktualisieren ──────────────────────────── */
+/*
+   Ein Zuschauer will zwei Dinge wissen: wie alt ist, was hier steht, und
+   wie bekomme ich es frisch. Beides steht deshalb in EINEM Element. Eine
+   Zeile „Stand 14:32" plus daneben ein Knopf „Aktualisieren" wären zwei
+   Elemente für eine Auskunft — auf einer Handybreite ist das die Hälfte
+   der Fußzeile für nichts.
+
+   Die Pille liegt fest am unteren Rand, weil die Seite lang ist: Wer in
+   der Tabelle der dritten Gruppe steht, soll nicht erst ans Ende
+   scrollen, um zu sehen, ob die Zahlen von eben sind.
+
+   Sie liegt AUSSERHALB von #app (siehe live.js) und überlebt damit das
+   Neuzeichnen.
+*/
+.lr{
+  position:fixed;z-index:20;
+  right:max(14px, env(safe-area-inset-right));
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  display:inline-flex;align-items:center;gap:9px;
+  min-height:44px;padding:0 16px 0 13px;
+  border:1px solid var(--line);border-radius:var(--r-pill);
+  background:var(--panel);color:var(--ink-2);
+  font-family:var(--f-cond);font-weight:700;font-size:13.5px;
+  letter-spacing:.03em;
+  box-shadow:var(--lift);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:color .15s ease,border-color .15s ease,background .15s ease,transform .1s ease;
+}
+.lr:hover{color:var(--ink);border-color:var(--ink-2)}
+.lr:active{transform:translateY(1px)}
+.lr[hidden]{display:none}
+
+.lr svg{
+  width:17px;height:17px;flex:none;
+  fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+.lr .lr-zeit{
+  font-family:var(--f-mono);font-weight:600;font-size:13px;
+  letter-spacing:0;font-variant-numeric:tabular-nums;
+}
+
+/* Lädt: Die Drehung ist die einzige Rückmeldung, die ein Zuschauer im
+   Sonnenlicht sicher erkennt — Farbe allein reicht draußen nicht. */
+.lr.is-busy{color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){
+  .lr.is-busy svg{animation:lr-dreh .9s linear infinite;transform-origin:50% 50%}
+}
+@keyframes lr-dreh{to{transform:rotate(360deg)}}
+
+/* Nicht aktuell: Der Stand bleibt STEHEN, die Pille sagt nur dazu, dass
+   er alt ist. Eine geleerte Seite wäre am Spielfeldrand der schlechtere
+   Tausch (siehe live.js). */
+.lr.is-stale{
+  color:var(--flare);border-color:var(--flare-line);background:var(--flare-soft);
+}
+
+/* Nach einem Tippen kurz grün: Der Druck hat etwas bewirkt. */
+.lr.is-frisch{color:var(--qual);border-color:var(--qual)}
+
+.lr-nur-sr{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;
+}
+
+@media (max-width:430px){
+  .lr{right:11px;padding:0 14px 0 11px;font-size:13px}
+}
+@media print{
+  .lr{display:none}
+}
 </style>
 </head>
 <body class="t-brand">
@@ -226,6 +301,17 @@ tr.is-qual td:first-child{box-shadow:inset 3px 0 0 var(--qual)}
       <p>Turnier wird geladen …</p>
     </div>
   </div>
+  <!-- Stand und Aktualisieren in einem. Steht bewusst NEBEN #app, nicht
+       darin: live.js ersetzt den Inhalt von #app bei jedem Abruf. -->
+  <button class="lr" id="lr" type="button" aria-live="polite">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20.5 12a8.5 8.5 0 1 1-2.49-6.01"/>
+      <path d="M20.5 4.5V10h-5.5"/>
+    </svg>
+    <span class="lr-nur-sr">Jetzt aktualisieren — </span>
+    <span id="lr-label">Stand</span>
+    <span class="lr-zeit" id="lr-zeit">—</span>
+  </button>
   <script type="module" src="/script/live.js"></script>
 </body>
 </html>

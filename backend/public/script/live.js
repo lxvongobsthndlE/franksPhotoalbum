@@ -3,7 +3,8 @@
  *
  * Sie ist absichtlich klein und kennt nur einen Verb: lesen. Es gibt hier
  * keinen Zustandsspeicher, kein Routing, keine Anmeldung. Was ankommt,
- * wird gezeichnet; danach wird alle 30 Sekunden neu geholt.
+ * wird gezeichnet; danach holt die Seite selbstständig nach — im Takt aus
+ * live-takt.js, und auf Tippen sofort.
  *
  * Warum eigene Renderer und nicht die aus tournament.js:
  * Der angemeldete Client wiegt über 4.500 Zeilen und ist um das Bearbeiten
@@ -13,9 +14,16 @@
  * Trennung hält Admin-Code von einer nicht angemeldeten Seite fern.
  */
 
-const REFRESH_MS = 30_000;
+import { naechsterAbstand, abstandNachFehler } from './live-takt.js';
 
 const app = document.getElementById('app');
+
+/* Die Stand-Pille lebt AUSSERHALB von #app: zeichne() ersetzt den ganzen
+   Seiteninhalt, und ein Knopf, der sich unter dem Finger neu aufbaut,
+   verliert Fokus, Druckzustand und laufende Drehung. */
+const knopf = document.getElementById('lr');
+const knopfLabel = document.getElementById('lr-label');
+const knopfZeit = document.getElementById('lr-zeit');
 
 /** Token aus /t/<token>. Geprüft wird er im Backend, nicht hier. */
 function tokenAusPfad() {
@@ -308,22 +316,10 @@ function zeichne(daten) {
   const fuss = el('div', 'foot');
   fuss.append(el('span', 'mark', '[kru:]nest'));
   fuss.append(el('span', null, 'Nur zum Ansehen — Ergebnisse trägt die Turnierleitung ein.'));
-  const stempel = el('span', 'stamp');
-  stempel.id = 'stamp';
-  fuss.append(stempel);
+  fuss.append(el('span', 'stamp', 'Die Seite holt den Stand von selbst nach.'));
   neu.append(fuss);
 
   app.replaceChildren(neu);
-  aktualisiereStempel();
-}
-
-function aktualisiereStempel() {
-  const s = document.getElementById('stamp');
-  if (!s) return;
-  const jetzt = new Date();
-  const hh = String(jetzt.getHours()).padStart(2, '0');
-  const mm = String(jetzt.getMinutes()).padStart(2, '0');
-  s.textContent = `Stand ${hh}:${mm}`;
 }
 
 function zeigeZustand(titel, text) {
@@ -338,21 +334,108 @@ function zeigeZustand(titel, text) {
    Laden
    ══════════════════════════════════════════════════════════ */
 
+/**
+ * Ein Abruf zur Zeit, und danach genau ein geplanter nächster.
+ *
+ * `zeitgeber` hält immer höchstens einen Timer. Jeder Weg, der einen Abruf
+ * auslöst — Takt, Tippen, Zurück-in-den-Vordergrund — geht durch `laden()`,
+ * und `laden()` plant am Ende neu. So kann sich kein zweiter Takt
+ * danebenlegen und die Seite doppelt so oft anrufen wie gedacht.
+ */
 let letzterErfolg = null;
+let letzterStand = null;
+let fehlversuche = 0;
+let laeuftGerade = false;
+let eingestellt = false;
+let zeitgeber = null;
+let frischeAnzeige = null;
 
-async function laden() {
+function zweistellig(n) {
+  return String(n).padStart(2, '0');
+}
+
+function uhrzeit(d) {
+  return `${zweistellig(d.getHours())}:${zweistellig(d.getMinutes())}`;
+}
+
+/**
+ * Die Pille ist Anzeige und Knopf in einem: Sie sagt, wie alt der Stand
+ * ist, und ist zugleich die Stelle, an die man tippt, wenn einem das zu
+ * alt ist. Zwei getrennte Elemente — „Stand 14:32" hier, ein Knopf dort —
+ * hätten dieselbe Auskunft zweimal auf einer Handybreite untergebracht.
+ */
+function setzeKnopf(zustand) {
+  if (!knopf) return;
+  knopf.classList.toggle('is-busy', zustand === 'laedt');
+  knopf.classList.toggle('is-stale', zustand === 'fehler');
+  knopf.setAttribute('aria-busy', zustand === 'laedt' ? 'true' : 'false');
+
+  if (zustand === 'laedt') {
+    knopfLabel.textContent = 'Hole Stand';
+    knopfZeit.textContent = '…';
+    return;
+  }
+  if (zustand === 'fehler') {
+    knopfLabel.textContent = letzterStand ? 'Nicht aktuell — seit' : 'Kein Netz';
+    knopfZeit.textContent = letzterStand ? uhrzeit(letzterStand) : '';
+    return;
+  }
+  knopfLabel.textContent = 'Stand';
+  knopfZeit.textContent = letzterStand ? uhrzeit(letzterStand) : '—';
+}
+
+/** Kurzes grünes Aufblitzen: Das Tippen hat etwas bewirkt. */
+function blitzeFrisch() {
+  if (!knopf) return;
+  knopf.classList.remove('is-frisch');
+  void knopf.offsetWidth;
+  knopf.classList.add('is-frisch');
+  clearTimeout(frischeAnzeige);
+  frischeAnzeige = setTimeout(() => knopf.classList.remove('is-frisch'), 1400);
+}
+
+function planeNaechsten() {
+  clearTimeout(zeitgeber);
+  if (eingestellt) return;
+  // Im Hintergrund ruht die Seite. Ein Tab, den niemand ansieht, muss den
+  // Server nicht alle zehn Sekunden fragen — der Sprung zurück in den
+  // Vordergrund holt den Stand ohnehin sofort.
+  if (document.visibilityState === 'hidden') return;
+
+  const abstand = fehlversuche > 0
+    ? abstandNachFehler(fehlversuche)
+    : naechsterAbstand(letzterErfolg);
+  zeitgeber = setTimeout(() => laden(), abstand);
+}
+
+function warte(ms) {
+  return new Promise((fertig) => setTimeout(fertig, ms));
+}
+
+async function laden({ manuell = false } = {}) {
+  if (laeuftGerade || eingestellt) return;
+
   const token = tokenAusPfad();
   if (!token) {
+    eingestellt = true;
     zeigeZustand('Kein Turnier angegeben', 'Der Link scheint unvollständig zu sein.');
     return;
   }
 
+  laeuftGerade = true;
+  const begonnen = Date.now();
+  setzeKnopf('laedt');
+
   try {
     const antwort = await fetch(`/api/tournaments/public/${encodeURIComponent(token)}`, {
       headers: { Accept: 'application/json' },
+      cache: 'no-store',
     });
 
     if (antwort.status === 404) {
+      eingestellt = true;
+      clearTimeout(zeitgeber);
+      if (knopf) knopf.hidden = true;
       zeigeZustand(
         'Dieser Link ist nicht mehr gültig',
         'Die Turnierleitung hat die Freigabe zurückgenommen, oder der Link war nie richtig. Frag am besten dort nach.'
@@ -363,31 +446,49 @@ async function laden() {
 
     const daten = await antwort.json();
     letzterErfolg = daten;
+    letzterStand = new Date();
+    fehlversuche = 0;
     document.title = daten.tournament?.name
       ? `${daten.tournament.name} — Turnier`
       : 'Turnier';
     zeichne(daten);
+
+    // Wer tippt, will sehen, dass etwas passiert ist. Kommt die Antwort
+    // aus dem Cache in 30 ms, blitzt die Drehung sonst nur auf und die
+    // Seite wirkt, als hätte sie den Druck verschluckt.
+    if (manuell) await warte(Math.max(0, 420 - (Date.now() - begonnen)));
+    setzeKnopf('ok');
+    if (manuell) blitzeFrisch();
   } catch (err) {
+    fehlversuche += 1;
     // Ein Aussetzer im Mobilfunknetz darf keine gefüllte Seite leeren —
     // am Spielfeldrand ist ein Stand von vor einer Minute mehr wert als
     // eine Fehlermeldung.
     if (letzterErfolg) {
-      const s = document.getElementById('stamp');
-      if (s) s.textContent = 'Stand konnte nicht aktualisiert werden';
-      return;
+      setzeKnopf('fehler');
+    } else {
+      setzeKnopf('fehler');
+      zeigeZustand(
+        'Turnier konnte nicht geladen werden',
+        'Die Verbindung hat nicht geklappt. Versuch es in einem Moment noch einmal — oder tipp unten auf „Aktualisieren".'
+      );
     }
-    zeigeZustand(
-      'Turnier konnte nicht geladen werden',
-      'Die Verbindung hat nicht geklappt. Versuch es in einem Moment noch einmal.'
-    );
+  } finally {
+    laeuftGerade = false;
+    planeNaechsten();
   }
 }
 
-laden();
-setInterval(laden, REFRESH_MS);
+if (knopf) {
+  knopf.addEventListener('click', () => laden({ manuell: true }));
+}
 
 // Wer das Handy wieder aus der Tasche holt, will den aktuellen Stand
 // sehen und nicht bis zum nächsten Intervall warten.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') laden();
+  else clearTimeout(zeitgeber);
 });
+
+setzeKnopf('ok');
+laden();
