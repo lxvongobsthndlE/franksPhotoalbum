@@ -2485,17 +2485,7 @@ async function loadTournamentDashboard(reset = false) {
   const grid = $('grid');
   if (!grid) return;
   if (reset) {
-    // Befund 2026-08-26: `.grid` und `.tournaments-grid` haben dieselbe
-  // Spezifitaet (0,1,0) und stehen in DERSELBEN Datei — main.css:2601
-  // gegen main.css:156. Die spaetere Quelle gewinnt, nicht die
-  // speziellere. Die Liste lief deshalb im Foto-Raster
-  // (`repeat(auto-fill, minmax(260px, 1fr))`), die eine Sektion belegte
-  // genau EINE Spalte von ~260px, und die Turniernamen wurden auf "d..."
-  // gekuerzt, waehrend rechts daneben der halbe Bildschirm leer blieb.
-  //
-  // Siebtes Mal dasselbe Muster in diesem Modul: der Selektor einer Regel
-  // sagt nicht, wogegen sie gewinnt.
-  grid.className = 'tournaments-grid';
+    grid.className = T_LIST_GRID_CLASS;
     grid.innerHTML =
       '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
   }
@@ -2542,7 +2532,7 @@ async function loadTournamentInstances(reset = false) {
   const grid = $('grid');
   if (!grid) return;
   if (reset) {
-    grid.className = 'grid tournaments-grid';
+    grid.className = T_LIST_GRID_CLASS;
     grid.innerHTML =
       '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
   }
@@ -2739,7 +2729,7 @@ function renderTournamentInstancesPage() {
   const grid = $('grid');
   if (!grid) return;
 
-  grid.className = 'grid tournaments-grid';
+  grid.className = T_LIST_GRID_CLASS;
   // P1 (2026-08-24, User-Liste): server-derived isAdmin statt
   // canManageTournamentPresetsInCurrentGroup(). Beide decken sich
   // inhaltlich, aber isAdmin ist die maßgebliche Quelle für die
@@ -3589,7 +3579,7 @@ function renderTournamentInstanceDetailV3(t) {
     // Karten-Raster aus main.css auf, damit .t-mod die volle Breite
     // bekommt und .t-shells Drei-Spalten-Grid greifen kann.
     // Wird von switchToTournamentInstances() → loadTournamentInstances()
-    // → grid.className = 'grid tournaments-grid' wieder entfernt.
+    // → grid.className = T_LIST_GRID_CLASS wieder entfernt.
     grid.className = T_DETAIL_HOST_CLASS;
     grid.innerHTML = `
       <div class="t-mod" id="tournament-detail" data-tournament-id="${esc(t.id)}">
@@ -7550,6 +7540,26 @@ function closeTournamentDetailModalById(id) {
 //   6. onGenerate → POST /api/tournaments/:id/generate mit buildGeneratePayload.
 //   7. onCancel → #grid + Header-Buttons zurück, Listenansicht neu laden.
 const WIZARD_HOST_CLASS = 't-wizard-host';
+/**
+ * Klassen des #grid in der TURNIERLISTE.
+ *
+ * Hier stand dreimal `'grid tournaments-grid'`. Das `grid` war der
+ * Fehler: `.grid` (main.css:2601) und `.tournaments-grid` (main.css:156)
+ * haben dieselbe Spezifitaet (0,1,0) und stehen in DERSELBEN Datei —
+ * also gewinnt die spaetere Quelle, nicht die speziellere. Die
+ * Turnierliste lief deshalb im FOTO-Raster
+ * (`repeat(auto-fill, minmax(260px, 1fr))`), die eine Listen-Sektion
+ * belegte genau eine Spalte von ~260px, und die Turniernamen wurden auf
+ * "d..." gekuerzt, waehrend rechts der halbe Bildschirm leer blieb.
+ *
+ * Siebtes Mal dasselbe Muster in diesem Modul: der Selektor einer Regel
+ * sagt nicht, wogegen sie gewinnt.
+ *
+ * Als Konstante, weil es drei Stellen sind (zwei Ladezustaende und die
+ * Ausgabe). Beim ersten Anlauf habe ich genau eine davon erwischt — die
+ * mit dem Spinner — und der Fehler blieb sichtbar.
+ */
+const T_LIST_GRID_CLASS = 'tournaments-grid';
 const T_DETAIL_HOST_CLASS = 't-detail-host';
 const WIZARD_HIDDEN_HEADER_BUTTONS = [
   'tournament-refresh-btn',
