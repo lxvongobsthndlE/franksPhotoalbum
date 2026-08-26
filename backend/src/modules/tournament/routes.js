@@ -3019,6 +3019,32 @@ export default async function tournamentRoutes(fastify) {
         return reply.code(404).send({ error: 'Logo nicht verfügbar' });
       }
 
+      // BEWUSST OHNE MITGLIEDSCHAFTSPRÜFUNG — nachgeprüft am 26.08.2026.
+      //
+      // Wer die Turnier-ID kennt, bekommt hier das Logo, auch ohne Login
+      // und auch bei einem nicht freigegebenen Turnier. Das sieht nach
+      // einer vergessenen Prüfung aus und ist keine: Die Anwendung
+      // authentifiziert über `Authorization: Bearer`, und ein
+      // `<img src="/api/tournaments/…/logo">` schickt keine Header mit.
+      // Eine Prüfung an dieser Stelle würde jedes Logo in der gesamten
+      // Oberfläche unsichtbar machen — im Detail-Kopf, in der Liste, auf
+      // der Zuschauerseite.
+      //
+      // Getragen wird das von drei Dingen: Die ID ist ein cuid und nicht
+      // zu erraten, ein Logo trägt keine Personendaten, und Entwürfe
+      // sind oben ausgeschlossen.
+      //
+      // Wer das ändern will, ändert nicht diese Zeilen, sondern den Weg:
+      // Logos per fetch mit Header laden und als Blob-URL setzen, oder
+      // ein eigenes Asset-Token in den Pfad aufnehmen. Beides ist eine
+      // eigene Etappe — ein `requireTournamentRead` hier ist es nicht.
+      //
+      // Die drei Felder unten in `select` (isPublic, publicToken,
+      // publicRevokedAt) werden aus demselben Grund NICHT ausgewertet.
+      // Sie stammen aus einem früheren Anlauf; sie stehen zu lassen
+      // kostet nichts und zeigt, wo eine spätere Unterscheidung ansetzen
+      // würde.
+
       const stat = await getTournamentAssetStat(tournament.id, 'logo');
       const stream = await getTournamentAssetStream(tournament.id, 'logo');
       return reply
