@@ -77,6 +77,8 @@ export const SAFE_DATA_ACTIONS = Object.freeze([
   'toggle-filter-dropdown',
   // Kopiert nur, was ohnehin schon im Feld steht.
   'copy-public-link',
+  // Öffnet die Druckansicht des Zuschauer-Links in einem neuen Tab.
+  'open-aushang',
   // A4: Die ganze Turnierkarte ist die Aktion — reines Öffnen, für
   // Mitglieder ausdrücklich erlaubt.
   'open-instance',

@@ -4407,6 +4407,15 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     });
   }
 
+  const aushangBtn = mount.querySelector('[data-action="open-aushang"]');
+  if (aushangBtn) {
+    wireGuardedClick(aushangBtn, async () => {
+      const feld = mount.querySelector('[data-public-url]');
+      if (!feld?.value) return;
+      window.open(`${feld.value}/aushang`, '_blank', 'noopener');
+    });
+  }
+
   // Kopieren ist harmlos wiederholbar, hängt aber trotzdem am selben
   // Helfer wie alles andere hier: Der Abdeckungstest kennt zu Recht keine
   // Ausnahme, und ein doppelter Klick spart so auch den doppelten Toast.

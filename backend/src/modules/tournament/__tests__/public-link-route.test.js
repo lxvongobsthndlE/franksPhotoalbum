@@ -254,6 +254,27 @@ describe('GET /api/tournaments/public/:token — die Zuschauer-Ansicht', () => {
     expect(res.headers['cache-control']).toContain('max-age=15');
   });
 
+  it('liefert einen QR-Code als SVG', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/tournaments/public/${TOKEN}/qr.svg` });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('image/svg+xml');
+    expect(res.body).toContain('<svg');
+    expect(res.body).toContain('viewBox');
+  });
+
+  it('der QR kennt dieselben Ablehnungen wie die Ansicht', async () => {
+    // Sonst ließe sich am QR ablesen, ob ein Link mal gültig war,
+    // während die Ansicht längst 404 gibt.
+    await alsAdmin('DELETE', '/api/tournaments/t-shared/public');
+    const res = await app.inject({ method: 'GET', url: `/api/tournaments/public/${TOKEN}/qr.svg` });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('unbekannter Token bekommt keinen QR', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/tournaments/public/${'X'.repeat(32)}/qr.svg` });
+    expect(res.statusCode).toBe(404);
+  });
+
   it('die Turnier-ID allein öffnet nichts (Kern der Umstellung)', async () => {
     // t-shared ist freigegeben. Trotzdem darf der ID-Weg ohne Login
     // verschlossen bleiben — sonst wäre der Token bedeutungslos.

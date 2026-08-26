@@ -145,6 +145,13 @@ app.get('/t/:token', async (request, reply) => {
   return reply.sendFile('live.html', path.join(__dirname, '../public'));
 });
 
+// Der Aushang: ein Blatt mit großem QR-Code zum Ausdrucken und Aufhängen.
+// Braucht keine eigene Berechtigung — wer den Token hat, hat ohnehin
+// Zugang, und der Aushang zeigt nichts, was die Ansicht nicht zeigt.
+app.get('/t/:token/aushang', async (request, reply) => {
+  return reply.sendFile('aushang.html', path.join(__dirname, '../public'));
+});
+
 // Health Check
 app.get('/health', async (request, reply) => {
   return { status: 'ok' };

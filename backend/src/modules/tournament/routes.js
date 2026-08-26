@@ -55,6 +55,7 @@ import { nextPaletteColor } from './team-colors.js';
 import { canEdit, canRevertToDraft, canStartTournament, requireConfirmForRedraw } from './locks.js';
 import { createPublicToken, requirePublicTournament } from './public-access.js';
 import { buildPublicPayload } from './public-view.js';
+import { buildQrSvg, buildPublicUrl } from './public-qr.js';
 
 export default async function tournamentRoutes(fastify) {
   // ─────────────────────────────────────────────────────────
@@ -199,6 +200,29 @@ export default async function tournamentRoutes(fastify) {
       // Halbzeit und nehmen einem geteilten Link die Lastspitze.
       reply.header('Cache-Control', 'public, max-age=15');
       return buildPublicPayload({ ...view, groups: groupsWithStandings });
+    } catch (err) {
+      return handleError(reply, err, 'Link nicht gültig');
+    }
+  });
+
+  // GET /api/tournaments/public/:token/qr.svg — QR-Code zum Aushängen.
+  //
+  // Öffentlich wie die Ansicht selbst: Wer den Token hat, hat ohnehin
+  // Zugang — der QR verrät nichts darüber hinaus. Dieselben Ablehnungen
+  // wie der Lesepfad, sonst ließe sich am QR ablesen, ob ein Link mal
+  // gültig war, während die Ansicht schon 404 gibt.
+  fastify.get('/public/:token/qr.svg', async (request, reply) => {
+    try {
+      const ctx = await requirePublicTournament(
+        fastify.prisma,
+        request.params.token
+      );
+      const svg = buildQrSvg(buildPublicUrl(request, ctx.tournament.publicToken));
+      reply.header('Content-Type', 'image/svg+xml; charset=utf-8');
+      // Der QR ändert sich nur, wenn der Token wechselt — und dann ist es
+      // eine andere Adresse. Eine Stunde ist unkritisch.
+      reply.header('Cache-Control', 'public, max-age=3600');
+      return svg;
     } catch (err) {
       return handleError(reply, err, 'Link nicht gültig');
     }

@@ -1423,6 +1423,16 @@ function renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen }) {
         ohne Konto und ohne etwas ändern zu können. Spielernamen werden
         nicht mit veröffentlicht.
       </div>
+      <div class="t-settings-actions" style="align-items:center">
+        <img src="/api/tournaments/public/${encodeURIComponent(tour.publicToken)}/qr.svg"
+             alt="QR-Code zum Zuschauer-Link"
+             width="104" height="104"
+             style="width:104px;height:104px;background:#fff;border-radius:6px;padding:5px;flex:none">
+        <button class="t-btn t-btn--ghost" data-action="open-aushang" type="button">Aushang zum Drucken</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Der Aushang ist ein Blatt mit großem QR-Code für den Tresen.
+      </div>
       <div class="t-settings-actions">
         <button class="t-btn t-btn--danger" data-action="revoke-public-link" type="button">Link widerrufen</button>
       </div>
