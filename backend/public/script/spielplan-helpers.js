@@ -1696,9 +1696,14 @@ export function renderTeamsList(teams, opts = {}) {
     return '<p class="t-hint">Noch keine Teams angelegt. Lege sie im Wizard unter „Teams" an.</p>';
   }
 
-  const editHint = canEdit
-    ? '<span class="t-team-edit-hint">Klicken zum Umbenennen</span>'
-    : '';
+  // Der Hinweis stand bis zum 26.08. in JEDER Zeile. Bei zwoelf Teams
+  // war „Klicken zum Umbenennen" zwoelfmal auf dem Schirm — die haeufigste
+  // Zeile der Ansicht sagte nichts ueber ein Team aus. Die Vorlage
+  // (Abschnitt 06) kennt an dieser Stelle nur Zeilen mit Namen.
+  // Er steht jetzt einmal ueber der Liste, wo die uebrigen Hinweise auch
+  // stehen; die Wortwahl bleibt, damit der Weg zum Umbenennen derselbe
+  // bleibt.
+  const editHint = '';
 
   const rows = items.map((t, idx) => {
     const initial = String(t.name).trim().charAt(0).toUpperCase() || '?';
@@ -1721,7 +1726,7 @@ export function renderTeamsList(teams, opts = {}) {
     ? '<p class="t-hint t-hint--info">Die Reihenfolge ist gesperrt, weil der Spielplan bereits generiert wurde.</p>'
     : (!isAdmin
       ? '<p class="t-hint t-hint--info">Nur Admins können die Reihenfolge ändern.</p>'
-      : '');
+      : '<p class="t-hint t-team-edit-hint">Klicken zum Umbenennen, ziehen zum Sortieren.</p>');
 
   return `${hint}<ul class="t-teams-list${canEdit ? ' is-draggable' : ''}" data-role="teams-list">${rows}</ul>`;
 }

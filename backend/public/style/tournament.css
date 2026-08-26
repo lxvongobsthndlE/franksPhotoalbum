@@ -340,7 +340,16 @@
    IBM Plex Sans erschien. Wer hier eine Komponente austraegt, gibt ihr
    im Gegenzug eine eigene Schriftzeile; sonst faellt sie auf die
    Browser-Voreinstellung zurueck statt auf die Modulschrift. */
-.t-mod button:where(:not([class*="t-btn"], .t-mod-action, .t-mod-tab, .t-chip)) {
+/* NACHTRAG 2026-08-26, dritte Fassung — drittes Opfer derselben Regel:
+   `.bracket-tab`. Die Runden-Pillen setzen Archivo Narrow in 12,5px
+   Versalien; der Reset hier gewann mit (0,1,1) und lieferte 15px in der
+   geerbten Schrift. Im Pruefstand bei 390px passten drei Runden dadurch
+   nicht nebeneinander und „FINALE" war abgeschnitten — es sah nach einem
+   Layoutfehler aus und war ein Schriftgroessen-Fehler.
+   Dass diese Liste jetzt zum dritten Mal waechst, ist das eigentliche
+   Signal: JEDER Knopf mit eigener Optik gehoert hier eingetragen, und
+   zwar BEVOR man seine Regel schreibt. */
+.t-mod button:where(:not([class*="t-btn"], .t-mod-action, .t-mod-tab, .t-chip, .bracket-tab)) {
   font-family: inherit;
   font-size: inherit;
   border: none;
@@ -451,6 +460,20 @@
   grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
+  /* KASKADENKOLLISION Nr. 10, gemessen 2026-08-26.
+     main.css fuehrt dieselbe Klasse mit
+       padding: clamp(8px, 1.5vw, 24px); gap: clamp(12px, 2vw, 24px)
+     — gleiche Spezifitaet (0,0,1,0), aber frueher geladen, und dieser
+     Block hier setzte beide Eigenschaften nie. Ergebnis: das Blatt hatte
+     innen einen unsichtbaren 8px-Rand, den kein grep in tournament.css
+     findet. Gemessen lag .t-view damit bei 22px statt bei 14px, und
+     alles, was buendig an der Blattkante sitzen soll — Rangband,
+     Zustandsstreifen, Gefahrenstreifen — sass 8px daneben.
+     Beide Werte gehoeren auf Null: die Vorlage trennt Seitenleiste und
+     Inhalt mit einer Haarlinie, die sich zwei Spalten teilen. Ein
+     Zwischenraum wuerde sie in der Luft haengen lassen. */
+  padding: 0;
+  gap: 0;
 }
 
 /* Modul-Navigation (linke Spalte).
@@ -1246,14 +1269,14 @@
    abgesetzt, damit klar ist: das hier ist der nächste Schritt.
    Akzent-Border links + weicher Akzent-Hintergrund hebt den Block
    aus der Standard-Standings-Optik heraus. */
+/* Der Farbverlauf ist mit der dritten Fassung entfallen: er war der
+   einzige im ganzen Modul, und ein Verlauf ist eine Flaeche, die sich
+   nicht entscheidet. Streifen und Optik stehen jetzt im Block
+   „Tabelle ohne Huelle" weiter unten, wo auch die uebrigen Huellen
+   abgeraeumt werden — an EINER Stelle, damit die Ausnahme dort steht,
+   wo die Regel steht. */
 .t-fill-ko-card {
   margin-top: var(--s4);
-  border-left: 4px solid var(--accent);
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%,
-    var(--surface) 60%
-  );
 }
 .t-fill-ko-card-body {
   display: flex;
@@ -1307,16 +1330,21 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink-soft);
-  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  /* Dritte Fassung: „kein Behaelter, inaktiv ist reiner Text, aktiv eine
+     tintengefuellte Pille." Die Segmentleiste war eine umrandete
+     Vertiefung mit einer erhobenen Pille darin — drei Ebenen fuer vier
+     Woerter. Der Rand bleibt als durchsichtige Kante stehen, damit der
+     aktive Chip nicht um 2px waechst. */
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
   line-height: 1.3;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.t-chip:hover { background: var(--paper); }
+.t-chip:hover { color: var(--ink); }
 /* Der aktive Chip ist SCHWARZ, nicht orange (Vorlage, Abschnitt 03).
    Vorher stand hier var(--accent). Orange ist im ganzen Modul dem Weg
    zum Titel vorbehalten — ein Filterzustand ist keiner. Wo Orange
@@ -2424,37 +2452,65 @@
     "bar home  home-score"
     "bar away  away-score"
     "bar meta  meta";
-  gap: 4px var(--s2);
+  /* Dritte Fassung: dieselbe Fuellung und dieselbe 12px-Ecke wie die
+     Spielkarte im Spielplan — ein Spiel sieht in jeder Ansicht gleich
+     aus. Links KEIN Polster: der Zustandsstreifen ist die erste
+     Rasterspalte und muss buendig an der Kartenkante sitzen, sonst
+     schwebt er im Nichts. Der Abstand zum Namen kommt aus dem
+     Spalten-Gap. */
+  gap: 4px var(--s3);
   padding: 10px 12px;
-  background: var(--surface);
+  background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: var(--r-card, 8px);
+  border-radius: 12px;
   min-height: 90px;
   align-content: center;
   min-width: 0;
   overflow: hidden;
+  /* Bezugspunkt fuer den Zustandsstreifen: der muss ueber die volle
+     Kartenhoehe laufen und an der Kante sitzen. Als Rasterzelle blieb er
+     im Polster stecken und lief oben und unten 10px vor der Kante aus —
+     im Screenshot sah er aus wie ein abgerutschtes Lesezeichen. */
+  position: relative;
 }
+/* „K.-o.-Partien tragen den orangen Kantenstreifen, weil sie buchstaeblich
+   der Weg zum Titel sind. In der Gruppenphase bleibt der Streifen weg —
+   sonst waere er Dekoration statt Bedeutung." Vorher war er in --line,
+   also unsichtbar und ohne Aussage. */
 .t-match--bracket [data-area="bar"] {
-  grid-area: bar;
-  grid-row: 1 / -1;
-  align-self: stretch;
+  /* `display: block` ist Pflicht und keine Redundanz: `.t-match-bar` ist
+     seit Etappe 3 global auf `display: none` gesetzt (der Spielplan
+     traegt seinen Zustand am Kartenrand, nicht an einem Balken). Ohne
+     diese Zeile blieb der Streifen unsichtbar, und die Regel darunter
+     sah trotzdem korrekt aus. */
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
   width: 3px;
-  background: var(--line);
-  border-radius: 2px;
+  background: var(--flare);
+  border-radius: 0 3px 3px 0;
 }
+.t-match--bracket.t-match--placeholder [data-area="bar"] { background: var(--line); }
 .t-match--bracket [data-area="home"] { grid-area: home; }
 .t-match--bracket [data-area="away"] { grid-area: away; }
 .t-match--bracket [data-area="home-score"] { grid-area: home-score; }
 .t-match--bracket [data-area="away-score"] { grid-area: away-score; }
+/* Aus dem zentrierten Band mit Trennlinie wird eine Bildunterschrift —
+   dieselbe wie unter den Spielkarten im Spielplan: Mono, 10,5px,
+   gesperrt, gedaempft, linksbuendig. „Zurueck kommt die Flaeche, nicht
+   die Moeblierung darin." */
 .t-match--bracket [data-area="meta"] {
   grid-area: meta;
   width: 100%;
-  font-size: 10px;
-  color: var(--ink-soft);
-  padding-top: 4px;
-  border-top: 1px solid var(--line);
-  text-align: center;
-  letter-spacing: 0.02em;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 5px;
+  text-align: left;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .t-match--bracket [data-area="home"],
 .t-match--bracket [data-area="away"] {
@@ -2592,6 +2648,13 @@
    begrenzt, also muss die Spalte nicht noch zusätzlich schrumpfen. */
 @media (max-width: 767px) {
   .bracket-tabs { display: flex; }
+  /* Die Spaltenueberschrift wiederholt hier den aktiven Reiter: auf
+     Mobile ist genau eine Spalte sichtbar, und die Pille darueber sagt
+     schon „HALBFINALE". Zweimal derselbe Name untereinander war die
+     Beschwerde, die den View-Kopf gekostet hat (Beschwerde 6) — dieselbe
+     Doppelung, eine Ansicht weiter. Auf Desktop bleibt sie: dort stehen
+     alle Runden nebeneinander und es gibt keine Reiter. */
+  .bracket-col-label { display: none; }
   .bracket-wrap {
     scroll-snap-type: x mandatory;
     scroll-padding-left: 0;
@@ -3741,7 +3804,10 @@ textarea.t-input {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* Kein Abstand mehr zwischen den Zeilen: seit sie keine Kaesten mehr
+     sind, traegt die Haarlinie die Trennung. Beides zusammen haette
+     dasselbe zweimal gesagt. */
+  gap: 0;
 }
 
 .t-teams-row {
@@ -3904,19 +3970,27 @@ textarea.t-input {
   flex-direction: column;
   gap: var(--s2, 8px);
 }
+/* Dritte Fassung, Abschnitt 06: keine Huelle je Team. Zwoelf umrandete
+   Kaesten untereinander waren zwoelf Behauptungen „das hier ist ein
+   eigener Gegenstand" — bei einer Aufzaehlung stimmt das nicht. Was
+   trennt, ist die Haarlinie; was zusammenhaelt, ist der gleiche Abstand.
+   Der Rahmen bleibt als transparente Kante stehen, weil die Zustaende
+   beim Speichern (`data-row-state`) ihn einfaerben — sonst spraenge die
+   Zeile beim Sichern um 2px. */
 .t-team-row {
   display: grid;
   grid-template-columns: auto 28px 1fr auto;
   align-items: center;
   gap: var(--s3, 12px);
-  padding: var(--s2, 8px) var(--s3, 12px);
-  background: var(--surface);
-  border: 1px solid var(--line, #E5DED5);
-  border-radius: var(--r-card, 8px);
+  padding: 13px 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0;
   position: relative;
   touch-action: pan-y;          /* vertikalen Scroll erlauben, horizontales DnD blockieren */
   user-select: none;
 }
+.t-team-row + .t-team-row { border-top-color: var(--line-soft); }
 .t-team-row.is-dragging {
   z-index: 10;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
@@ -3986,44 +4060,80 @@ textarea.t-input {
   background: var(--surface);
   font-family: inherit;
 }
+/* --bg war der App-Grund (creme) und im Modul gar nicht definiert — der
+   Fallback #F7F4EE sprang ein und setzte einen cremefarbenen Fleck auf
+   das Blatt. Genau die Sorte Quelle, die kein grep in dieser Datei
+   findet, weil der Wert nur als Fallback dasteht. --sunk ist die
+   eingesenkte Flaeche, die auch Schrittwaehler und Herkunftspillen
+   tragen; die Herkunftspille der Vorlage ist ausserdem Mono. */
 .t-team-seed {
-  font-size: 12px;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  padding: 2px 8px;
-  background: var(--bg, #F7F4EE);
-  border-radius: 999px;
-}
-.t-team-edit-hint {
-  grid-column: 1 / -1;            /* eigene Zeile unter dem Row-Inhalt */
+  font-family: var(--f-mono);
   font-size: 11px;
-  color: var(--ink-soft);
-  font-style: italic;
-  margin-top: 2px;
-  display: none;                  /* per Default weg — nur bei Admin sichtbar */
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  padding: 3px 8px;
+  background: var(--sunk);
+  border-radius: var(--r-pill);
 }
-.t-teams-list.is-draggable .t-team-edit-hint {
-  display: block;
+/* Er steht seit dem 26.08. EINMAL ueber der Liste statt in jeder Zeile
+   (siehe renderTeamsList). Damit ist er ein Hinweis wie jeder andere und
+   braucht keine eigene Sonderbehandlung mehr — nur den Mono-Ton der
+   uebrigen Beschriftungen. */
+.t-team-edit-hint {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-style: normal;
+  margin: 0 0 var(--s2);
 }
+/* Auch hier stand `var(--bg, #F7F4EE)` — creme, aus einem Fallback, den
+   kein grep nach einer Farbe findet. Der Hinweis ist jetzt das, was die
+   Vorlage an dieser Stelle zeigt: ein Streifen an der Kante und Text,
+   kein getoenter Kasten. */
 .t-hint--info {
-  background: var(--bg, #F7F4EE);
-  border-left: 3px solid var(--accent, #1D3557);
-  padding: var(--s2, 8px) var(--s3, 12px);
-  border-radius: 4px;
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: var(--s2) 0 var(--s2) var(--s3);
   font-style: normal;             /* Override für t-hint italic */
-  margin-bottom: var(--s3, 12px);
+  margin-bottom: var(--s3);
+}
+.t-hint--info::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: var(--r-pill);
+  background: var(--flare);
 }
 
-/* Mobile (≤ 600px): kompakter, ohne Marker-Verkleinerung — der
-   Platz ist eh knapp, daher Name + Seed in einer Zeile ohne Edit-Hint
-   (Hint wäre 3 Zeilen, das sprengt die Sicht). */
+/* Mobile (≤ 600px): kompakter Marker, alles andere bleibt.
+   Zwei Zeilen von hier sind mit der dritten Fassung entfallen:
+
+   `padding: 6px 10px` — ein Shorthand, das die 20px-Fluchtlinie der
+   Zeile wieder eingezogen haette. Die Zeile bringt ihr Polster seit dem
+   26.08. selbst mit und bricht dafuer aus dem Polster der Ansicht aus;
+   ein Shorthand hier setzt beide Seiten zurueck. Dieselbe Falle wie beim
+   #content-Padding im P7-Fix.
+
+   `.t-team-edit-hint { display: none }` — der Hinweis stand damals in
+   JEDER Zeile und waere mobil dreimal umgebrochen. Er steht jetzt
+   einmal ueber der Liste und passt in eine Zeile. Ausgeblendet hiess
+   ausserdem: am Handy erfaehrt niemand, dass man umbenennen kann — und
+   das Handy ist der Hauptfall. */
 @media (max-width: 600px) {
   .t-team-row {
     grid-template-columns: auto 24px 1fr auto;
-    padding: 6px 10px;
+    padding-top: 11px;
+    padding-bottom: 11px;
   }
   .t-team-name { font-size: 14px; }
-  .t-team-edit-hint { display: none; }   /* Hint ist Mobile zu viel */
   .t-team-marker { width: 24px; height: 24px; font-size: 12px; }
 }
 
@@ -5320,74 +5430,55 @@ textarea.t-input {
 }
 
 /* ----------------------------------------------------------------
-   DER WEG ZUM TITEL — Markenuebernahme Etappe 6
+   DER WEG ZUM TITEL — entfallen, Entscheid Jonas 2026-08-26
    ----------------------------------------------------------------
-   Die Miniatur ueber dem Baum. Sie zeigt keine Paarungen, sondern nur,
-   wie weit es noch ist — ein vollstaendiger Baum ist auf 390px
-   unlesbar, das war der Befund vom 2026-08-19.
+   Hier standen sieben Regeln fuer eine Miniatur, die es im Modul nicht
+   gibt: renderBracket setzt `const wegHtml = ''` und begruendet das mit
+   Jonas' Urteil („das sieht nicht schoen aus").
+
+   Das Artefakt zeigt die Strecke in Abschnitt 05 ausdruecklich — der
+   Entscheid des Menschen schlaegt die Vorlage, und er steht seit dem
+   26.08. im Renderer. Was sie leisten sollte (zeigen, wie weit es noch
+   ist), leisten die Runden-Pillen mit Zahlen.
+
+   Die Regeln sind deshalb geloescht statt auskommentiert: totes CSS
+   sieht aus wie eine Moeglichkeit, und die naechste Sitzung haette
+   `.t-weg` fuer eine benutzte Komponente gehalten.
    ---------------------------------------------------------------- */
-.t-weg {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-s);
-  padding: var(--s3) var(--s4) var(--s2);
-  margin-bottom: var(--s3);
-}
-.t-weg-kopf {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s3);
-}
-.t-weg-titel {
-  font-family: var(--f-cond);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink);
-}
-.t-weg-stand {
-  font-family: var(--f-mono);
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.t-weg-svg {
-  width: 100%;
-  height: auto;
-  margin-top: var(--s2);
-  overflow: visible;
-}
-.t-weg-label {
-  font-family: var(--f-mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  fill: var(--muted);
-}
-.t-weg-label--ziel { fill: var(--flare); }
 
 /* Runden-Pillen: der Stand steht in der Pille, die aktuelle Runde ist
    TINTE gefuellt. Orange bleibt dem Titelweg vorbehalten — eine Runde
    ist ein Ort, kein Ziel. */
+/* Dritte Fassung, Abschnitt 05: „Halbfinale 0/2 war vorher eine eigene
+   Komponente mit eigenem Rahmen. Jetzt ist es die Segmentzeile aus
+   Abschnitt 01 mit Zaehlwert — eine Form weniger im System."
+   Deshalb dieselben Werte wie .t-chip: Archivo Narrow, Versalien,
+   gesperrt, kein Behaelter, aktiv tintengefuellt. Vorher stand hier
+   Archivo 600 in 14px mit Rahmen — auf 390px passten drei Runden damit
+   nicht nebeneinander und die dritte war abgeschnitten. */
 .bracket-tabs { display: flex; }
 .bracket-tab {
   display: inline-flex;
   align-items: baseline;
   gap: 7px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font-family: var(--f-disp);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--ink-2);
-  letter-spacing: -0.01em;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  background: none;
+  font-family: var(--f-cond);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
+.bracket-tab:hover { color: var(--ink); }
 .bracket-tab-stand {
   font-family: var(--f-mono);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -5396,7 +5487,7 @@ textarea.t-input {
   border-color: var(--ink);
   color: var(--panel);
 }
-.bracket-tab.is-active .bracket-tab-stand { color: var(--panel); opacity: 0.7; }
+.bracket-tab.is-active .bracket-tab-stand { color: var(--panel); opacity: 0.68; }
 
 /* Gefahrenzone: Karmin am Rand und in der Kopfzeile. Sie ist der einzige
    Bereich, der eine eigene Farbe traegt — alles andere in den
@@ -5692,15 +5783,41 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    genau dort setzt das Rangband mit `left: 0` an. Haette die Huelle
    weiter gepolstert, saesse das Band wieder im Nichts.
    ---------------------------------------------------------------- */
-.t-card.t-standings-karte,
-.t-card.t-thirds-card {
+/* Und zwar fuer JEDE Karte in einer Ansicht, nicht nur fuer die zwei
+   Tabellen. „Hier lagen vorher acht umrandete Listen uebereinander" —
+   das galt dem Regelwerk und dem Baum genauso. Eine Regel statt acht
+   Ausnahmen; wer eine Huelle behalten will, sagt es ausdruecklich
+   (siehe .t-fill-ko-card weiter unten). */
+.t-mod-main .t-card {
   background: none;
   border: 0;
   border-radius: 0;
+  box-shadow: none;
   overflow: visible;
 }
+.t-mod-main .t-card > .t-card-body { padding-left: 0; padding-right: 0; }
 .t-standings-karte > .t-card-body,
 .t-thirds-card > .t-card-body { padding: 0; }
+
+/* Die eine Huelle, die bleibt — und zwar in der Sprache dieser Fassung:
+   „K.-o.-Phase starten" ist der naechste Schritt und muss sich vom Rest
+   abheben. Statt Rahmen plus Farbverlauf traegt der Block jetzt den
+   3-px-Streifen, mit dem das Modul ueberall sonst Zustand zeigt. */
+.t-mod-main .t-card.t-fill-ko-card {
+  position: relative;
+  margin-top: var(--s5);
+  border: 0;
+}
+.t-mod-main .t-card.t-fill-ko-card::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--s5));
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--flare);
+}
 
 /* Kopfzeile der Tabelle: 20px seitlich wie die Zellen, oben viel Luft,
    unten wenig — dieselbe Asymmetrie wie bei den Mono-Beschriftungen.
@@ -5902,7 +6019,11 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
        darunter setzt den Titel auf eine eigene Fluchtlinie. */
     padding: var(--s3) var(--s5) var(--s2);
   }
-  .t-mod-header-inner { gap: 0; }
+  /* `row-gap`, nicht `gap`: das Shorthand hier stand spaeter in der Datei
+     als `.t-mod-header-inner--logo { column-gap: 13px }` und setzte den
+     Spaltenabstand bei gleicher Spezifitaet mit auf Null — gemessen
+     klebte der Kicker mit 0px am Logo. Gemeint war nur die Zeile. */
+  .t-mod-header-inner { row-gap: 0; }
   .t-title {
     font-size: 21px;
     line-height: 1.15;
@@ -6140,6 +6261,135 @@ button.t-lrow:disabled:hover { background: none; }
    Gruppentabellen: sie zeigt, wo ein Thema endet. */
 .t-lst + .t-grp-lbl { margin-top: var(--s5); }
 .t-settings-grid > .t-hint { margin-top: calc(var(--s1) * -1); }
+
+/* ================================================================
+   ABSCHNITT 06 — DIE LISTEN VERLIEREN IHRE HUELLEN
+   ----------------------------------------------------------------
+   „Hier lagen vorher acht umrandete Listen uebereinander. Es sind
+   dieselben Zeilen, nur ohne Huellen: die Mono-Zeile darueber gruppiert,
+   die Haarlinie trennt."
+
+   Was BLEIBT, ist das Einklappen. Die Vorlage zeichnet vier flache
+   Abschnitte; im echten Turnier sind es neun, und zugeklappte Bereiche
+   sind dort kein Schmuck, sondern der Grund, warum der Tab bedienbar
+   ist. Die FORM kommt aus der Vorlage, die FUNKTION bleibt.
+
+   Aus der Kopfzeile wird damit genau das, was die Vorlage `.glbl` nennt:
+   eine Mono-Beschriftung, 10,5px, 0,17em gesperrt, in --muted, mit viel
+   Luft darueber und wenig darunter. Diese Asymmetrie bindet die
+   Ueberschrift an die Zeilen unter ihr — genau das leistete vorher der
+   Rahmen. Das Dreieck rechts bleibt: es ist das einzige, was eine
+   zugeklappte von einer flachen Beschriftung unterscheidet.
+   ================================================================ */
+.t-settings-section,
+.t-lst {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.t-settings-section-header,
+.t-settings-section:first-child .t-settings-section-header {
+  padding: 22px 0 8px;
+  background: none;
+  border: 0;
+}
+.t-settings-section-header:hover { background: none; }
+.t-settings-section-header:hover .t-settings-section-title { color: var(--ink-2); }
+.t-settings-section-header:focus-visible { background: none; outline-offset: -2px; }
+.t-settings-section-header .t-settings-section-title,
+.t-settings-section-title {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.t-settings-section-toggle { color: var(--line); }
+/* Der Koerper braucht kein eigenes Polster mehr: die Zeilen bringen
+   ihres mit, und seitlich polstert die Ansicht. */
+.t-settings-section-body { padding: 0; gap: var(--s3); }
+/* Der Abstand zwischen den Abschnitten steckt jetzt IN der Beschriftung
+   (22px darueber, 8px darunter) — genau da, wo die Vorlage ihn hat. Ein
+   zusaetzlicher Flex-Abstand von 20px kam obendrauf und riss die Liste
+   auseinander: zwischen zwei zugeklappten Zeilen standen gemessen 50px
+   Leere. Die Asymmetrie ist der Punkt, nicht die Summe. */
+.t-settings-grid { gap: 0; }
+
+/* Die Zeile selbst holt sich die volle Blattbreite und gibt das Polster
+   innen zurueck — dasselbe Muster wie bei den Tabellen. Damit laufen
+   Trennlinie und Trefferflaeche von Kante zu Kante, waehrend der Text
+   auf der Fluchtlinie der Ansicht bleibt. Am Spieltisch mit dem Daumen
+   ist das der Unterschied zwischen „getroffen" und „danebengetippt". */
+.t-lrow,
+.t-team-row {
+  margin-inline: calc(-1 * var(--s5));
+  padding-left: var(--s5);
+  padding-right: var(--s5);
+}
+/* Die Gefahrenzone: Karminstreifen statt Karminrahmen. Der rote Rahmen
+   war der lauteste Kasten im ganzen Entwurf — und stand ganz unten, wo
+   ihn niemand aus Versehen trifft. Jetzt tragen die Zeilen selbst den
+   Streifen und die karminrote Schrift.
+   Der Streifen sitzt am Blattrand, also muss die Zeile aus dem Polster
+   der Ansicht ausbrechen und es innen zurueckgeben — dasselbe Muster
+   wie bei den Tabellen. */
+.t-lst--danger,
+.t-settings-section.t-danger-zone {
+  /* `border: 0`, nicht `border-color: transparent`: .t-danger-zone setzt
+     das Shorthand mit 2px, und eine durchsichtige 2px-Kante ruecken die
+     Zeilen trotzdem ein. */
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.t-settings-section.t-danger-zone .t-settings-section-header { background: none; }
+.t-settings-section.t-danger-zone .t-settings-section-title { color: var(--danger); }
+.t-lrow--danger { position: relative; }
+.t-lrow--danger::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--danger);
+}
+
+/* Der Zustandsblock oben: aus der Statuskarte wird ein Streifenblock.
+   Sie hatte Rahmen, Schatten UND einen Teal-Balken links — der Balken
+   allein sagte schon alles. Er bleibt, der Rest faellt weg. Die drei
+   Zahlen sind das Signal, nicht die Umrandung. */
+.t-status-card {
+  position: relative;
+  margin-inline: calc(-1 * var(--s5));
+  padding: 15px var(--s5) 17px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.t-status-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--live);
+}
+
+/* Der Schrittwaehler ist eine gefuellte Pille ohne Rahmen — die Flaeche
+   zeigt, dass man tippen darf, ohne dass ein Rahmen es behauptet. */
+.t-step {
+  border: 0;
+  border-radius: var(--r-pill);
+}
+.t-step-btn { border-radius: var(--r-pill); }
 
 /* ----------------------------------------------------------------
    FILTER ALS AUSWAHLFELD — dritte Fassung, Entscheid Jonas 2026-08-26
