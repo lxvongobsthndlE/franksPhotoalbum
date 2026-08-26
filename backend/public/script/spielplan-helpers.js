@@ -1368,9 +1368,78 @@ export function renderEinstellungen(t, opts = {}) {
           ${fieldsReason}
         </div>
       </section>
+      ${renderLogoBlock({ t, isAdmin })}
       ${renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen: !isDraft })}
       ${dangerZone}
     </div>
+  `;
+}
+
+/**
+ * Block — Turnierlogo.
+ *
+ * Bis zum 26.08.2026 ließ sich ein Logo NUR im Wizard setzen. Wer nach dem
+ * Erstellen eines nachreichen oder tauschen wollte, hatte keinen Weg —
+ * die Route gab es, den Einstieg nicht.
+ *
+ * Anders als beim Zuschauer-Link gibt es hier keinen Entwurfs-Sonderfall:
+ * Ein Logo darf in jedem Status gesetzt werden, auch im laufenden Turnier.
+ * Es ändert keine Paarung und kein Ergebnis — es steht auf dem Ausdruck
+ * und im Kopf der Ansicht.
+ *
+ * Der Server nimmt PNG, JPEG und WebP, verkleinert selbst auf 512 px und
+ * schreibt immer PNG. Das `accept` unten spiegelt seine Allowlist; SVG ist
+ * dort bewusst gesperrt, weil eine Vektordatei Skripte tragen kann.
+ */
+function renderLogoBlock({ t, isAdmin }) {
+  if (!isAdmin) return '';
+
+  const tour = t?.tournament ?? {};
+  const hatLogo = typeof tour.logoUrl === 'string' && tour.logoUrl.length > 0;
+
+  // Der Dateiname am Server ist für alle Turniere gleich („logo"), die
+  // Adresse also auch. Nach einem Austausch zeigt der Browser sonst das
+  // alte Bild aus seinem Zwischenspeicher. Der Zeitstempel wird beim
+  // Rendern gesetzt und ändert sich mit jedem Neuaufbau nach dem Upload.
+  const bildUrl = hatLogo
+    ? `${esc(tour.logoUrl)}${tour.logoUrl.includes('?') ? '&' : '?'}v=${Date.now()}`
+    : '';
+
+  const body = hatLogo
+    ? `
+      <div class="t-settings-actions" style="align-items:center">
+        <img src="${bildUrl}" alt="Aktuelles Turnierlogo"
+             style="width:72px;height:72px;object-fit:contain;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;padding:5px;flex:none">
+        <button class="t-btn t-btn--ghost" data-action="upload-logo" type="button">Logo austauschen</button>
+        <button class="t-btn t-btn--danger" data-action="remove-logo" type="button">Entfernen</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Erscheint im Kopf des Turniers, auf dem Ausdruck und auf der
+        Zuschauer-Seite.
+      </div>
+    `
+    : `
+      <div class="t-settings-actions">
+        <button class="t-btn t-btn--primary" data-action="upload-logo" type="button">Logo hochladen</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        PNG, JPEG oder WebP, bis 5 MB. Größere Bilder werden automatisch auf
+        512 Pixel verkleinert.
+      </div>
+    `;
+
+  return `
+    <section class="t-settings-section" data-section="logo" data-collapsed="true">
+      <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="false">
+        <span class="t-settings-section-title">Turnierlogo</span>
+        <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+      </button>
+      <div class="t-settings-section-body">
+        ${body}
+        <input type="file" hidden data-logo-file-input
+               accept="image/png,image/jpeg,image/webp">
+      </div>
+    </section>
   `;
 }
 
