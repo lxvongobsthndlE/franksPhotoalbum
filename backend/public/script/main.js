@@ -145,16 +145,6 @@ let tournamentInstances = [];
 let currentTournamentListIsAdmin = false;
 let activeTournamentInstance = null;
 let curTournamentView = 'instances';
-// Der Auto-Sprung (genau EIN Turnier -> direkt ins Detail) darf den
-// ausdruecklichen Wunsch „zeig mir die Uebersicht" nicht ueberstimmen.
-// Ohne dieses Flag war die Uebersicht bei genau einem Turnier gar nicht
-// mehr erreichbar: „Zurueck zur Liste" setzte activeTournamentInstance
-// auf null, lud die Liste — und der Auto-Sprung warf sofort wieder ins
-// selbe Detail. Damit fehlte auch der einzige Weg zu „Neu", denn der
-// Erstellen-Knopf steht seit dem 26.08. NUR in der Uebersicht.
-// Gesetzt wird das Flag von switchToTournamentInstances({ forceList: true }),
-// zurueckgesetzt beim Oeffnen eines Turniers.
-let tournamentListForced = false;
 let allAlbums = [];
 let urlCache = {};
 let lbIdx = 0,
@@ -1941,23 +1931,20 @@ async function switchToTournaments(view = 'instances', { closeSidebarFirst = tru
 }
 
 /**
+/**
  * Zurueck in die Turnier-Uebersicht.
  *
- * @param {object}  [opts]
- * @param {boolean} [opts.forceList=false]
- *   true = der Nutzer hat die Uebersicht ausdruecklich verlangt („Zurueck
- *   zur Uebersicht"). Dann wird der Auto-Sprung bei genau einem Turnier
- *   unterdrueckt, bis wieder ein Turnier geoeffnet wird.
- *   false = Modulwechsel von aussen (Seitenleiste „Turniere"). Dort bleibt
- *   der Auto-Sprung gewollt (Entscheid 2026-08-25).
+ * Nimmt seit dem 26.08. keine Optionen mehr entgegen: solange es den
+ * Auto-Sprung gab, brauchte der Aufrufer ein `forceList`, um ihn zu
+ * unterdruecken. Ohne Sprung gibt es nichts zu unterdruecken — die
+ * Uebersicht ist einfach die Uebersicht.
  */
-async function switchToTournamentInstances({ forceList = false } = {}) {
+async function switchToTournamentInstances() {
   // Gegenrichtung zum Aufbau in openTournamentInstance: wer die Liste
   // oeffnet, ist in keinem Turnier mehr. Ohne dieses Zuruecksetzen bliebe
   // das Gate der Kopfleiste auf „Detail offen" stehen und der
   // Erstellen-Knopf fehlte dort, wo er hingehoert.
   activeTournamentInstance = null;
-  tournamentListForced = forceList === true;
   await switchToTournaments('instances');
 }
 
@@ -2600,58 +2587,31 @@ async function loadTournamentInstances(reset = false) {
       if (!stillExists) activeTournamentInstance = null;
     }
 
-    // P4 (2026-08-24, User-Liste): Wenn in der Gruppe genau EIN Turnier
-    // existiert, direkt ins Detail springen. Gilt für Admins UND
-    // Mitglieder — User-Begründung: „Wenn es nur eins gibt, ist die
-    // Liste überflüssig." Draft-Turniere sind für Mitglieder unsichtbar
-    // (Server filtert sie schon raus), Admin mit nur-1-Draft sieht die
-    // Liste weiterhin — Drafts brauchen expliziten Klick zum Bearbeiten.
+    // Der Auto-Sprung ist ERSATZLOS ENTFALLEN (2026-08-26, dritte Ansage
+    // von Jonas: „er springt automatisch in das bestehende turnier und ich
+    // werde aus dem eigentlichen turnierauswahlsmenue direkt in das turnier
+    // geworfen").
     //
-    // Auto-Jump-Re-Fix (User-Punkt 2, 2026-08-25): Vorher stand hier
-    // `!activeTournamentInstance?.id` als Bedingung — sollte Re-Jump
-    // überspringen, wenn schon ein Turnier aktiv war. User-Bericht:
-    // „Klick auf 'Turniere' öffnet trotzdem die Auswahlliste mit
-    // einem Eintrag." Diagnose: User war auf Detail A, klickte
-    // Seitenleiste-Turniere → activeTournamentInstance?.id = A (truthy)
-    // → Auto-Jump wurde geskippt → Liste wurde gerendert. Bei genau
-    // 1 Turnier ist die Liste aber IMMER überflüssig — Re-Jump ins
-    // gleiche Detail ist ein No-Op visuell (viewState-Capture stellt
-    // Scroll/Tab wieder her), spart aber die Listen-Flash.
-    const visibleInstances = tournamentInstances.filter((t) => {
-      // Admins sehen alle Statusse in der Liste (auch Drafts).
-      // Mitglieder kriegen vom Server nur Nicht-Drafts.
-      return currentTournamentListIsAdmin || t.status !== 'draft';
-    });
+    // Was hier stand: bei genau einem sichtbaren Turnier wurde sofort das
+    // Detail geladen (P4, 24.08.), ab dem 25.08. auch dann, wenn schon ein
+    // Turnier offen war. Begruendung damals: „Wenn es nur eins gibt, ist die
+    // Liste ueberfluessig."
     //
-    // Ausnahme (2026-08-26, Jonas: „ich komme nicht ins Turniermenue
-    // wenn ich nur ein Turnier habe"): Wer ausdruecklich „Zurueck zur
-    // Uebersicht" gedrueckt hat, bekommt die Uebersicht. Sonst war sie
-    // bei genau einem Turnier eine Sackgasse — und mit ihr der einzige
-    // Weg zu „Neues Turnier", denn der Erstellen-Knopf steht seit
-    // derselben Runde nur noch in der Uebersicht (`detailOffen`-Gate in
-    // renderTournamentHeaderActions). Zwei Aenderungen desselben Tages,
-    // die einander die Tuer zugemauert haben.
-    if (
-      visibleInstances.length === 1
-      && curTournamentView === 'instances'
-      && !tournamentListForced
-    ) {
-      // Betriebsfestigkeit (2026-08-25): Der Auto-Sprung bekommt sein
-      // EIGENES try. Vorher lag er im try des Listen-Ladens — hakte nur
-      // der Sprung, legte der Listen-catch „Turniere konnten nicht
-      // geladen werden" über eine Liste, die vollständig geladen war.
-      // Jetzt: Liste zeigen statt Fehlerbild.
-      try {
-        await openTournamentInstance(visibleInstances[0].id);
-        return;
-      } catch (jumpErr) {
-        // eslint-disable-next-line no-console
-        console.warn('[loadTournamentInstances] Auto-Sprung fehlgeschlagen', jumpErr);
-        renderTournamentInstancesPage();
-        return;
-      }
-    }
-
+    // Sie war es nicht. Die Uebersicht ist der Ort, an dem ein Turnier
+    // ANGELEGT wird — sie hat eine Aufgabe, die von der Anzahl ihrer
+    // Eintraege unabhaengig ist. Eine Ansicht danach zu bemessen, wie voll
+    // sie ist, uebersieht, was sie sonst noch traegt.
+    //
+    // Drei Anlaeufe an drei Tagen haben um diesen Sprung herumgebaut:
+    // Ausnahme-Flag, Ausgang in der Seitenleiste, Erstellen-Weg ins Modul
+    // verlegt. Keiner hat beruehrt, dass eine Ansicht sich selbst
+    // uebersprang. Wer ihn zurueckholen will, braucht dafuer einen Zustand,
+    // der „ich will hier arbeiten" von „ich will schnell rein" trennt — die
+    // Anzahl der Turniere ist dieser Zustand nicht.
+    //
+    // Der Erstellen-Weg im Modul (Seitenleiste + Mehr-Blatt) BLEIBT: wer im
+    // Turnier steckt und ein zweites anlegen will, soll nicht erst
+    // hinausnavigieren muessen. Er haengt nicht am Sprung.
     renderTournamentInstancesPage();
   } catch (e) {
     const icon = $('empty-icon');
@@ -3238,12 +3198,6 @@ function handleTournamentTabSideEffects(view, t, detail) {
 }
 
 async function openTournamentInstance(instanceId) {
-  // Ein geoeffnetes Turnier verbraucht den Uebersichts-Wunsch: ab hier
-  // darf der Auto-Sprung wieder greifen. Sonst bliebe die Unterdrueckung
-  // fuer den Rest der Sitzung stehen und der Klick auf „Turniere" in der
-  // Seitenleiste landete dauerhaft in einer Liste mit einem Eintrag —
-  // genau die Beschwerde vom 25.08.
-  tournamentListForced = false;
   try {
     // Bug #12 (User-Punkt 1, 2026-08-18): Vor dem Re-Render Scroll-
     // Position und aktiven Tab merken, danach wiederherstellen.
@@ -3805,10 +3759,7 @@ function renderTournamentInstanceDetailV3(t) {
     detail.querySelectorAll('[data-action="back"]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (typeof switchToTournamentInstances === 'function') {
-          // forceList: Der Klick IST der Wunsch nach der Uebersicht.
-          // Ohne dieses Argument wirft der Auto-Sprung bei genau einem
-          // Turnier sofort wieder ins Detail zurueck.
-          switchToTournamentInstances({ forceList: true });
+          switchToTournamentInstances();
         } else {
           history.back();
         }
@@ -3826,12 +3777,9 @@ function renderTournamentInstanceDetailV3(t) {
     // (die den Grid-Zustand zuruecksetzt und den Wizard-Rest abraeumt),
     // dann oeffnen. Ein Weg, nicht zwei.
     //
-    // forceList unterdrueckt dabei den Auto-Sprung: ohne das Argument
-    // laege bei genau einem Turnier sofort wieder das Detail obenauf und
-    // der Wizard mountete in eine Schale, die er gerade verlassen hat.
     detail.querySelectorAll('[data-action="new-tournament"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        await switchToTournamentInstances({ forceList: true });
+        await switchToTournamentInstances();
         await openTournamentWizard();
       });
     });
