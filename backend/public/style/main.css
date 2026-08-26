@@ -6330,7 +6330,13 @@ button.tournament-header-btn {
    kommt heute in keinem HTML/JS mehr vor (geprueft ueber public/**).
    Damit ist der Rumpf ebenfalls tot und faellt weg. Nebeneffekt: die
    Klammerbilanz der Datei war -2 (eine Klammer hier, eine bei
-   .t-thirds-row.is-out weiter oben) und steht jetzt auf 0. */
+   .t-thirds-row.is-out weiter oben) und steht jetzt auf 0.
+   NACHTRAG 2026-08-26: Ein roher Klammer-Zaehler (oeffnende minus
+   schliessende) meldet fuer diese Datei trotzdem +1. Das ist ein
+   Messfehler, kein Defekt: die eine ueberzaehlige oeffnende Klammer
+   steht sieben Zeilen weiter oben IN DIESEM KOMMENTAR, im dort
+   zitierten Selektor. Wer nachmisst, muss Kommentare und Strings
+   vorher maskieren -- dann ist die Bilanz 0. */
 
 /* S4.3 — Match-Detail-Panel: Notiz, Foto, Audit-Log */
 .t-match-audit {
