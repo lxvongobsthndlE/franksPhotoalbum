@@ -2347,6 +2347,23 @@ function renderTournamentHeaderActions() {
   }
 
   const isInstancesView = normalizeTournamentView(curTournamentView) === 'instances';
+
+  // Rechte-Prüfung, 26.08.2026: „Turnier erstellen" ist eine Admin-Aktion
+  // (POST /api/tournaments antwortet Mitgliedern mit 403). Der Knopf hing
+  // bis hierher allein an isInstancesView — ein Mitglied sah ihn also,
+  // konnte den Wizard durchlaufen und lief erst ganz am Ende in den 403.
+  //
+  // Der P1-Scan hat das nicht gefangen, weil dieser Knopf kein
+  // data-action trägt, sondern über onClick verdrahtet ist. Wer hier
+  // einen weiteren Knopf ergänzt, prüft die Rolle selbst — der Scan
+  // sieht diese Stelle nicht.
+  //
+  // Voreinstellung ist „kein Knopf": renderTournamentHeaderActions läuft
+  // einmal, BEVOR die Liste geladen und currentTournamentListIsAdmin
+  // gesetzt ist. Lieber erscheint der Knopf einen Wimpernschlag später,
+  // als dass ihn kurz jemand sieht, der ihn nicht haben darf.
+  const darfErstellen = currentTournamentListIsAdmin === true;
+
   const actionButtons = isInstancesView
     ? [
         {
@@ -2355,15 +2372,17 @@ function renderTournamentHeaderActions() {
           className: 'btn btn-ghost',
           onClick: () => loadActiveTournamentView(true),
         },
-        {
-          // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
-          // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
-          // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
-          id: 'tournament-new-instance-btn',
-          label: 'Turnier erstellen',
-          className: 'btn btn-primary tournament-new-instance-btn',
-          onClick: openTournamentWizard,
-        },
+        ...(darfErstellen
+          ? [{
+            // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
+            // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
+            // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
+            id: 'tournament-new-instance-btn',
+            label: 'Turnier erstellen',
+            className: 'btn btn-primary tournament-new-instance-btn',
+            onClick: openTournamentWizard,
+          }]
+          : []),
       ]
     : [];
 
@@ -2486,6 +2505,11 @@ async function loadTournamentInstances(reset = false) {
     // P1 (2026-08-24, User-Liste): server-derived isAdmin pro Turnier
     // cachen — renderTournamentInstancesPage braucht es für die Müll-Buttons.
     currentTournamentListIsAdmin = instanceData?.isAdmin === true;
+    // Rechte-Prüfung 26.08.2026: Die Kopfleiste wurde weiter oben schon
+    // gebaut, damals ohne diesen Wert — für einen Admin fehlte der Knopf
+    // „Turnier erstellen" deshalb noch. Jetzt, wo die Rolle feststeht,
+    // einmal nachziehen.
+    renderTournamentHeaderActions();
     // Module ist aktiv — Cache-Flag setzen
     if (typeof window !== 'undefined') window.__tournamentModuleEnabled = true;
 
