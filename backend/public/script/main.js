@@ -5029,16 +5029,28 @@ function wireEinstellungen(mount, t, { finishedCount }) {
         toast(lockState.canEditGroups.reason || 'Gruppeneinteilung ist gesperrt', 'error');
         return;
       }
+      // Seit dem 26.08. ziehen die SPIELE mit (Entscheid Jonas): wer die
+      // Einteilung aendert, aendert den Spielplan der Gruppenphase. Der
+      // Dialog muss deshalb sagen, was verlorengeht — und ab einem
+      // beendeten Spiel den Turniernamen verlangen, wie bei jeder anderen
+      // zerstoerenden Aktion.
+      const verliertErgebnisse = finishedCount > 0;
       const ok = await openConfirmDialog({
         title: 'Zufällig verteilen',
-        message:
-          'Die Teams werden zwischen den vorhandenen Gruppen neu gemischt. ' +
-          'Gruppengrößen bleiben gleich — es werden nur die Zuordnungen getauscht.',
+        message: verliertErgebnisse
+          ? `Die Teams werden neu gemischt — und der Spielplan der Gruppenphase `
+            + `wird dabei neu erzeugt. ${finishedCount} bereits eingetragene `
+            + `Ergebnis${finishedCount === 1 ? '' : 'se'} gehen verloren, und die `
+            + `K.-o.-Phase wird zurückgesetzt.`
+          : 'Die Teams werden zwischen den vorhandenen Gruppen neu gemischt. '
+            + 'Gruppengrößen bleiben gleich. Der Spielplan der Gruppenphase wird '
+            + 'dabei neu erzeugt — es sind noch keine Ergebnisse eingetragen.',
+        expectedName: verliertErgebnisse ? t.name : null,
         confirmLabel: 'Neu mischen',
-        danger: false,
+        danger: verliertErgebnisse,
       });
       if (ok?.cancelled) return;
-      await balanceShuffleGroups(t.id);
+      await balanceShuffleGroups(t.id, t.name, finishedCount);
     });
   }
 
@@ -5115,12 +5127,23 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       swapConfirmBtn.disabled = true;
       let saved = false;
       try {
-        await apiCall(
+        // Dieselbe Regel wie bei „Zufaellig verteilen" — zwei Tueren in
+        // denselben Raum duerfen nicht verschieden streng sein.
+        const swapBody = { swaps: [[selected[0].teamId, selected[1].teamId]] };
+        if (finishedCount > 0) swapBody.confirmTournamentName = t.name;
+        const swapRes = await apiCall(
           `/tournaments/${encodeURIComponent(t.id)}/groups/swaps`,
           'POST',
-          { swaps: [[selected[0].teamId, selected[1].teamId]] }
+          swapBody
         );
-        toast(`${selected[0].name} ↔ ${selected[1].name} getauscht`, 'success');
+        const neuS = swapRes?.spielplanNeu;
+        toast(
+          neuS
+            ? `${selected[0].name} ↔ ${selected[1].name} getauscht — `
+              + `${neuS.spieleNachher} Gruppenspiele neu angesetzt`
+            : `${selected[0].name} ↔ ${selected[1].name} getauscht`,
+          'success',
+        );
         saved = true;
       } catch (e) {
         if (e?.status === 409 && /groups_locked/.test(e.serverMessage || '')) {
@@ -5438,16 +5461,28 @@ async function redrawSeeding(tournamentId, tournamentName, finishedCount) {
  *
  * @param {string} tournamentId
  */
-async function balanceShuffleGroups(tournamentId) {
+/**
+ * @param {string} tournamentId
+ * @param {string} [tournamentName] Pflicht, sobald ein Spiel beendet ist —
+ *   die Route verlangt seit dem 26.08. den Namen zur Bestaetigung, weil
+ *   das Neuverteilen den Spielplan der Gruppenphase neu erzeugt.
+ * @param {number} [finishedCount]
+ */
+async function balanceShuffleGroups(tournamentId, tournamentName, finishedCount = 0) {
   let saved = false;
   try {
+    const body = finishedCount > 0 ? { confirmTournamentName: tournamentName } : {};
     const res = await apiCall(
       `/tournaments/${encodeURIComponent(tournamentId)}/balance-shuffle-groups`,
       'POST',
-      {}
+      body
     );
+    const neu = res?.spielplanNeu;
     toast(
-      `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, Größe pro Gruppe gleich`,
+      neu
+        ? `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, `
+          + `${neu.spieleNachher} Gruppenspiele neu angesetzt`
+        : `Gruppen neu gemischt — ${res?.shuffledTeamCount ?? 0} Teams, Größe pro Gruppe gleich`,
       'success'
     );
     saved = true;
