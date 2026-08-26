@@ -93,8 +93,7 @@
 }
 [data-theme='dark'] .cloud {
   display: none;
-}
-@media (hover: hover) {
+}@media (hover: hover) {
   [data-theme='dark'] .p-card:hover .p-thumb img.loaded,
   [data-theme='dark'] .p-card:hover .p-thumb .p-thumb-vid.loaded {
     filter: blur(2px) brightness(0.5);
@@ -309,10 +308,7 @@ button.tournament-header-btn {
 
 .tournament-grid-columns-single {
   grid-template-columns: minmax(280px, 1fr);
-}
-
-
-@media (max-width: 420px) {
+}@media (max-width: 420px) {
   .tournament-meta-pill {
     font-size: 10px;
     padding: 2px 6px;
@@ -739,107 +735,6 @@ button.tournament-header-btn {
   color: var(--accent);
   margin-bottom: 16px;
   font-weight: 500;
-}
-
-/* ── SSO CARD ─────────────────────────────────────────────── */
-.sso-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: linear-gradient(135deg, #1a1f2e 0%, #222a3a 100%);
-  border: 1px solid rgba(99, 130, 210, 0.25);
-  border-radius: var(--r2);
-  padding: 20px 24px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.18),
-    0 0 0 1px rgba(99, 130, 210, 0.08);
-  animation: fadeUp 0.45s ease;
-}
-[data-theme='light'] .sso-card {
-  background: linear-gradient(135deg, #1e2640 0%, #2a3456 100%);
-}
-.sso-card-inner {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1;
-  min-width: 0;
-}
-.sso-logo-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-}
-.sso-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.sso-card-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.sso-card-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: rgba(150, 170, 230, 0.7);
-}
-.sso-card-desc {
-  font-size: 13px;
-  color: rgba(220, 225, 240, 0.85);
-  font-weight: 400;
-  line-height: 1.4;
-}
-.sso-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #5b7fe8, #7c5dfa);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    opacity 0.18s,
-    transform 0.15s;
-  box-shadow: 0 3px 14px rgba(91, 127, 232, 0.4);
-}
-.sso-btn:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-.sso-btn:active {
-  transform: translateY(0);
-  opacity: 1;
-}
-@media (max-width: 480px) {
-  .sso-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .sso-btn {
-    justify-content: center;
-  }
-  .sso-card-desc {
-    white-space: normal;
-  }
 }
 .field {
   margin-bottom: 18px;
@@ -2602,8 +2497,7 @@ button.tournament-header-btn {
 .select-wrap {
   position: relative;
   display: inline-flex;
-}
-@media (max-width: 900px) {
+}@media (max-width: 900px) {
   .select-wrap select {
     color: transparent;
     width: 85px;
@@ -3104,8 +2998,7 @@ button.tournament-header-btn {
 .p-card.visible {
   opacity: 1;
   transform: translateY(0);
-}
-@media (hover: hover) {
+}@media (hover: hover) {
   .p-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 32px rgba(15, 25, 40, 0.14);
@@ -3176,8 +3069,7 @@ button.tournament-header-btn {
   letter-spacing: 0.02em;
   z-index: 3;
   pointer-events: none;
-}
-@media (hover: hover) {
+}@media (hover: hover) {
   .p-card:hover .p-thumb img.loaded,
   .p-card:hover .p-thumb .p-thumb-vid.loaded {
     transform: scale(1.08);
@@ -4327,9 +4219,7 @@ button.tournament-header-btn {
 /* ── BOTTOM NAV GONE ── */
 #bottom-nav {
   display: none !important;
-}
-
-@media (max-width: 900px) {
+}@media (max-width: 900px) {
   .hamburger-btn {
     display: flex;
   }
@@ -4786,8 +4676,7 @@ button.tournament-header-btn {
   animation:
     fadeIn 0.3s ease,
     fadeOut 0.3s ease 2s forwards;
-}
-@media (max-width: 900px) {
+}@media (max-width: 900px) {
   .lb-bg.lb-fullview .lb-img-side {
     padding: calc(12px + env(safe-area-inset-top)) 8px 12px;
   }
@@ -5426,9 +5315,7 @@ button.tournament-header-btn {
 .inline-help-tip:focus-visible .inline-help-pop {
   opacity: 1;
   visibility: visible;
-}
-
-@media (max-width: 640px) {
+}@media (max-width: 640px) {
   .grid.feed-grid {
     max-width: 100%;
   }
@@ -5626,9 +5513,7 @@ button.tournament-header-btn {
   gap: 14px;
   max-height: min(720px, calc(100vh - 40px));
   overflow: hidden;
-}
-
-@media (min-width: 900px) {
+}@media (min-width: 900px) {
   .tournament-detail-dlg {
     /* Auf Desktop darf sie breiter werden, damit Bracket-Formulare
        und Drag&Drop-Listen gut lesbar bleiben. */
@@ -6153,131 +6038,6 @@ button.tournament-header-btn {
   white-space: nowrap;
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   TOURNAMENT PHASE 4 — Wizard + Scheduling + Cascade
-   ════════════════════════════════════════════════════════════════════ */
-
-/* Wizard-Stepper (Fortschrittsanzeige oben) */
-.wizard-stepper {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-}
-.wizard-stepper-step {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  position: relative;
-  text-align: center;
-}
-.wizard-stepper-step.is-active {
-  background: var(--accent-l);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.wizard-stepper-step.is-complete {
-  background: rgba(90, 158, 122, 0.1);
-  border-color: rgba(90, 158, 122, 0.5);
-}
-.wizard-stepper-step-num {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-}
-.wizard-stepper-step.is-active .wizard-stepper-step-num,
-.wizard-stepper-step.is-complete .wizard-stepper-step-num {
-  color: var(--accent);
-}
-.wizard-stepper-step-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text2);
-}
-.wizard-stepper-step.is-active .wizard-stepper-step-label {
-  color: var(--accent);
-}
-
-/* Wizard Body */
-.wizard-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-height: 50vh;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-.wizard-step-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text2);
-  margin: 0 0 4px;
-}
-.wizard-step-subtitle {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 0 0 8px;
-}
-.wizard-summary-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  font-size: 13px;
-}
-.wizard-summary-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 6px 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-.wizard-summary-row strong {
-  color: var(--text2);
-}
-.wizard-nav {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.wizard-nav .btn-wizard-back {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text2);
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.wizard-nav .btn-wizard-back:hover {
-  background: var(--bg);
-}
-.wizard-nav .btn-wizard-next,
-.wizard-nav .btn-wizard-create {
-  background: var(--accent);
-  border: none;
-  color: #fff;
-  padding: 9px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-}
-.wizard-nav .btn-wizard-next:disabled,
-.wizard-nav .btn-wizard-create:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* Cascade-Warnung Dialog */
 .t-cascade-warn-body {
   font-size: 13px;
@@ -6303,17 +6063,11 @@ button.tournament-header-btn {
   max-width: 1800px;
   margin: 0 auto;
   padding: clamp(8px, 1.5vw, 24px);
-}
-
-@media (max-width: 767px) {
+}@media (max-width: 767px) {
   .t-shell { grid-template-columns: 1fr; }
-}
-
-@media (min-width: 768px) and (max-width: 1199px) {
+}@media (min-width: 768px) and (max-width: 1199px) {
   .t-shell { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}
-
-@media (min-width: 1200px) {
+}@media (min-width: 1200px) {
   .t-shell { grid-template-columns: 220px minmax(0, 1fr) 280px; }
 }
 
@@ -6383,17 +6137,6 @@ button.tournament-header-btn {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* S3.2 — Live-Preview-Box im Wizard */
-.wizard-preview {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--muted);
 }
 
 /* S3.4 — Match-Karte (konsistent über alle Views) */
