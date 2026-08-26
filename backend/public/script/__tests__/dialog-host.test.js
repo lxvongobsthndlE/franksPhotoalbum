@@ -38,6 +38,14 @@ const read = (...p) => readFileSync(resolve(__dirname, '..', ...p), 'utf8');
 const mainJs = read('main.js');
 const tournamentJs = read('tournament.js');
 const tournamentCss = read('..', 'style', 'tournament.css');
+// Markenuebernahme (2026-08-26): Palette und Schrift sind aus
+// tournament.css nach tokens.css gewandert — sie standen vorher an drei
+// Stellen (hier, live.html, aushang.html). Wer Token-DEFINITIONEN prueft,
+// muss beide Dateien ansehen; wer Komponenten-Regeln prueft, nur
+// tournament.css. Die Verkettung haelt die bestehenden Pruefungen gueltig,
+// ohne dass jede einzeln entscheiden muss, wo ihr Gegenstand liegt.
+const tokensCss = read('..', 'style', 'tokens.css');
+const styleQuellen = tournamentCss + tokensCss;
 
 // ─────────────────────────────────────────────────────────────────
 // 1. Die reinen Funktionen
@@ -281,8 +289,13 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     // In beiden Themes definiert — plus einmal im Druck-Block, der den
     // ganzen Token-Satz auf Schwarz-auf-Weiss zuruecksetzt (Papier hat
     // genau ein Thema). Deshalb >= 2 und nicht == 2.
-    expect((tournamentCss.match(/--accent-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
-    expect((tournamentCss.match(/--danger-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
+    // Gesucht wird ueber BEIDE Stylesheets: die Themen-Definitionen liegen
+    // seit der Markenuebernahme in tokens.css, der Druck-Block weiter in
+    // tournament.css. Die Aussage des Tests ist unveraendert — der Token
+    // muss in jedem Thema einen Wert haben, sonst faellt der Knopftext auf
+    // Weiss zurueck und wird auf heller Fuellung unlesbar.
+    expect((styleQuellen.match(/--accent-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect((styleQuellen.match(/--danger-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   it('der Bottom-Sheet gilt nur für den Ergebnis-Dialog, nicht für jede Bestätigung', () => {

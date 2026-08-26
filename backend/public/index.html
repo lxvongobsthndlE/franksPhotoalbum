@@ -35,6 +35,11 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./style/main.css" />
+    <!-- tokens.css MUSS vor tournament.css stehen: es definiert die
+         Marken-Palette auf .t-mod, tournament.css benutzt sie. Die
+         Datei ist zugleich die Quelle fuer live.html und aushang.html,
+         damit es nur EINE Stelle mit diesen Hex-Werten gibt. -->
+    <link rel="stylesheet" href="./style/tokens.css" />
     <link rel="stylesheet" href="./style/tournament.css" />
     <link rel="stylesheet" href="./style/brand.css" />
     <script>
