@@ -702,10 +702,28 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
           const ga = s.goalsAgainst ?? 0;
           const gd = s.goalDiff ?? (gf - ga);
           const rank = i + 1;
+          // Markenuebernahme (2026-08-26): zwei Zustaende statt drei.
+          //
+          // A3 hatte is-qualified / is-cutoff / is-pending — Flaeche fuer
+          // "steigt auf", Linie fuer die Grenze, Bernstein fuer den
+          // Anwaerter darunter. Der Marken-Entwurf schneidet das anders:
+          //   Platz 1              -> is-lead       (Orange, Weg zum Titel)
+          //   Platz 2..N           -> is-qualified  (Gruen, qualifiziert)
+          //   alles darunter       -> nichts
+          //
+          // Die Grenze braucht keine eigene Linie mehr: sie ist da, wo das
+          // FARBBAND links aufhoert. Das Band ist ausserdem das Signal, das
+          // ohne Farbe funktioniert — bei Rot-Gruen-Schwaeche unterscheidet
+          // man Orange und Gruen nicht, aber "Band da" von "Band nicht da"
+          // sehr wohl. Deshalb ersetzt es die Trennlinie, statt sie zu
+          // ergaenzen.
+          //
+          // is-pending faellt weg: wer als Dritter noch Chancen hat, steht
+          // in der Beste-Dritte-Tabelle, und dort mit eigener Wertung. Ein
+          // zweiter Ort fuer dieselbe Aussage war eine Wiederholung.
           const cls = [
-            rank <= advance ? 'is-qualified' : '',
-            rank === advance ? 'is-cutoff' : '',
-            rank === advance + 1 ? 'is-pending' : '',
+            rank === 1 ? 'is-lead' : '',
+            rank > 1 && rank <= advance ? 'is-qualified' : '',
           ].filter(Boolean).join(' ');
           return `<tr class="t-standings-row${cls ? ' ' + cls : ''}">
             <td class="t-standings-rank" data-col="pl">${i + 1}.</td>
@@ -741,10 +759,54 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
             </thead>
             <tbody>${rows}</tbody>
           </table>
+          ${renderStandingsFoot(g, advance)}
         </div>
       </div>`;
     })
     .join('');
+}
+
+/**
+ * Fusszeile unter einer Gruppentabelle — Markenuebernahme 2026-08-26.
+ *
+ * Zwei Angaben, links die Regel und rechts der Stand:
+ *   "■ Plaetze 1-2 ziehen direkt ein"      2 von 6 Spielen
+ *
+ * Die Regel steht damit unter der Tabelle, auf die sie sich bezieht,
+ * statt in einem Hilfetext, den niemand oeffnet. Das Quadrat links
+ * traegt dieselbe Farbe wie das Band der Aufstiegsplaetze — es ist die
+ * Legende zu dem, was daneben zu sehen ist.
+ *
+ * Der Spielstand kommt aus den Zeilen selbst (Summe der `played` durch
+ * zwei, weil jedes Spiel bei beiden Teams zaehlt) und nicht aus einer
+ * separaten Zahl: so kann er nicht von der Tabelle abweichen.
+ */
+function renderStandingsFoot(g, advance) {
+  const zeilen = Array.isArray(g?.standings) ? g.standings : [];
+  if (!zeilen.length) return '';
+
+  const teams = zeilen.length;
+  const gespielt = Math.round(zeilen.reduce((n, s) => n + (s.played ?? 0), 0) / 2);
+  // Jeder gegen jeden, einfach: n*(n-1)/2.
+  const gesamt = (teams * (teams - 1)) / 2;
+
+  // Kurz halten: die Zeile steht in Mono mit Sperrung, und bei 390px hat
+  // die Karte innen rund 290px. "Plaetze 1-2 ziehen direkt ein" plus
+  // "6 von 6 Spielen" sind zusammen 44 Zeichen und brechen um — im
+  // Screenshot ueber zwei Zeilen, was nach Fehler aussieht statt nach
+  // Absicht. "steigen auf" sagt dasselbe in acht Zeichen weniger.
+  const regel = advance >= teams
+    ? 'Alle steigen auf'
+    : advance === 1
+      ? 'Platz 1 steigt auf'
+      : `Plätze 1–${advance} steigen auf`;
+
+  const stand = gesamt > 0 ? `${gespielt}/${gesamt} Spiele` : '';
+
+  return `<div class="t-standings-foot">
+    <span><span class="t-foot-mark" aria-hidden="true"></span>${esc(regel)}</span>
+    ${stand ? `<span>${esc(stand)}</span>` : ''}
+  </div>`;
 }
 
 /**

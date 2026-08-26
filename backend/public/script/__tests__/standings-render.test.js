@@ -119,13 +119,12 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     expect(html).toMatch(/class="t-standings-num is-points"\s+data-col="points">1</);
   });
 
-  it('A3: Zeilenklassen kommen aus qualifyPerGroup, nicht aus einer Annahme', () => {
-    // Default (kein Wert uebergeben) = 2, also das bisherige Verhalten:
-    // Platz 1+2 qualifiziert, Platz 2 traegt die Trennlinie, Platz 3
-    // ist der Anwaerter.
+  it('Zeilenklassen kommen aus qualifyPerGroup, nicht aus einer Annahme', () => {
+    // Default (kein Wert uebergeben) = 2: Platz 1 fuehrt, Platz 2 ist
+    // qualifiziert, ab Platz 3 nichts.
     const html = renderStandingsGroups(fixture, 'Becher');
+    expect(html).toContain('class="t-standings-row is-lead"');
     expect(html).toContain('class="t-standings-row is-qualified"');
-    expect(html).toContain('class="t-standings-row is-qualified is-cutoff"');
     // Gamma ist nicht qualifiziert:
     // Die alten Klassen darf es nicht mehr geben.
     expect(html).not.toContain('is-first');
@@ -276,15 +275,26 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
 });
 
 // ─────────────────────────────────────────────────────────────────
-// A3 — Qualifikationszustaende (Redesign Teil 1, 2026-08-25)
+// Qualifikationszustaende — Markenuebernahme (2026-08-26)
 //
-// Der Defekt, gegen den diese Tests schuetzen: der Renderer vergab
-// `is-first`/`is-second` nach Position und kodierte damit die Annahme
-// "immer genau zwei steigen auf". Bei qualifyPerGroup 1 oder 3 war die
-// Einfaerbung schlicht falsch — sichtbar, aber von keinem Test bemerkt.
+// Loest den A3-Satz (is-qualified / is-cutoff / is-pending) ab. Der
+// Marken-Entwurf kennt zwei Zustaende, nicht drei:
+//   Platz 1        is-lead       Orange, hier faengt der Weg zum Titel an
+//   Platz 2..N     is-qualified  Gruen, steigt auf
+//   darunter       nichts
+//
+// Die Grenze braucht keine eigene Linie mehr — sie ist da, wo das
+// Farbband links aufhoert. Das Band ist zugleich das farbunabhaengige
+// Signal, das vorher die Linie trug: Orange gegen Gruen unterscheidet
+// sich nur um 1.02:1, "Band da" gegen "Band nicht da" dagegen immer.
+//
+// Der urspruengliche Defekt, gegen den diese Tests weiter schuetzen,
+// ist unveraendert: der Renderer vergab die Farbe nach Position und
+// kodierte damit "immer genau zwei steigen auf". Bei qualifyPerGroup
+// 1 oder 3 behauptete die Tabelle schlicht das Falsche.
 // ─────────────────────────────────────────────────────────────────
 
-describe('renderStandingsGroups — A3 Qualifikationszustaende', () => {
+describe('renderStandingsGroups — Qualifikationszustaende', () => {
   const g = (n) => ([{
     groupKey: 'A', groupName: 'Gruppe A',
     standings: Array.from({ length: n }, (_, i) => ({
@@ -296,19 +306,19 @@ describe('renderStandingsGroups — A3 Qualifikationszustaende', () => {
   const rowClasses = (html) =>
     [...html.matchAll(/<tr class="t-standings-row([^"]*)"/g)].map((m) => m[1].trim());
 
-  it('qualifyPerGroup=1: nur Platz 1 qualifiziert, Platz 2 ist Anwaerter', () => {
+  it('qualifyPerGroup=1: nur Platz 1, und der fuehrt', () => {
     expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 1)))
-      .toEqual(['is-qualified is-cutoff', 'is-pending', '', '']);
+      .toEqual(['is-lead', '', '', '']);
   });
 
-  it('qualifyPerGroup=2: Plaetze 1+2 qualifiziert, Linie unter 2, Platz 3 Anwaerter', () => {
+  it('qualifyPerGroup=2: Platz 1 fuehrt, Platz 2 ist qualifiziert', () => {
     expect(rowClasses(renderStandingsGroups(g(4), 'Becher', 2)))
-      .toEqual(['is-qualified', 'is-qualified is-cutoff', 'is-pending', '']);
+      .toEqual(['is-lead', 'is-qualified', '', '']);
   });
 
-  it('qualifyPerGroup=3: drei qualifiziert, Linie unter 3', () => {
+  it('qualifyPerGroup=3: drei Baender, nur das erste in Orange', () => {
     expect(rowClasses(renderStandingsGroups(g(5), 'Becher', 3)))
-      .toEqual(['is-qualified', 'is-qualified', 'is-qualified is-cutoff', 'is-pending', '']);
+      .toEqual(['is-lead', 'is-qualified', 'is-qualified', '', '']);
   });
 
   it('ohne Angabe faellt es auf 2 zurueck — bisheriges Verhalten bleibt', () => {
@@ -317,22 +327,36 @@ describe('renderStandingsGroups — A3 Qualifikationszustaende', () => {
   });
 
   it('kaputte Konfiguration macht die Tabelle nicht unbrauchbar', () => {
-    // 0, negativ, null, Text -> Rueckfall auf 2 statt gar keiner Faerbung.
     for (const bad of [0, -1, null, undefined, 'zwei', 2.5]) {
       expect(rowClasses(renderStandingsGroups(g(3), 'Becher', bad)))
-        .toEqual(['is-qualified', 'is-qualified is-cutoff', 'is-pending']);
+        .toEqual(['is-lead', 'is-qualified', '']);
     }
   });
 
-  it('mehr Aufsteiger als Teams: alle qualifiziert, kein Anwaerter, keine Ausnahme', () => {
+  it('mehr Aufsteiger als Teams: alle tragen ein Band, keine Ausnahme', () => {
     expect(rowClasses(renderStandingsGroups(g(2), 'Becher', 5)))
-      .toEqual(['is-qualified', 'is-qualified']);
+      .toEqual(['is-lead', 'is-qualified']);
   });
 
-  it('A3: kein Haekchen, kein Stern, kein Pfeil im Markup', () => {
+  it('genau EIN Platz fuehrt, egal wie viele aufsteigen', () => {
+    // Orange markiert den Weg zum Titel. Zwei Fuehrende waeren zwei Wege.
+    for (const n of [1, 2, 3, 5]) {
+      const leads = rowClasses(renderStandingsGroups(g(6), 'Becher', n))
+        .filter((c) => c.includes('is-lead'));
+      expect(leads).toHaveLength(1);
+    }
+  });
+
+  it('kein Haekchen, kein Stern, kein Pfeil im Markup', () => {
     const html = renderStandingsGroups(g(4), 'Becher', 2);
     expect(html).not.toContain('✓');
     expect(html).not.toContain('★');
     expect(html).not.toContain('→');
+  });
+
+  it('die abgeloesten A3-Klassen kommen nicht mehr vor', () => {
+    const html = renderStandingsGroups(g(5), 'Becher', 2);
+    expect(html).not.toContain('is-cutoff');
+    expect(html).not.toContain('is-pending');
   });
 });
