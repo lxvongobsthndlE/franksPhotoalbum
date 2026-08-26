@@ -4330,6 +4330,15 @@ async function loadEinstellungenTab(t, mount) {
           // Etappe B.8: startedAt an den Renderer durchreichen.
           startedAt: t.startedAt ?? null,
           config: t.config || {},
+          // Zuschauer-Link (26.08.2026): Diese Aufzählung ist eine
+          // Allowlist — was hier fehlt, sieht der Renderer nie. Beim
+          // Einbau des Link-Blocks fehlten genau diese zwei Felder:
+          // Die Freigabe landete in der Datenbank, der Block zeigte aber
+          // weiter „Link erstellen", weil isPublic bei ihm undefined war.
+          // Wer den Einstellungen-Tab um ein Feld erweitert, erweitert
+          // auch diese Zeile — sonst rendert er gegen undefined.
+          isPublic: t.isPublic === true,
+          publicToken: t.publicToken ?? null,
         },
         teams: Array.isArray(t.teams) ? t.teams : [],
         groups: Array.isArray(t.groups) ? t.groups : [],

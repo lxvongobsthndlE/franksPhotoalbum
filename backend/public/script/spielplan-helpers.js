@@ -1393,9 +1393,15 @@ function renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen }) {
   const tour = t?.tournament ?? {};
   const istOeffentlich = tour.isPublic === true && !!tour.publicToken;
   const linkPfad = istOeffentlich ? `/t/${tour.publicToken}` : '';
-  const volleUrl = istOeffentlich && typeof window !== 'undefined'
-    ? `${window.location.origin}${linkPfad}`
-    : linkPfad;
+  // `typeof window` allein genügt nicht: In einer Testumgebung kann ein
+  // window-Objekt ohne `location` stehen, und ein Griff auf .origin würde
+  // dann den GESAMTEN Einstellungen-Tab mitreißen — für eine Zeile, die
+  // notfalls auch als Pfad ohne Host brauchbar ist.
+  const herkunft =
+    typeof window !== 'undefined' && window.location && window.location.origin
+      ? window.location.origin
+      : '';
+  const volleUrl = istOeffentlich ? `${herkunft}${linkPfad}` : '';
 
   let body;
   if (isDraft) {
