@@ -3158,6 +3158,96 @@ async function refreshTournamentAfterMutation(tournamentId) {
  *   id, name, logoUrl, status, phase, mode, isPublic, isAdmin,
  *   teams[], stages[], groups[], matches[], stats, startsAt, ...
  */
+/**
+ * Was die Kopfzeile je Ansicht zeigt — Markenuebernahme, 2026-08-26.
+ *
+ * Drei Dinge pro Ansicht, und alle drei sagen etwas anderes:
+ *   titel   WAS sehe ich. Der groesste Text auf dem Screen.
+ *   kontext WELCHE Zahlen gelten hier. Wird dem Turniernamen im Kicker
+ *           angehaengt, statt ihn zu ersetzen — der Name bleibt immer
+ *           lesbar, auch wenn man drei Ansichten weit geklickt hat.
+ *   aktion  Die EINE Sache, die man von hier aus tun will. Steht rechts
+ *           in Orange. Ansichten ohne sinnvolle Einzelaktion bekommen
+ *           keine — ein leerer Knopf ist schlimmer als kein Knopf.
+ *
+ * `kontext` ist eine Funktion, weil die Zahlen erst zur Laufzeit
+ * feststehen; sie bekommt das Turnier-Objekt und darf '' liefern.
+ */
+const T_VIEW_CHROME = {
+  spielplan: {
+    titel: 'Spielplan',
+    kontext: (t) => {
+      const n = Array.isArray(t.matches) ? t.matches.length : 0;
+      return n ? n + (n === 1 ? ' Spiel' : ' Spiele') : '';
+    },
+    aktion: { label: 'Teams', view: 'teams' },
+  },
+  gruppen: {
+    titel: 'Gruppen',
+    kontext: (t) => {
+      const g = Array.isArray(t.groups) ? t.groups.length : 0;
+      return g ? g + (g === 1 ? ' Gruppe' : ' Gruppen') : '';
+    },
+    aktion: { label: 'Regelwerk', view: 'regeln' },
+  },
+  baum: {
+    titel: 'Der Weg zum Titel',
+    kontext: (t) => (Array.isArray(t.teams) ? t.teams.length + ' Teams' : ''),
+    aktion: null,
+  },
+  teams: {
+    titel: 'Teams',
+    kontext: (t) => (Array.isArray(t.teams) ? t.teams.length + ' Teams' : ''),
+    aktion: null,
+  },
+  regeln: { titel: 'Regelwerk', kontext: () => '', aktion: null },
+  drucken: { titel: 'Drucken', kontext: () => '', aktion: null },
+  einstellungen: {
+    titel: 'Einstellungen',
+    kontext: () => 'Nur du als Organisator siehst diesen Bereich',
+    aktion: null,
+  },
+};
+
+/**
+ * Zieht Titel, Kicker-Zusatz und Aktion der Kopfzeile auf die neue
+ * Ansicht nach. Wird bei jedem Tab-Wechsel gerufen — auch aus dem
+ * Bottom-Sheet und aus `restoreTournamentViewState`, sonst steht nach
+ * einem Re-Render der Titel der vorherigen Ansicht im Kopf.
+ *
+ * Fail-soft: fehlt die Ansicht in der Tabelle, bleibt der Kopf stehen,
+ * statt leer zu werden. Eine neue View ohne Eintrag ist ein
+ * Schoenheitsfehler, kein kaputter Screen.
+ */
+function applyViewChrome(detail, view, t) {
+  if (!detail) return;
+  const chrome = T_VIEW_CHROME[view];
+  if (!chrome) return;
+
+  const titleEl = detail.querySelector('[data-view-title]');
+  if (titleEl) titleEl.textContent = chrome.titel;
+
+  const kickEl = detail.querySelector('.t-mod-kicker-text');
+  if (kickEl) {
+    const basis = kickEl.dataset.kickerBase || kickEl.textContent || '';
+    let zusatz = '';
+    try { zusatz = chrome.kontext ? (chrome.kontext(t) || '') : ''; } catch { zusatz = ''; }
+    kickEl.textContent = zusatz ? basis + ' · ' + zusatz : basis;
+  }
+
+  const actEl = detail.querySelector('[data-view-action]');
+  if (actEl) {
+    if (chrome.aktion) {
+      actEl.textContent = chrome.aktion.label;
+      actEl.dataset.view = chrome.aktion.view;
+      actEl.hidden = false;
+    } else {
+      actEl.hidden = true;
+      delete actEl.dataset.view;
+    }
+  }
+}
+
 function renderTournamentInstanceDetailV3(t) {
   try {
     const grid = $('grid');
@@ -3223,16 +3313,32 @@ function renderTournamentInstanceDetailV3(t) {
     // + Badges in einer eigenen Zeile (.t-mod-header-info), damit
     // der Titel bei Bedarf schrumpfen kann und die Badges darunter
     // umbrechen. Auf Desktop (≥768px) bleiben sie nebeneinander.
-    const badgeRowHtml = `<div class="t-mod-header-info">
-      <div class="t-mod-header-text">
-        <h1 class="t-title">${esc(t.name || 'Turnier')}</h1>
-        <div class="t-sub">${esc(modeLabel)} · ${teamCount} Teams</div>
+    // Markenuebernahme Etappe 2 (2026-08-26): der Kopf dreht sich um.
+    // Vorher war der TURNIERNAME der grosse Titel und die Ansicht stand
+    // nur im Reiter. Das hiess: auf jedem der sieben Screens stand
+    // dasselbe Wort ganz oben, und wo man war, musste man unten ablesen.
+    // Jetzt traegt der Titel die ANSICHT ("Spielplan", "Gruppen"), und
+    // das Turnier wandert in den Kicker darueber — zusammen mit dem
+    // Kontext, der zu genau dieser Ansicht gehoert (siehe
+    // T_VIEW_CHROME). Die Badges sind aufgeloest: Phase und
+    // Oeffentlich-Status stehen als Text im Kicker, nicht als zwei
+    // Pillen, die auf 390px eine eigene Zeile brauchten.
+    const kickerBase = [
+      t.name || 'Turnier',
+      t.startsAt ? fmtDate(t.startsAt) : '',
+      tournamentPhaseLabel(phase),
+      t.isPublic ? 'Öffentlich' : '',
+    ].filter(Boolean).join(' · ');
+
+    const headerHtml = `
+      <div class="t-mod-kicker">
+        <button type="button" class="t-mod-back" data-action="back" aria-label="Zurück zur Turnierliste">‹ Turniere</button>
+        <span class="t-mod-kicker-text" data-kicker-base="${esc(kickerBase)}">${esc(kickerBase)}</span>
       </div>
-      <div class="t-mod-header-badges">
-        <span class="t-badge t-badge--phase">${esc(tournamentPhaseLabel(phase))}</span>
-        ${publicBadge}
-      </div>
-    </div>`;
+      <div class="t-mod-titlerow">
+        <h1 class="t-title" data-view-title>Spielplan</h1>
+        <button type="button" class="t-mod-action" data-view-action hidden></button>
+      </div>`;
 
     // Spielplan-View-Inhalt: kommt in Schritt 3.
     // Platzhalter zeigt ehrlich, was sie noch nicht können — vgl. Module-Scope
@@ -3279,10 +3385,9 @@ function renderTournamentInstanceDetailV3(t) {
     grid.innerHTML = `
       <div class="t-mod" id="tournament-detail" data-tournament-id="${esc(t.id)}">
         <header class="t-mod-header">
-          ${logoHtml}
-          ${badgeRowHtml}
-          ${headerActionsHtml}
+          ${headerHtml}
         </header>
+        ${headerActionsHtml}
         <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
             ${barButtonsHtml}
             <button type="button" class="t-mod-tab" data-action="open-more-menu" aria-haspopup="dialog" aria-label="Weitere Ansichten">${ICON_TAB_MORE}<span>Mehr</span></button>
@@ -3361,7 +3466,25 @@ function renderTournamentInstanceDetailV3(t) {
     function switchToView(view, sourceBtn) {
       allTabBtns.forEach((b) => b.classList.toggle('is-active', b === sourceBtn || b.dataset.view === view));
       sections.forEach((s) => s.classList.toggle('is-active', s.dataset.view === view));
+      // Markenuebernahme: der Kopf traegt die Ansicht, also muss er hier mit.
+      applyViewChrome(detail, view, t);
     }
+
+    // Die Aktion rechts im Kopf ist selbst ein Ansichts-Wechsel
+    // ("Teams", "Regelwerk"). Sie laeuft ueber denselben Weg wie die
+    // Reiter, damit Leiste, Sheet und Kopf nie auseinanderlaufen.
+    const headAction = detail.querySelector('[data-view-action]');
+    if (headAction) {
+      headAction.addEventListener('click', () => {
+        const ziel = headAction.dataset.view;
+        if (!ziel) return;
+        switchToView(ziel, null);
+        handleTournamentTabSideEffects(ziel, t, detail);
+      });
+    }
+
+    // Erststand: die Detailansicht oeffnet auf dem Spielplan.
+    applyViewChrome(detail, 'spielplan', t);
 
     // Side-Effects pro Tab. Werden in beiden Leisten getriggert (die
     // Buttons haben identische data-view-Werte).
