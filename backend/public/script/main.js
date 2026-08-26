@@ -4371,6 +4371,63 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     });
   });
 
+  // ─── Zuschauer-Link (Spec §11) ────────────────────────────────────
+  const createLinkBtn = mount.querySelector('[data-action="create-public-link"]');
+  if (createLinkBtn) {
+    wireGuardedClick(createLinkBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Zuschauer-Link erstellen',
+        message:
+          'Jeder, der den Link bekommt, kann Tabellen, Spielplan und ' +
+          'Ergebnisse mitlesen — ohne Konto. Ändern kann darüber niemand ' +
+          'etwas, und Spielernamen werden nicht mit veröffentlicht. ' +
+          'Du kannst den Link jederzeit widerrufen.',
+        confirmLabel: 'Link erstellen',
+        danger: false,
+      });
+      if (ok?.cancelled) return;
+      await createPublicLink(t.id);
+    });
+  }
+
+  const revokeLinkBtn = mount.querySelector('[data-action="revoke-public-link"]');
+  if (revokeLinkBtn) {
+    wireGuardedClick(revokeLinkBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Zuschauer-Link widerrufen',
+        message:
+          'Der Link wird sofort ungültig — auch bei allen, die ihn schon ' +
+          'haben. Das lässt sich nicht rückgängig machen: Eine spätere ' +
+          'Freigabe erzeugt einen neuen Link, der alte bleibt tot.',
+        confirmLabel: 'Widerrufen',
+        danger: true,
+      });
+      if (ok?.cancelled) return;
+      await revokePublicLink(t.id);
+    });
+  }
+
+  // Kopieren ist harmlos wiederholbar, hängt aber trotzdem am selben
+  // Helfer wie alles andere hier: Der Abdeckungstest kennt zu Recht keine
+  // Ausnahme, und ein doppelter Klick spart so auch den doppelten Toast.
+  const copyLinkBtn = mount.querySelector('[data-action="copy-public-link"]');
+  if (copyLinkBtn) {
+    wireGuardedClick(copyLinkBtn, async () => {
+      const feld = mount.querySelector('[data-public-url]');
+      if (!feld) return;
+      try {
+        await navigator.clipboard.writeText(feld.value);
+        toast('Link kopiert.', 'success');
+      } catch {
+        // Ohne Zwischenablage-Recht (oder ohne HTTPS) bleibt der Weg über
+        // das Markieren — dann ist Auswählen hilfreicher als eine
+        // Fehlermeldung.
+        feld.select();
+        toast('Der Link ist markiert — jetzt kopieren.', 'info');
+      }
+    });
+  }
+
   // ─── Aktionen ─────────────────────────────────────────────────────
   // Turnier starten — Etappe B.8.
   const startBtn = mount.querySelector('[data-action="start-tournament"]');
@@ -4711,6 +4768,55 @@ async function startTournament(tournamentId) {
     saved = true;
   } catch (e) {
     toast(e?.serverMessage || 'Turnier konnte nicht gestartet werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+/**
+ * Zuschauer-Link erteilen (Spec §11).
+ *
+ * Die Route ist idempotent: Ein zweiter Klick auf einen bereits aktiven
+ * Link gibt denselben zurück, statt einen neuen zu erzeugen. Deshalb
+ * unterscheidet die Rückmeldung, ob wirklich etwas Neues entstanden ist —
+ * sonst läse sich ein wirkungsloser Klick wie ein erfolgreicher.
+ */
+async function createPublicLink(tournamentId) {
+  let saved = false;
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/public`,
+      'POST',
+      {}
+    );
+    toast(
+      res?.created
+        ? 'Zuschauer-Link ist erstellt — du findest ihn gleich hier zum Kopieren.'
+        : 'Der Zuschauer-Link war bereits aktiv.',
+      'success'
+    );
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Zuschauer-Link konnte nicht erstellt werden', 'error');
+  }
+  if (saved) {
+    await refreshTournamentAfterMutation(tournamentId);
+  }
+}
+
+async function revokePublicLink(tournamentId) {
+  let saved = false;
+  try {
+    await apiCall(
+      `/tournaments/${encodeURIComponent(tournamentId)}/public`,
+      'DELETE',
+      {}
+    );
+    toast('Zuschauer-Link ist widerrufen — die Adresse führt jetzt ins Leere.', 'success');
+    saved = true;
+  } catch (e) {
+    toast(e?.serverMessage || 'Zuschauer-Link konnte nicht widerrufen werden', 'error');
   }
   if (saved) {
     await refreshTournamentAfterMutation(tournamentId);

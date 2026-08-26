@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Turnier</title>
+
+<!--
+  Zuschauer-Ansicht (Spec §11, Stufe B).
+
+  Bewusst eine eigenständige Seite, nicht die SPA:
+    - Wer keinen Zugang hat, lädt keinen angemeldeten Client.
+    - Kein mutierender Knopf kann hier versehentlich landen.
+    - Der Aufruf kommt vom Handy am Spielfeldrand, oft über Mobilfunk.
+
+  `noindex`: Der Link ist zum Weitergeben da, nicht zum Auffinden.
+  Ein Turnier soll nicht über eine Suchmaschine zu finden sein, nur
+  weil jemand ihn einmal irgendwo gepostet hat.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;1,800&family=Archivo+Narrow:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* Tokens: [kru:]nest. Gleiche Werte wie im Modul, damit die
+   Zuschauer-Ansicht nicht wie eine fremde Anwendung aussieht. */
+:root{
+  --ground:#E4E4E2; --panel:#FFFFFF; --raised:#F5F5F3; --sunk:#EDEDEA;
+  --line:#D1D1CD; --line-soft:#E5E5E1;
+  --ink:#0B0B0C; --ink-2:#3A3A3C; --muted:#65656A;
+  --flare:#BF4413; --flare-soft:#F7E5DC;
+  --live:#00708F; --live-soft:#D8EDF3;
+  --qual:#1E6E45; --qual-soft:#DCEDE3;
+  --brand-orange:#DE5426;
+  --shadow:0 1px 2px rgba(11,11,12,.07), 0 20px 48px rgba(11,11,12,.13);
+  --r:10px;
+  --f-disp:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --f-cond:'Archivo Narrow','Arial Narrow','Helvetica Neue',sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0B0B0C; --panel:#161618; --raised:#202024; --sunk:#0F0F11;
+    --line:#2F2F35; --line-soft:#232328;
+    --ink:#F1F0ED; --ink-2:#C5C4C0; --muted:#9A9A9F;
+    --flare:#F0794D; --flare-soft:rgba(240,121,77,.16);
+    --live:#4FC5E8; --live-soft:rgba(79,197,232,.14);
+    --qual:#5FBE8C; --qual-soft:rgba(95,190,140,.14);
+    --shadow:0 1px 0 rgba(255,255,255,.04), 0 32px 72px rgba(0,0,0,.66);
+  }
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--f-body);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--flare);outline-offset:2px;border-radius:4px}
+
+.page{max-width:860px;margin:0 auto;padding:0 14px calc(40px + env(safe-area-inset-bottom))}
+
+/* ── Kopf ───────────────────────────────────────────── */
+.head{padding:26px 0 18px}
+.head-top{display:flex;align-items:center;gap:13px}
+.head-logo{
+  width:46px;height:46px;border-radius:9px;object-fit:cover;flex:none;
+  border:1px solid var(--line);background:var(--panel);
+}
+.head h1{
+  font-family:var(--f-disp);font-weight:800;letter-spacing:-.025em;
+  font-size:clamp(24px,5.6vw,34px);line-height:1.05;margin:0;
+  text-wrap:balance;
+}
+.head-meta{
+  display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:11px;
+  font-size:13.5px;color:var(--muted);
+}
+.head-meta span{display:inline-flex;align-items:center;gap:5px}
+.head-meta .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--f-cond);font-weight:700;font-size:12.5px;
+  letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 9px;border-radius:999px;
+  background:var(--sunk);color:var(--ink-2);
+}
+.pill.is-live{background:var(--live-soft);color:var(--live)}
+.pill.is-done{background:var(--qual-soft);color:var(--qual)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+@media (prefers-reduced-motion:no-preference){
+  .pill.is-live .dot{animation:puls 2s ease-in-out infinite}
+}
+@keyframes puls{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Abschnitt ──────────────────────────────────────── */
+section{margin-top:26px}
+.sec-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding-bottom:9px;margin-bottom:12px;border-bottom:2px solid var(--ink);
+}
+.sec-head h2{
+  font-family:var(--f-disp);font-weight:700;font-size:17px;
+  letter-spacing:-.015em;margin:0;
+}
+.sec-head .hint{font-size:12.5px;color:var(--muted)}
+
+/* ── Spielkarte ─────────────────────────────────────── */
+.match{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:11px 13px;display:grid;
+  grid-template-columns:1fr auto;gap:4px 12px;align-items:center;
+  margin-bottom:8px;
+}
+.match.is-live{border-color:var(--live);box-shadow:0 0 0 1px var(--live)}
+.match-sub{
+  grid-column:1/-1;order:-1;
+  font-family:var(--f-mono);font-size:11.5px;font-weight:500;
+  color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;
+  font-variant-numeric:tabular-nums;
+}
+.match-sub .live-txt{color:var(--live);font-weight:600}
+.match-teams{display:flex;flex-direction:column;gap:3px;min-width:0}
+.team-row{display:flex;align-items:center;gap:8px;min-width:0}
+.team-dot{width:9px;height:9px;border-radius:2px;flex:none;background:var(--line)}
+.team-name{
+  font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.team-row.is-ph .team-name{color:var(--muted);font-style:italic;font-weight:400}
+.team-row.is-win .team-name{font-weight:600}
+.match-score{
+  display:flex;flex-direction:column;gap:3px;text-align:right;
+  font-family:var(--f-mono);font-weight:600;font-size:17px;
+  font-variant-numeric:tabular-nums;flex:none;
+}
+.match-score .none{color:var(--muted);font-size:14px;font-weight:500}
+.score-lose{color:var(--muted)}
+
+/* ── Tabelle ────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.grp{margin-bottom:18px}
+.grp h3{
+  font-family:var(--f-cond);font-weight:700;font-size:13px;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+  margin:0 0 7px;
+}
+table{
+  width:100%;border-collapse:collapse;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  font-variant-numeric:tabular-nums;
+}
+th,td{padding:8px 6px;text-align:right;font-size:13.5px;white-space:nowrap}
+/* Die Teamspalte nimmt den Rest — sonst verteilt der Tabellen-Algorithmus
+   die Breite gleichmäßig und lässt zwischen Name und Zahlen ein Loch. */
+th:nth-child(2),td:nth-child(2){text-align:left;width:100%}
+th{
+  font-family:var(--f-cond);font-weight:700;font-size:11.5px;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+  background:var(--raised);border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+td{border-bottom:1px solid var(--line-soft)}
+tr:last-child td{border-bottom:none}
+th:first-child,td:first-child{padding-left:11px;width:30px}
+th:last-child,td:last-child{padding-right:11px}
+.t-rank{font-family:var(--f-mono);font-weight:600;color:var(--muted)}
+.t-team{
+  display:flex;align-items:center;gap:8px;min-width:0;
+  font-weight:500;text-align:left;
+}
+.t-team span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-pts{font-family:var(--f-mono);font-weight:600}
+tr.is-qual .t-rank{color:var(--qual)}
+tr.is-qual td:first-child{box-shadow:inset 3px 0 0 var(--qual)}
+
+/* ── K.-o.-Runden ───────────────────────────────────── */
+.round{margin-bottom:16px}
+.round h3{
+  font-family:var(--f-cond);font-weight:700;font-size:13px;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+  margin:0 0 7px;
+}
+
+/* ── Zustände ───────────────────────────────────────── */
+.state{
+  text-align:center;padding:64px 20px;color:var(--muted);
+}
+.state h2{
+  font-family:var(--f-disp);font-weight:700;font-size:20px;
+  color:var(--ink);margin:0 0 8px;
+}
+.state p{margin:0;font-size:14.5px;max-width:38ch;margin-inline:auto}
+.state .mark{
+  font-family:var(--f-disp);font-weight:800;font-style:italic;
+  font-size:30px;letter-spacing:-.03em;color:var(--ink);
+  text-shadow:.06em .075em 0 var(--brand-orange);margin-bottom:22px;
+}
+.empty{
+  padding:22px 14px;text-align:center;color:var(--muted);font-size:14px;
+  background:var(--panel);border:1px dashed var(--line);border-radius:var(--r);
+}
+
+/* ── Fuß ────────────────────────────────────────────── */
+.foot{
+  margin-top:34px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;
+  font-size:12.5px;color:var(--muted);
+}
+.foot .mark{
+  font-family:var(--f-disp);font-weight:800;font-style:italic;
+  font-size:14px;letter-spacing:-.03em;color:var(--ink-2);
+  text-shadow:.06em .075em 0 var(--brand-orange);
+}
+.foot .stamp{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+@media (max-width:430px){
+  .page{padding-inline:11px}
+  th,td{padding:7px 4px;font-size:13px}
+  /* Auf schmalen Geräten fallen Siege/Unentschieden/Niederlagen weg:
+     Sie stehen ohnehin in Punkten und Spielzahl. Die Wertungsspalte
+     bleibt — bei einem Becherturnier ist sie die eigentliche Auskunft,
+     und sie ausgerechnet dort zu verstecken, wo die meisten Zuschauer
+     hinsehen, wäre die falsche Sparsamkeit. */
+  th.opt,td.opt{display:none}
+}
+</style>
+</head>
+<body>
+  <div class="page" id="app">
+    <div class="state" id="boot">
+      <div class="mark">[kru:]nest</div>
+      <p>Turnier wird geladen …</p>
+    </div>
+  </div>
+  <script type="module" src="/script/live.js"></script>
+</body>
+</html>

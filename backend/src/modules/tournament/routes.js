@@ -53,6 +53,8 @@ import {
 import { resizeLogoImage } from './asset.js';
 import { nextPaletteColor } from './team-colors.js';
 import { canEdit, canRevertToDraft, canStartTournament, requireConfirmForRedraw } from './locks.js';
+import { createPublicToken, requirePublicTournament } from './public-access.js';
+import { buildPublicPayload } from './public-view.js';
 
 export default async function tournamentRoutes(fastify) {
   // ─────────────────────────────────────────────────────────
@@ -140,6 +142,157 @@ export default async function tournamentRoutes(fastify) {
       };
     } catch (err) {
       return handleError(reply, err, 'Turnier laden fehlgeschlagen');
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 1b. Zuschauer-Link (Spec §11, Stufe B)
+  //
+  //   GET    /public/:token   anonym lesen
+  //   POST   /:id/public      freigeben   (Admin)
+  //   DELETE /:id/public      widerrufen  (Admin)
+  //
+  // Der Token ist die Adresse: es gibt keinen Weg, ein freigegebenes
+  // Turnier anonym über seine ID zu lesen. Warum das so streng ist,
+  // steht in public-access.js.
+  // ─────────────────────────────────────────────────────────
+
+  // GET /api/tournaments/public/:token — die Zuschauer-Ansicht.
+  //
+  // Einzige Route des Moduls ohne jede Auth. Sie steht bewusst hier oben
+  // neben GET /:id, damit beim Lesen sofort auffällt, dass es zwei Wege
+  // in dieselben Daten gibt — und dass dieser hier der engere ist.
+  fastify.get('/public/:token', async (request, reply) => {
+    try {
+      const ctx = await requirePublicTournament(
+        fastify.prisma,
+        request.params.token
+      );
+      const view = await buildTournamentViewContext(
+        fastify.prisma,
+        ctx.tournament.id
+      );
+
+      // Tabellen gleich mitliefern. Der angemeldete Client holt sie über
+      // eine zweite Route (/:id/standings); für einen Zuschauer am
+      // Spielfeldrand wäre das eine Anfrage zu viel — er hat die Seite
+      // meist nur kurz offen, oft im Mobilfunknetz, und die Tabelle ist
+      // genau das, wofür er den Link angetippt hat.
+      const config = mergeConfig(ctx.tournament.config ?? {});
+      const teamsById = new Map(view.teams.map((t) => [t.id, t]));
+      const groupsWithStandings = view.groups.map((g) => {
+        const rawGroup = view._lookups.groupsLookup.get(g.id);
+        const standings = buildStandingsForGroup(
+          rawGroup?.matches ?? [],
+          g.members.map((m) => m.teamId),
+          config,
+          { computeStandings, applyTiebreaker }
+        ).map((row) => ({
+          ...row,
+          name: (row.teamId ? teamsById.get(row.teamId)?.name : null) ?? row.name,
+        }));
+        return { ...g, standings };
+      });
+
+      // Zuschauer sollen aktuelle Stände sehen, Zwischenspeicher aber auch
+      // nicht ganz umgangen werden: 15 Sekunden sind kürzer als jede
+      // Halbzeit und nehmen einem geteilten Link die Lastspitze.
+      reply.header('Cache-Control', 'public, max-age=15');
+      return buildPublicPayload({ ...view, groups: groupsWithStandings });
+    } catch (err) {
+      return handleError(reply, err, 'Link nicht gültig');
+    }
+  });
+
+  // POST /api/tournaments/:id/public — Zuschauer-Link erteilen (Admin).
+  //
+  // Erzeugt beim ersten Mal einen Token. Eine erneute Freigabe nach einem
+  // Widerruf erzeugt einen NEUEN — der alte Link bleibt tot, sonst wäre
+  // ein Widerruf nur eine Pause. Mehrfaches Freigeben ohne
+  // zwischenzeitlichen Widerruf ändert nichts und gibt denselben Link
+  // zurück (idempotent, damit ein Doppelklick keinen Link ungültig macht).
+  fastify.post('/:id/public', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      // Entwürfe sind nicht öffentlich — dieselbe Regel wie im Lesepfad,
+      // hier nur früher und mit einer Begründung, die der Admin lesen kann.
+      if (ctx.tournament.status === 'draft') {
+        return reply.code(409).send({
+          error: 'tournament_is_draft',
+          message:
+            'Ein Entwurf kann nicht freigegeben werden. Generiere den ' +
+            'Spielplan, dann lässt sich der Zuschauer-Link erteilen.',
+        });
+      }
+
+      const alreadyLive =
+        ctx.tournament.isPublic &&
+        ctx.tournament.publicToken &&
+        !ctx.tournament.publicRevokedAt;
+
+      const token = alreadyLive
+        ? ctx.tournament.publicToken
+        : createPublicToken();
+
+      const updated = await fastify.prisma.tournament.update({
+        where: { id: ctx.tournament.id },
+        data: {
+          isPublic: true,
+          publicToken: token,
+          publicEnabledAt: alreadyLive
+            ? ctx.tournament.publicEnabledAt
+            : new Date(),
+          publicRevokedAt: null,
+        },
+        select: { publicToken: true, publicEnabledAt: true },
+      });
+
+      return {
+        ok: true,
+        isPublic: true,
+        token: updated.publicToken,
+        path: `/t/${updated.publicToken}`,
+        enabledAt: updated.publicEnabledAt,
+        // Ob der Link neu ist, entscheidet, was die Oberfläche sagt:
+        // „Link erstellt" oder „Link ist bereits aktiv".
+        created: !alreadyLive,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Freigabe fehlgeschlagen');
+    }
+  });
+
+  // DELETE /api/tournaments/:id/public — Zuschauer-Link widerrufen (Admin).
+  //
+  // Löscht den Token, statt nur isPublic umzulegen. Bliebe er stehen,
+  // würde eine spätere zweite Freigabe jeden alten, längst
+  // weitergereichten Link wieder scharf schalten — ein Widerruf, der sich
+  // von selbst zurücknimmt, ist keiner.
+  fastify.delete('/:id/public', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(
+        request,
+        fastify.prisma,
+        request.params.id
+      );
+
+      await fastify.prisma.tournament.update({
+        where: { id: ctx.tournament.id },
+        data: {
+          isPublic: false,
+          publicToken: null,
+          publicRevokedAt: new Date(),
+        },
+      });
+
+      return { ok: true, isPublic: false, revoked: true };
+    } catch (err) {
+      return handleError(reply, err, 'Widerruf fehlgeschlagen');
     }
   });
 

@@ -59,6 +59,11 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   // mutierende Einträge — deshalb steht der Knopf unter demselben Gate.
   'instance-menu',
   'instance-delete',
+  // Zuschauer-Link (2026-08-26): Erteilen und Widerrufen ändern den
+  // Zugriff auf das Turnier von außen — das ist die folgenreichste
+  // Mutation im Modul, auch wenn sie keine Spieldaten anfasst.
+  'create-public-link',
+  'revoke-public-link',
 ]);
 
 // Safe-Actions, die auch für isAdmin=false sichtbar bleiben dürfen.
@@ -70,6 +75,8 @@ export const SAFE_DATA_ACTIONS = Object.freeze([
   'open-more-menu',
   'toggle-section',
   'toggle-filter-dropdown',
+  // Kopiert nur, was ohnehin schon im Feld steht.
+  'copy-public-link',
   // A4: Die ganze Turnierkarte ist die Aktion — reines Öffnen, für
   // Mitglieder ausdrücklich erlaubt.
   'open-instance',

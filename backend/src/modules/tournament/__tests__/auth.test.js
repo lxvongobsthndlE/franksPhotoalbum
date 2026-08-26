@@ -176,14 +176,47 @@ describe('requireTournamentRead', () => {
     prisma = createMockPrismaClient();
   });
 
-  it('Public-Bypass: kein User nötig', async () => {
+  // Regression, 26.08.2026. Vorher stand hier der Gegentest: „Public-Bypass:
+  // kein User nötig" — er erwartete, dass isPublic=true allein anonymen
+  // Zugriff über die ID erlaubt. Genau das war das Loch, und der Testfall
+  // hat es festgeschrieben: fakeTournament() hat status 'draft', der alte
+  // Zweig stand vor der Draft-Prüfung. Ein Entwurf war also anonym lesbar,
+  // sobald jemand isPublic setzen konnte.
+  //
+  // Die Freigabe macht ein Turnier heute unter seinem TOKEN lesbar
+  // (public-access.js). Über die ID bleibt es zugriffsgeschützt.
+  it('isPublic allein öffnet die ID-Route NICHT (Regression Zuschauer-Link)', async () => {
     prisma.tournament.findUnique.mockResolvedValue(
-      fakeTournament({ isPublic: true, publicToken: 'tok', publicRevokedAt: null })
+      fakeTournament({
+        status: 'generated',
+        isPublic: true,
+        publicToken: 'tok',
+        publicRevokedAt: null,
+      })
     );
-    const request = { jwtVerify: vi.fn() };
-    const ctx = await requireTournamentRead(request, prisma, 't1');
-    expect(ctx.public).toBe(true);
-    expect(ctx.isAdmin).toBe(false);
+    // Kein gültiger Login: jwtVerify wirft, wie es Fastify ohne Token tut.
+    const request = {
+      jwtVerify: vi.fn().mockRejectedValue(
+        Object.assign(new Error('kein Token'), { statusCode: 401 })
+      ),
+    };
+    await expect(requireTournamentRead(request, prisma, 't1')).rejects.toMatchObject({
+      statusCode: 401,
+    });
+  });
+
+  it('isPublic + draft öffnet erst recht nichts (Regression)', async () => {
+    prisma.tournament.findUnique.mockResolvedValue(
+      fakeTournament({ status: 'draft', isPublic: true, publicToken: 'tok' })
+    );
+    const request = {
+      jwtVerify: vi.fn().mockRejectedValue(
+        Object.assign(new Error('kein Token'), { statusCode: 401 })
+      ),
+    };
+    await expect(requireTournamentRead(request, prisma, 't1')).rejects.toMatchObject({
+      statusCode: 401,
+    });
   });
 
   it('404 wenn Turnier nicht existiert', async () => {
@@ -257,11 +290,38 @@ describe('requireTournamentWrite', () => {
     prisma = createMockPrismaClient();
   });
 
-  it('Public-Bypass → 403 (Pflicht-Test-Case 1)', async () => {
+  // Pflicht-Test-Case 1, seit 26.08.2026 in der schärferen Fassung:
+  // Anonym schreiben scheitert nicht mehr erst an einer public-Prüfung im
+  // Write-Helfer, sondern schon daran, dass es ohne Login keinen Lesepfad
+  // über die ID gibt. Der Schutz sitzt damit eine Ebene tiefer.
+  it('Freigegebenes Turnier: anonym schreiben scheitert an der Auth (Pflicht-Test-Case 1)', async () => {
     prisma.tournament.findUnique.mockResolvedValue(
-      fakeTournament({ isPublic: true, publicToken: 'tok', publicRevokedAt: null })
+      fakeTournament({
+        status: 'generated',
+        isPublic: true,
+        publicToken: 'tok',
+        publicRevokedAt: null,
+      })
     );
-    const request = { jwtVerify: vi.fn() };
+    const request = {
+      jwtVerify: vi.fn().mockRejectedValue(
+        Object.assign(new Error('kein Token'), { statusCode: 401 })
+      ),
+    };
+    await expect(requireTournamentWrite(request, prisma, 't1')).rejects.toMatchObject({
+      statusCode: 401,
+    });
+  });
+
+  it('Freigegebenes Turnier: eingeloggtes Mitglied darf trotzdem nicht schreiben', async () => {
+    prisma.tournament.findUnique.mockResolvedValue(
+      fakeTournament({ status: 'generated', isPublic: true, publicToken: 'tok' })
+    );
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'user' });
+    prisma.group.findUnique.mockResolvedValue({ createdBy: 'u-owner' });
+    prisma.groupDeputy.findUnique.mockResolvedValue(null);
+    prisma.groupMember.findUnique.mockResolvedValue({ userId: 'u1', groupId: 'g1' });
+    const request = { jwtVerify: vi.fn(), user: { id: 'u1' } };
     await expect(requireTournamentWrite(request, prisma, 't1')).rejects.toMatchObject({
       statusCode: 403,
     });
