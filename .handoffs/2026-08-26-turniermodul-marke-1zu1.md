@@ -71,6 +71,10 @@ dem Artefakt liegt und man beide verwechseln könnte.
 Alle am 2026-08-26 gegen `fix/tourney-marke` @ `79faace` gemessen. Weicht dein HEAD
 ab, sind das ungeprüfte Prämissen — erst nachmessen.
 
+**Es sind acht.** Abschnitt 4b trägt drei weitere nach (B6–B8), die Jonas nach dem
+Schreiben dieser Datei per Screenshot belegt hat — sie stehen nicht in seiner
+Aufzählung, sind aber dieselbe Fehlerklasse.
+
 ### B1 — „ich will nicht mehr das cremefarbene im turniermodul haben"
 
 Zwei Quellen, beide müssen weg:
@@ -154,6 +158,88 @@ Erzeugt wird das Markup in `main.js` ab ~2735 (`<section class="tournament-insta
 **Achtung:** `.tournament-instance-group` steht in `main.css` und könnte auch außerhalb
 des Turniermoduls benutzt werden — vor dem Ändern prüfen (`grep`), sonst statt der
 globalen Regel eine Überschreibung unter `.t-mod`/`.t-list-host` setzen.
+
+---
+
+## 4b. Nachtrag 26.08. 12:35 — was der Screenshot zusätzlich zeigt (B6–B8)
+
+Jonas hat nach dem Schreiben dieser Übergabe einen Bildschirmausschnitt des
+**Detail-Kopfs** nachgereicht: `.handoffs/belege/2026-08-26-detailkopf-ist.png`
+(im Repo, damit er nicht verlorengeht). Auf ~650 px Breite, Ansicht „Spielplan".
+
+Der Ausschnitt belegt B1 und B3 sichtbar — auf **einem** Schirm stehen zwei
+Akzentfarben nebeneinander: der braune „Turnier erstellen" (App-Token) und
+darunter angeschnitten der orange Modul-Knopf (Marken-Token). Genau das meint
+„es ist noch zu viel vom alten Design dabei".
+
+Er zeigt darüber hinaus **drei Mängel, die in den fünf Beschwerden nicht
+vorkommen**. Alle drei sind dieselbe Fehlerklasse wie in Abschnitt 2: additiv
+gearbeitet statt ersetzt.
+
+### B6 — „Spielplan" steht zweimal untereinander
+
+Etappe 2 hat den Kopf gedreht: der `<h1>` trägt seither die ANSICHT, nicht mehr
+den Turniernamen (`main.js:3406`, `data-view-title`, gespeist aus
+`T_VIEW_CHROME` ab `main.js:3243`). Die **alten View-Köpfe wurden dabei nicht
+entfernt**. Also rendert `renderSpielplanSectionHead()` weiterhin ein
+`.t-view-title` mit dem Text „Spielplan" (`tournament-render.js:240`) — und
+`.t-view-title` ist unverändert sichtbar (`tournament.css:726`, 20 px/600;
+zweite Definition derselben Klasse in derselben Datei bei `1777` — eine der
+Kollisionen aus Abschnitt 8).
+
+Betrifft nicht nur den Spielplan: dasselbe Muster bei Gruppen
+(`main.js:3481`), Regeln (`renderRegelnSectionHead`,
+`tournament-render.js:~257`) und Einstellungen
+(`renderEinstellungenSection`, `tournament-render.js:~269`).
+
+**Vorschlag (prüfen, nicht blind übernehmen):** `.t-view-head` behält seine
+Aktionsknöpfe („Bearbeiten", „Ergebnis eintragen") und verliert den Titel —
+der steht jetzt im Kopf. Ist ein View-Head danach leer (Mitglieder-Ansicht,
+`isAdmin=false`), darf er gar nicht erst gerendert werden, sonst bleibt eine
+leere Zeile mit Abstand stehen. Das Artefakt entscheidet.
+
+### B7 — verwaiste Zeile mit nur einem Drei-Punkte-Knopf
+
+Unter dem Kopf liegt eine eigene, volle Zeile mit Panel-Hintergrund
+(`.t-mod-header-actions`, `tournament.css:5060`), die als Geschwister direkt
+hinter `<header class="t-mod-header">` hängt (`main.js:3431`, eingesetzt bei
+`main.js:~3455`). Unterhalb von 900 px Container-Breite blendet die
+`@container`-Regel „Zurück" und „Drucken" aus (`tournament.css:765`) — übrig
+bleibt ein ⋮ in einem grauen Kreis, allein auf voller Breite.
+
+Dazu kommt: **beide Menüpunkte sind Dubletten.** „Zurück zur Liste" steht
+bereits als `‹ Turniere` im Kicker (`main.js:3403`), „Drucken" ist ein
+eigenes Nav-Item (`tournament-render.js:290`). Das Menü führt also nichts,
+was nicht zwei Zentimeter daneben schon steht.
+
+**Vorschlag:** Die Zeile ersatzlos streichen, sofern das Artefakt sie nicht
+zeigt. Falls „Zeitplan neu" dort noch hängt (der Kommentar bei
+`tournament.css:5057` behauptet das), wandert es in den Spielplan-View-Head.
+
+### B8 — Kicker bricht mitten im Wort ab
+
+`‹ Turniere DSAD · BEREIT · ÖFFENTLICH · 15 SPI…` — der Kicker ist
+`white-space: nowrap` + `text-overflow: ellipsis` (`tournament.css:5051`) und
+setzt sich aus vier festen Teilen plus einem ansichtsabhängigen Zusatz
+zusammen (`kickerBase`, `main.js:3395`; Zusatz aus `T_VIEW_CHROME.kontext`,
+angehängt bei `main.js:3302`). Versalien plus `letter-spacing: 0.16em`
+(`tournament.css:313`) machen ihn zusätzlich breit. Auf realer Breite bleibt
+vom Zusatz „15 Spiele" ein „15 SPI…" übrig — der Teil, der die Ansicht
+erklärt, ist genau der, der abgeschnitten wird.
+
+**Vorschlag:** gegen das Artefakt messen, wie viele Segmente der Kicker dort
+trägt. Vermutlich weniger. Kandidaten zum Streichen: „Öffentlich" (steht als
+Zustand woanders) und das Datum. Reihenfolge so drehen, dass der
+ansichtsabhängige Zusatz **vorn** steht, wenn er bleiben soll.
+
+### Noch zu messen, nicht behauptet
+
+Die Aktion rechts im Kopf („TEAMS", `.t-mod-action`, `tournament.css:1014`)
+soll laut Regel `color: var(--flare)` sein — orange. Im Ausschnitt wirkt sie
+dunkel. Ob `--flare` an dieser Stelle definiert ist, ist mit
+`getComputedStyle()` im Browser zu klären, nicht per Quelltextlesen
+(Abschnitt 8). Der Verdacht ist die bekannte Klasse „undefinierte Custom
+Property tötet die Deklaration still".
 
 ---
 
@@ -250,11 +336,17 @@ nur seine Verwendung fällt. Bei Scan-Tests: erst rot sehen, dann glauben.
 4. In der Detailansicht keine App-Kopfleisten-Knöpfe mehr.
 5. Kein Kasten hinter den Statusgruppen der Turnierliste.
 6. Filterleiste wie im Artefakt.
-7. Alle Tests grün (Basis: 1679/5), Screenshot-Verify bei **390 px und 1920 px**,
-   je **hell und dunkel** — drei Themen-Zustände nicht vergessen (auch „kein
-   Attribut", das ist der Normalfall auf den Zuschauerseiten).
-8. Committet in kleinen Etappen mit deutscher `@@ … @@`-Nachricht, chirurgisch
-   per Pathspec gestaget.
+7. **Der Titel steht genau einmal auf dem Schirm** (B6) — nicht im Kopf *und*
+   im View-Head. Gilt für alle sieben Ansichten, nicht nur den Spielplan.
+8. **Keine verwaiste Aktionszeile** unter dem Kopf (B7), und kein Menü, das nur
+   Dubletten dessen führt, was zwei Zentimeter daneben schon steht.
+9. **Der Kicker bricht nicht mitten im Wort ab** (B8) — auf 390 px im Browser
+   gemessen, nicht geschätzt.
+10. Alle Tests grün (Basis: 1679/5), Screenshot-Verify bei **390 px und 1920 px**,
+    je **hell und dunkel** — drei Themen-Zustände nicht vergessen (auch „kein
+    Attribut", das ist der Normalfall auf den Zuschauerseiten).
+11. Committet in kleinen Etappen mit deutscher `@@ … @@`-Nachricht, chirurgisch
+    per Pathspec gestaget.
 
 ---
 
