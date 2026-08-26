@@ -247,7 +247,34 @@
        Ecke nur eine abgeschnittene Zeile. */
     border-radius: var(--r-plane);
     box-shadow: var(--lift);
+    /* Ein Blatt hat eine Breite. Ohne Kappung lief die Schale auf 1920px
+       ueber die volle Restbreite, und der Grund war nur noch ein
+       Randstreifen — genau der Stapel-Eindruck, den die zweite Fassung
+       abgeschafft hat. 1240px ist der Wert, mit dem die Vorlage selbst
+       gesetzt ist (`.pg { max-width: 1240px }`). */
+    max-width: 1240px;
+    margin: 0 auto;
   }
+}
+/* Und eine Ansicht hat eine LESEBREITE. Auf einem 1240er Blatt bleiben
+   nach der Seitenleiste rund 1030px fuer den Inhalt; eine Listenzeile
+   ist dann 990px breit und ihr Haken sitzt einen halben Bildschirm vom
+   Text entfernt. Im Screenshot bei 1920px war zwischen „GEFAHRENZONE"
+   und seinem Dreieck ein Meter Nichts.
+   Die Vorlage loest dasselbe Problem in Abschnitt 09 mit SPALTEN
+   (`repeat(auto-fit, minmax(300px, 1fr))`); die Ansichten dieses Moduls
+   sind einspaltig, also loest es hier eine Kappung. 880px ist die
+   Obergrenze, bei der die neunspaltige Gruppentabelle noch atmet. */
+@container (min-width: 1000px) {
+  .t-view.is-active { max-width: 880px; }
+  /* Der Spielplan geht noch eine Stufe enger. Eine Spielkarte ist zwei
+     Namen und zwei Ziffern; auf 860px stehen zwischen „Kellerkinder" und
+     der „1" acht Zentimeter Nichts. Das ist derselbe Befund wie A2.2 am
+     25.08. („Wrapper max 560px verhindert 800px-Leere auf Desktop") —
+     damals lag die Kappung auf .t-match-rows und wurde mit der Zeitachse
+     wieder entfernt. Sie gehoert an die LISTE, nicht an die Zeilen: sonst
+     waeren Teams und Ziffern schmal und das Fussband darunter breit. */
+  #t-schedule-list { max-width: 620px; }
 }
 
 /* ----------------------------------------------------------------
@@ -1502,13 +1529,21 @@
 .t-aside-list li:last-child { border-bottom: none; }
 .t-aside-list strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 
+/* Die Mono-Beschriftung der Vorlage (`.glbl`): 10,5px, 0,17em gesperrt,
+   in --muted, 22px Luft darueber und 8px darunter. Diese Asymmetrie ist
+   der Punkt — oben viel, unten wenig bindet die Ueberschrift an das,
+   was unter ihr steht. Sie beschriftet und trennt in einem Zug, und
+   genau deshalb steht zwischen zwei Tabellen keine zweite Kontur mehr.
+   Vorher fehlte der obere Abstand ganz: „Beste Dritte · 2 Plaetze frei"
+   klebte im Screenshot bei 1920px an der Fusszeile der Gruppe darueber. */
 .t-section-label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.17em;
   text-transform: uppercase;
-  color: var(--ink-soft);
-  font-weight: 600;
-  margin-bottom: var(--s3);
+  color: var(--muted);
+  font-weight: 500;
+  margin: 22px 0 8px;
 }
 
 /* ----------------------------------------------------------------
