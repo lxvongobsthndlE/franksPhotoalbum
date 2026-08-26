@@ -5610,16 +5610,6 @@ button.tournament-header-btn {
   color: #888;
   border-color: rgba(120, 120, 120, 0.25);
 }
-.t-badge-bye {
-  background: rgba(180, 140, 60, 0.15);
-  color: #8a6a20;
-  border-color: rgba(180, 140, 60, 0.3);
-}
-.t-badge-ghost {
-  background: rgba(140, 100, 180, 0.13);
-  color: #6b4d8a;
-  border-color: rgba(140, 100, 180, 0.3);
-}
 
 /* Modal-Variante für die Turnier-Detail-Dialoge.
    WICHTIG (Phase-3 Fix): Auf Desktop darf die Modal NICHT auf Mobile-Breite
@@ -5749,14 +5739,6 @@ button.tournament-header-btn {
    Tokens stehen, von denen er lebt. */
 
 /* v3: Teamliste im Detail-Tab */
-.t-team-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 6px;
-}
 .t-team-row {
   display: flex;
   align-items: center;
@@ -5867,9 +5849,9 @@ button.tournament-header-btn {
   text-align: left;
 }
 .t-standings-table .t-standings-num.is-positive,
-.t-thirds-table .t-thirds-num.is-positive { color: var(--good, #2e7d32); }
+.t-thirds-table .t-thirds-num.is-positive { color: #2e7d32; }
 .t-standings-table .t-standings-num.is-negative,
-.t-thirds-table .t-thirds-num.is-negative { color: var(--bad, #c62828); }
+.t-thirds-table .t-thirds-num.is-negative { color: #c62828; }
 .t-standings-table .t-standings-num.is-points,
 .t-thirds-table .t-thirds-num.is-points {
   font-weight: 700;
@@ -5885,7 +5867,6 @@ button.tournament-header-btn {
 .t-thirds-table .t-thirds-group { width: 64px; }
 .t-standings-table .t-standings-num,
 .t-thirds-table .t-thirds-num { width: 8%; }
-.t-thirds-table .t-thirds-mark { width: 32px; }
 
 /* P2 (2026-08-24) — Schmale Modul-Breite (Mobile): 5 unkritische
    Spalten der Dritten-Tabelle ausblenden, damit die wichtigen Werte
@@ -6062,7 +6043,7 @@ button.tournament-header-btn {
   content: " ✓";
   margin-left: 4px;
   font-weight: 700;
-  color: var(--good, #2e7d32);
+  color: #2e7d32;
 }
 
 /* v3: Beste-Dritte-Tabelle (Bug 9, 2026-08-18). Spec §6.3.1 + §13.7.
@@ -6096,12 +6077,6 @@ button.tournament-header-btn {
   text-align: left;
 }
 .t-thirds-table .t-thirds-team { font-weight: 500; }
-.t-thirds-table .t-thirds-mark,
-.t-thirds-table th.is-mark {
-  text-align: center;
-  color: var(--good, #2e7d32);
-  font-weight: 700;
-}
 .t-thirds-row.is-qualified { background: rgba(46, 125, 50, 0.06); }
 .t-thirds-row.is-out { opacity: 0.55; }
 
@@ -6142,88 +6117,11 @@ button.tournament-header-btn {
   letter-spacing: 0.5px;
 }
 
-/* Detail-Meta-Zeile (Preset, Modus, Status) */
-.t-detail-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  align-items: center;
-  font-size: 13px;
-  color: var(--muted);
-  margin: 0;
-}
-.t-detail-meta strong {
-  color: var(--text2);
-  font-weight: 600;
-}
-
-/* Team-Grid (Karten statt Chip-Liste) */
-.t-team-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-}
-.t-team-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  background: linear-gradient(180deg, var(--surface), var(--bg));
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
 .t-team-name {
   font-size: 13px;
   color: var(--text2);
   font-weight: 600;
 }
-.t-team-slot {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-/* Tabellen-Aktionen (rechtsbündig, klein) */
-.t-row-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-/* Standings-Liste (aufgewertet) */
-.t-standing-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.tournament-standing-list li {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
-}
-.t-standing-rank {
-  color: var(--muted);
-  font-weight: 700;
-  font-size: 12px;
-  min-width: 28px;
-}
-.t-standing-name {
-  color: var(--text2);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 
 /* Mobile: weniger Padding, kleinere Match-Cards */
 @media (max-width: 640px) {
@@ -6246,15 +6144,6 @@ button.tournament-header-btn {
 }
 
 /* Teams-Tab */
-.t-team-card {
-  position: relative;
-}
-.t-team-card-head {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-right: 28px;
-}
 .t-team-name {
   font-size: 13px;
   color: var(--text2);
@@ -6262,309 +6151,6 @@ button.tournament-header-btn {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Teilnehmer-Tab (Karten statt Tabelle) */
-.t-participant-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 10px;
-}
-.t-participant-card {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.t-participant-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.t-participant-main strong {
-  color: var(--text2);
-  font-size: 13px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.t-participant-team {
-  font-size: 11px;
-  color: var(--muted);
-  padding: 3px 8px;
-  background: var(--bg);
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-.t-participant-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* Standings-Tab: Podium */
-.t-podium {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.t-podium-place {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 18px 12px;
-  background: var(--card);
-  border: 1.5px solid var(--border);
-  border-radius: 14px;
-  text-align: center;
-  position: relative;
-}
-.t-podium-1 {
-  border-color: rgba(218, 165, 32, 0.5);
-  background: linear-gradient(180deg, rgba(218, 165, 32, 0.1), var(--card));
-  transform: translateY(-8px);
-}
-.t-podium-2 {
-  border-color: rgba(192, 192, 192, 0.4);
-}
-.t-podium-3 {
-  border-color: rgba(205, 127, 50, 0.4);
-}
-.t-podium-medal-large {
-  font-size: 36px;
-  line-height: 1;
-}
-.t-podium-name {
-  color: var(--text2);
-  font-weight: 700;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.t-podium-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: center;
-}
-.t-podium-stats strong {
-  color: var(--accent);
-  font-size: 16px;
-  font-weight: 800;
-}
-
-/* Standings Pills (W/L/D) */
-.t-stat-pills {
-  display: inline-flex;
-  gap: 4px;
-}
-.t-stat-pill {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.3px;
-}
-.t-stat-pill-w {
-  background: rgba(90, 158, 122, 0.18);
-  color: #3a7a5a;
-}
-.t-stat-pill-l {
-  background: rgba(196, 90, 60, 0.15);
-  color: #a8462c;
-}
-.t-stat-pill-d {
-  background: rgba(120, 130, 150, 0.18);
-  color: #5a6478;
-}
-.t-standing-list-rest {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.t-standing-list-rest li {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
-}
-.t-standing-rank {
-  color: var(--muted);
-  font-weight: 700;
-  font-size: 12px;
-  min-width: 28px;
-}
-.t-standing-name {
-  color: var(--text2);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Mobile: Bracket vertikal statt horizontal */
-@media (max-width: 768px) {
-  .t-overview-grid {
-    grid-template-columns: 1fr;
-  }
-  .t-podium {
-    grid-template-columns: 1fr;
-  }
-  .t-podium-1 {
-    transform: none;
-  }
-  .t-team-card {
-    padding: 12px;
-  }
-  .t-participant-card {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-}
-
-/* �═══════════════════════════════════════════════════════════════════
-   TOURNAMENT PHASE 3 v2 — Group-Tabellen (Multi-Group-Fix)
-   ════════════════════════════════════════════════════════════════════ */
-
-.t-group-tables-grid {
-  display: grid;
-  /* Phase 3 Fix: Volle Breite, mehrere Spalten je nach Platz.
-     1 Spalte auf Mobile, 2 ab Tablet, 4 auf großem Desktop. */
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.t-group-table-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.t-group-table-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-}
-
-.t-group-table-head h4 {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  font-weight: 700;
-}
-
-.t-group-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.t-group-table thead th {
-  text-align: left;
-  padding: 6px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.t-group-table tbody td {
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text2);
-}
-
-.t-group-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.t-group-table tbody tr.is-qualified {
-  background: rgba(90, 158, 122, 0.08);
-  border-left: 3px solid rgba(90, 158, 122, 0.6);
-}
-
-.t-group-table tbody tr.is-qualified td:first-child {
-  font-weight: 700;
-  color: #3a7a5a;
-}
-
-.t-group-table tbody tr.is-best-third {
-  background: rgba(218, 165, 32, 0.08);
-  border-left: 3px solid rgba(218, 165, 32, 0.6);
-}
-
-.t-group-table tbody tr.is-best-third td:first-child {
-  font-weight: 700;
-  color: #8a6a20;
-}
-
-.t-badge-q {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 7px;
-  background: rgba(90, 158, 122, 0.18);
-  color: #3a7a5a;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  vertical-align: middle;
-}
-.t-badge-b3 {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 7px;
-  background: rgba(218, 165, 32, 0.18);
-  color: #8a6a20;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  vertical-align: middle;
-}
-
-.t-group-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 24px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-  color: var(--muted);
-  text-align: center;
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -6692,52 +6278,7 @@ button.tournament-header-btn {
   cursor: not-allowed;
 }
 
-/* Tiebreaker-Order Liste (Drag&Drop später) */
-.t-tiebreaker-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 8px 0;
-}
-.t-tiebreaker-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--text2);
-  cursor: grab;
-}
-.t-tiebreaker-item-num {
-  font-weight: 700;
-  color: var(--accent);
-  min-width: 24px;
-}
-.t-tiebreaker-item-label {
-  flex: 1;
-}
-
-
 /* Cascade-Warnung Dialog */
-.t-cascade-warn {
-  background: rgba(255, 165, 0, 0.1);
-  border: 1px solid rgba(255, 165, 0, 0.4);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 14px;
-}
-.t-cascade-warn-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #8a6a20;
-  margin-bottom: 6px;
-}
 .t-cascade-warn-body {
   font-size: 13px;
   color: var(--text2);
@@ -6776,65 +6317,6 @@ button.tournament-header-btn {
   .t-shell { grid-template-columns: 220px minmax(0, 1fr) 280px; }
 }
 
-.t-shell-side,
-.t-shell-context {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: clamp(12px, 1.5vw, 18px);
-  position: sticky;
-  top: 12px;
-  align-self: start;
-}
-
-.t-shell-main {
-  min-width: 0; /* prevent grid blowout */
-}
-
-/* S3.3 — Gruppen-Grid: auto-fit, keine schmale Mittelspalte */
-.t-group-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: clamp(12px, 1.5vw, 18px);
-}
-
-.t-group-card {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-variant-numeric: tabular-nums;
-}
-
-.t-group-card h4 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-/* Zebra-Tabelle: alternierende Zeilen + Qualifikations-Zonen grün/gelb */
-.t-group-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.t-group-table tr:nth-child(even) {
-  background: var(--bg-1);
-}
-.t-group-table tr.t-qual-green {
-  border-left: 3px solid #4caf50;
-}
-.t-group-table tr.t-qual-yellow {
-  border-left: 3px solid #ffb300;
-}
-.t-group-table td,
-.t-group-table th {
-  padding: 5px 8px;
-  text-align: left;
-}
-
 /* Hier stand bis 2026-08-25 ein Deklarationsblock OHNE Selektor
    (display/font-size/white-space/overflow/text-overflow). Der Selektor
    hiess `.t-schedule-match-teams`; belegt ueber `git log -L` auf diesem
@@ -6848,53 +6330,13 @@ button.tournament-header-btn {
    kommt heute in keinem HTML/JS mehr vor (geprueft ueber public/**).
    Damit ist der Rumpf ebenfalls tot und faellt weg. Nebeneffekt: die
    Klammerbilanz der Datei war -2 (eine Klammer hier, eine bei
-   .t-thirds-row.is-out weiter oben) und steht jetzt auf 0. */
-
-/* S4.1 — Drag&Drop-Setzliste im Wizard Step 2 */
-.t-wiz-seed-list {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0;
-  max-height: 280px;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-2);
-}
-.t-wiz-seed-row {
-  display: grid;
-  grid-template-columns: 24px 28px 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  cursor: grab;
-  background: var(--bg-1);
-}
-.t-wiz-seed-row:last-child { border-bottom: none; }
-.t-wiz-seed-row.is-dragging { opacity: 0.4; }
-.t-wiz-seed-row.is-drop-target {
-  outline: 2px dashed #7ee787;
-  background: rgba(126, 231, 135, 0.08);
-}
-.t-wiz-seed-handle {
-  color: var(--muted);
-  font-weight: 700;
-  cursor: grab;
-  user-select: none;
-}
-.t-wiz-seed-num {
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  font-weight: 600;
-  text-align: right;
-}
-.t-wiz-seed-name {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+   .t-thirds-row.is-out weiter oben) und steht jetzt auf 0.
+   NACHTRAG 2026-08-26: Ein roher Klammer-Zaehler (oeffnende minus
+   schliessende) meldet fuer diese Datei trotzdem +1. Das ist ein
+   Messfehler, kein Defekt: die eine ueberzaehlige oeffnende Klammer
+   steht sieben Zeilen weiter oben IN DIESEM KOMMENTAR, im dort
+   zitierten Selektor. Wer nachmisst, muss Kommentare und Strings
+   vorher maskieren -- dann ist die Bilanz 0. */
 
 /* S4.3 — Match-Detail-Panel: Notiz, Foto, Audit-Log */
 .t-match-audit {
