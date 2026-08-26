@@ -188,10 +188,17 @@ describe('Alle drei body-Dialoge erben die Turnier-Tokens', () => {
     );
   });
 
-  it('Team-Verschieben-Modal (main.js) nutzt DIALOG_TOKEN_CLASSES', () => {
-    expect(mainJs).toMatch(
-      /overlay\.className = `t-pick-team-modal \$\{DIALOG_TOKEN_CLASSES\}`/,
-    );
+  // Das Team-Verschieben-Modal (`t-pick-team-modal`) ist am 2026-08-26
+  // ersatzlos entfernt worden — es war ein halber Umbau: seine
+  // Erfolgsmeldung verwies auf einen "Speichern"-Knopf, den es seit
+  // B.8.1 nicht mehr gibt, und seine einzige Verdrahtung
+  // (`[data-action="pick-team-for-group"]`) war schon vorher tot. Der
+  // aktive Weg ist der Paar-Klick-Tausch über `POST /:id/groups/swaps`.
+  // Der Test steht hier als Grabstein statt als Luecke: er faellt, wenn
+  // jemand das Modal zurueckholt, ohne ihm die Token-Klassen zu geben.
+  it('Team-Verschieben-Modal ist entfernt (kein halber Umbau im Code)', () => {
+    expect(mainJs).not.toContain('t-pick-team-modal');
+    expect(mainJs).not.toContain('openPickTeamForGroupModal');
   });
 
   it('beide Dateien importieren aus dialog-host.js', () => {
