@@ -37,8 +37,6 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   'cancel-schedule-edits',
   'save-fields',
   'reset-fields',
-  'save-groups',
-  'pick-team-for-group',
   'redraw-seeding',
   'randomize-groups',
   'confirm-swap',
@@ -49,7 +47,6 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   'finish-tournament',
   'shift-open',
   'reschedule-auto',
-  'reschedule',
   'reset-results',
   'delete-tournament',
   // P3 (2026-08-24): Fallback aus dem Baum-Tab für „K.-o.-Phase
