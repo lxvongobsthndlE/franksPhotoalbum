@@ -283,15 +283,24 @@ describe('Etappe B.8.1 — POST /:id/groups/swaps', () => {
     expect(prisma.groupMembership.update.mock.calls).toHaveLength(4);
   });
 
-  it('alle Swaps werden in EINER $transaction mit Array aufgerufen (atomar)', async () => {
+  it('Tausch UND Spielplan laufen in EINER $transaction (atomar)', async () => {
+    // Bis zum 26.08. war das eine $transaction mit einem ARRAY von zwei
+    // Update-Promises. Seit dem Entscheid "die Spiele ziehen mit" gehoert
+    // die Neuerzeugung der Gruppenphase in dieselbe Transaktion — und die
+    // braucht die Callback-Form, weil sie mehrere abhaengige Schritte hat.
+    //
+    // Die ZUSICHERUNG ist unveraendert und wichtiger als die Form: beides
+    // zusammen oder gar nichts. Ein Abbruch zwischen Tausch und Spielplan
+    // waere genau der Zustand, den diese Aenderung abschafft — zwei
+    // Quellen, die sich widersprechen.
     await adminRequest('POST', `/api/tournaments/${tId}/groups/swaps`, {
       swaps: [[teamAlpha, teamBravo]],
     });
     expect(prisma.$transaction).toHaveBeenCalled();
     const calls = prisma.$transaction.mock.calls;
     const lastCall = calls[calls.length - 1];
-    // Array mit 2 Update-Promises.
-    expect(Array.isArray(lastCall[0])).toBe(true);
-    expect(lastCall[0]).toHaveLength(2);
+    expect(typeof lastCall[0]).toBe('function');
+    // Und die Updates laufen INNERHALB davon, nicht daneben.
+    expect(prisma.groupMembership.update.mock.calls.length).toBeGreaterThan(0);
   });
 });

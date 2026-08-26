@@ -34,6 +34,9 @@ import {
   propagateWinner,
   mergeConfig,
   generateSchedule,
+  // Fuer regeneriereGruppenphase (26.08.): Paarungen und frische IDs.
+  buildRoundRobinMatches,
+  makeCuid,
   rankBestThirds,
 } from './engine/index.js';
 import {
@@ -43,6 +46,7 @@ import {
 } from './view.js';
 import { persistGenerated } from './persist.js';
 import { normalizeConfirmName } from './normalize-confirm-name.js';
+import { regeneriereGruppenphase } from './regenerate-groups.js';
 import { validateConfigPatch } from './config-validator.js';
 import {
   uploadTournamentLogo,
@@ -1141,8 +1145,22 @@ export default async function tournamentRoutes(fastify) {
   //       verändert.
   // Kein Confirm-Handshake nötig: gleiche Operation wie PATCH /:id/groups,
   //       aber mit server-seitig generierter Ziel-Zuordnung.
-  // Result: keine Team-, Match- oder Stage-Änderungen — NUR die
-  //         GroupMembership-position/teamId-Zuordnung.
+  // Result (bis 25.08.): keine Team-, Match- oder Stage-Änderungen — NUR
+  //         die GroupMembership-Zuordnung.
+  //
+  // DAS WAR DER FEHLER, und er ist am 26.08. behoben. Die Matches
+  // trugen die alten Paarungen weiter, während die Mitgliedschaften
+  // schon die neuen sagten. An der echten Datenbank gemessen waren
+  // danach in JEDER Gruppe drei von vier Mitgliedern Teams, die dort
+  // kein Spiel haben — die Tabellen standen auf 0, obwohl im
+  // Spielplan Ergebnisse sichtbar waren. Und aus diesen Tabellen
+  // kommen die Qualifikanten der K.-o.-Phase.
+  //
+  // Entscheid Jonas: Die Spiele ziehen mit. Wer die Einteilung ändert,
+  // ändert den Spielplan der Gruppenphase — siehe
+  // regeneriereGruppenphase(). Das löscht eingetragene
+  // Gruppenergebnisse, deshalb steht ab einem beendeten Spiel eine
+  // Bestätigung mit dem Turniernamen davor (§13.10).
   fastify.post('/:id/balance-shuffle-groups', async (request, reply) => {
     try {
       const ctx = await requireTournamentWrite(
@@ -1224,7 +1242,34 @@ export default async function tournamentRoutes(fastify) {
         }
       }
 
-      // 5) Atomar: alte Memberships löschen, neue einfügen.
+      // 5) Bestätigung, BEVOR etwas passiert.
+      //
+      //    Neuverteilen erzeugt die Gruppenspiele neu — eingetragene
+      //    Gruppenergebnisse sind danach weg. Ohne beendetes Spiel gibt
+      //    es nichts zu verlieren und damit auch nichts zu bestätigen.
+      if (finishedCount > 0) {
+        const provided = normalizeConfirmName(request.body?.confirmTournamentName);
+        const expected = normalizeConfirmName(ctx.tournament.name);
+        if (provided !== expected) {
+          return reply.code(409).send({
+            error: 'shuffle_needs_confirmation',
+            message:
+              `${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} ` +
+              'sind bereits beendet. Beim Neuverteilen wird der Spielplan der ' +
+              'Gruppenphase neu erzeugt — diese Ergebnisse gehen verloren. ' +
+              'Tippe zur Bestätigung den Turniernamen.',
+            finishedMatches: finishedCount,
+            needsConfirmation: true,
+          });
+        }
+      }
+
+      // 6) Atomar: Zuordnung UND Spielplan in EINER Transaktion.
+      //
+      //    Beides zusammen oder gar nichts. Ein Abbruch zwischen den
+      //    beiden Schritten wäre genau der Zustand, den diese Änderung
+      //    abschafft: zwei Quellen, die sich widersprechen.
+      let bilanz;
       await fastify.prisma.$transaction(async (tx) => {
         await tx.groupMembership.deleteMany({
           where: {
@@ -1233,6 +1278,12 @@ export default async function tournamentRoutes(fastify) {
         });
         await tx.groupMembership.createMany({
           data: newAssignments,
+        });
+        bilanz = await regeneriereGruppenphase(tx, ctx.tournament.id, {
+          buildRoundRobinMatches,
+          generateSchedule,
+          mergeConfig,
+          makeCuid,
         });
       });
 
@@ -1244,7 +1295,9 @@ export default async function tournamentRoutes(fastify) {
       return {
         ok: true,
         shuffledTeamCount: shuffled.length,
+        spielplanNeu: bilanz,
         groups: view.groups,
+        matches: view.matches,
       };
     } catch (err) {
       return handleError(reply, err, 'Gruppeneinteilung konnte nicht gemischt werden');
@@ -1367,15 +1420,48 @@ export default async function tournamentRoutes(fastify) {
         return { ok: true, swapCount: 0 };
       }
 
-      // 3) Atomar updaten.
-      await fastify.prisma.$transaction(
-        updates.map((u) =>
-          fastify.prisma.groupMembership.update({
+      // 3) Bestätigung, BEVOR etwas passiert.
+      //
+      //    Ein Tausch ändert die Einteilung — und seit dem 26.08. zieht
+      //    der Spielplan der Gruppenphase mit (Entscheid Jonas). Das
+      //    löscht eingetragene Gruppenergebnisse. Ohne beendetes Spiel
+      //    gibt es nichts zu verlieren und nichts zu bestätigen.
+      //
+      //    Dieselbe Regel wie bei „Zufällig verteilen" — zwei Wege in
+      //    denselben Zustand dürfen nicht verschieden streng sein.
+      if (finishedCount > 0) {
+        const provided = normalizeConfirmName(request.body?.confirmTournamentName);
+        const expected = normalizeConfirmName(ctx.tournament.name);
+        if (provided !== expected) {
+          return reply.code(409).send({
+            error: 'swap_needs_confirmation',
+            message:
+              `${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} ` +
+              'sind bereits beendet. Beim Tauschen wird der Spielplan der ' +
+              'Gruppenphase neu erzeugt — diese Ergebnisse gehen verloren. ' +
+              'Tippe zur Bestätigung den Turniernamen.',
+            finishedMatches: finishedCount,
+            needsConfirmation: true,
+          });
+        }
+      }
+
+      // 4) Atomar: Tausch UND Spielplan in EINER Transaktion.
+      let bilanz;
+      await fastify.prisma.$transaction(async (tx) => {
+        for (const u of updates) {
+          await tx.groupMembership.update({
             where: { id: u.membershipId },
             data: { groupId: u.newGroupId },
-          })
-        )
-      );
+          });
+        }
+        bilanz = await regeneriereGruppenphase(tx, ctx.tournament.id, {
+          buildRoundRobinMatches,
+          generateSchedule,
+          mergeConfig,
+          makeCuid,
+        });
+      });
 
       // Antwort: frische View.
       const view = await buildTournamentViewContext(
@@ -1385,7 +1471,9 @@ export default async function tournamentRoutes(fastify) {
       return {
         ok: true,
         swapCount: swaps.length,
+        spielplanNeu: bilanz,
         groups: view.groups,
+        matches: view.matches,
       };
     } catch (err) {
       return handleError(reply, err, 'Team-Tausch fehlgeschlagen');
