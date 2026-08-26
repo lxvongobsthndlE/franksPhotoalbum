@@ -463,9 +463,14 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
-  white-space: nowrap;
+  /* Die Kappung sitzt am TEXT, nicht hier — siehe .t-mod-kicker-text.
+     Ein erster Anlauf hat sie an diesen Behaelter gehaengt und nichts
+     bewirkt: das `white-space: nowrap` stand am span darin, und der
+     gewinnt gegen jede Regel am Elternteil. Gemessen kam der Kasten mit
+     265px und der Text mit 325px an — abgeschnitten, ohne Auslassungs-
+     punkte, weil die die Regel am span mitbringt. Dieselbe Sache an zwei
+     Stellen, wie schon achtmal in dieser Datei. */
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* Titelzeile: Display-Titel links, genau EINE Aktion rechts.
    align-items: baseline, damit die Grundlinien fluchten — center laesst
@@ -5433,11 +5438,22 @@ textarea.t-input {
 }
 .t-filter-chip.is-active .t-filter-n { color: var(--panel); opacity: 0.72; }
 
+/* Der Kicker darf UMBRECHEN — bis zu zwei Zeilen, dann kuerzt er.
+   Vorher stand hier `white-space: nowrap`, und der laengste Kicker des
+   Moduls („Nur du als Organisator siehst diesen Bereich") wurde zu
+   „…siehst diesen B…". Ein abgeschnittener Satz ist keine Information,
+   sondern ein Raetsel.
+   Die Vorlage laesst ihn an derselben Stelle in zwei Zeilen laufen; das
+   Logo steht ohnehin neben BEIDEN Kopfzeilen und traegt den Umbruch mit,
+   ohne dass der Kopf auseinanderfaellt. Zwei Zeilen sind die Grenze:
+   danach waere der Titel darunter nicht mehr das Groesste auf dem
+   Schirm, und daran erkennt man die Ansicht im Vorbeigehen. */
 .t-mod-kicker-text {
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 
@@ -6457,14 +6473,14 @@ button.t-lrow:disabled:hover { background: none; }
   box-shadow: none;
   overflow: visible;
 }
-.t-settings-section-header,
-.t-settings-section:first-child .t-settings-section-header {
-  padding: 22px 0 8px;
-  background: none;
-  border: 0;
-}
-.t-settings-section-header:hover { background: none; }
-.t-settings-section-header:hover .t-settings-section-title { color: var(--ink-2); }
+/* Die KOPFZEILE steht bewusst NICHT hier, sondern weiter unten im Block
+   „Einstellungen zugeklappt". Dort steht die vierte Regel derselben
+   Klasse in dieser Datei, und sie ist die letzte — bei gleicher
+   Spezifitaet gewinnt sie. Eine fuenfte hier oben haette gar nichts
+   getan: gemessen kam padding-left mit 16px an, obwohl an dieser Stelle
+   `padding: 22px 0 8px` stand. Wer diese Klasse anfasst, fasst sie
+   DORT an. */
+.t-settings-section:first-child .t-settings-section-header { border-top: 0; }
 .t-settings-section-header:focus-visible { background: none; outline-offset: -2px; }
 .t-settings-section-header .t-settings-section-title,
 .t-settings-section-title {
@@ -6496,6 +6512,19 @@ button.t-lrow:disabled:hover { background: none; }
   margin-inline: calc(-1 * var(--s5));
   padding-left: var(--s5);
   padding-right: var(--s5);
+  /* Die Breite ist hier der Punkt, nicht Beiwerk. `width: 100%` bezieht
+     sich auf den ELTERNBLOCK und weiss nichts vom eigenen Rand: mit
+     -20px links UND rechts wanderte die Zeile nur nach links und blieb
+     40px zu kurz — gemessen bei 390px von 14 bis 336 statt bis 376. Der
+     Wert rechts (Schrittwaehler, Haken) stand damit 40px vor dem
+     Blattrand und die Trennlinien hoerten im Nichts auf.
+     `width: auto` half auch nicht: .t-lrow ist ein <button> in einem
+     Block, und ein Knopf ohne Breitenangabe schrumpft auf seinen Inhalt
+     (gemessen 340,266px). Die Zeile muss also ausdruecklich sagen, wie
+     breit sie ist: so breit wie der Elternblock PLUS die zwei Rinnen,
+     aus denen sie ausbricht. Ein Wert, zwei Vorzeichen — wie ueberall
+     sonst in dieser Fassung. */
+  width: calc(100% + var(--s5) * 2);
 }
 /* Die Gefahrenzone: Karminstreifen statt Karminrahmen. Der rote Rahmen
    war der lauteste Kasten im ganzen Entwurf — und stand ganz unten, wo
@@ -6702,20 +6731,30 @@ button.t-lrow:disabled:hover { background: none; }
    vorhandene Optik um zwei Dinge: eine groessere Trefferflaeche fuer
    den Daumen und den Zustand des Pfeils.
    ---------------------------------------------------------------- */
+/* KASKADENKOLLISION Nr. 11, gemessen 2026-08-26. Dies ist die VIERTE
+   Regel fuer `.t-settings-section-header` in dieser Datei und die
+   letzte — bei gleicher Spezifitaet gewinnt sie. Eine fuenfte, weiter
+   oben angelegte Regel mit `padding: 22px 0 8px` hat deshalb nichts
+   getan; im Browser kam weiter 16px links an, und die Beschriftungen
+   standen 16px weiter innen als die Zeilen darunter.
+   Die Werte der dritten Fassung stehen deshalb HIER: die Kopfzeile ist
+   die Mono-Beschriftung der Vorlage (`.glbl`), also 22px Luft darueber
+   und 8px darunter, seitlich nichts — die Ansicht polstert schon. */
 .t-settings-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s3);
   width: 100%;
-  min-height: 48px;
-  padding: var(--s3) var(--s4);
+  min-height: 0;
+  padding: 22px 0 8px;
   background: none;
   border: 0;
   cursor: pointer;
   text-align: left;
 }
-.t-settings-section-header:hover { background: var(--raised); }
+.t-settings-section-header:hover { background: none; }
+.t-settings-section-header:hover .t-settings-section-title { color: var(--ink-2); }
 .t-danger-zone .t-settings-section-title { color: var(--danger); }
 .t-settings-section-toggle {
   flex: none;
@@ -6726,14 +6765,18 @@ button.t-lrow:disabled:hover { background: none; }
 }
 /* Der Rumpf sitzt in einer Karte, die schon einen Rand hat — die Liste
    darin braucht keinen zweiten. Sonst waere es wieder ein Kaestchen im
-   Kaestchen, genau das, was Jonas beim Spielplan beanstandet hat. */
+   Kaestchen, genau das, was Jonas beim Spielplan beanstandet hat.
+   Die Trennlinie oben ist mit der dritten Fassung entfallen: seit die
+   Kopfzeile eine Mono-Beschriftung ist, trennt der Abstand (22 oben, 8
+   unten). Eine Linie DAZU haette dasselbe zweimal gesagt — und sie lief
+   nur ueber die Listenbreite, nicht ueber das Blatt, sass also weder
+   buendig noch mittig. */
 .t-settings-section-body > .t-lst {
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  border-top: 1px solid var(--line-soft);
 }
-.t-settings-section-body > .t-hint { padding: var(--s3) var(--s4); }
+.t-settings-section-body > .t-hint { padding: var(--s2) 0; }
 
 /* ----------------------------------------------------------------
    SPIELPLAN-LEISTE — Filter und Aktion in EINER Zeile
