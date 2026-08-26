@@ -2363,30 +2363,6 @@ async function loadFeedPosts(reset = false) {
   }
 }
 
-/**
- * Zuschauer-Link in die Zwischenablage legen.
- *
- * Baut die Adresse aus dem Turnier-DTO statt sie aus einem Eingabefeld
- * im Einstellungen-Tab zu lesen. Der alte Weg lief ueber
- * `mount.querySelector('[data-public-url]')` und funktionierte deshalb
- * nur, solange dieser Tab gerendert war — von der Baum-Ansicht aus, wo
- * die Vorlage "Teilen" zeigt, waere er stumm ins Leere gelaufen.
- *
- * Die Bedingung dafuer, dass der Knopf ueberhaupt erscheint, steht in
- * T_VIEW_CHROME: nur mit isPublic und vorhandenem Token.
- */
-async function teileZuschauerLink(t) {
-  if (!t?.publicToken) return;
-  const url = `${location.origin}/t/${encodeURIComponent(t.publicToken)}`;
-  try {
-    await navigator.clipboard.writeText(url);
-    toast('Zuschauer-Link kopiert.', 'success');
-  } catch {
-    // Ohne Zwischenablage-Recht (oder ohne HTTPS) ist die Adresse
-    // im Klartext hilfreicher als eine Fehlermeldung.
-    toast(url, 'info');
-  }
-}
 function renderTournamentHeaderActions() {
   const uploadBtn = $('upload-btn');
   if (!uploadBtn) return;
@@ -2452,7 +2428,7 @@ function renderTournamentHeaderActions() {
             // erstellen als admin in der turnierübersicht". Das Gate dafuer
             // ist `detailOffen` weiter oben.
             id: 'tournament-new-instance-btn',
-            label: 'Turnier erstellen',
+            label: 'Neu',
             className: 'btn btn-primary tournament-new-instance-btn',
             onClick: openTournamentWizard,
           }]
@@ -2509,7 +2485,17 @@ async function loadTournamentDashboard(reset = false) {
   const grid = $('grid');
   if (!grid) return;
   if (reset) {
-    grid.className = 'grid tournaments-grid';
+    // Befund 2026-08-26: `.grid` und `.tournaments-grid` haben dieselbe
+  // Spezifitaet (0,1,0) und stehen in DERSELBEN Datei — main.css:2601
+  // gegen main.css:156. Die spaetere Quelle gewinnt, nicht die
+  // speziellere. Die Liste lief deshalb im Foto-Raster
+  // (`repeat(auto-fill, minmax(260px, 1fr))`), die eine Sektion belegte
+  // genau EINE Spalte von ~260px, und die Turniernamen wurden auf "d..."
+  // gekuerzt, waehrend rechts daneben der halbe Bildschirm leer blieb.
+  //
+  // Siebtes Mal dasselbe Muster in diesem Modul: der Selektor einer Regel
+  // sagt nicht, wogegen sie gewinnt.
+  grid.className = 'tournaments-grid';
     grid.innerHTML =
       '<div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>';
   }
@@ -3394,18 +3380,27 @@ const T_VIEW_CHROME = {
     aktion: { label: 'Regelwerk', view: 'regeln' },
   },
   baum: {
-    titel: 'Der Weg zum Titel',
+    // Titel und Aktion, zweite Runde (Jonas, 2026-08-26):
+    //   "hier jetzt ist es tatsaechlich zu knapp ... aber da kann auch
+    //    einfach KO-PHASE stehen. und mach teilen hier weg. lieber auch
+    //    regelwerk hin wie bei gruppenphase."
+    //
+    // ABWEICHUNG VON DER VORLAGE: das Artefakt nennt diese Ansicht "Der
+    // Weg zum Titel" und setzt rechts "Teilen". Der Titel ist mit 17
+    // Zeichen im Display-Schnitt breiter als der Platz neben einer
+    // Aktion — gemessen im Browser, nicht geschaetzt. "K.-o.-Phase" sagt
+    // dasselbe in einem Drittel der Breite.
+    //
+    // "Teilen" faellt weg, weil es hier die einzige Ansicht waere, deren
+    // Aktion nichts mit der Ansicht zu tun hat. "Regelwerk" ist dagegen
+    // genau die Frage, die am K.-o.-Tisch aufkommt — und es steht schon
+    // bei den Gruppen, also lernt man den Ort einmal statt zweimal.
+    titel: 'K.-o.-Phase',
     kicker: (t) => [
       zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
       tournamentModeLabel(t.mode) || '',
     ].filter(Boolean).join(' · '),
-    // „Teilen" steht nur da, wenn es auch etwas zu teilen GIBT. Ohne
-    // Zuschauer-Link waere der Knopf eine Einladung in eine Fehlermeldung.
-    aktion: {
-      label: 'Teilen',
-      handlung: 'teilen',
-      wenn: (t) => t.isPublic === true && !!t.publicToken,
-    },
+    aktion: { label: 'Regelwerk', view: 'regeln' },
   },
   teams: {
     titel: 'Teams',
@@ -3714,9 +3709,7 @@ function renderTournamentInstanceDetailV3(t) {
         // vorher im Einstellungen-Tab war. Kein Fehler, kein Hinweis,
         // einfach nichts. Jetzt ruft jede Kopf-Aktion die Handlung direkt.
         const handlung = headAction.dataset.handlung;
-        if (handlung === 'teilen') {
-          teileZuschauerLink(t);
-        } else if (handlung === 'regelwerk-bearbeiten') {
+        if (handlung === 'regelwerk-bearbeiten') {
           switchToView('regeln', null);
           handleTournamentTabSideEffects('regeln', t, detail);
           enterRulesEditMode(t.id);
@@ -3913,12 +3906,10 @@ function bindSpielplanInteractions(t) {
     // entfallen, die Chips stehen wieder in einer scrollenden Reihe
     // (siehe renderFilterChips). Damit faellt hier der Trigger-Zweig weg
     // und der Zweig fuer die Menue-Eintraege — es gibt nur noch Chips.
-    const chip = e.target.closest('.t-chip[data-filter]');
-    if (chip && section.contains(chip)) {
-      currentSpielplanFilter = chip.dataset.filter;
-      renderSpielplan(t);
-      return;
-    }
+    // Der Filter ist seit der dritten Fassung ein Auswahlfeld, kein Chip.
+    // Ein <select> feuert 'change', nicht 'click' — deshalb steht die
+    // Verdrahtung unten als eigener Listener und nicht in dieser
+    // Klick-Delegation. Hier bleibt nichts zurueck.
     // Match-Aktion "Ergebnis"
     const action = e.target.closest('[data-action="enter-result"]');
     if (action && section.contains(action)) {
@@ -3953,6 +3944,14 @@ function bindSpielplanInteractions(t) {
       renderSpielplan(t);
       return;
     }
+  });
+
+  // Filter-Auswahl. Eigener Listener, weil <select> 'change' feuert.
+  section.addEventListener('change', (e) => {
+    const feld = e.target.closest('[data-filter-select]');
+    if (!feld || !section.contains(feld)) return;
+    currentSpielplanFilter = feld.value;
+    renderSpielplan(t);
   });
 
   // Der Click-Outside-Listener fuer das Filter-Dropdown ist mit dem
@@ -4709,8 +4708,54 @@ async function loadEinstellungenTab(t, mount) {
  * Verdrahtet alle Action-Buttons im Einstellungen-Tab.
  * Event-Delegation am Mount — wir reagieren auf data-action-Attribute.
  */
+/**
+ * Stepper verdrahten: − und + verändern das Feld in ihrer Mitte.
+ *
+ * Delegation am Mount statt ein Listener je Knopf — der Einstellungen-Tab
+ * wird bei jeder Änderung neu gerendert, und einzeln gebundene Listener
+ * gingen dabei verloren. Genau diese Klasse Fehler hat der
+ * Selektor-Drift-Detektor heute schon zweimal aufgedeckt.
+ *
+ * Bewusst NICHT an `wireGuardedClick`: hier wird nichts gespeichert. Der
+ * Stepper ändert eine Zahl im Formular; gespeichert wird sie erst von
+ * „Zeitplan neu berechnen" bzw. „Jetzt verschieben", und DIE hängen an
+ * der Sperre. Eine Sperre am Stepper würde nur so aussehen, als sei hier
+ * etwas zu schützen.
+ *
+ * `input` wird ausgelöst, damit alles, was am Feld hängt, den neuen Wert
+ * sieht — der Stepper darf sich nicht anders verhalten als Tippen.
+ */
+function wireStepper(mount) {
+  if (!mount || mount.dataset.stepperBound === '1') return;
+  mount.dataset.stepperBound = '1';
+  mount.addEventListener('click', (ev) => {
+    const knopf = ev.target.closest('.t-step-btn[data-step]');
+    if (!knopf || !mount.contains(knopf)) return;
+    const feld = knopf.parentElement?.querySelector('.t-step-wert');
+    if (!feld) return;
+
+    const richtung = Number(knopf.dataset.step) || 0;
+    const schritt = Number(feld.step) || 1;
+    const min = feld.min === '' ? -Infinity : Number(feld.min);
+    const max = feld.max === '' ? Infinity : Number(feld.max);
+    // Ein leeres oder vertipptes Feld darf nicht zu NaN führen — dann
+    // stünde nach einem Klick "NaN" im Formular und der nächste Klick
+    // käme nicht mehr heraus.
+    const jetzt = Number.isFinite(Number(feld.value)) ? Number(feld.value) : (Number.isFinite(min) ? min : 0);
+    const neu = Math.min(max, Math.max(min, jetzt + richtung * schritt));
+    if (neu === jetzt) return;
+    feld.value = String(neu);
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
 function wireEinstellungen(mount, t, { finishedCount }) {
   if (!mount) return;
+
+  // Stepper zuerst: sie gehoeren zur FORM der Zeile, nicht zu einer
+  // einzelnen Aktion, und muessen auch dann laufen, wenn weiter unten
+  // eine Verdrahtung wegen fehlender Rechte uebersprungen wird.
+  wireStepper(mount);
 
   // Etappe B.8.1 — board ist Shared-Resource für saveGroupsFallback + Pair-Swap.
   const board = mount.querySelector('[data-role="groups-board"]');

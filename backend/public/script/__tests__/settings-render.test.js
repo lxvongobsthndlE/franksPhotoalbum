@@ -41,18 +41,33 @@ const tDraft = {
 };
 
 describe('renderEinstellungen', () => {
-  it('Admin + draft: 5 Blöcke in Reihenfolge (Aktionen / Groups / Seeding / Fields / Danger)', () => {
+  it('Admin + draft: die Blöcke stehen in der Reihenfolge, in der man sie braucht', () => {
+    // Umbau 2026-08-26 (Jonas: „das muss hochwertiger, besser zu bedienen
+    // aussehen"): Aus dem Block „Aktionen" mit seiner Knopf-Sammlung sind
+    // zwei beschriftete Listen geworden — „Ablauf" (was den Zustand des
+    // Turniers ändert) und „Spielbetrieb" (die Zahlen am Spieltag).
+    // Deshalb prüft dieser Test nicht mehr auf data-section="actions".
+    //
+    // Die REIHENFOLGE bleibt aber der Punkt: sie folgt dem Tag eines
+    // Turnierleiters — erst starten, dann während des Betriebs drehen,
+    // dann die selteneren Dinge, und Gefährliches ganz unten.
     const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
-    const i1 = html.indexOf('data-section="actions"');
-    const i2 = html.indexOf('data-section="groups"');
-    const i3 = html.indexOf('data-section="seeding"');
-    const i4 = html.indexOf('data-section="fields"');
-    const i5 = html.indexOf('data-section="danger-zone"');
-    expect(i1).toBeGreaterThan(-1);
-    expect(i2).toBeGreaterThan(i1);
-    expect(i3).toBeGreaterThan(i2);
-    expect(i4).toBeGreaterThan(i3);
-    expect(i5).toBeGreaterThan(i4);
+    const orte = [
+      ['Ablauf', html.indexOf('>Ablauf<')],
+      ['Gruppeneinteilung', html.indexOf('data-section="groups"')],
+      ['Setzreihenfolge', html.indexOf('data-section="seeding"')],
+      ['Spielfelder', html.indexOf('data-section="fields"')],
+      ['Notfall', html.indexOf('>Notfall<')],
+      ['Gefahrenzone', html.indexOf('>Gefahrenzone<')],
+    ];
+    for (const [name, i] of orte) {
+      expect(i, name + ' fehlt ganz').toBeGreaterThan(-1);
+    }
+    for (let k = 1; k < orte.length; k++) {
+      expect(
+        orte[k][1], orte[k][0] + ' steht vor ' + orte[k - 1][0],
+      ).toBeGreaterThan(orte[k - 1][1]);
+    }
   });
 
   it('Admin + draft: „Turnier abschließen" sichtbar (Button)', () => {
@@ -67,9 +82,13 @@ describe('renderEinstellungen', () => {
     expect(html).not.toContain('data-action="finish-tournament"');
   });
 
-  it('Gefahrenzone: nur für Admin, beide Aktionen sichtbar, „Gefahrenzone"-Header', () => {
+  it('Gefahrenzone: eigene Beschriftung, karminroter Rahmen, beide Aktionen', () => {
+    // Die Klasse heißt seit dem Umbau `t-lst--danger` statt
+    // `t-danger-zone` — geprüft wird aber ohnehin das, was zählt: dass
+    // die Zone als solche erkennbar ist und beide Aktionen trägt.
     const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
-    expect(html).toContain('t-danger-zone');
+    expect(html).toContain('t-grp-lbl--danger');
+    expect(html).toContain('t-lst--danger');
     expect(html).toContain('Gefahrenzone');
     expect(html).toContain('Alle Ergebnisse löschen');
     expect(html).toContain('Turnier löschen');
@@ -77,7 +96,13 @@ describe('renderEinstellungen', () => {
 
   it('Member: keine Gefahrenzone, kein Speichern, kein Drag', () => {
     const html = renderEinstellungen(tDraft, { isAdmin: false, finishedCount: 0 });
-    expect(html).not.toContain('t-danger-zone');
+    // ANKER GEWECHSELT 2026-08-26: hier stand `not.toContain('t-danger-zone')`.
+    // Diese Klasse gibt es seit dem Umbau nicht mehr — der Test wäre also
+    // leer-grün geworden und hätte ein Loch bewacht, das er nicht mehr
+    // sieht. Geprüft wird jetzt die Handlung selbst, nicht ihre Hülle.
+    expect(html).not.toContain('t-lst--danger');
+    expect(html).not.toContain('data-action="delete-tournament"');
+    expect(html).not.toContain('data-action="reset-results"');
     expect(html).not.toContain('data-action="save-groups"');
     expect(html).not.toContain('data-action="redraw-seeding"');
     expect(html).not.toContain('data-action="finish-tournament"');

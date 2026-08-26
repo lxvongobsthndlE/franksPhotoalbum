@@ -5615,3 +5615,291 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
     max-width: 100%;
   }
 }
+
+/* ================================================================
+   EINSTELLUNGEN — Listenzeilen statt Formularfeldern
+   ----------------------------------------------------------------
+   Jonas, 2026-08-26: „die ganzen einstellungen ... das muss hochwertiger,
+   besser zu bedienen aussehen ... sieht auch noch aus wie ein relikt aus
+   alter zeit." Und: „es soll mobil wunderschön aussehen. alles top
+   bedienbar sein für den turnierleiter."
+
+   Vorher lagen hier rohe <input type="number">, drei verschieden breite
+   Knoepfe und zwei Hinweiskaesten in EINEM Flex-Container. Jede Zeile
+   hatte ihre eigene Hoehe, ihre eigene Kante, ihre eigene Logik.
+
+   Die Vorlage (Abschnitt 06) macht es anders und immer gleich:
+     Beschriftung links · Wert rechts in Mono · Erklaerung klein darunter
+   Drei Ansichten folgen derselben Regel — Teams, Regelwerk,
+   Einstellungen. Genau das ist hier nachgebaut.
+
+   Warum Listenzeilen und keine Formularfelder: ein Turnierleiter bedient
+   das mit dem Daumen, im Stehen, an der Platte. Eine Zeile mit grosser
+   Trefferflaeche schlaegt ein Eingabefeld, das erst die Tastatur holt.
+   Getippt werden kann trotzdem — der Stepper hat ein echtes Feld in der
+   Mitte, nur muss man es nicht.
+   ================================================================ */
+
+/* ---- Gruppenbeschriftung ueber einer Liste ---- */
+.t-grp-lbl {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: var(--s1) var(--s1) 0;
+}
+.t-grp-lbl--danger { color: var(--danger); }
+
+/* ---- Die Liste ---- */
+.t-lst {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-s);
+  overflow: hidden;
+}
+.t-lst--danger { border-color: var(--danger); }
+
+/* ---- Eine Zeile ---- */
+.t-lrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 13px var(--s4);
+  min-height: 52px;          /* Daumenflaeche, nicht Zierrat */
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+}
+.t-lrow + .t-lrow { border-top: 1px solid var(--line-soft); }
+button.t-lrow { cursor: pointer; }
+button.t-lrow:hover { background: var(--raised); }
+button.t-lrow:disabled { cursor: default; opacity: 0.45; }
+button.t-lrow:disabled:hover { background: none; }
+
+.t-lrow-lb {
+  min-width: 0;
+  font-weight: 500;
+  color: var(--ink);
+}
+/* Die Erklaerung steht UNTER der Beschriftung, klein und gedaempft —
+   nicht als eigener Hinweiskasten daneben. Ein Kasten pro Zeile war der
+   Hauptgrund, warum der alte Block so unruhig wirkte. */
+.t-lrow-lb small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.t-lrow-vl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.t-chev {
+  flex: none;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+}
+
+/* Handlungszeile: die Beschriftung IST die Handlung, deshalb traegt sie
+   die Farbe. Kein zusaetzlicher Knopf in der Zeile — das waere ein
+   Bedienelement in einem Bedienelement. */
+.t-lrow--action .t-lrow-lb { color: var(--flare); font-weight: 600; }
+.t-lrow--danger .t-lrow-lb { color: var(--danger); font-weight: 600; }
+.t-lrow--action:disabled .t-lrow-lb,
+.t-lrow--danger:disabled .t-lrow-lb { color: var(--muted); }
+
+/* ---- Stepper: −  Wert  + ---- */
+.t-step {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px;
+  flex: none;
+}
+.t-step-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: var(--f-body);
+}
+.t-step-btn:hover { background: var(--panel); color: var(--ink); }
+.t-step-btn:disabled { opacity: 0.35; cursor: default; }
+.t-step-btn:disabled:hover { background: none; color: var(--ink-2); }
+/* Das Feld in der Mitte ist ein echtes Eingabefeld: steppen ist der
+   schnelle Weg, tippen der genaue. Es sieht aber nicht wie ein Formular
+   aus, sondern wie der Wert, der es ist. */
+.t-step-wert {
+  width: 68px;
+  min-width: 0;
+  border: 0;
+  background: none;
+  text-align: center;
+  font-family: var(--f-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 0;
+  -moz-appearance: textfield;
+}
+.t-step-wert::-webkit-outer-spin-button,
+.t-step-wert::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.t-step-wert:focus-visible { outline: 2px solid var(--flare); outline-offset: 2px; border-radius: 4px; }
+.t-step-einheit {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--muted);
+  padding-right: 6px;
+}
+
+/* Abstand zwischen den Gruppen — dieselbe Rolle wie zwischen den
+   Gruppentabellen: sie zeigt, wo ein Thema endet. */
+.t-lst + .t-grp-lbl { margin-top: var(--s5); }
+.t-settings-grid > .t-hint { margin-top: calc(var(--s1) * -1); }
+
+/* ----------------------------------------------------------------
+   FILTER ALS AUSWAHLFELD — dritte Fassung, Entscheid Jonas 2026-08-26
+   ----------------------------------------------------------------
+   „ich wollte wieder dass ich filtern kann nicht so nebeneinander."
+   ABWEICHUNG VON DER VORLAGE, die eine Chip-Reihe zeigt.
+
+   Zwei Dinge sind dabei mitgegangen, die vorher gestoert haben:
+   der Behaelter drumherum (die Reihe sass in einem weissen Kasten mit
+   harter rechter Kante, die einen Chip halbierte) und die Frage, wo die
+   Reihe endet. Ein Feld hat einen Anfang und ein Ende.
+
+   Die Anzahl bleibt sichtbar — hinter jeder Option und rechts am Feld.
+   Ohne sie waere der Wechsel ein Verlust gewesen: „Offen 7" sagt ohne
+   Tippen, wie weit der Tag ist.
+   ---------------------------------------------------------------- */
+.t-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.t-filter-feld {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  padding: 9px var(--s3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.t-filter-marke {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: none;
+}
+/* Das Feld selbst ist unsichtbar gemacht, aber es IST ein echtes
+   <select>: auf dem Handy oeffnet das die System-Auswahl, die man mit
+   dem Daumen bedient und nicht lernen muss. Ein nachgebautes Menue
+   muesste Tastatur, Fokus und Schliessen-bei-Klick-daneben nachbauen. */
+.t-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: none;
+  padding: 0 var(--s2) 0 0;
+  min-width: 0;
+  font-family: var(--f-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+}
+.t-filter-select:focus-visible { outline: 2px solid var(--flare); outline-offset: 4px; border-radius: 4px; }
+.t-filter-pfeil {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.t-filter-stand {
+  flex: none;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Die Werkzeugleiste traegt keinen eigenen Grund mehr. Sie war ein
+   weisser Kasten um einen Filter — ein Behaelter um ein Bedienelement,
+   das seine Kante schon selbst hat. */
+.t-toolbar {
+  background: none;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* ----------------------------------------------------------------
+   ZWEI BRAUNE SCHATTEN, DIE KEIN TOKEN ERREICHT
+   ----------------------------------------------------------------
+   main.css:226 und main.css:783 setzen
+       box-shadow: 0 2px 8px rgba(138, 106, 74, .22)
+   also das alte Beige HART, ohne Token. Sie ueberleben jede
+   Palettenumstellung — nach dem Wechsel auf Orange blieb um den Knopf
+   ein brauner Hof stehen. Genau der Fall, den kein grep in
+   tournament.css findet: der Wert steht dort gar nicht.
+
+   Nur im Modulbereich ueberschrieben, nicht in main.css geaendert:
+   der Rest der App darf beige bleiben (Entscheid "nur das Modul").
+   ---------------------------------------------------------------- */
+#content:has(.t-list-host) .btn-primary,
+#content:has(.t-list-host) .tournament-new-instance-btn,
+#content:has(> .t-detail-host) .btn-primary {
+  box-shadow: var(--shadow-s);
+}
+
+/* Die Listenkarte bekommt ihre Tiefe zurueck. --shadow-s war definiert
+   und ungenutzt; auf cremefarbenem Grund waere er ohnehin unsichtbar
+   gewesen, auf #E4E4E2 traegt er. */
+.t-list-card { box-shadow: var(--shadow-s); }
+
+/* Der Logo-Platzhalter war ein schwarzer Klotz von 56px — die Regel
+   stammt aus der Zeit, als --ink ein weiches Braun war. Mit der neuen
+   Palette wurde daraus reines Schwarz, und bei 56px frass er ein
+   Fuenftel der Kartenbreite. Er ist ein PLATZHALTER; er soll den Platz
+   des Logos markieren, nicht ihn beanspruchen. */
+.t-list-card-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 15px;
+}

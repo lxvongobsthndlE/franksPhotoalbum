@@ -51,8 +51,13 @@
 .t-mod,
 .t-brand,
 #content:has(> .t-detail-host),
-#content:has(> .t-list-host),
-#content:has(> .tournament-page-shell.t-mod) {
+/* Bei der LISTE sitzt der Host eine Ebene tiefer: #content > #grid >
+   section.t-list-host. Mit `>` traf der Selektor deshalb nie, und die
+   ganze Uebersicht blieb cremefarben — samt braunem Knopf, weil auch
+   der Alias --accent nur auf einem Traeger gilt. Hier ohne `>`.
+   Der Geltungsbereich bleibt trotzdem eng: .t-list-host gibt es nur in
+   dieser einen Ansicht. */
+#content:has(.t-list-host) {
 /* ---- Flaechen ---- */
   --ground:       #E4E4E2;   /* Seitengrund */
   --panel:        #FFFFFF;   /* Karte */
@@ -119,6 +124,12 @@
   --surface:      var(--panel);
   --surface-alt:  var(--raised);
   --ink-soft:     var(--muted);
+  /* Nachgetragen 2026-08-26: --border ist der Rand-Token der App
+     (main.css: #ede7df, creme). Er fehlte in dieser Bruecke, und
+     deshalb behielt jeder App-Knopf im Modulbereich seinen cremefarbenen
+     Rand — sichtbar am "Aktualisieren"-Knopf, dessen eigene Regel nur
+     Geometrie setzt und keine einzige Farbe. */
+  --border:       var(--line);
   --accent:       var(--flare);
   --accent-soft:  var(--flare-soft);
   --qualified:    var(--qual);
@@ -197,7 +208,7 @@
    ausdruecklich HELL will, es auch auf einem dunklen System bekommt.
    ---------------------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) :is(.t-mod, .t-brand, #content:has(> .t-detail-host), #content:has(> .t-list-host), #content:has(> .tournament-page-shell.t-mod)),
+  :root:not([data-theme='light']) :is(.t-mod, .t-brand, #content:has(> .t-detail-host), #content:has(.t-list-host)),
   :root:not([data-theme='light']):is(.t-brand) {
   /* Dunkelmodus der Markenuebernahme — Werte woertlich aus dem Artefakt.
      Der Grund wird zur Tinte, das Papier zum Panel. Das Orange hellt auf
@@ -241,7 +252,7 @@
   }
 }
 
-[data-theme='dark'] :is(.t-mod, .t-brand, #content:has(> .t-detail-host), #content:has(> .t-list-host), #content:has(> .tournament-page-shell.t-mod)),
+[data-theme='dark'] :is(.t-mod, .t-brand, #content:has(> .t-detail-host), #content:has(.t-list-host)),
 [data-theme='dark'].t-brand {
   /* Dunkelmodus der Markenuebernahme — Werte woertlich aus dem Artefakt.
      Der Grund wird zur Tinte, das Papier zum Panel. Das Orange hellt auf

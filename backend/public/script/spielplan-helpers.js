@@ -164,31 +164,45 @@ export function renderFilterChips(matches, groups, currentFilter) {
     }
   }
 
-  // Beschwerde 4 (2026-08-26): „auch die filter sahen im artefakt
-  // wesentlich besser aus".
+  // Beschwerde 4, dritte Fassung an einem Tag — und diesmal ist es eine
+  // ENTSCHEIDUNG, keine Interpretation.
   //
-  // Etappe A2.6 (2026-08-20) hatte hier EINEN Knopf „Filter: Alle ▾" mit
-  // Aufklappmenue gebaut, weil bei vielen Gruppen bis zu neun Chips
-  // zusammenkamen. Die Vorlage loest dasselbe Problem anders und besser:
-  // die Chips bleiben Chips und die REIHE scrollt waagerecht. Damit ist
-  // die Anzahl weiter sichtbar, ohne dass man etwas oeffnen muss — und
-  // genau das ist der Punkt, den die Vorlage betont: „Wer 'Offen 7'
-  // sieht, weiss ohne Tippen, wie weit der Tag ist." Hinter einem
-  // Aufklappmenue sieht das niemand.
+  //   Vormittag  Chips scrollend nebeneinander (wie die Vorlage).
+  //   Mittag     Jonas: „so sieht das unschön und zu eckig aus."
+  //              Ich habe geantwortet, das Unschöne sei der Kasten drumherum,
+  //              nicht die Chips — und dann NICHTS gebaut.
+  //   Nachmittag Jonas: „ich wollte wieder dass ich filtern kann nicht so
+  //              nebeneinander. das hast du noch nicht gemacht!"
   //
-  // Der aktive Chip wird SCHWARZ gefuellt, nicht orange. Orange ist im
-  // ganzen Modul dem Weg zum Titel vorbehalten; ein Filterzustand ist
-  // kein Titelweg. Das galt hier bisher nicht — der aktive Chip trug
-  // var(--accent).
-  return `<div class="t-chips" role="group" aria-label="Spiele filtern">${
-    chips.map((c) => {
-      const aktiv = c.id === currentFilter;
-      return `<button type="button" class="t-chip${aktiv ? ' is-active' : ''}"`
-        + ` data-filter="${esc(c.id)}" aria-pressed="${aktiv ? 'true' : 'false'}">`
-        + `${esc(c.label)} <span class="count">${c.count}</span></button>`;
-    }).join('')
-  }</div>`;
+  // Also ein Auswahlfeld. ABWEICHUNG VON DER VORLAGE, ausdrücklich so
+  // entschieden: das Artefakt zeigt in Abschnitt 03 eine Chip-Reihe.
+  //
+  // Was von den Chips bleibt, ist ihr einziger echter Vorteil — die Anzahl.
+  // Sie steht jetzt hinter jeder Option („Offen · 7") und zusätzlich am
+  // geschlossenen Feld, damit man sie auch ohne Öffnen sieht. Ohne das wäre
+  // der Wechsel ein Verlust gewesen und kein Tausch.
+  //
+  // Ein natives <select> statt eines gebauten Menüs: auf dem Handy öffnet
+  // das die System-Auswahl, die mit dem Daumen bedienbar ist und die man
+  // nicht lernen muss. Ein selbstgebautes Menü müsste Tastatur, Fokus und
+  // Schließen-bei-Klick-daneben nachbauen — genau der document-weite
+  // Listener, den ich heute Vormittag zu Recht entfernt habe.
+  const aktiv = chips.find((c) => c.id === currentFilter) ?? chips[0];
+  const optionen = chips.map((c) => {
+    const gewaehlt = c.id === aktiv.id ? ' selected' : '';
+    return `<option value="${esc(c.id)}"${gewaehlt}>${esc(c.label)} · ${c.count}</option>`;
+  }).join('');
+
+  return `<div class="t-filter">
+    <label class="t-filter-feld">
+      <span class="t-filter-marke">Filter</span>
+      <select class="t-filter-select" data-filter-select aria-label="Spiele filtern">${optionen}</select>
+      <span class="t-filter-pfeil" aria-hidden="true">▾</span>
+    </label>
+    <span class="t-filter-stand">${aktiv.count} von ${countAll}</span>
+  </div>`;
 }
+
 
 /**
  * Rendert eine Match-Karte in Normal-Größe (Spielplan-Liste).
@@ -1785,6 +1799,88 @@ if (typeof window !== 'undefined') {
  *   - finishedCount: number
  * @returns {string} HTML
  */
+// ─────────────────────────────────────────────────────────────────
+// BAUSTEINE DER EINSTELLUNGEN (2026-08-26)
+//
+// Drei Funktionen, aus denen der ganze Tab besteht. Vorher hat jeder
+// Block seine eigene Form erfunden — ein Formular hier, drei Knöpfe da,
+// ein Hinweiskasten daneben. Die Vorlage kennt genau EINE Zeile, und
+// alles ordnet sich ihr unter.
+//
+// Warum das mehr ist als Kosmetik: wer eine neue Einstellung ergänzt,
+// muss keine Gestaltung mehr entscheiden. Es gibt nur die Zeile.
+//
+// Und für den Turnierleiter: eine Zeile ist eine Trefferfläche für den
+// Daumen. Ein Eingabefeld holt erst die Tastatur.
+// ─────────────────────────────────────────────────────────────────
+
+/** Beschriftung über einer Liste. `gefahr` färbt sie karminrot. */
+function grpLbl(text, gefahr = false) {
+  return `<div class="t-grp-lbl${gefahr ? ' t-grp-lbl--danger' : ''}">${esc(text)}</div>`;
+}
+
+/** Umschlag um eine Folge von Zeilen. Leere Listen entfallen ganz. */
+function lst(zeilen, gefahr = false) {
+  const inhalt = (Array.isArray(zeilen) ? zeilen : [zeilen]).filter(Boolean);
+  if (!inhalt.length) return '';
+  return `<div class="t-lst${gefahr ? ' t-lst--danger' : ''}">${inhalt.join('')}</div>`;
+}
+
+/**
+ * Eine Zeile.
+ *
+ * label    Beschriftung (Pflicht)
+ * sub      Erklärung, klein darunter — NICHT als eigener Kasten daneben
+ * wert     Rechte Seite: fertiges HTML (z. B. Stepper) oder Text
+ * action   data-action; macht die Zeile zum Knopf
+ * art      'action' (orange) | 'danger' (karmin) | null (normal)
+ * chevron  Pfeil rechts; Vorgabe: an, wenn Knopf und kein Wert
+ * disabled
+ * titel    title-Attribut — dort steht der Grund einer Sperre
+ */
+function lrow(o) {
+  const {
+    label, sub = '', wert = '', action = null, art = null,
+    chevron = null, disabled = false, titel = '',
+  } = o;
+  const klassen = [
+    't-lrow',
+    art === 'action' ? 't-lrow--action' : '',
+    art === 'danger' ? 't-lrow--danger' : '',
+  ].filter(Boolean).join(' ');
+  const zeigePfeil = chevron === null ? (Boolean(action) && !wert) : chevron;
+  const rechts = (wert || zeigePfeil)
+    ? `<span class="t-lrow-vl">${wert}${zeigePfeil ? '<span class="t-chev" aria-hidden="true">›</span>' : ''}</span>`
+    : '';
+  const innen = `<span class="t-lrow-lb">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${rechts}`;
+  const tAttr = titel ? ` title="${esc(titel)}"` : '';
+  if (!action) return `<div class="${klassen}"${tAttr}>${innen}</div>`;
+  const dAttr = disabled ? ' disabled' : '';
+  return `<button type="button" class="${klassen}" data-action="${esc(action)}"${dAttr}${tAttr}>${innen}</button>`;
+}
+
+/**
+ * Stepper:  −  Wert  +
+ *
+ * Das Feld in der Mitte behält die data-Attribute, an denen die
+ * bestehenden Handler hängen (data-reschedule-duration und Co.) — der
+ * Umbau ist rein optisch, keine Verdrahtung wandert mit.
+ *
+ * Es bleibt ein echtes Eingabefeld: steppen ist der schnelle Weg, tippen
+ * der genaue. Am Spieltisch will man +5, am Schreibtisch 37.
+ */
+function stepper({ attr, wert, min, max, schritt = 1, einheit = '', label }) {
+  const einheitHtml = einheit ? `<span class="t-step-einheit">${esc(einheit)}</span>` : '';
+  return `<span class="t-step">`
+    + `<button type="button" class="t-step-btn" data-step="-1" aria-label="${esc(label)} verringern">−</button>`
+    + `<input class="t-step-wert" type="number" ${attr}`
+    + ` value="${esc(String(wert))}" min="${min}" max="${max}" step="${schritt}"`
+    + ` inputmode="numeric" aria-label="${esc(label)}">`
+    + einheitHtml
+    + `<button type="button" class="t-step-btn" data-step="1" aria-label="${esc(label)} erhöhen">+</button>`
+    + `</span>`;
+}
+
 export function renderEinstellungen(t, opts = {}) {
   const { isAdmin = false, finishedCount = 0 } = opts;
   const status = t?.tournament?.status ?? 'draft';
@@ -1898,56 +1994,32 @@ export function renderEinstellungen(t, opts = {}) {
   // zu tun, antwortet die Route mit "bereits gefuellt" — die Wahrheit
   // darueber liegt im Server, nicht in einer Bedingung im Frontend, die
   // hier ohnehin nur geraten waere.
-  // Einstieg in den Spielplan-Edit-Modus (Zeit und Platte je Spiel).
-  // Entscheid Jonas 2026-08-26: "bearbeiten kann auch weg das mach ich
-  // als admin ja in den einstellungen." Der Knopf ist aus dem
-  // Spielplan-Kopf verschwunden — und der Selektor-Drift-Detektor hat
-  // sofort gemeldet, dass die Handler ihn noch suchen. Ohne diesen
-  // Einstieg hier waere der Edit-Modus unerreichbar geworden: die Funktion
-  // haette weiter existiert, nur haette sie niemand mehr aufrufen koennen.
-  const spielplanEdit = isAdmin
-    ? `
-      <div class="t-settings-actions">
-        <button class="t-btn t-btn--ghost t-btn--klein" data-action="toggle-schedule-edit" type="button">Spielzeiten bearbeiten</button>
-      </div>
-      <div class="t-hint t-hint--info">Zeit und Platte einzelner Spiele ändern. Öffnet den Spielplan im Bearbeiten-Modus.</div>
-    `
-    : '';
-
   const notfallZone = isAdmin
-    ? `
-      <section class="t-settings-section" data-section="notfall" data-collapsed="true">
-        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="false">
-          <span class="t-settings-section-title">Notfall</span>
-          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
-        </button>
-        <div class="t-settings-section-body">
-          <div class="t-settings-actions">
-            <button class="t-btn t-btn--ghost t-btn--klein" data-action="start-ko-phase" type="button">K.-o.-Phase aus den Gruppen füllen</button>
-          </div>
-          <div class="t-hint t-hint--info">Passiert normalerweise von selbst, sobald das letzte Gruppenspiel eingetragen ist. Dieser Knopf ist für den Fall, dass es das nicht getan hat.</div>
-        </div>
-      </section>
-    `
+    ? grpLbl('Notfall') + lst([
+        lrow({
+          label: 'K.-o.-Phase aus den Gruppen füllen',
+          sub: 'Passiert normalerweise von selbst, sobald das letzte Gruppenspiel eingetragen ist.',
+          action: 'start-ko-phase',
+        }),
+      ])
     : '';
-
   // Block 6 — Gefahrenzone
   const dangerZone = isAdmin
-    ? `
-      <section class="t-settings-section t-danger-zone" data-section="danger-zone" data-collapsed="${!defaultOpen['danger-zone']}">
-        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${defaultOpen['danger-zone']}">
-          <span class="t-settings-section-title">Gefahrenzone</span>
-          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
-        </button>
-        <div class="t-settings-section-body">
-          <div class="t-danger-zone-actions">
-            <button class="t-btn t-btn--danger" data-action="reset-results" type="button" ${isFinished ? '' : 'disabled'}>Alle Ergebnisse löschen</button>
-            <button class="t-btn t-btn--danger" data-action="delete-tournament" type="button">Turnier löschen</button>
-          </div>
-          <div class="t-hint t-hint--info">Diese Aktionen verlangen die Eingabe des Turniernamens zur Bestätigung.</div>
-        </div>
-      </section>
-    `
+    ? grpLbl('Gefahrenzone', true) + lst([
+        lrow({
+          label: 'Alle Ergebnisse löschen',
+          sub: 'Setzt jeden Spielstand zurück. Der Spielplan bleibt.',
+          action: 'reset-results', art: 'danger',
+          disabled: !isFinished,
+          titel: isFinished ? '' : 'Erst möglich, wenn das Turnier abgeschlossen ist.',
+        }),
+        lrow({
+          label: 'Turnier löschen',
+          sub: 'Endgültig. Teams, Spielplan und Ergebnisse sind danach weg.',
+          action: 'delete-tournament', art: 'danger',
+        }),
+      ], true)
+      + '<div class="t-hint">Beide Aktionen verlangen den Turniernamen zur Bestätigung.</div>'
     : '';
 
   return `
@@ -1995,14 +2067,6 @@ export function renderEinstellungen(t, opts = {}) {
       </section>
       ${renderLogoBlock({ t, isAdmin })}
       ${renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen: !isDraft })}
-      ${spielplanEdit ? `
-      <section class="t-settings-section" data-section="spielbetrieb" data-collapsed="true">
-        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="false">
-          <span class="t-settings-section-title">Spielbetrieb</span>
-          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
-        </button>
-        <div class="t-settings-section-body">${spielplanEdit}</div>
-      </section>` : ''}
       ${notfallZone}
       ${dangerZone}
     </div>
@@ -2198,78 +2262,106 @@ function renderActionsBlock(ctx) {
   // Revert-Banner (D8): wenn draft + matches existieren, war das Turnier
   // schon mal im LÄUFT und wurde zurückgesetzt.
   const hasMatches = Array.isArray(matches) && matches.length > 0;
-  const showRevertBanner = isDraft && hasMatches;
-  const banner = showRevertBanner
+  const banner = (isDraft && hasMatches)
     ? `<div class="t-banner t-banner--warning">
         <strong>Spielplan aus dem letzten Durchlauf noch da.</strong>
-        Du kannst Teams und Gruppen ändern. Klicke „Zeitplan neu berechnen", wenn du die Zeiten anpassen willst, oder „Turnier starten", wenn die alten Zeiten passen.
+        Du kannst Teams und Gruppen ändern. „Zeitplan neu berechnen" passt die Zeiten an, „Turnier starten" behält die alten.
       </div>`
     : '';
 
-  // Knöpfe nach Status.
-  let buttons = '';
-
+  // ── Gruppe 1: Ablauf ─────────────────────────────────────────────
+  // Was den Zustand des Turniers ändert. Jede Zeile ist eine Handlung,
+  // die Beschriftung trägt die Farbe — kein Knopf in einer Zeile.
+  const ablauf = [];
   if (canStart.allowed) {
-    buttons += '<button class="t-btn t-btn--primary" data-action="start-tournament" type="button">Turnier starten</button>';
-  } else if (isGenerated && !canStart.allowed) {
-    buttons += `<button class="t-btn t-btn--primary" data-action="start-tournament" type="button" disabled>Turnier starten</button>`;
+    ablauf.push(lrow({
+      label: 'Turnier starten',
+      sub: 'Ab dann zählen Ergebnisse und der Spielplan ist gesperrt.',
+      action: 'start-tournament', art: 'action',
+    }));
+  } else if (isGenerated) {
+    ablauf.push(lrow({
+      label: 'Turnier starten',
+      sub: canStart.reason ?? 'Noch nicht möglich.',
+      action: 'start-tournament', art: 'action', disabled: true,
+      titel: canStart.reason ?? '',
+    }));
   }
-
   if (canRevert.allowed) {
-    buttons += '<button class="t-btn t-btn--ghost" data-action="revert-to-draft" type="button">Zurück zu Entwurf</button>';
+    ablauf.push(lrow({
+      label: 'Zurück zu Entwurf',
+      sub: 'Teams und Gruppen wieder änderbar machen.',
+      action: 'revert-to-draft',
+    }));
+  }
+  if (!isFinished) {
+    ablauf.push(lrow({
+      label: 'Turnier abschließen',
+      sub: 'Beendet das Turnier. Ergebnisse bleiben erhalten.',
+      action: 'finish-tournament',
+    }));
   }
 
-  // Offene Spiele verschieben (turnier-day use case).
-  if (canShift.allowed && (isRunning || isGenerated || isDraft && hasMatches)) {
-    buttons += `
-      <div class="t-shift-form">
-        <label class="t-shift-form-label">
-          Offene Spiele verschieben:
-          <input class="t-shift-minutes" type="number" value="0" step="5" data-shift-minutes>
-          min
-        </label>
-        <button class="t-btn t-btn--ghost" data-action="shift-open" type="button">Verschieben</button>
-        <div class="t-hint t-hint--info">Funktioniert nur für Spiele mit Status „geplant".</div>
-      </div>
-    `;
-  }
-
-  // Spieldauer + Plattenzahl → auto-reschedule.
+  // ── Gruppe 2: Spielbetrieb ───────────────────────────────────────
+  // Die Zahlen, an denen der Turnierleiter am Spieltag dreht. Steppen
+  // statt tippen: mit einer Hand, ohne Tastatur.
+  const betrieb = [];
   if (canReschedule.allowed && (isRunning || isGenerated)) {
     const duration = t?.tournament?.config?.schedule?.matchDurationMinutes ?? 30;
     const parallelFields = t?.tournament?.config?.schedule?.parallelFields ?? 4;
-    buttons += `
-      <div class="t-reschedule-form">
-        <label class="t-reschedule-row">Spieldauer:
-          <input class="t-reschedule-duration" type="number" min="5" max="240" value="${duration}" data-reschedule-duration> min
-        </label>
-        <label class="t-reschedule-row">Platten:
-          <input class="t-reschedule-fields" type="number" min="1" max="12" value="${parallelFields}" data-reschedule-fields>
-        </label>
-        <button class="t-btn t-btn--primary" data-action="reschedule-auto" type="button">Zeitplan neu berechnen</button>
-        <div class="t-hint t-hint--info">Ändert alle Spielzeiten automatisch gemäß Dauer und Plattenanzahl. Bei vorhandenen Ergebnissen werden Zeiten verschoben, Scores bleiben erhalten.</div>
-      </div>
-    `;
+    betrieb.push(lrow({
+      label: 'Spieldauer',
+      wert: stepper({
+        attr: 'data-reschedule-duration', wert: duration,
+        min: 5, max: 240, schritt: 5, einheit: 'min', label: 'Spieldauer',
+      }),
+    }));
+    betrieb.push(lrow({
+      label: 'Platten',
+      sub: 'Wie viele Spiele gleichzeitig laufen.',
+      wert: stepper({
+        attr: 'data-reschedule-fields', wert: parallelFields,
+        min: 1, max: 12, schritt: 1, label: 'Platten',
+      }),
+    }));
+    betrieb.push(lrow({
+      label: 'Zeitplan neu berechnen',
+      sub: 'Setzt alle Spielzeiten nach Dauer und Platten neu. Ergebnisse bleiben.',
+      action: 'reschedule-auto', art: 'action',
+    }));
+  }
+  if (canShift.allowed && (isRunning || isGenerated || (isDraft && hasMatches))) {
+    betrieb.push(lrow({
+      label: 'Offene Spiele verschieben',
+      sub: 'Nur Spiele, die noch geplant sind.',
+      wert: stepper({
+        attr: 'data-shift-minutes', wert: 0,
+        min: -240, max: 240, schritt: 5, einheit: 'min', label: 'Verschieben um',
+      }),
+    }));
+    betrieb.push(lrow({
+      label: 'Jetzt verschieben',
+      action: 'shift-open', art: 'action',
+    }));
+  }
+  if (isAdmin) {
+    betrieb.push(lrow({
+      label: 'Spielzeiten bearbeiten',
+      sub: 'Zeit und Platte einzelner Spiele ändern.',
+      action: 'toggle-schedule-edit',
+    }));
   }
 
-  if (!isFinished) {
-    buttons += '<button class="t-btn t-btn--ghost" data-action="finish-tournament" type="button">Turnier abschließen</button>';
-  }
-
-  // Status-Hint (Anzahl beendete Spiele).
+  // Der Stand steht einmal, unten, klein — nicht als Kasten mitten drin.
   const statusHint = finishedCount > 0
-    ? `<div class="t-hint t-hint--info">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.</div>`
+    ? `<div class="t-hint">${finishedCount} Spiel${finishedCount === 1 ? '' : 'e'} bereits beendet.</div>`
     : '';
 
   return `
-    <section class="t-settings-section" data-section="actions" data-collapsed="false">
-      <div class="t-settings-section-title">Aktionen</div>
-      <div class="t-settings-actions">
-        ${banner}
-        ${buttons}
-        ${statusHint}
-      </div>
-    </section>
+    ${banner}
+    ${ablauf.length ? grpLbl('Ablauf') + lst(ablauf) : ''}
+    ${betrieb.length ? grpLbl('Spielbetrieb') + lst(betrieb) : ''}
+    ${statusHint}
   `;
 }
 

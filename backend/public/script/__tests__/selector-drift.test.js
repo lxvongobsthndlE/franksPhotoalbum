@@ -469,6 +469,25 @@ function analyzeAll() {
     });
   }
 
+  // Die Aktions-Literale der Bausteine gehoeren zu den GERENDERTEN
+  // data-action-Werten — sie stehen nur an einer anderen Stelle im
+  // Quelltext. Siehe sammleAktionsLiterale.
+  let literaleGefunden = 0;
+  for (const datei of files) {
+    const menge = renderedMarkup.get('action');
+    if (!menge) break;
+    for (const wert of sammleAktionsLiterale(fs.readFileSync(datei, 'utf-8'))) {
+      menge.add(wert);
+      literaleGefunden++;
+    }
+  }
+  // Und jetzt der Punkt: das Abschalt-Flag WIEDER WEGNEHMEN. Nur zu
+  // sammeln haette nichts gebracht — die Pruefung unten steigt beim Flag
+  // aus, bevor sie die gesammelten Werte ueberhaupt ansieht. Ein Fail-open,
+  // das man mit Daten fuettert und stehen laesst, ist immer noch ein
+  // Fail-open.
+  if (literaleGefunden > 0) dynamicMarkupAttrs.delete('action');
+
   return {
     files,
     selectorUses,
@@ -495,6 +514,49 @@ function ausgegeben(attr) {
 }
 
 // =====================================================================
+/**
+ * Sammelt die `action:`-Literale ein, die der Zeilen-Baustein `lrow`
+ * bekommt.
+ *
+ * Warum es das braucht (2026-08-26): Der Einstellungen-Tab wird seither
+ * aus einem Baustein gebaut —
+ * `lrow({ label: …, action: 'start-tournament' })`. Das gerenderte
+ * `data-action` ist damit interpoliert und fuer den Markup-Scanner
+ * unsichtbar. Der Detektor hat daraufhin die Regel fuer ALLE
+ * data-action-Werte abgeschaltet: 40+ Aktionen ohne Waechter, still, an
+ * einem Tag, an dem er vier tote Selektoren gefunden hatte.
+ *
+ * Eine Ausnahme einzutragen waere die bequeme Antwort gewesen. Die
+ * richtige ist, ihm zu zeigen, wo die Werte JETZT stehen. Eine
+ * Abstraktion darf Waechter nicht blind machen.
+ *
+ * WARUM NUR INNERHALB VON `lrow(`:
+ * Der erste Entwurf hat jedes `action: '…'` der Datei genommen, mit der
+ * Begruendung, Falsch-Positive machten den Detektor "nur nachsichtiger,
+ * nie strenger". Der naechste Lauf hat das widerlegt: er fand
+ * `action: 'edit'` aus einem AUDIT-Eintrag (main.js) und meldete
+ * prompt einen "Knopf ohne Handler", den es nie gab. In der
+ * GEGENRICHTUNG macht ein Falsch-Positiv den Detektor sehr wohl
+ * strenger — er haelt einen Wert fuer gerendert und sucht dessen
+ * Handler. Deshalb wird nur gelesen, was tatsaechlich zu einer Zeile
+ * wird.
+ *
+ * 600 Zeichen Fenster: ein `lrow`-Aufruf ist in der Praxis unter 400
+ * lang. Ist er laenger, faellt sein action-Wert durch — der Detektor
+ * wird dann nachsichtiger, und das ist hier die harmlose Richtung.
+ */
+function sammleAktionsLiterale(quelltext) {
+  const treffer = new Set();
+  const aufruf = /\blrow\s*\(/g;
+  let m;
+  while ((m = aufruf.exec(quelltext)) !== null) {
+    const fenster = quelltext.slice(m.index, m.index + 600);
+    const inner = /\baction\s*:\s*'([a-z0-9-]+)'/g;
+    let a2;
+    while ((a2 = inner.exec(fenster)) !== null) treffer.add(a2[1]);
+  }
+  return treffer;
+}
 describe('Selektor-Drift: gesuchte data-Attribute gegen gerendertes Markup', () => {
   it('findet überhaupt Selektoren und Markup (Sanity-Check)', () => {
     // Ohne diesen Test wäre ein kaputter Parser-Pfad („0 Selektoren

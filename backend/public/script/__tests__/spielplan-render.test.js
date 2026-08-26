@@ -185,50 +185,66 @@ describe('renderFilterChips', () => {
   const offenesKO = makeMatch({ isKoMatch: true, isFinished: false });
   const matches = [offenesGruppenspiel, beendetesGruppenspiel, offenesKO];
 
-  it('rendert eine sichtbare Chip-Reihe, kein Aufklappmenü', () => {
-    // Nacharbeit 2026-08-26, Beschwerde 4: „auch die filter sahen im
-    // artefakt wesentlich besser aus". A2.6 hatte hier einen Trigger
-    // plus Dropdown gebaut; die Vorlage haelt die Chips sichtbar und
-    // laesst die Reihe scrollen. Dieser Test haelt fest, dass das
-    // Aufklappmenü NICHT zurueckkommt — sein Kern war, die Anzahlen zu
-    // verstecken, und die Anzahl ist der ganze Wert eines Filterchips.
+  // Der Filter hat an EINEM Tag drei Formen gehabt: Aufklappmenü (A2.6),
+  // Chip-Reihe (Vormittag, nach der Vorlage), Auswahlfeld (Nachmittag,
+  // Entscheid Jonas: „ich wollte wieder dass ich filtern kann nicht so
+  // nebeneinander"). Diese Tests halten die dritte fest — und vor allem
+  // das, was durch alle drei Formen hindurch gleich bleiben MUSS: die
+  // Anzahl je Option, ungefiltert gezählt.
+
+  it('rendert ein Auswahlfeld, keine Chip-Reihe', () => {
     const html = renderFilterChips(matches, [], 'alle');
-    expect(html).toContain('class="t-chips"');
+    expect(html).toContain('data-filter-select');
+    expect(html).toContain('<select');
+    expect(html).not.toContain('t-chips');
+    expect(html).not.toContain('t-chip ');
+    // Und auch nicht zurück zum gebauten Menü von A2.6.
     expect(html).not.toContain('toggle-filter-dropdown');
-    expect(html).not.toContain('data-filter-dropdown');
-    expect(html).not.toContain('t-filter-item');
-    for (const id of ['alle', 'offen', 'beendet']) {
-      expect(html).toContain(`data-filter="${id}"`);
-    }
   });
 
-  it('jeder Chip trägt seine Anzahl — aus der UNgefilterten Liste', () => {
-    // „Wer 'Offen 7' sieht, weiss ohne Tippen, wie weit der Tag ist."
-    // Die Zahlen duerfen sich also NICHT mitfiltern.
+  it('jede Option trägt ihre Anzahl — aus der UNgefilterten Liste', () => {
+    // Das ist der Grund, warum der Formwechsel ein Tausch war und kein
+    // Verlust. Die Zahlen dürfen sich NICHT mitfiltern.
     const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toContain('<span class="count">3</span>');
-    expect(html).toContain('<span class="count">2</span>');
-    expect(html).toContain('<span class="count">1</span>');
-    // Und zwar an jedem Chip, nicht nur am aktiven.
-    const chips = html.match(/<button[^>]*data-filter=/g) || [];
-    const zahlen = html.match(/<span class="count">/g) || [];
-    expect(zahlen).toHaveLength(chips.length);
+    expect(html).toMatch(/<option[^>]*>Alle · 3<\/option>/);
+    expect(html).toMatch(/<option[^>]*>Offen · 2<\/option>/);
+    expect(html).toMatch(/<option[^>]*>Fertig · 1<\/option>/);
   });
 
-  it('benutzt die kurzen Beschriftungen der Vorlage', () => {
-    // „Offen"/„Fertig" statt „Nur offene"/„Beendet" — in einer
-    // scrollenden Reihe kostet jedes Zeichen Platz.
+  it('zeigt den Stand auch am geschlossenen Feld', () => {
+    // Ohne diese Zeile müsste man das Menü öffnen, um zu sehen, wie viele
+    // Spiele die aktuelle Auswahl trifft.
+    const html = renderFilterChips(matches, [], 'offen');
+    expect(html).toContain('2 von 3');
+  });
+
+  it('genau EINE Option ist ausgewählt', () => {
+    const html = renderFilterChips(matches, [], 'offen');
+    expect((html.match(/selected/g) || [])).toHaveLength(1);
+    expect(html).toMatch(/value="offen"[^>]*selected/);
+  });
+
+  it('unbekannter Filter wählt die erste Option statt gar keine', () => {
+    // Ein <select> ohne selected zeigt die erste Option an, meldet aber
+    // beim ersten Öffnen einen Wert, den niemand gesetzt hat. Lieber
+    // ehrlich auf „Alle" stehen.
+    const html = renderFilterChips(matches, [], 'gibtsnicht');
+    expect((html.match(/selected/g) || [])).toHaveLength(1);
+    expect(html).toMatch(/value="alle"[^>]*selected/);
+  });
+
+  it('benutzt die kurzen Beschriftungen', () => {
     const html = renderFilterChips(matches, [], 'alle');
-    expect(html).toContain('Offen <span');
-    expect(html).toContain('Fertig <span');
+    expect(html).toContain('Offen ·');
+    expect(html).toContain('Fertig ·');
     expect(html).not.toContain('Nur offene');
   });
 
   it('Phasen-Filter nur, wenn in dieser Kategorie Spiele existieren', () => {
     const nurKO = [makeMatch({ isKoMatch: true })];
     const html = renderFilterChips(nurKO, [], 'alle');
-    expect(html).toContain('data-filter="ko"');
-    expect(html).not.toContain('data-filter="gruppe"');
+    expect(html).toContain('value="ko"');
+    expect(html).not.toContain('value="gruppe"');
   });
 
   it('Gruppen-Filter pro Gruppe, sortiert nach key', () => {
@@ -241,7 +257,6 @@ describe('renderFilterChips', () => {
       makeMatch({ id: 'm2', groupId: 'g2' }),
     ];
     const html = renderFilterChips(matchesMitGruppen, groups, 'alle');
-    // "Gruppe A" muss VOR "Gruppe B" stehen, weil nach key sortiert
     const aIdx = html.indexOf('Gruppe A');
     const bIdx = html.indexOf('Gruppe B');
     expect(aIdx).toBeGreaterThan(-1);
@@ -249,22 +264,9 @@ describe('renderFilterChips', () => {
     expect(aIdx).toBeLessThan(bIdx);
   });
 
-  it('genau EIN Chip ist aktiv, mit is-active und aria-pressed=true', () => {
-    const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toMatch(/class="t-chip is-active"[^>]*data-filter="offen"/);
-    expect(html).toContain('data-filter="offen" aria-pressed="true"');
-    expect((html.match(/aria-pressed="true"/g) || [])).toHaveLength(1);
-    expect((html.match(/class="t-chip is-active"/g) || [])).toHaveLength(1);
-  });
-
-  it('inaktive Chips tragen weder is-active noch aria-pressed=true', () => {
-    const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toMatch(/data-filter="alle"[^>]*aria-pressed="false"/);
-    expect(html).not.toMatch(/class="t-chip is-active"[^>]*data-filter="alle"/);
-  });
-
   it('null/undefined Matches rendert ohne Crash', () => {
     expect(() => renderFilterChips(null, [], 'alle')).not.toThrow();
+
     expect(() => renderFilterChips(undefined, [], 'alle')).not.toThrow();
   });
 });
