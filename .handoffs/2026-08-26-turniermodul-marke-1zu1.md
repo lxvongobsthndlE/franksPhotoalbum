@@ -240,9 +240,24 @@ bereits als `‹ Turniere` im Kicker (`main.js:3403`), „Drucken" ist ein
 eigenes Nav-Item (`tournament-render.js:290`). Das Menü führt also nichts,
 was nicht zwei Zentimeter daneben schon steht.
 
-**Vorschlag:** Die Zeile ersatzlos streichen, sofern das Artefakt sie nicht
-zeigt. Falls „Zeitplan neu" dort noch hängt (der Kommentar bei
-`tournament.css:5057` behauptet das), wandert es in den Spielplan-View-Head.
+**Vorschlag:** Die Zeile **ersatzlos streichen**. Nachgemessen 26.08. 12:55, auf
+Hinweis der Nachbar-Session: `.t-mod-header-actions` kommt im gesamten Frontend
+**nur an einer Stelle** vor — dem statischen Template `main.js:3431–3433`. Nichts
+wird dort dynamisch eingehängt, weder aus `tournament.js` noch aus
+`spielplan-helpers.js`. Die Zeile trägt genau die zwei Dubletten und das Menü,
+sonst nichts.
+
+**Der Kommentar bei `tournament.css:5057` ist überholt** und darf dich nicht
+aufhalten: Er behauptet, die Zeile trage „Zeitplan neu". Tut sie nicht — das ist
+2026-08-18 in die Spielplan-View gewandert (`main.js:3416` sagt es selbst,
+verdrahtet ist es bei `main.js:4742` als `data-action="reschedule-auto"`). Es
+gibt also nichts umzuhängen, bevor die Zeile fällt.
+
+**Nicht verwechseln:** B7 (`.t-mod-header-actions`, **innerhalb** von `.t-mod`,
+Template bei `main.js:3431`) und B3 (`renderTournamentHeaderActions()`,
+`main.js:2359`, hängt in die **App-Kopfleiste** neben `uploadBtn`) sind **zwei
+verschiedene Leisten**. Im Screenshot sehen sie wie eine aus. Streichst du die
+falsche, zeigt B3 ins Leere und die App-Knöpfe bleiben stehen.
 
 ### B8 — Kicker bricht mitten im Wort ab
 
