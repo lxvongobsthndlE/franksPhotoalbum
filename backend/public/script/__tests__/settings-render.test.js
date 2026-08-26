@@ -87,7 +87,9 @@ describe('renderEinstellungen', () => {
     // `t-danger-zone` — geprüft wird aber ohnehin das, was zählt: dass
     // die Zone als solche erkennbar ist und beide Aktionen trägt.
     const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
-    expect(html).toContain('t-grp-lbl--danger');
+    // Klasse erneut gewechselt (26.08., dritte Runde): die Gruppen sind
+    // jetzt einklappbar, die Beschriftung ist eine Kopfzeile geworden.
+    expect(html).toContain('t-grp-kopf--danger');
     expect(html).toContain('t-lst--danger');
     expect(html).toContain('Gefahrenzone');
     expect(html).toContain('Alle Ergebnisse löschen');

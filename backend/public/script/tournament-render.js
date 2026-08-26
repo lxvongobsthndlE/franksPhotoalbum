@@ -267,9 +267,29 @@ export function renderSpielplanSectionHead({ isAdmin, t }) {
   const resultBtn = isAdmin
     ? '<button type="button" class="t-btn t-btn--primary t-btn--klein" data-action="enter-result-pick">Ergebnis eintragen</button>'
     : '';
-  return `${viewHead(resultBtn)}
-              <div class="t-toolbar" id="t-filters"></div>
-              <div class="t-card"><div class="t-card-body" id="t-schedule-list"></div></div>`;
+  // Nacharbeit 2026-08-26, dritte Runde (Jonas):
+  //   "der filter ist erneut ein kaestchen was zu nah am spielplan ist,
+  //    ergebnis eintragen sieht da leider auch etwas fehl am platz aus."
+  //
+  // Beides war dasselbe Problem: zwei Zeilen uebereinander, in denen je
+  // ein einzelnes Element schwebte — der Knopf rechts, das Filterfeld
+  // links. Zwei halbe Zeilen sehen aus wie zwei Fehler.
+  //
+  // Jetzt EINE Zeile: Filter links, Aktion rechts, gemeinsame Grundlinie.
+  // Der Filter ist damit kein alleinstehendes Kaestchen mehr, sondern die
+  // linke Haelfte einer Leiste — und der Knopf hat einen Partner statt
+  // einer leeren Zeile neben sich.
+  return `<div class="t-spielplan-leiste">
+                <div class="t-toolbar" id="t-filters"></div>
+                ${resultBtn}
+              </div>
+              <!-- Jonas, 2026-08-26: "der spielplan sollen halt nicht wie
+                   bislang kaestchen in einem grossen kasten sein. sondern nur
+                   die kaestchen dass mans visuell besser unterscheiden kann."
+                   Die aeussere Karte ist ersatzlos entfallen — sie umschloss
+                   Spielkarten, die ihre Kante schon selbst haben, und machte
+                   aus zwei Ebenen drei. -->
+              <div id="t-schedule-list"></div>`;
 }
 
 /**

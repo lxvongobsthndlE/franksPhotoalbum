@@ -108,39 +108,36 @@ describe('sortMatchesBySchedule', () => {
 });
 
 describe('applySpielplanFilter', () => {
-  const offenesGruppenspiel = makeMatch({
-    id: 'g-offen',
-    isGroupMatch: true,
-    isFinished: false,
-  });
+  // Vier Filter, genau die der Vorlage (Entscheid Jonas, 2026-08-26:
+  // „benutz auch nur die filter die er im artefakt hat und nicht noch
+  // gruppenfilter"). Gruppenphase, K.O. und ein Filter je Gruppe sind
+  // ersatzlos entfallen — sie waren der Grund, warum die Chip-Reihe
+  // scrollen musste, und eine Dublette zur Gruppen-Ansicht.
+  const offenesGruppenspiel = makeMatch({ id: 'g-offen', isGroupMatch: true, isFinished: false });
   const beendetesGruppenspiel = makeMatch({
-    id: 'g-done',
-    isGroupMatch: true,
-    isFinished: true,
-    scoreHome: 3,
-    scoreAway: 1,
+    id: 'g-done', isGroupMatch: true, isFinished: true, scoreHome: 3, scoreAway: 1,
   });
-  const offenesKo = makeMatch({
-    id: 'ko-offen',
-    isKoMatch: true,
-    isFinished: false,
-  });
+  const laufendesKo = makeMatch({ id: 'ko-live', isKoMatch: true, isLive: true });
   const beendetesKo = makeMatch({
-    id: 'ko-done',
-    isKoMatch: true,
-    isFinished: true,
-    scoreHome: 2,
-    scoreAway: 0,
+    id: 'ko-done', isKoMatch: true, isFinished: true, scoreHome: 2, scoreAway: 0,
   });
-  const alle = [offenesGruppenspiel, beendetesGruppenspiel, offenesKo, beendetesKo];
+  const alle = [offenesGruppenspiel, beendetesGruppenspiel, laufendesKo, beendetesKo];
 
   it('"alle" liefert alle Matches unverändert', () => {
     expect(applySpielplanFilter(alle, 'alle')).toEqual(alle);
   });
 
-  it('"offen" liefert nur !isFinished', () => {
+  it('"offen" heißt: weder fertig NOCH gerade laufend', () => {
+    // Ein laufendes Spiel ist nicht „offen" im Sinne von „steht noch an" —
+    // es ist der Fall, für den es einen eigenen Chip gibt. Stünde es in
+    // beiden, wäre die Summe der Chips größer als „Alle".
     const r = applySpielplanFilter(alle, 'offen');
-    expect(r.map((m) => m.id)).toEqual(['g-offen', 'ko-offen']);
+    expect(r.map((m) => m.id)).toEqual(['g-offen']);
+  });
+
+  it('"laeuft" liefert nur isLive', () => {
+    const r = applySpielplanFilter(alle, 'laeuft');
+    expect(r.map((m) => m.id)).toEqual(['ko-live']);
   });
 
   it('"beendet" liefert nur isFinished', () => {
@@ -148,29 +145,24 @@ describe('applySpielplanFilter', () => {
     expect(r.map((m) => m.id)).toEqual(['g-done', 'ko-done']);
   });
 
-  it('"gruppe" liefert nur isGroupMatch (egal ob beendet)', () => {
-    const r = applySpielplanFilter(alle, 'gruppe');
-    expect(r.map((m) => m.id)).toEqual(['g-offen', 'g-done']);
+  it('die vier Filter zerlegen die Liste vollständig und überschneidungsfrei', () => {
+    // Die Probe aufs Ganze: Offen + Läuft + Fertig muss genau Alle ergeben.
+    // Ohne sie könnte ein Spiel in keinem Chip auftauchen und wäre nur noch
+    // über „Alle" zu finden — schlimmer als ein fehlender Filter, weil man
+    // es nicht bemerkt.
+    const teile = ['offen', 'laeuft', 'beendet']
+      .flatMap((f) => applySpielplanFilter(alle, f).map((m) => m.id));
+    expect(teile.sort()).toEqual(alle.map((m) => m.id).sort());
+    expect(new Set(teile).size).toBe(teile.length);
   });
 
-  it('"ko" liefert nur isKoMatch', () => {
-    const r = applySpielplanFilter(alle, 'ko');
-    expect(r.map((m) => m.id)).toEqual(['ko-offen', 'ko-done']);
-  });
-
-  it('"g:<groupId>" filtert auf groupId', () => {
-    const m1 = makeMatch({ id: 'ga', groupId: 'A' });
-    const m2 = makeMatch({ id: 'gb', groupId: 'B' });
-    const r = applySpielplanFilter([m1, m2], 'g:A');
-    expect(r.map((m) => m.id)).toEqual(['ga']);
-  });
-
-  it('unbekannter Filter liefert ALLE Matches (kein silent empty)', () => {
-    // Spec §13.10: keine stillen Annahmen. Wenn der Filter kaputt ist,
-    // zeigen wir lieber alles als eine leere Liste, die der User nicht
-    // versteht.
-    const r = applySpielplanFilter(alle, 'kaputt');
-    expect(r).toEqual(alle);
+  it('entfernte Filter liefern ALLES statt einer leeren Liste', () => {
+    // „gruppe", „ko" und „g:<id>" gibt es nicht mehr. Ein gespeicherter
+    // Filterzustand aus der Zeit davor darf keine leere Ansicht erzeugen —
+    // die sieht aus wie „keine Spiele" und nicht wie „alter Filter".
+    for (const alt of ['gruppe', 'ko', 'g:A', 'kaputt']) {
+      expect(applySpielplanFilter(alle, alt), alt).toEqual(alle);
+    }
   });
 
   it('null/undefined Matches → leere Liste', () => {
@@ -180,92 +172,67 @@ describe('applySpielplanFilter', () => {
 });
 
 describe('renderFilterChips', () => {
-  const offenesGruppenspiel = makeMatch({ isGroupMatch: true, isFinished: false });
-  const beendetesGruppenspiel = makeMatch({ isGroupMatch: true, isFinished: true });
-  const offenesKO = makeMatch({ isKoMatch: true, isFinished: false });
-  const matches = [offenesGruppenspiel, beendetesGruppenspiel, offenesKO];
+  const offen = makeMatch({ isGroupMatch: true, isFinished: false });
+  const fertig = makeMatch({ isGroupMatch: true, isFinished: true });
+  const laeuft = makeMatch({ isKoMatch: true, isLive: true });
+  const matches = [offen, fertig, laeuft];
 
-  // Der Filter hat an EINEM Tag drei Formen gehabt: Aufklappmenü (A2.6),
-  // Chip-Reihe (Vormittag, nach der Vorlage), Auswahlfeld (Nachmittag,
-  // Entscheid Jonas: „ich wollte wieder dass ich filtern kann nicht so
-  // nebeneinander"). Diese Tests halten die dritte fest — und vor allem
-  // das, was durch alle drei Formen hindurch gleich bleiben MUSS: die
-  // Anzahl je Option, ungefiltert gezählt.
-
-  it('rendert ein Auswahlfeld, keine Chip-Reihe', () => {
+  it('rendert GENAU vier Chips — die der Vorlage', () => {
     const html = renderFilterChips(matches, [], 'alle');
-    expect(html).toContain('data-filter-select');
-    expect(html).toContain('<select');
-    expect(html).not.toContain('t-chips');
-    expect(html).not.toContain('t-chip ');
-    // Und auch nicht zurück zum gebauten Menü von A2.6.
-    expect(html).not.toContain('toggle-filter-dropdown');
+    const chips = html.match(/<button[^>]*data-filter="([a-z]+)"/g) || [];
+    expect(chips).toHaveLength(4);
+    for (const id of ['alle', 'offen', 'laeuft', 'beendet']) {
+      expect(html).toContain('data-filter="' + id + '"');
+    }
   });
 
-  it('jede Option trägt ihre Anzahl — aus der UNgefilterten Liste', () => {
-    // Das ist der Grund, warum der Formwechsel ein Tausch war und kein
-    // Verlust. Die Zahlen dürfen sich NICHT mitfiltern.
-    const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toMatch(/<option[^>]*>Alle · 3<\/option>/);
-    expect(html).toMatch(/<option[^>]*>Offen · 2<\/option>/);
-    expect(html).toMatch(/<option[^>]*>Fertig · 1<\/option>/);
-  });
-
-  it('zeigt den Stand auch am geschlossenen Feld', () => {
-    // Ohne diese Zeile müsste man das Menü öffnen, um zu sehen, wie viele
-    // Spiele die aktuelle Auswahl trifft.
-    const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toContain('2 von 3');
-  });
-
-  it('genau EINE Option ist ausgewählt', () => {
-    const html = renderFilterChips(matches, [], 'offen');
-    expect((html.match(/selected/g) || [])).toHaveLength(1);
-    expect(html).toMatch(/value="offen"[^>]*selected/);
-  });
-
-  it('unbekannter Filter wählt die erste Option statt gar keine', () => {
-    // Ein <select> ohne selected zeigt die erste Option an, meldet aber
-    // beim ersten Öffnen einen Wert, den niemand gesetzt hat. Lieber
-    // ehrlich auf „Alle" stehen.
-    const html = renderFilterChips(matches, [], 'gibtsnicht');
-    expect((html.match(/selected/g) || [])).toHaveLength(1);
-    expect(html).toMatch(/value="alle"[^>]*selected/);
-  });
-
-  it('benutzt die kurzen Beschriftungen', () => {
-    const html = renderFilterChips(matches, [], 'alle');
-    expect(html).toContain('Offen ·');
-    expect(html).toContain('Fertig ·');
-    expect(html).not.toContain('Nur offene');
-  });
-
-  it('Phasen-Filter nur, wenn in dieser Kategorie Spiele existieren', () => {
-    const nurKO = [makeMatch({ isKoMatch: true })];
-    const html = renderFilterChips(nurKO, [], 'alle');
-    expect(html).toContain('value="ko"');
-    expect(html).not.toContain('value="gruppe"');
-  });
-
-  it('Gruppen-Filter pro Gruppe, sortiert nach key', () => {
-    const groups = [
-      { id: 'g1', key: 'B' },
-      { id: 'g2', key: 'A' },
-    ];
-    const matchesMitGruppen = [
+  it('rendert KEINE Gruppen- oder Phasenfilter mehr', () => {
+    const groups = [{ id: 'g1', key: 'A' }, { id: 'g2', key: 'B' }];
+    const mitGruppen = [
       makeMatch({ id: 'm1', groupId: 'g1' }),
       makeMatch({ id: 'm2', groupId: 'g2' }),
     ];
-    const html = renderFilterChips(matchesMitGruppen, groups, 'alle');
-    const aIdx = html.indexOf('Gruppe A');
-    const bIdx = html.indexOf('Gruppe B');
-    expect(aIdx).toBeGreaterThan(-1);
-    expect(bIdx).toBeGreaterThan(-1);
-    expect(aIdx).toBeLessThan(bIdx);
+    const html = renderFilterChips(mitGruppen, groups, 'alle');
+    expect(html).not.toContain('Gruppe A');
+    expect(html).not.toContain('data-filter="gruppe"');
+    expect(html).not.toContain('data-filter="ko"');
+    expect(html).not.toContain('data-filter="g:');
+  });
+
+  it('die Reihe kann nicht seitwärts scrollen — es gibt nichts zu scrollen', () => {
+    // Die Bedingung von Jonas: „muss alles ohne zur seite zu scrollen, auf
+    // eine seite passen." Im Markup laesst sich das nur negativ pruefen:
+    // keine Scroll-Huelle, kein Aufklappmenue, kein Auswahlfeld.
+    const html = renderFilterChips(matches, [], 'alle');
+    expect(html).toContain('class="t-chips"');
+    expect(html).not.toContain('<select');
+    expect(html).not.toContain('toggle-filter-dropdown');
+  });
+
+  it('jeder Chip trägt seine Anzahl — aus der UNgefilterten Liste', () => {
+    const html = renderFilterChips(matches, [], 'offen');
+    expect(html).toMatch(/Alle <span class="count">3<\/span>/);
+    expect(html).toMatch(/Offen <span class="count">1<\/span>/);
+    expect(html).toMatch(/Läuft <span class="count">1<\/span>/);
+    expect(html).toMatch(/Fertig <span class="count">1<\/span>/);
+  });
+
+  it('genau EIN Chip ist aktiv', () => {
+    const html = renderFilterChips(matches, [], 'laeuft');
+    expect((html.match(/is-active/g) || [])).toHaveLength(1);
+    expect(html).toMatch(/data-filter="laeuft"[^>]*aria-pressed="true"/);
+    expect((html.match(/aria-pressed="true"/g) || [])).toHaveLength(1);
+  });
+
+  it('ein unbekannter Filter faellt auf „Alle" zurueck, nicht auf gar keinen', () => {
+    const html = renderFilterChips(matches, [], 'g:A');
+    expect((html.match(/is-active/g) || [])).toHaveLength(1);
+    expect(html).toMatch(/data-filter="alle"[^>]*aria-pressed="true"/);
   });
 
   it('null/undefined Matches rendert ohne Crash', () => {
     expect(() => renderFilterChips(null, [], 'alle')).not.toThrow();
+
 
     expect(() => renderFilterChips(undefined, [], 'alle')).not.toThrow();
   });

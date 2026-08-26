@@ -5484,23 +5484,42 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 }
 
 /* ----------------------------------------------------------------
-   FILTER-REIHE — Nacharbeit 2026-08-26, Beschwerde 4
+   FILTER-REIHE, DIE PASST — vierte Fassung, 2026-08-26
    ----------------------------------------------------------------
-   „auch die filter sahen im artefakt wesentlich besser aus".
-   Die Vorlage (Abschnitt 03) haelt die Chips sichtbar und laesst die
-   REIHE scrollen, statt sie hinter einem Knopf zu sammeln. Der Wert
-   der Chips ist ihre Anzahl — hinter einem Aufklappmenue sieht die
-   niemand, und dann kann man sie auch weglassen.
+   Jonas: "tatsaechlich gefaellt mir die filterfkt. ausm artefakt besser
+   als das dropdown. aber dann muss alles ohne zur seite zu scrollen, auf
+   eine seite passen."
+
+   Das ist der Punkt, an dem die erste Chip-Fassung gescheitert ist —
+   nicht an den Chips. Sie hatte bis zu neun Filter (Phasen plus einen je
+   Gruppe) und deshalb overflow-x: auto; die Reihe wurde rechts
+   abgeschnitten und halbierte einen Chip.
+
+   Jetzt vier feste Filter, und die Loesung ist keine Scroll-Leiste,
+   sondern Verzicht: flex 1 1 0 teilt die Breite gleichmaessig auf, es
+   gibt kein overflow mehr. Was nicht passt, kann auch nicht wegscrollen.
+   Bei vier Chips auf 390px bleiben rund 80px je Chip — genug fuer
+   "FERTIG 13" in Archivo Narrow 12.5px.
    ---------------------------------------------------------------- */
 .t-chips {
   display: flex;
-  gap: var(--s2);
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
+  gap: 6px;
+  min-width: 0;
 }
-.t-chips::-webkit-scrollbar { display: none; }
-.t-chips > .t-chip { flex: 0 0 auto; }
+.t-chips > .t-chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 6px;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* Die Zahl darf schrumpfen, die Beschriftung nicht: "OFFEN" ohne Zahl
+   ist noch ein Filter, eine Zahl ohne Wort ist nichts. */
+.t-chips > .t-chip > .count { flex: none; }
 
 /* ----------------------------------------------------------------
    DER RAHMEN, IN DEM DAS MODUL SITZT — Beschwerde 1
@@ -5902,4 +5921,166 @@ button.t-lrow:disabled:hover { background: none; }
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 15px;
+}
+/* ----------------------------------------------------------------
+   EINSTELLUNGEN EINGEKLAPPT — Entscheid Jonas 2026-08-26
+   ----------------------------------------------------------------
+   „es soll eingeklappt sein die ganzen einstellungen sodass es
+   übersichtlicher ist."
+
+   Zu heisst nicht versteckt: alle Kopfzeilen stehen da, mit Namen. Der
+   Tab ist damit ein Inhaltsverzeichnis statt einer Liste, durch die man
+   scrollt. Wer etwas aendern will, weiss vorher WAS — er sucht den
+   Namen, nicht die Zeile.
+
+   Die Kopfzeile ist selbst eine Zeile, nur kleiner gesetzt: eine
+   Trefferflaeche fuer den Daumen, kein kleines Dreieck, das man treffen
+   muss. Aus demselben Grund liegt der Pfeil rechts und nicht links —
+   dort, wo bei allen anderen Zeilen der Wert steht.
+
+   `.t-settings-section` bekommt dieselbe Optik: die drei alten
+   Abschnitte (Gruppen, Setzung, Spielfelder) enthalten Editoren statt
+   Zeilen und wurden deshalb nicht umgebaut. Zwei Kopfformen im selben
+   Tab waeren aber genau die Unruhe, die hier gerade verschwindet.
+   ---------------------------------------------------------------- */
+.t-grp,
+.t-settings-section {
+  border-top: 1px solid var(--line-soft);
+}
+.t-grp:first-of-type,
+.t-settings-section:first-of-type {
+  border-top: 0;
+}
+
+.t-grp-kopf,
+.t-settings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s3) var(--s2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.t-grp-kopf:hover,
+.t-settings-section-header:hover { background: var(--raised); }
+
+.t-grp-titel,
+.t-settings-section-title {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.t-grp-kopf--danger .t-grp-titel,
+.t-danger-zone .t-settings-section-title { color: var(--danger); }
+
+.t-grp-pfeil,
+.t-settings-section-toggle {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+/* Zu: Pfeil zeigt nach unten (= „hier ist mehr"). Offen: nach oben. */
+.t-grp[data-collapsed="false"] .t-grp-pfeil,
+.t-settings-section[data-collapsed="false"] .t-settings-section-toggle {
+  transform: rotate(180deg);
+}
+
+.t-grp-koerper,
+.t-settings-section-body {
+  padding-bottom: var(--s4);
+}
+.t-grp[data-collapsed="true"] .t-grp-koerper,
+.t-settings-section[data-collapsed="true"] .t-settings-section-body {
+  display: none;
+}
+
+/* ----------------------------------------------------------------
+   SPIELPLAN-LEISTE — Filter und Aktion in EINER Zeile
+   ----------------------------------------------------------------
+   Jonas, dritte Runde: „der filter ist erneut ein kaestchen was zu nah
+   am spielplan ist, ergebnis eintragen sieht da leider auch etwas fehl
+   am platz aus."
+
+   Beides war dasselbe Problem: zwei Zeilen uebereinander, in denen je
+   ein einzelnes Element schwebte. Zwei halbe Zeilen sehen aus wie zwei
+   Fehler. Jetzt eine Leiste — Filter links, Aktion rechts.
+
+   Und Luft nach unten: der Filter klebte am ersten Spiel. `--s5` ist
+   derselbe Abstand, der auch zwei Gruppentabellen trennt; er sagt hier
+   dasselbe, naemlich „anderer Gegenstand".
+   ---------------------------------------------------------------- */
+.t-spielplan-leiste {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+/* GEMESSEN, nicht geschaetzt (Edge, 390px): mit dem Knopf in derselben
+   Zeile bleiben je Chip 72px — und "Fertig 13" braucht 78px. Alle vier
+   Chips kuerzten still, bei 320px sogar mit Auslassungspunkten. Die
+   Bedingung "passt auf eine Seite" war damit erfuellt und der Inhalt
+   trotzdem unlesbar; das ist kein Erfolg.
+
+   Also bekommt die Chip-Reihe die VOLLE Zeile. Der Knopf rutscht
+   darunter und rueckt nach rechts — nah an den Filter, weit weg vom
+   ersten Spiel. Er schwebt damit nicht mehr allein ueber einem einzelnen
+   Kaestchen, sondern schliesst die Bedienleiste ab.
+
+   Ab 520px Container passen beide nebeneinander; dort ist Platz genug,
+   dass die Chips ihre Beschriftung behalten. */
+.t-spielplan-leiste { flex-wrap: wrap; row-gap: var(--s2); }
+.t-spielplan-leiste > .t-toolbar {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.t-spielplan-leiste > .t-btn {
+  flex: none;
+  margin-left: auto;
+}
+@container (min-width: 520px) {
+  .t-spielplan-leiste > .t-toolbar { flex: 1 1 auto; }
+}
+
+/* Hier stand eine Regel, die den Knopf unter 380px auf VOLLE Breite
+   zog. Sie stammt aus dem Layout von vor zehn Minuten, in dem Filter und
+   Knopf sich eine Zeile teilten — dort war der volle Knopf richtig.
+   Seit die Chips die ganze Zeile bekommen, ist er es nicht mehr: ein
+   randvoller oranger Balken ueber dem ersten Spiel ist lauter als das
+   Spiel. Gemessen im Pruefstand gesehen, nicht ueberlegt. */
+
+/* Der Spielplan besteht aus Zeitmarken und Spielkarten — mehr nicht.
+   Die aeussere Karte ist am 26.08. entfallen (Jonas: „nicht wie bislang
+   kaestchen in einem grossen kasten"). Der Abstand zwischen den Karten
+   uebernimmt, was vorher der Kasten geleistet hat. */
+#t-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* Unter ~360px Container reicht die Breite fuer vier Chips in 12.5px
+   nicht mehr — gemessen kuerzten dort alle vier. Kleinere Schrift statt
+   Auslassungspunkte: ein Chip, dessen Wort man nicht lesen kann, ist
+   kein Filter mehr. 11.5px ist die Untergrenze, bei der Archivo Narrow
+   in Versalien noch sauber steht. */
+@container (max-width: 360px) {
+  .t-chips { gap: 4px; }
+  .t-chips > .t-chip {
+    padding: 7px 4px;
+    font-size: 11.5px;
+    letter-spacing: 0.03em;
+  }
+  .t-chips > .t-chip > .count { font-size: 10.5px; }
 }

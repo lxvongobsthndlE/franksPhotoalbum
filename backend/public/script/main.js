@@ -3896,10 +3896,14 @@ function bindSpielplanInteractions(t) {
     // entfallen, die Chips stehen wieder in einer scrollenden Reihe
     // (siehe renderFilterChips). Damit faellt hier der Trigger-Zweig weg
     // und der Zweig fuer die Menue-Eintraege — es gibt nur noch Chips.
-    // Der Filter ist seit der dritten Fassung ein Auswahlfeld, kein Chip.
-    // Ein <select> feuert 'change', nicht 'click' — deshalb steht die
-    // Verdrahtung unten als eigener Listener und nicht in dieser
-    // Klick-Delegation. Hier bleibt nichts zurueck.
+    // Filter-Chip. Vierte Fassung: zurueck zu Chips, aber nur die vier
+    // der Vorlage — damit passt die Reihe ohne Seitwaerts-Scrollen.
+    const chip = e.target.closest('.t-chip[data-filter]');
+    if (chip && section.contains(chip)) {
+      currentSpielplanFilter = chip.dataset.filter;
+      renderSpielplan(t);
+      return;
+    }
     // Match-Aktion "Ergebnis"
     const action = e.target.closest('[data-action="enter-result"]');
     if (action && section.contains(action)) {
@@ -3936,13 +3940,6 @@ function bindSpielplanInteractions(t) {
     }
   });
 
-  // Filter-Auswahl. Eigener Listener, weil <select> 'change' feuert.
-  section.addEventListener('change', (e) => {
-    const feld = e.target.closest('[data-filter-select]');
-    if (!feld || !section.contains(feld)) return;
-    currentSpielplanFilter = feld.value;
-    renderSpielplan(t);
-  });
 
   // Der Click-Outside-Listener fuer das Filter-Dropdown ist mit dem
   // Dropdown selbst entfallen (2026-08-26, Beschwerde 4). Er hing am

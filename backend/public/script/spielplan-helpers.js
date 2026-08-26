@@ -105,19 +105,29 @@ export function sortMatchesBySchedule(matches) {
  */
 export function applySpielplanFilter(matches, filter) {
   if (!Array.isArray(matches)) return [];
+  // Vier Filter, genau die der Vorlage (Abschnitt 03) — Entscheid Jonas,
+  // 2026-08-26: „benutz auch nur die filter die er im artefakt hat und
+  // nicht noch gruppenfilter."
+  //
+  // Weggefallen sind „Gruppenphase", „K.O." und ein Filter je Gruppe.
+  // Sie waren der Grund, warum die Reihe ueberhaupt scrollen musste: bei
+  // drei Gruppen kamen neun Chips zusammen. Und sie waren eine Dublette —
+  // wer nach Gruppe sortiert sehen will, geht in die Gruppen-Ansicht.
+  //
+  // Dazu NEU: „laeuft". Das ist am Spieltisch die haeufigste Frage, und
+  // das Feld dafuer (isLive) lag ungenutzt im DTO.
+  //
+  // 'beendet' bleibt der interne Wert hinter der Beschriftung „Fertig" —
+  // umbenennen haette jeden gespeicherten Filterzustand ungueltig gemacht,
+  // ohne dass ein Nutzer etwas davon haette.
   switch (filter) {
     case 'alle': return matches;
-    case 'offen': return matches.filter((m) => !m?.isFinished);
+    case 'offen': return matches.filter((m) => !m?.isFinished && !m?.isLive);
+    case 'laeuft': return matches.filter((m) => m?.isLive === true);
     case 'beendet': return matches.filter((m) => m?.isFinished);
-    case 'gruppe': return matches.filter((m) => m?.isGroupMatch);
-    case 'ko': return matches.filter((m) => m?.isKoMatch);
-    default: {
-      if (typeof filter === 'string' && filter.startsWith('g:')) {
-        const gid = filter.slice(2);
-        return matches.filter((m) => m?.groupId === gid);
-      }
-      return matches;
-    }
+    // Unbekannter Filter zeigt ALLES, nie eine leere Liste: eine leere
+    // Ansicht sieht aus wie „keine Spiele" und nicht wie „kaputter Filter".
+    default: return matches;
   }
 }
 
@@ -131,76 +141,49 @@ export function applySpielplanFilter(matches, filter) {
  * gibt — sonst hätte der User leere Chips, die nichts bewirken.
  */
 export function renderFilterChips(matches, groups, currentFilter) {
+  // `groups` bleibt in der Signatur: die Funktion wird an zwei Stellen
+  // gerufen, und ein Parameter weniger waere eine Aenderung an beiden
+  // fuer nichts. Benutzt wird er seit dem Wegfall der Gruppenfilter nicht.
+  void groups;
   if (!Array.isArray(matches)) matches = [];
-  const countAll = matches.length;
-  const countOpen = matches.filter((m) => !m?.isFinished).length;
-  const countDone = matches.filter((m) => m?.isFinished).length;
-  const countGroup = matches.filter((m) => m?.isGroupMatch).length;
-  const countKo = matches.filter((m) => m?.isKoMatch).length;
 
-  // Beschriftungen nach Vorlage (Abschnitt 03): "Alle", "Offen",
-  // "Fertig" — nicht "Nur offene" / "Beendet". Kuerzer ist hier kein
-  // Geschmack, sondern Notwendigkeit: die Chips stehen nebeneinander in
-  // einer scrollenden Reihe, und jedes Zeichen kostet dort Platz.
+  // Vierte und letzte Fassung des Filters an diesem Tag:
+  //   A2.6      Aufklappmenue
+  //   vormittags Chip-Reihe, scrollend (nach der Vorlage)
+  //   mittags   Auswahlfeld (Jonas: „nicht so nebeneinander")
+  //   jetzt     Chip-Reihe, die PASST
+  //
+  // Jonas: „tatsaechlich gefaellt mir die filterfkt. ausm artefakt besser
+  // als das dropdown. aber dann muss alles ohne zur seite zu scrollen, auf
+  // eine seite passen."
+  //
+  // Das ist die Bedingung, an der die erste Chip-Fassung gescheitert ist —
+  // nicht an den Chips. Mit vier festen Filtern statt bis zu neun passt
+  // die Reihe, und zwar ohne Trick: die Chips teilen sich die Breite
+  // (flex), es gibt kein overflow-x mehr. Was nicht passt, kann auch
+  // nicht wegscrollen.
+  const zaehl = {
+    alle: matches.length,
+    offen: matches.filter((m) => !m?.isFinished && !m?.isLive).length,
+    laeuft: matches.filter((m) => m?.isLive === true).length,
+    beendet: matches.filter((m) => m?.isFinished).length,
+  };
   const chips = [
-    { id: 'alle', label: 'Alle', count: countAll },
-    { id: 'offen', label: 'Offen', count: countOpen },
-    { id: 'beendet', label: 'Fertig', count: countDone },
+    { id: 'alle', label: 'Alle', count: zaehl.alle },
+    { id: 'offen', label: 'Offen', count: zaehl.offen },
+    { id: 'laeuft', label: 'Läuft', count: zaehl.laeuft },
+    { id: 'beendet', label: 'Fertig', count: zaehl.beendet },
   ];
-  if (countGroup > 0) chips.push({ id: 'gruppe', label: 'Gruppenphase', count: countGroup });
-  if (countKo > 0) chips.push({ id: 'ko', label: 'K.O.', count: countKo });
 
-  const sortedGroups = (Array.isArray(groups) ? groups : [])
-    .slice()
-    .sort((a, b) => String(a?.key || '').localeCompare(String(b?.key || '')));
-  for (const g of sortedGroups) {
-    const c = matches.filter((m) => m?.groupId === g?.id).length;
-    if (c > 0) {
-      chips.push({
-        id: `g:${g?.id}`,
-        label: `Gruppe ${g?.key || g?.name || g?.id}`,
-        count: c,
-      });
-    }
-  }
-
-  // Beschwerde 4, dritte Fassung an einem Tag — und diesmal ist es eine
-  // ENTSCHEIDUNG, keine Interpretation.
-  //
-  //   Vormittag  Chips scrollend nebeneinander (wie die Vorlage).
-  //   Mittag     Jonas: „so sieht das unschön und zu eckig aus."
-  //              Ich habe geantwortet, das Unschöne sei der Kasten drumherum,
-  //              nicht die Chips — und dann NICHTS gebaut.
-  //   Nachmittag Jonas: „ich wollte wieder dass ich filtern kann nicht so
-  //              nebeneinander. das hast du noch nicht gemacht!"
-  //
-  // Also ein Auswahlfeld. ABWEICHUNG VON DER VORLAGE, ausdrücklich so
-  // entschieden: das Artefakt zeigt in Abschnitt 03 eine Chip-Reihe.
-  //
-  // Was von den Chips bleibt, ist ihr einziger echter Vorteil — die Anzahl.
-  // Sie steht jetzt hinter jeder Option („Offen · 7") und zusätzlich am
-  // geschlossenen Feld, damit man sie auch ohne Öffnen sieht. Ohne das wäre
-  // der Wechsel ein Verlust gewesen und kein Tausch.
-  //
-  // Ein natives <select> statt eines gebauten Menüs: auf dem Handy öffnet
-  // das die System-Auswahl, die mit dem Daumen bedienbar ist und die man
-  // nicht lernen muss. Ein selbstgebautes Menü müsste Tastatur, Fokus und
-  // Schließen-bei-Klick-daneben nachbauen — genau der document-weite
-  // Listener, den ich heute Vormittag zu Recht entfernt habe.
-  const aktiv = chips.find((c) => c.id === currentFilter) ?? chips[0];
-  const optionen = chips.map((c) => {
-    const gewaehlt = c.id === aktiv.id ? ' selected' : '';
-    return `<option value="${esc(c.id)}"${gewaehlt}>${esc(c.label)} · ${c.count}</option>`;
-  }).join('');
-
-  return `<div class="t-filter">
-    <label class="t-filter-feld">
-      <span class="t-filter-marke">Filter</span>
-      <select class="t-filter-select" data-filter-select aria-label="Spiele filtern">${optionen}</select>
-      <span class="t-filter-pfeil" aria-hidden="true">▾</span>
-    </label>
-    <span class="t-filter-stand">${aktiv.count} von ${countAll}</span>
-  </div>`;
+  const aktiv = chips.some((c) => c.id === currentFilter) ? currentFilter : 'alle';
+  return `<div class="t-chips" role="group" aria-label="Spiele filtern">${
+    chips.map((c) => {
+      const an = c.id === aktiv;
+      return `<button type="button" class="t-chip${an ? ' is-active' : ''}"`
+        + ` data-filter="${esc(c.id)}" aria-pressed="${an ? 'true' : 'false'}">`
+        + `${esc(c.label)} <span class="count">${c.count}</span></button>`;
+    }).join('')
+  }</div>`;
 }
 
 
@@ -1860,6 +1843,43 @@ function lrow(o) {
 }
 
 /**
+ * Eine EINKLAPPBARE Gruppe: Beschriftung als Kopfzeile, darunter die Liste.
+ *
+ * Entscheid Jonas 2026-08-26: „ich würde nur gerne bei einstellungen alles
+ * einklappen können und dann ausklappen. also es soll eingeklappt sein die
+ * ganzen einstellungen sodass es übersichtlicher ist."
+ *
+ * Warum ZU als Voreinstellung, obwohl das einen Klick kostet: Der Tab
+ * trägt acht Gruppen. Offen ist er eine Wand aus Zeilen, in der man
+ * sucht; zu ist er ein Inhaltsverzeichnis, in dem man liest. Wer eine
+ * Einstellung ändern will, weiß vorher, welche — er sucht den Namen,
+ * nicht die Zeile.
+ *
+ * Die Kopfzeile ist selbst eine Zeile (`t-lrow`), nur kleiner gesetzt.
+ * Damit gilt auch hier: eine Trefferfläche für den Daumen, kein kleines
+ * Dreieck, das man treffen muss.
+ *
+ * `data-section` und `data-action="toggle-section"` bleiben unverändert —
+ * die Verdrahtung im wireEinstellungen läuft weiter über dieselben Namen.
+ */
+function gruppe(name, titel, zeilen, opts = {}) {
+  const { gefahr = false, offen = false, hinweis = '' } = opts;
+  const inhalt = (Array.isArray(zeilen) ? zeilen : [zeilen]).filter(Boolean);
+  if (!inhalt.length) return '';
+  const klasse = gefahr ? 't-grp-kopf t-grp-kopf--danger' : 't-grp-kopf';
+  return `<section class="t-grp" data-section="${esc(name)}" data-collapsed="${offen ? 'false' : 'true'}">
+      <button type="button" class="${klasse}" data-action="toggle-section" aria-expanded="${offen ? 'true' : 'false'}">
+        <span class="t-grp-titel">${esc(titel)}</span>
+        <span class="t-grp-pfeil" aria-hidden="true">▾</span>
+      </button>
+      <div class="t-grp-koerper">
+        ${lst(inhalt, gefahr)}
+        ${hinweis ? `<div class="t-hint">${esc(hinweis)}</div>` : ''}
+      </div>
+    </section>`;
+}
+
+/**
  * Stepper:  −  Wert  +
  *
  * Das Feld in der Mitte behält die data-Attribute, an denen die
@@ -1916,24 +1936,24 @@ export function renderEinstellungen(t, opts = {}) {
   const isDraft = status === 'draft';
   const isGenerated = status === 'generated' && !isStarted;
   const isRunning = isStarted && !isFinished;
-  const defaultOpen = {
-    actions: true, // Aktionen immer sichtbar (Knöpfe sind der Hauptzweck)
-    groups: isGenerated,
-    seeding: isGenerated,
-    fields: true, // Felder bleiben in BEREIT + LÄUFT offen
-    'danger-zone': !isDraft, // Gefahrenzone read-only-Indikator
-  };
-  if (isFinished) {
-    // Beendet: nur Gefahrenzone offen.
-    defaultOpen.actions = true;
-    defaultOpen.groups = false;
-    defaultOpen.seeding = false;
-    defaultOpen.fields = false;
-  }
-  if (isRunning) {
-    defaultOpen.groups = false;
-    defaultOpen.seeding = false;
-  }
+  // Entscheid Jonas 2026-08-26: „es soll eingeklappt sein die ganzen
+  // einstellungen sodass es übersichtlicher ist."
+  //
+  // Vorher war das eine status-abhaengige Tabelle: im Zustand
+  // GENERIERT gingen Gruppen und Setzung von selbst auf, Aktionen und
+  // Felder immer. Die Absicht war gut — sie hat aber genau das erzeugt,
+  // was Jonas beanstandet: bei acht Gruppen ist auch die Haelfte offen
+  // noch eine Wand.
+  //
+  // Zu heisst nicht versteckt: die Kopfzeilen stehen alle da, mit
+  // Namen. Der Tab ist damit ein Inhaltsverzeichnis statt einer Liste,
+  // durch die man scrollt. Wer etwas aendern will, weiss vorher, WAS —
+  // er sucht den Namen, nicht die Zeile.
+  const defaultOpen = {};
+  // Die frueheren status-abhaengigen Ausnahmen sind mit defaultOpen = {}
+  // gegenstandslos geworden und deshalb entfernt — sie htten in ein
+  // leeres Objekt geschrieben und niemanden erreicht. Stehengebliebene
+  // Zuweisungen sind kein harmloser Rest: sie sehen aus wie Logik.
 
   // Block 1 — Aktionen
   const actionsBlock = renderActionsBlock({
@@ -1995,7 +2015,7 @@ export function renderEinstellungen(t, opts = {}) {
   // darueber liegt im Server, nicht in einer Bedingung im Frontend, die
   // hier ohnehin nur geraten waere.
   const notfallZone = isAdmin
-    ? grpLbl('Notfall') + lst([
+    ? gruppe('notfall', 'Notfall', [
         lrow({
           label: 'K.-o.-Phase aus den Gruppen füllen',
           sub: 'Passiert normalerweise von selbst, sobald das letzte Gruppenspiel eingetragen ist.',
@@ -2005,7 +2025,7 @@ export function renderEinstellungen(t, opts = {}) {
     : '';
   // Block 6 — Gefahrenzone
   const dangerZone = isAdmin
-    ? grpLbl('Gefahrenzone', true) + lst([
+    ? gruppe('danger-zone', 'Gefahrenzone', [
         lrow({
           label: 'Alle Ergebnisse löschen',
           sub: 'Setzt jeden Spielstand zurück. Der Spielplan bleibt.',
@@ -2018,8 +2038,10 @@ export function renderEinstellungen(t, opts = {}) {
           sub: 'Endgültig. Teams, Spielplan und Ergebnisse sind danach weg.',
           action: 'delete-tournament', art: 'danger',
         }),
-      ], true)
-      + '<div class="t-hint">Beide Aktionen verlangen den Turniernamen zur Bestätigung.</div>'
+      ], {
+        gefahr: true,
+        hinweis: 'Beide Aktionen verlangen den Turniernamen zur Bestätigung.',
+      })
     : '';
 
   return `
@@ -2359,8 +2381,8 @@ function renderActionsBlock(ctx) {
 
   return `
     ${banner}
-    ${ablauf.length ? grpLbl('Ablauf') + lst(ablauf) : ''}
-    ${betrieb.length ? grpLbl('Spielbetrieb') + lst(betrieb) : ''}
+    ${gruppe('ablauf', 'Ablauf', ablauf)}
+    ${gruppe('spielbetrieb', 'Spielbetrieb', betrieb)}
     ${statusHint}
   `;
 }
