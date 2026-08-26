@@ -5306,3 +5306,192 @@ textarea.t-input {
    gegenstandslos, sie steht ohnehin zuerst im Markup. */
 .t-dialog-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .t-dialog-head-text .t-dialog-subline { order: 0; }
+
+/* ================================================================
+   DRUCKBOEGEN — Markenuebernahme Etappe 9
+   ================================================================
+   Zwei Zustaende, eine Formatierung: am Bildschirm liegen die Boegen
+   als Papier auf dem Grund (Vorschau im Drucken-Tab), im Druck sind
+   sie das einzige, was uebrig bleibt.
+
+   Bewusst SCHWARZ AUF WEISS, unabhaengig vom Thema. Ein Bogen ist
+   Papier; im Nachtmodus einen dunklen Bogen zu zeigen und dann hell zu
+   drucken waere eine Vorschau, die luegt. Deshalb stehen hier feste
+   Farben und keine Tokens — die einzige Stelle im Modul, an der das
+   richtig ist.
+   ================================================================ */
+.t-druck { display: flex; flex-direction: column; gap: var(--s5); }
+.t-bogen {
+  background: #fff;
+  color: #111;
+  width: 100%;
+  max-width: 760px;
+  /* MINDESTHOEHE statt aspect-ratio, und overflow sichtbar.
+     Mit `aspect-ratio` und `overflow: hidden` haette ein Bogen die Form
+     eines Blattes — und ein Turnier mit 30 Partien haette die Haelfte
+     davon still abgeschnitten. Auf Papier soll Inhalt UMBRECHEN, nicht
+     verschwinden; am Bildschirm soll die Vorschau zeigen, was wirklich
+     gedruckt wird. 760 x 1.414 = 1075px ist die A4-Proportion als
+     Untergrenze, damit ein kurzer Bogen trotzdem wie ein Blatt aussieht. */
+  min-height: 1075px;
+  margin: 0 auto;
+  padding: 26px 24px;
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(11,11,12,.10), 0 20px 48px rgba(11,11,12,.16);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: visible;
+  font-family: var(--f-body);
+}
+.t-bogen--quer { min-height: 707px; max-width: 1000px; }
+.t-bogen-kopf {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 2px solid #111;
+  padding-bottom: 7px;
+}
+.t-bogen-marke {
+  font-family: var(--f-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #555;
+}
+.t-bogen-titel {
+  margin: 1px 0 0;
+  font-family: var(--f-disp);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: #111;
+}
+.t-bogen-meta {
+  text-align: right;
+  font-family: var(--f-mono);
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: #555;
+}
+.t-bogen-koerper { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.t-bogen-raster { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; align-content: start; }
+.t-bogen-baum { justify-content: center; }
+.t-bogen-baum svg { width: 100%; height: auto; }
+.t-bogen-abschnitt {
+  font-family: var(--f-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #555;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 3px;
+  margin-top: 2px;
+}
+table.t-bogen-tab {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+table.t-bogen-tab th {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #555;
+  font-weight: 500;
+  padding: 4px 4px;
+}
+table.t-bogen-tab td { padding: 5px 4px; border-top: 1px solid #e4e4e4; }
+table.t-bogen-tab .l { text-align: left; }
+table.t-bogen-tab .r { text-align: right; }
+table.t-bogen-tab .nm { font-family: var(--f-disp); font-size: 11px; font-weight: 600; }
+/* Rang als GRAUWERT plus Legende, nicht als Farbe: ein
+   Schwarz-Weiss-Drucker macht Orange und Gruen zum selben Grau. */
+table.t-bogen-tab tr.lead td { background: #ececea; }
+table.t-bogen-tab tr.qual td { background: #f6f6f5; }
+table.t-bogen-tab td.pl { color: #111; }
+table.t-bogen-tab tr.lead td.pl,
+table.t-bogen-tab tr.qual td.pl { font-weight: 700; }
+/* Das Eintragefeld: der Grund, warum ein Bogen kein Bildschirmfoto ist. */
+table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
+.t-bogen-legende {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--f-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+}
+.t-bogen-legende b {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border: 1px solid #111;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.t-bogen-legende b.voll { background: #111; }
+.t-bogen-fuss {
+  margin-top: auto;
+  border-top: 1px solid #bbb;
+  padding-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--f-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+}
+/* SVG-Klassen des Baum-Bogens */
+.t-bogen-baum .rl { font-family: var(--f-mono); font-size: 9px; letter-spacing: 1.6px; fill: #666; }
+.t-bogen-baum .tn { font-family: var(--f-disp); font-size: 11px; font-weight: 600; fill: #111; }
+.t-bogen-baum .tp { font-family: var(--f-disp); font-size: 11px; font-weight: 500; fill: #999; }
+.t-bogen-baum .sc { font-family: var(--f-mono); font-size: 10px; font-weight: 600; fill: #111; }
+.t-bogen-baum .bx  { fill: none; stroke: #111; stroke-width: 1; }
+.t-bogen-baum .bxo { fill: none; stroke: #bbb; stroke-width: 1; stroke-dasharray: 4 3; }
+.t-bogen-baum .cn  { fill: none; stroke: #aaa; stroke-width: 1; }
+.t-bogen-baum .flare   { stroke: #BF4413; stroke-width: 1.4; }
+.t-bogen-baum .flare-t { fill: #BF4413; }
+
+/* ---- Was beim Drucken passiert ----
+   Die Boegen sind das EINZIGE, was aufs Papier kommt: die App wird
+   ausgeblendet, nicht graustufig mitgedruckt. Das ist der Unterschied
+   zum bisherigen Drucklayout, das den Bildschirm entfaerbt hat —
+   achtzehn Karten fuellten so drei Seiten, wo eine Tabelle eine
+   braucht.
+
+   Jeder Bogen beginnt eine neue Seite. Innerhalb eines Bogens duerfen
+   Tabellenzeilen und Gruppenbloecke nicht auseinandergerissen werden;
+   eine Gruppentabelle, die ueber den Seitenrand faellt, ist auf Papier
+   unbrauchbar. */
+@media print {
+  .t-druck { display: block; gap: 0; }
+  .t-bogen {
+    box-shadow: none;
+    border-radius: 0;
+    max-width: none;
+    min-height: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+  .t-bogen:last-child { break-after: auto; page-break-after: auto; }
+  .t-bogen-gruppe,
+  .t-bogen-tab tr { break-inside: avoid; page-break-inside: avoid; }
+  .t-bogen-baum svg { max-height: 96vh; }
+  /* Der Bogen ersetzt die Ansicht: alles andere im Modul bleibt drin. */
+  .t-mod > .t-mod-header,
+  .t-mod > .t-mod-header-actions,
+  .t-mod > .t-mod-tabs,
+  .t-mod .t-mod-nav,
+  .t-mod .t-mod-aside,
+  .t-mod .t-mod-more-sheet { display: none !important; }
+}

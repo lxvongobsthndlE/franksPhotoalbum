@@ -2985,13 +2985,14 @@ function renderTabLoadError(mount, label, wieder, detail) {
  */
 function renderDruckenView() {
   return `
-      <div class="t-card">
+      <div class="t-card t-druck-hinweis">
         <div class="t-card-body">
-          <p>Gedruckt wird das Turnier, wie es gerade steht: der Spielplan mit Uhrzeit,
-          Platte und eingetragenen Ergebnissen, die Gruppentabellen und der K.-o.-Baum.</p>
-          <p class="t-hint">Bedienelemente, Seitenleiste und Navigation kommen nicht mit aufs
-          Papier. Fuer den Aushang an der Platte reicht eine Seite Spielplan; der Baum wird
-          im Querformat lesbarer.</p>
+          <p>Unten steht, was der Drucker ausgibt — Blatt fuer Blatt. Spielplan nach
+          Uhrzeit, die Gruppentabellen mit voller Bilanz, und der K.-o.-Baum als
+          Klammer im Querformat.</p>
+          <p class="t-hint">Offene Partien tragen ein Eintragefeld: der Bogen wird am
+          Spieltisch ausgefuellt, nicht danach gelesen. Kopf und Fuss tragen den Stand,
+          damit ein ausgehaengtes Blatt datierbar bleibt.</p>
           <button type="button" class="t-btn t-btn--primary" data-action="print">Jetzt drucken</button>
         </div>
       </div>`;
@@ -2999,6 +3000,25 @@ function renderDruckenView() {
 
 function handleTournamentTabSideEffects(view, t, detail) {
   if (!detail) return;
+  // Drucken-Tab: die Boegen sind die Vorschau UND das, was gedruckt wird.
+  // Immer neu rendern, damit der Stand stimmt — wer nach drei Ergebnissen
+  // druckt, will nicht den Stand von vor drei Ergebnissen.
+  if (view === 'drucken') {
+    const mount = detail.querySelector('[data-tab-body="drucken-mount"]');
+    if (mount) {
+      try {
+        mount.innerHTML = window.spielplanHelpers?.renderDruckboegen
+          ? window.spielplanHelpers.renderDruckboegen(t, t?.tournament?.qualifyPerGroup)
+          : '';
+      } catch (err) {
+        // Ein kaputter Bogen darf den Tab nicht mitreissen — der
+        // Drucken-Knopf oben funktioniert auch ohne Vorschau.
+        // eslint-disable-next-line no-console
+        console.warn('[drucken] Vorschau fehlgeschlagen', err);
+        mount.innerHTML = '';
+      }
+    }
+  }
   // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
   // Spielfelder / Gefahrenzone. Immer re-rendern, damit Status-
   // Änderungen sichtbar werden (nach jedem Save).
@@ -3452,6 +3472,7 @@ function renderTournamentInstanceDetailV3(t) {
             <section class="t-view" data-view="drucken">
               <div class="t-view-head"><div class="t-view-title">Drucken</div></div>
               ${renderDruckenView()}
+              <div data-tab-body="drucken-mount"></div>
             </section>
             ${renderEinstellungenSection({ isAdmin })}
           </main>

@@ -1351,6 +1351,266 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
     + '</div>';
 }
 
+/* ================================================================
+   DRUCKBOEGEN — Markenuebernahme Etappe 9 (2026-08-26)
+   ================================================================
+   Der Drucken-Knopf rief bis zum 25.08. blank window.print(); seither
+   gibt es ein @media-print-Layout, das den BILDSCHIRM graustufig aufs
+   Papier legt. Das ist besser als nichts, aber es ist immer noch ein
+   Bildschirmfoto: Filterleiste, Karten mit 90px Hoehe, Rahmen um jede
+   Partie. Achtzehn Spiele fuellen so drei Seiten.
+
+   Diese Funktionen bauen stattdessen BOEGEN — Markup, das es nur zum
+   Drucken gibt:
+
+     Bogen 1  Spielplan     A4 hoch,  nach Uhrzeit gegliedert,
+                            offene Partien mit Eintragefeld
+     Bogen 2  Gruppen       A4 hoch,  alle Tabellen auf einem Blatt
+     Bogen 3  K.-o.-Phase   A4 quer,  echte Klammer mit Verbindern
+
+   DREI REGELN, die den Unterschied ausmachen:
+
+   1. PLATZ ZUM EINTRAGEN. Jede offene Partie hat "___ : ___", kein
+      leeres Nichts. Das Blatt wird waehrend des Turniers mit dem Kuli
+      ausgefuellt, nicht danach gelesen.
+   2. KEIN TONER FUER FLAECHEN. Rangfarben werden zu Grauwerten und
+      einer Legende. Auf einem Schwarz-Weiss-Drucker ist eine oranger
+      und eine gruene Zeile dasselbe Grau — die Information waere weg.
+   3. KOPF UND FUSS TRAGEN DEN STAND. Turniername, Datum, Ort und die
+      Uhrzeit des Ausdrucks. Ein Blatt ohne Zeitstempel ist nach zwei
+      Runden Muell, weil niemand weiss, ob es noch gilt.
+
+   Die Boegen werden im Drucken-Tab als Vorschau gezeigt und beim
+   Drucken als einziges ausgegeben. Was man sieht, kommt aus dem
+   Drucker — sonst prueft niemand, ob der Ausdruck stimmt.
+   ================================================================ */
+
+/** Kopfzeile eines Bogens. */
+function druckKopf(bogen, t, rechts) {
+  const tour = t?.tournament ?? {};
+  return `<div class="t-bogen-kopf">
+    <div>
+      <div class="t-bogen-marke">[kru:]nest · ${esc(bogen)}</div>
+      <h3 class="t-bogen-titel">${esc(tour.name || 'Turnier')}</h3>
+    </div>
+    <div class="t-bogen-meta">${rechts}</div>
+  </div>`;
+}
+
+/** Fusszeile: Stand und Herkunft. Ohne Zeitstempel ist ein Bogen wertlos. */
+function druckFuss(t, seite, vonSeiten) {
+  const jetzt = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const tag = new Date().toLocaleDateString('de-DE');
+  return `<div class="t-bogen-fuss">
+    <span>Stand ${esc(tag)} ${esc(jetzt)} · Seite ${seite} von ${vonSeiten}</span>
+    <span>${esc(t?.tournament?.name || '')}</span>
+  </div>`;
+}
+
+/**
+ * Bogen 1 — Spielplan, nach Uhrzeit gegliedert.
+ *
+ * Eine Zeile je Partie statt einer Karte: achtzehn Spiele passen so auf
+ * ein Blatt statt auf drei. Die Uhrzeit steht als Zwischenueberschrift,
+ * damit sie nicht achtzehnmal wiederholt wird.
+ */
+function renderDruckSpielplan(t) {
+  const spiele = Array.isArray(t?.matches) ? t.matches : [];
+  if (!spiele.length) return '';
+
+  const bloecke = [];
+  const nachZeit = new Map();
+  for (const m of spiele) {
+    const zeit = m?.scheduledTime || '';
+    if (!nachZeit.has(zeit)) { const b = { zeit, spiele: [] }; nachZeit.set(zeit, b); bloecke.push(b); }
+    nachZeit.get(zeit).spiele.push(m);
+  }
+
+  const abschnitte = bloecke.map((b) => {
+    const zeilen = b.spiele.map((m) => {
+      const heim = m?.home?.name || '—';
+      const gast = m?.away?.name || '—';
+      const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
+      const ergebnis = hat ? `${m.scoreHome} : ${m.scoreAway}` : '___ : ___';
+      return `<tr>
+        <td class="l">${esc(m?.scheduledTime || '–')}</td>
+        <td class="l">${m?.field != null ? esc(String(m.field)) : '–'}</td>
+        <td class="l nm">${esc(heim)} — ${esc(gast)}</td>
+        <td class="l">${esc(m?.label || '')}</td>
+        <td class="r${hat ? '' : ' offen'}">${esc(ergebnis)}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="t-bogen-abschnitt">${esc(b.zeit || 'Ohne Termin')}${b.zeit ? ' Uhr' : ''}</div>
+      <table class="t-bogen-tab">
+        <colgroup><col style="width:12%"><col style="width:10%"><col><col style="width:12%"><col style="width:18%"></colgroup>
+        <tbody>${zeilen}</tbody>
+      </table>`;
+  }).join('');
+
+  const tour = t?.tournament ?? {};
+  const rechts = [
+    tour.startsAt ? new Date(tour.startsAt).toLocaleDateString('de-DE') : '',
+    tour.location || '',
+    `${spiele.length} Spiele`,
+  ].filter(Boolean).join('<br>');
+
+  return `<article class="t-bogen">
+    ${druckKopf('Spielplan', t, rechts)}
+    <div class="t-bogen-koerper">${abschnitte}</div>
+    ${druckFuss(t, 1, 3)}
+  </article>`;
+}
+
+/**
+ * Bogen 2 — alle Gruppentabellen auf einem Blatt.
+ *
+ * Neun Spalten statt fuenf: auf Papier ist Platz, und wer den Aushang
+ * liest, will die vollstaendige Bilanz sehen. Die Rangfarben werden zu
+ * Grauwerten plus Legende, weil ein Schwarz-Weiss-Drucker Orange und
+ * Gruen zum selben Grau macht.
+ */
+function renderDruckGruppen(t, qualifyPerGroup) {
+  const gruppen = Array.isArray(t?.groups) ? t.groups : [];
+  if (!gruppen.length) return '';
+  const advance = Number.isInteger(qualifyPerGroup) && qualifyPerGroup > 0 ? qualifyPerGroup : 2;
+  const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
+
+  const tabellen = gruppen.map((g) => {
+    const zeilen = (g.standings || []).map((s, i) => {
+      const rang = i + 1;
+      const kl = rang === 1 ? ' class="lead"' : rang <= advance ? ' class="qual"' : '';
+      const gf = s.goalsFor ?? 0, ga = s.goalsAgainst ?? 0;
+      const gd = s.goalDiff ?? (gf - ga);
+      return `<tr${kl}>
+        <td class="l pl">${rang}</td>
+        <td class="l nm">${esc(s.name || s.teamId || '—')}</td>
+        <td class="r">${s.played ?? 0}</td>
+        <td class="r">${s.won ?? 0}</td>
+        <td class="r">${s.drawn ?? 0}</td>
+        <td class="r">${s.lost ?? 0}</td>
+        <td class="r">${gf}:${ga}</td>
+        <td class="r">${fmtDiff(gd)}</td>
+        <td class="r"><b>${s.points ?? 0}</b></td>
+      </tr>`;
+    }).join('');
+    return `<div class="t-bogen-gruppe">
+      <div class="t-bogen-abschnitt">${esc(g.groupName || g.groupKey || 'Gruppe')}</div>
+      <table class="t-bogen-tab">
+        <thead><tr>
+          <th class="l">Pl</th><th class="l">Team</th><th class="r">Sp</th><th class="r">S</th>
+          <th class="r">U</th><th class="r">N</th><th class="r">Becher</th><th class="r">Diff</th><th class="r">Pkt</th>
+        </tr></thead>
+        <tbody>${zeilen}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  return `<article class="t-bogen">
+    ${druckKopf('Gruppentabellen', t, `${gruppen.length} Gruppen`)}
+    <div class="t-bogen-koerper t-bogen-raster">${tabellen}</div>
+    <div class="t-bogen-legende">
+      <span><b class="voll"></b>Platz 1</span>
+      <span><b></b>${advance <= 2 ? 'Steigt auf (Platz 2)' : `Steigt auf (Plätze 2–${advance})`}</span>
+      <span>Offene Partien tragen ein Eintragefeld</span>
+    </div>
+    ${druckFuss(t, 2, 3)}
+  </article>`;
+}
+
+/**
+ * Bogen 3 — der K.-o.-Baum als echte Klammer, quer.
+ *
+ * Das ist der Bogen, den es am Bildschirm bewusst NICHT gibt: dort ist
+ * ein vollstaendiger Baum auf 390px unlesbar, deshalb zeigt die App
+ * Runden nacheinander. Auf A4 quer ist der Platz da, und ein Aushang
+ * ohne Klammer waere kein Turnierbaum.
+ *
+ * Geometrie: jede Runde ist eine Spalte, die Kaesten der naechsten
+ * Runde sitzen mittig zwischen ihren beiden Vorgaengern. Der Abstand
+ * verdoppelt sich pro Runde — das ist die ganze Rechnung.
+ */
+function renderDruckBaum(t) {
+  const spiele = (Array.isArray(t?.matches) ? t.matches : []).filter((m) => m?.isKo || m?.stageType === 'ko');
+  if (!spiele.length) return '';
+  const { winnerBracket } = groupMatchesByRound(spiele);
+  if (!winnerBracket.length) return '';
+
+  const KB = 190, KH = 34, SPALTE = 232, RAND_X = 8, RAND_Y = 26;
+  const ersteAnzahl = winnerBracket[0]?.matches?.length || 1;
+  const ABST = 52 + KH;                    // Mittenabstand in Runde 1
+  const hoehe = RAND_Y + ersteAnzahl * ABST + 20;
+  const breite = RAND_X + winnerBracket.length * SPALTE + 150;
+
+  const mittey = (runde, i) => RAND_Y + KH / 2 + (i * ABST * Math.pow(2, runde)) + (Math.pow(2, runde) - 1) * ABST / 2;
+
+  const teile = [];
+  winnerBracket.forEach((r, ri) => {
+    const x = RAND_X + ri * SPALTE;
+    teile.push(`<text x="${x}" y="16" class="rl">${esc(String(r.label || '').toUpperCase())}</text>`);
+    (r.matches || []).forEach((m, mi) => {
+      const cy = mittey(ri, mi);
+      const y = cy - KH / 2;
+      const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
+      const heim = m?.home?.name || '—';
+      const gast = m?.away?.name || '—';
+      const hs = hat ? String(m.scoreHome) : '___';
+      const as = hat ? String(m.scoreAway) : '___';
+      const heimSieger = hat && m.scoreHome > m.scoreAway;
+      const offen = !hat;
+      teile.push(`<g>
+        <rect x="${x}" y="${y}" width="${KB}" height="${KH}" rx="2" class="${offen ? 'bxo' : 'bx'}"/>
+        <line x1="${x}" y1="${cy}" x2="${x + KB}" y2="${cy}" class="cn"/>
+        <text x="${x + 7}" y="${cy - 4}" class="${heimSieger || offen ? 'tn' : 'tp'}">${esc(heim)}</text>
+        <text x="${x + KB - 7}" y="${cy - 4}" text-anchor="end" class="sc">${esc(hs)}</text>
+        <text x="${x + 7}" y="${cy + 13}" class="${!heimSieger || offen ? 'tn' : 'tp'}">${esc(gast)}</text>
+        <text x="${x + KB - 7}" y="${cy + 13}" text-anchor="end" class="sc">${esc(as)}</text>
+      </g>`);
+      // Verbinder zur naechsten Runde
+      if (ri < winnerBracket.length - 1) {
+        const zielY = mittey(ri + 1, Math.floor(mi / 2));
+        const xm = x + KB + 20;
+        teile.push(`<path d="M${x + KB} ${cy}H${xm}V${zielY}h20" class="cn" fill="none"/>`);
+      }
+    });
+  });
+
+  // Titel-Kasten
+  const letzteX = RAND_X + (winnerBracket.length - 1) * SPALTE;
+  const titelY = mittey(winnerBracket.length - 1, 0);
+  teile.push(`<path d="M${letzteX + KB} ${titelY}h30" class="flare" fill="none" stroke-dasharray="7 5"/>`);
+  teile.push(`<rect x="${letzteX + KB + 34}" y="${titelY - KH / 2}" width="130" height="${KH}" rx="2" class="flare" fill="none"/>`);
+  teile.push(`<text x="${letzteX + KB + 42}" y="${titelY - 4}" class="rl flare-t">SIEGER</text>`);
+  teile.push(`<line x1="${letzteX + KB + 42}" y1="${titelY + 10}" x2="${letzteX + KB + 156}" y2="${titelY + 10}" class="flare"/>`);
+
+  return `<article class="t-bogen t-bogen--quer">
+    ${druckKopf('K.-o.-Phase', t, `${winnerBracket.length} Runden`)}
+    <div class="t-bogen-koerper t-bogen-baum">
+      <svg viewBox="0 0 ${breite} ${hoehe}" role="img" aria-label="Turnierbaum">${teile.join('')}</svg>
+    </div>
+    <div class="t-bogen-legende">
+      <span>Durchgezogener Rahmen: gespielt · gestrichelter: offen</span>
+      <span>Offene Partien tragen ein Eintragefeld</span>
+    </div>
+    ${druckFuss(t, 3, 3)}
+  </article>`;
+}
+
+/**
+ * Alle drei Boegen. Leere Boegen fallen weg — ein Turnier ohne
+ * K.-o.-Phase soll kein leeres Blatt drucken.
+ */
+export function renderDruckboegen(t, qualifyPerGroup) {
+  const teile = [
+    renderDruckSpielplan(t),
+    renderDruckGruppen(t, qualifyPerGroup),
+    renderDruckBaum(t),
+  ].filter(Boolean);
+  if (!teile.length) {
+    return '<p class="t-hint">Noch nichts zu drucken — der Spielplan wird erst erzeugt.</p>';
+  }
+  return `<div class="t-druck">${teile.join('')}</div>`;
+}
+
 export const bracket = {
   groupMatchesByRound,
   renderMatchCardBracket,
@@ -1492,6 +1752,9 @@ if (typeof window !== 'undefined') {
     renderTeamsList,
     resolveConfirmDescriptor,
     renderEinstellungen,
+    // Die Druckboegen laufen ueber window, weil main.js sie im
+    // Tab-Side-Effect braucht und dort kein ES-Import steht.
+    renderDruckboegen,
     renderGroupsBoard,
     serializeGroupsInput,
     renderFieldsEditor,
