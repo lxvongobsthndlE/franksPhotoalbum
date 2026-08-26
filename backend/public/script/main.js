@@ -4470,8 +4470,36 @@ function wireBracketTabs(root) {
     cols.forEach((col) => io.observe(col));
   }
 
-  // Initial: erster Tab aktiv.
-  if (tabs[0]) tabs[0].classList.add('is-active');
+  // Nacharbeit (2026-08-26): Hier stand „Initial: erster Tab aktiv" und
+  // setzte `is-active` blind auf tabs[0]. Das hat zwei Dinge kaputtgemacht.
+  //
+  // Erstens hat es die Arbeit des Renderers ueberschrieben: der rechnet
+  // die AKTUELLE Runde aus (die erste, in der noch etwas offen ist) und
+  // markiert sie bereits. Danach war entweder die falsche Runde markiert
+  // oder — wenn die aktuelle nicht die erste war — gleich ZWEI.
+  //
+  // Zweitens zeigte der Baum beim Oeffnen trotzdem die erste Runde, weil
+  // die Spalten scroll-snap-Seiten sind und der Scrollstand bei 0 anfing.
+  // Man sah also „Halbfinale" markiert und Viertelfinal-Karten darunter.
+  // Die Vorlage ist da eindeutig: „darunter die aktuelle Runde".
+  //
+  // Jetzt: der Renderer bestimmt die Runde, und der Scrollstand folgt ihr.
+  // `behavior: 'instant'` ist Absicht — ein Sprung beim Oeffnen ist kein
+  // Uebergang, den man sehen soll, sondern der Ausgangszustand.
+  const aktiverTab = root.querySelector('.bracket-tab.is-active');
+  if (aktiverTab) {
+    const label = aktiverTab.dataset.bracketTab;
+    const spalte = label
+      ? wrap.querySelector(`.bracket-col[data-bracket-col="${CSS.escape(label)}"]`)
+      : null;
+    if (spalte && typeof spalte.scrollIntoView === 'function') {
+      spalte.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'start' });
+    }
+  } else if (tabs[0]) {
+    // Fail-open: hat der Renderer keine Runde markiert (alles gespielt),
+    // ist die erste die ehrlichste Voreinstellung.
+    tabs[0].classList.add('is-active');
+  }
 }
 
 /**
