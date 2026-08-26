@@ -226,6 +226,27 @@ export function renderTournamentListCard({
 // ── Section-Renderer ────────────────────────────────────────────────
 
 /**
+ * Kopfzeile INNERHALB einer Ansicht — nur noch fuer Aktionen.
+ *
+ * Nacharbeit 2026-08-26 (Beschwerde 6): Bis hierher trug jede Ansicht
+ * ihren Namen ein zweites Mal. Die Markenuebernahme hatte den Modulkopf
+ * auf die ANSICHT gedreht ("Spielplan" statt Turniername), die alten
+ * View-Koepfe darunter aber stehen lassen — auf dem Schirm stand
+ * "Spielplan" zweimal untereinander, einmal gross im Kopf, einmal klein
+ * darunter. Additiv umgebaut, nicht ersetzt.
+ *
+ * Der Titel steht jetzt genau einmal, im Modulkopf. Bleiben keine
+ * Aktionen uebrig (Mitglieder-Ansicht), entfaellt die Zeile GANZ —
+ * sonst bliebe eine leere Zeile mit Abstand stehen, und ein leerer
+ * Kasten ist kein besseres Ergebnis als ein doppelter Titel.
+ */
+function viewHead(...knoepfe) {
+  const inhalt = knoepfe.filter(Boolean);
+  if (!inhalt.length) return '';
+  return `<div class="t-view-head"><div class="spacer"></div>${inhalt.join('')}</div>`;
+}
+
+/**
  * Spielplan-Section-Head mit „Bearbeiten" (toggle-schedule-edit) und
  * „Ergebnis eintragen" (enter-result-pick). Beide Buttons sind Admin-only.
  */
@@ -236,12 +257,7 @@ export function renderSpielplanSectionHead({ isAdmin, t }) {
   const resultBtn = isAdmin
     ? '<button type="button" class="t-btn t-btn--primary" data-action="enter-result-pick">Ergebnis eintragen</button>'
     : '';
-  return `<div class="t-view-head">
-                <div class="t-view-title">Spielplan</div>
-                <div class="spacer"></div>
-                ${editBtn}
-                ${resultBtn}
-              </div>
+  return `${viewHead(editBtn, resultBtn)}
               <div class="t-toolbar" id="t-filters"></div>
               <div class="t-card"><div class="t-card-body" id="t-schedule-list"></div></div>`;
 }
@@ -253,11 +269,7 @@ export function renderRegelnSectionHead({ isAdmin }) {
   const editBtn = isAdmin
     ? '<button type="button" class="t-btn t-btn--ghost" data-action="edit-rules">Bearbeiten</button>'
     : '';
-  return `<div class="t-view-head">
-                <div class="t-view-title">Regeln</div>
-                <div class="spacer"></div>
-                ${editBtn}
-              </div>
+  return `${viewHead(editBtn)}
               <div data-tab-body="regeln-mount"></div>`;
 }
 
@@ -268,7 +280,6 @@ export function renderRegelnSectionHead({ isAdmin }) {
 export function renderEinstellungenSection({ isAdmin }) {
   if (!isAdmin) return '';
   return `<section class="t-view" data-view="einstellungen">
-              <div class="t-view-head"><div class="t-view-title">Einstellungen</div></div>
               <div data-tab-body="einstellungen-mount"></div>
             </section>`;
 }

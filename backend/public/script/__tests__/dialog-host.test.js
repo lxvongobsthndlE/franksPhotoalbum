@@ -255,14 +255,40 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     // dieselbe Optik waren genau der Fehler.
     expect(tournamentCss).not.toMatch(/^\.t-dialog-host \.t-btn/m);
     // Der Schnitt selbst: der plättende Teil des Resets greift nur noch
-    // bei Knöpfen OHNE t-btn-Klasse.
-    expect(tournamentCss).toMatch(
-      /\.t-mod button:where\(:not\(\[class\*="t-btn"\]\)\)\s*\{/,
+    // bei Knöpfen OHNE eigene Optik. `t-btn` muss in der Ausnahmeliste
+    // stehen — weitere Einträge sind erlaubt (2026-08-26: .t-mod-action,
+    // .t-mod-tab, .t-chip kamen als Kollision Nr. 7 dazu).
+    const schnitt = tournamentCss.match(
+      /\.t-mod button:where\(:not\(([^)]*)\)\)\s*\{([^}]*)\}/,
     );
+    expect(schnitt, 'Der geschnittene Reset fehlt ganz').toBeTruthy();
+    expect(schnitt[1]).toContain('[class*="t-btn"]');
+
+    // Die eigentliche Gefahr dieser Ausnahmeliste: wer eine Komponente
+    // austrägt, nimmt ihr auch `font-family: inherit` weg. Ohne eigene
+    // Schriftzeile fällt sie dann auf die Browser-Voreinstellung zurück —
+    // genau so stand der Kopf-Aktionsknopf in IBM Plex Sans statt in
+    // Archivo Narrow da, und zwar OBWOHL seine eigene Regel korrekt war.
+    // Deshalb: jede ausgetragene Komponente muss ihre Schrift selbst führen.
+    if (/font-family/.test(schnitt[2])) {
+      const ausnahmen = [...schnitt[1].matchAll(/\.([a-z0-9-]+)/g)].map((m) => m[1]);
+      for (const klasse of ausnahmen) {
+        const regel = tournamentCss.match(
+          new RegExp('^\\.' + klasse + ' \\{[^}]*\\}', 'm'),
+        );
+        expect(regel, `.${klasse} ist ausgetragen, hat aber gar keine Regel`).toBeTruthy();
+        expect(
+          regel[0],
+          `.${klasse} ist aus dem Reset ausgetragen, führt aber keine eigene font-family — ` +
+            'sie fällt damit auf die Browser-Schrift zurück.',
+        ).toMatch(/font-family:/);
+      }
+    }
+
     // …und `.t-mod button` selbst plättet nichts mehr.
     const resetBlock = tournamentCss.match(/^\.t-mod button \{[^}]*\}/m);
     expect(resetBlock).toBeTruthy();
-    expect(resetBlock[0]).not.toMatch(/border|background|color|font-size/);
+    expect(resetBlock[0]).not.toMatch(/border|background|color|font-size|font-family/);
   });
 
   it('jede gefüllte Knopf-Variante setzt im :hover ihre Füllung erneut', () => {

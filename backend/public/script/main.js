@@ -675,6 +675,7 @@ const ICON_SHEET_THIRDS     = `<svg viewBox="0 0 24 24" fill="none" stroke="curr
 const ICON_SHEET_RULES      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>`;                                  // book-open
 const ICON_SHEET_PRINT      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`;                                                          // printer
 const ICON_SHEET_SETTINGS   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`; // settings
+const ICON_SHEET_BACK       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;                                                                                   // arrow-left
 
 // ── TOAST NOTIFICATIONS ─────────────────────────────────
 function toast(msg, type = 'info') {
@@ -2369,7 +2370,16 @@ function renderTournamentHeaderActions() {
     if (existing) existing.remove();
   }
 
-  const isInstancesView = normalizeTournamentView(curTournamentView) === 'instances';
+  // Nacharbeit (2026-08-26), Beschwerde 3: „das brauch ich da gar nicht
+  // während ich in einem turnier drin bin". `curTournamentView` bleibt
+  // beim Oeffnen eines Turniers auf 'instances' — die Detailansicht ist
+  // ein Unterzustand der Liste, kein eigener View-Wert. Der Knopf hing
+  // allein an diesem Wert und stand deshalb auch im Turnier noch da.
+  // Der zweite Zeuge ist `activeTournamentInstance`: gesetzt heisst
+  // „ein Turnier ist offen", und dann traegt der Modulkopf seine eigene
+  // Aktion. Zwei Aktionsleisten uebereinander gibt es in der Vorlage nicht.
+  const detailOffen = activeTournamentInstance !== null && activeTournamentInstance !== undefined;
+  const isInstancesView = normalizeTournamentView(curTournamentView) === 'instances' && !detailOffen;
 
   // Rechte-Prüfung, 26.08.2026: „Turnier erstellen" ist eine Admin-Aktion
   // (POST /api/tournaments antwortet Mitgliedern mit 403). Der Knopf hing
@@ -3240,39 +3250,57 @@ async function refreshTournamentAfterMutation(tournamentId) {
  * `kontext` ist eine Funktion, weil die Zahlen erst zur Laufzeit
  * feststehen; sie bekommt das Turnier-Objekt und darf '' liefern.
  */
+// Zaehlwort-Helfer fuer den Kicker. Steht hier, weil die Tabelle
+// darunter sechsmal dieselbe Ein-/Mehrzahl-Frage stellt.
+const zw = (n, ein, viele) => (n ? `${n} ${n === 1 ? ein : viele}` : '');
+
 const T_VIEW_CHROME = {
   spielplan: {
     titel: 'Spielplan',
-    kontext: (t) => {
-      const n = Array.isArray(t.matches) ? t.matches.length : 0;
-      return n ? n + (n === 1 ? ' Spiel' : ' Spiele') : '';
-    },
+    kicker: (t) => [t.name, t.startsAt ? fmtDate(t.startsAt) : ''].filter(Boolean).join(' · '),
     aktion: { label: 'Teams', view: 'teams' },
   },
   gruppen: {
     titel: 'Gruppen',
-    kontext: (t) => {
-      const g = Array.isArray(t.groups) ? t.groups.length : 0;
-      return g ? g + (g === 1 ? ' Gruppe' : ' Gruppen') : '';
-    },
+    kicker: (t) => [
+      zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+      zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
+      zw(Array.isArray(t.matches) ? t.matches.length : 0, 'Spiel', 'Spiele'),
+    ].filter(Boolean).join(' · '),
     aktion: { label: 'Regelwerk', view: 'regeln' },
   },
   baum: {
     titel: 'Der Weg zum Titel',
-    kontext: (t) => (Array.isArray(t.teams) ? t.teams.length + ' Teams' : ''),
-    aktion: null,
+    kicker: (t) => [
+      zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+      tournamentModeLabel(t.mode) || '',
+    ].filter(Boolean).join(' · '),
+    // „Teilen" steht nur da, wenn es auch etwas zu teilen GIBT. Ohne
+    // Zuschauer-Link waere der Knopf eine Einladung in eine Fehlermeldung.
+    aktion: {
+      label: 'Teilen',
+      handlung: 'teilen',
+      wenn: (t) => t.isPublic === true && !!t.publicToken,
+    },
   },
   teams: {
     titel: 'Teams',
-    kontext: (t) => (Array.isArray(t.teams) ? t.teams.length + ' Teams' : ''),
+    kicker: (t) => [
+      zw(Array.isArray(t.teams) ? t.teams.length : 0, 'Team', 'Teams'),
+      zw(Array.isArray(t.groups) ? t.groups.length : 0, 'Gruppe', 'Gruppen'),
+    ].filter(Boolean).join(' · '),
     aktion: null,
   },
-  regeln: { titel: 'Regelwerk', kontext: () => '', aktion: null },
-  drucken: { titel: 'Drucken', kontext: () => '', aktion: null },
+  regeln: {
+    titel: 'Regelwerk',
+    kicker: (t) => t.name || '',
+    aktion: { label: 'Bearbeiten', handlung: 'regelwerk-bearbeiten', wenn: (t) => t.isAdmin === true },
+  },
+  drucken: { titel: 'Drucken', kicker: (t) => t.name || '', aktion: null },
   einstellungen: {
     titel: 'Einstellungen',
-    kontext: () => 'Nur du als Organisator siehst diesen Bereich',
-    aktion: null,
+    kicker: () => 'Nur du als Organisator siehst diesen Bereich',
+    aktion: { label: 'Fertig', view: 'spielplan' },
   },
 };
 
@@ -3294,23 +3322,39 @@ function applyViewChrome(detail, view, t) {
   const titleEl = detail.querySelector('[data-view-title]');
   if (titleEl) titleEl.textContent = chrome.titel;
 
+  // Markenuebernahme Nacharbeit (2026-08-26): Der Kicker wird je Ansicht
+  // GANZ neu geschrieben, nicht mehr aus einem festen Sockel plus Zusatz
+  // zusammengesetzt. Der Sockel trug Name, Datum, Phase und
+  // Oeffentlich-Status — fuenf Segmente in einer nowrap-Zeile, von denen
+  // auf 390px das letzte mitten im Wort abbrach. Und ausgerechnet das
+  // letzte war der ansichtsabhaengige Teil, also der einzige, der etwas
+  // ueber DIESE Ansicht sagte. Die Vorlage zeigt hoechstens drei
+  // Segmente, je Ansicht andere.
   const kickEl = detail.querySelector('.t-mod-kicker-text');
   if (kickEl) {
-    const basis = kickEl.dataset.kickerBase || kickEl.textContent || '';
-    let zusatz = '';
-    try { zusatz = chrome.kontext ? (chrome.kontext(t) || '') : ''; } catch { zusatz = ''; }
-    kickEl.textContent = zusatz ? basis + ' · ' + zusatz : basis;
+    let text = '';
+    try { text = chrome.kicker ? (chrome.kicker(t) || '') : ''; } catch { text = ''; }
+    kickEl.textContent = text;
   }
 
   const actEl = detail.querySelector('[data-view-action]');
   if (actEl) {
-    if (chrome.aktion) {
+    // Eine Aktion kann an eine Bedingung geknuepft sein ("Teilen" nur mit
+    // Zuschauer-Link, "Bearbeiten" nur fuer Organisatoren). Faellt die
+    // Bedingung, gibt es keinen Ersatzknopf — der Platz bleibt leer.
+    let erlaubt = !!chrome.aktion;
+    if (erlaubt && typeof chrome.aktion.wenn === 'function') {
+      try { erlaubt = chrome.aktion.wenn(t) === true; } catch { erlaubt = false; }
+    }
+    delete actEl.dataset.view;
+    delete actEl.dataset.handlung;
+    if (erlaubt) {
       actEl.textContent = chrome.aktion.label;
-      actEl.dataset.view = chrome.aktion.view;
+      if (chrome.aktion.view) actEl.dataset.view = chrome.aktion.view;
+      if (chrome.aktion.handlung) actEl.dataset.handlung = chrome.aktion.handlung;
       actEl.hidden = false;
     } else {
       actEl.hidden = true;
-      delete actEl.dataset.view;
     }
   }
 }
@@ -3320,9 +3364,14 @@ function renderTournamentInstanceDetailV3(t) {
     const grid = $('grid');
     if (!grid) return;
 
-    const teamCount = Array.isArray(t.teams) ? t.teams.length : 0;
-    const phase = tournamentStatusPhase(t.status);
-    const modeLabel = tournamentModeLabel(t.mode);
+    // Nacharbeit (2026-08-26): teamCount, phase, modeLabel und logoHtml
+    // sind hier ersatzlos entfallen. Sie speisten den alten Kopf mit
+    // Logo, Untertitel und zwei Badges; seit der Kopf Kicker + Titel +
+    // eine Aktion traegt, waren es vier zugewiesene und nie gelesene
+    // Werte. Stehengebliebene Zuweisungen sind kein harmloser Rest —
+    // sie halten einen Zustand am Leben, den niemand mehr pflegt, und
+    // lassen Quelltext-Waechter gruen bleiben, deren Schutz laengst weg ist.
+    // Was der Kopf braucht, holt applyViewChrome() aus T_VIEW_CHROME.
     const isAdmin = t.isAdmin === true;
 
     // P3 (2026-08-24): Mobile Bottom-Bar-Komposition je nach Modus.
@@ -3367,40 +3416,26 @@ function renderTournamentInstanceDetailV3(t) {
       return `<button type="button" data-view="${v}">${cfg.icon}<span>${cfg.label}</span></button>`;
     }).join('\n            ');
 
-    const logoHtml = t.logoUrl
-      ? `<img class="t-logo" src="${esc(t.logoUrl)}" alt="Logo">`
-      : '<span class="t-logo t-logo--placeholder" aria-hidden="true"></span>';
-
-    const publicBadge = t.isPublic
-      ? '<span class="t-badge t-badge--phase">Öffentlich</span>'
-      : '';
-
-    // Bug 15 (2026-08-18, User-Punkt 3): Auf Mobile (390px) ist Logo +
-    // Titel + Badge zu breit für eine Reihe. Wir umhüllen Titel-Text
-    // + Badges in einer eigenen Zeile (.t-mod-header-info), damit
-    // der Titel bei Bedarf schrumpfen kann und die Badges darunter
-    // umbrechen. Auf Desktop (≥768px) bleiben sie nebeneinander.
     // Markenuebernahme Etappe 2 (2026-08-26): der Kopf dreht sich um.
     // Vorher war der TURNIERNAME der grosse Titel und die Ansicht stand
     // nur im Reiter. Das hiess: auf jedem der sieben Screens stand
     // dasselbe Wort ganz oben, und wo man war, musste man unten ablesen.
     // Jetzt traegt der Titel die ANSICHT ("Spielplan", "Gruppen"), und
-    // das Turnier wandert in den Kicker darueber — zusammen mit dem
-    // Kontext, der zu genau dieser Ansicht gehoert (siehe
-    // T_VIEW_CHROME). Die Badges sind aufgeloest: Phase und
-    // Oeffentlich-Status stehen als Text im Kicker, nicht als zwei
-    // Pillen, die auf 390px eine eigene Zeile brauchten.
-    const kickerBase = [
-      t.name || 'Turnier',
-      t.startsAt ? fmtDate(t.startsAt) : '',
-      tournamentPhaseLabel(phase),
-      t.isPublic ? 'Öffentlich' : '',
-    ].filter(Boolean).join(' · ');
-
+    // das Turnier wandert in den Kicker darueber.
+    //
+    // Nacharbeit am selben Tag: Logo und Badges sind hier ersatzlos raus.
+    // Das Logo hat seinen Platz auf den Zuschauerseiten und im Ausdruck,
+    // nicht auf jedem der sieben Screens; der Oeffentlich-Status ist eine
+    // Einstellung und steht dort, wo man ihn aendert.
+    // Nacharbeit (2026-08-26): Der Kicker traegt keinen Sockel mehr und
+    // keinen Zurueck-Knopf. Die Vorlage zeigt an dieser Stelle NUR Text —
+    // der Weg zurueck liegt im Mehr-Blatt, wo die uebrigen Ortswechsel
+    // auch liegen. Ein Knopf im Kicker sah aus wie eine Brotkrume und
+    // verhielt sich wie ein Reiter; zwei Bedeutungen auf einer Zeile.
+    // Den Text setzt applyViewChrome() je Ansicht, siehe T_VIEW_CHROME.
     const headerHtml = `
       <div class="t-mod-kicker">
-        <button type="button" class="t-mod-back" data-action="back" aria-label="Zurück zur Turnierliste">‹ Turniere</button>
-        <span class="t-mod-kicker-text" data-kicker-base="${esc(kickerBase)}">${esc(kickerBase)}</span>
+        <span class="t-mod-kicker-text"></span>
       </div>
       <div class="t-mod-titlerow">
         <h1 class="t-title" data-view-title>Spielplan</h1>
@@ -3420,27 +3455,15 @@ function renderTournamentInstanceDetailV3(t) {
     // wo der User das Turnier sieht. Admin-only.
     const showReschedule = isAdmin && t.status !== 'finished';
 
-    // Bug 15 Politur (2026-08-18, User-Punkt 2): „Zurück" und „Drucken"
-    // werden auf Mobile in einem Kontextmenü (drei-Punkte-Button rechts
-    // oben) gebündelt. Auf Desktop/Tablet bleiben sie als inline-Buttons
-    // sichtbar — die `.t-mod-header-actions-btn`-Klasse wird per
-    // @container-Querie ein-/ausgeblendet. Die Menü-Items tragen
-    // dieselben data-action-Werte wie die Buttons, damit die Handler
-    // unverändert funktionieren.
-    const headerActionsHtml = `
-      <div class="t-mod-header-actions">
-        <button type="button" class="t-btn t-btn--ghost t-mod-header-actions-btn" data-action="back" title="Zurück zur Liste">Zurück</button>
-        <button type="button" class="t-btn t-btn--ghost t-mod-header-actions-btn" data-action="print" title="Drucken">Drucken</button>
-        <div class="t-mod-menu" data-open="false">
-          <button type="button" class="t-mod-menu-toggle" aria-label="Aktionen" aria-haspopup="true" aria-expanded="false">
-            <span class="t-mod-menu-toggle-icon" aria-hidden="true">⋮</span>
-          </button>
-          <div class="t-mod-menu-list" role="menu">
-            <button type="button" data-action="back" role="menuitem">Zurück zur Liste</button>
-            <button type="button" data-action="print" role="menuitem">Drucken</button>
-          </div>
-        </div>
-      </div>`;
+    // Nacharbeit (2026-08-26): Die Aktionszeile unter dem Kopf ist
+    // ersatzlos gestrichen. Sie war eine eigene Zeile mit Panel-Grund,
+    // in der unterhalb von 900px beide Knoepfe per @container ausgeblendet
+    // wurden — uebrig blieb ein einzelnes Drei-Punkte-Menue, allein auf
+    // voller Breite. Und dessen zwei Eintraege waren Dubletten: „Zurueck
+    // zur Liste" fuehrt dorthin, wo die Bodenleiste ohnehin hinfuehrt,
+    // „Drucken" ist eine eigene Ansicht mit eigenem Reiter.
+    // Der Weg zurueck steht jetzt einmal, im Mehr-Blatt.
+    // Die Vorlage kennt zwischen Kopf und Inhalt nichts.
 
     // Host-Klasse setzen, BEVOR wir innerHTML schreiben. Analog zum
     // Wizard-Pattern (t-wizard-host): hebt das `tournaments-grid`-
@@ -3454,7 +3477,6 @@ function renderTournamentInstanceDetailV3(t) {
         <header class="t-mod-header">
           ${headerHtml}
         </header>
-        ${headerActionsHtml}
         <div class="t-mod-tabs" id="t-tabs" role="tablist" aria-label="Turnier-Ansichten (mobil)">
             ${barButtonsHtml}
             <button type="button" class="t-mod-tab" data-action="open-more-menu" aria-haspopup="dialog" aria-label="Weitere Ansichten">${ICON_TAB_MORE}<span>Mehr</span></button>
@@ -3466,6 +3488,7 @@ function renderTournamentInstanceDetailV3(t) {
             <h2 class="t-mod-more-title">Mehr</h2>
             <nav class="t-mod-more-list">
               ${sheetButtonsHtml}
+              <button type="button" data-action="back">${ICON_SHEET_BACK}<span>Zurück zur Liste</span></button>
             </nav>
           </div>
         </div>
@@ -3476,27 +3499,18 @@ function renderTournamentInstanceDetailV3(t) {
               ${renderSpielplanSectionHead({ isAdmin, t })}
             </section>
             <section class="t-view" data-view="gruppen">
-              <div class="t-view-head"><div class="t-view-title">Gruppen</div></div>
               ${groupsViewHtml}
             </section>
             <section class="t-view" data-view="baum">
-              <div class="t-view-head"><div class="t-view-title">Turnierbaum</div></div>
               <div data-tab-body="baum-mount"></div>
             </section>
             <section class="t-view" data-view="teams">
-              <div class="t-view-head">
-                <div class="t-view-title">Teams</div>
-                <div class="spacer"></div>
-              </div>
               <div data-tab-body="teams-mount"></div>
             </section>
             <section class="t-view" data-view="regeln">
               ${renderRegelnSectionHead({ isAdmin })}
             </section>
-              <div data-tab-body="regeln-mount"></div>
-            </section>
             <section class="t-view" data-view="drucken">
-              <div class="t-view-head"><div class="t-view-title">Drucken</div></div>
               ${renderDruckenView()}
               <div data-tab-body="drucken-mount"></div>
             </section>
@@ -3545,9 +3559,30 @@ function renderTournamentInstanceDetailV3(t) {
     if (headAction) {
       headAction.addEventListener('click', () => {
         const ziel = headAction.dataset.view;
-        if (!ziel) return;
-        switchToView(ziel, null);
-        handleTournamentTabSideEffects(ziel, t, detail);
+        if (ziel) {
+          switchToView(ziel, null);
+          handleTournamentTabSideEffects(ziel, t, detail);
+          return;
+        }
+        // Nacharbeit (2026-08-26): Nicht jede Kopf-Aktion der Vorlage ist
+        // ein Ansichtswechsel — „Teilen" und „Bearbeiten" sind Handlungen.
+        // Statt sie hier ein zweites Mal zu verdrahten, reichen wir den
+        // Klick an das Bedienelement weiter, das die Handlung ohnehin
+        // schon traegt. Eine Handlung, ein Handler.
+        //
+        // Die beiden Ziele stehen BEWUSST als ausgeschriebene Selektoren
+        // da und nicht als `[data-action="${wert}"]`. Der erste Versuch war
+        // interpoliert — und der Selektor-Drift-Detektor wurde daraufhin
+        // rot: ein einziger dynamisch gebauter data-action-Selektor
+        // schaltet seine Gegenrichtungs-Pruefung fuer ALLE data-action-Werte
+        // ab. Eine Zeile Bequemlichkeit haette den Waechter fuer das ganze
+        // Modul blind gemacht. Ausgeschrieben prueft er auch diese zwei mit.
+        const handlung = headAction.dataset.handlung;
+        if (handlung === 'teilen') {
+          detail.querySelector('[data-action="copy-public-link"]')?.click();
+        } else if (handlung === 'regelwerk-bearbeiten') {
+          detail.querySelector('[data-action="edit-rules"]')?.click();
+        }
       });
     }
 

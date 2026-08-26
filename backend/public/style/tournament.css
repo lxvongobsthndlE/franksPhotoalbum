@@ -268,12 +268,35 @@
    die Komponenten nicht schlagen soll, muss ihren GELTUNGSBEREICH
    schneiden (`:where(:not(...))`) — eine "allgemeinere" Regel ist nicht
    automatisch die schwaechere.
+
+   NACHTRAG 2026-08-26 — Kollision Nr. 7, dieselbe Regel, neues Opfer.
+   Die Ausnahme oben nennt nur `t-btn`. Der Kopf-Aktionsknopf heisst aber
+   `.t-mod-action` und traegt kein `t-btn` im Klassennamen — der Reset
+   MATCHT ihn also, und bei (0,1,1) gegen (0,1,0) gewinnt er. Folge, im
+   Browser gemessen (Edge, Pruefstand, .t-mod-action):
+       color rgb(11,11,12)   statt  #BF4413 (--flare)
+   Die eine orange Aktion, die die Vorlage auf JEDEM Screen zeigt, war
+   also tintenschwarz — und weil `font-size: inherit` genauso gewinnt,
+   auch 15px statt 12.5px. Sichtbar war das nur als "sieht irgendwie
+   nicht aus wie im Artefakt"; per Quelltextlesen war es unsichtbar,
+   weil die Regel, die verliert, korrekt dasteht.
+
+   Die Ausnahmeliste ist deshalb ab jetzt eine LISTE, keine Einzelregel:
+   wer eine Komponente mit eigener Optik in dieses Modul stellt, traegt
+   sie hier ein. Das ist die Stelle, an der der Geltungsbereich
+   geschnitten wird — es gibt nur diese eine.
    ---------------------------------------------------------------- */
 .t-mod button {
-  font-family: inherit;
   cursor: pointer;
 }
-.t-mod button:where(:not([class*="t-btn"])) {
+/* `font-family: inherit` steht MIT im geschnittenen Block, nicht darueber.
+   Es stand vorher aussen und war damit (0,1,1) gegen (0,1,0) — der Grund,
+   warum der Kopf-Aktionsknopf trotz `font-family: var(--f-cond)` in
+   IBM Plex Sans erschien. Wer hier eine Komponente austraegt, gibt ihr
+   im Gegenzug eine eigene Schriftzeile; sonst faellt sie auf die
+   Browser-Voreinstellung zurueck statt auf die Modulschrift. */
+.t-mod button:where(:not([class*="t-btn"], .t-mod-action, .t-mod-tab, .t-chip)) {
+  font-family: inherit;
   font-size: inherit;
   border: none;
   background: none;
@@ -598,18 +621,26 @@
   gap: 2px;
   border: none;
   background: transparent;
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 500;
-  border-top: 2px solid transparent;     /* P3: statt border-bottom */
+  /* Werte aus dem Artefakt, Abschnitt 01 (.bnav a): Archivo Narrow,
+     halbfett, 10.5px, gesperrt, Versalien. `font-family: inherit` stand
+     hier vorher und war wirkungslos, solange der .t-mod-button-Reset
+     dieselbe Eigenschaft mit hoeherer Gewichtung setzte — jetzt ist die
+     Komponente ausgetragen und traegt ihre Schrift selbst. */
+  color: var(--muted);
+  font-family: var(--f-cond);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   cursor: pointer;
-  font-family: inherit;
 }
 .t-mod-tab:hover { color: var(--ink); }
+/* Der aktive Reiter traegt Farbe, keinen Balken. Die Vorlage kennt in der
+   Bodenleiste keinen Strich — das ist die einzige Stelle im Modul, an der
+   Orange nicht den Weg zum Titel meint, sondern den Ort. Ein zusaetzlicher
+   Balken machte daraus eine zweite Aussage auf demselben Element. */
 .t-mod-tab.is-active {
-  color: var(--accent);
-  border-top-color: var(--accent);
-  font-weight: 600;
+  color: var(--flare);
 }
 .t-mod-tab svg {
   flex: none;
@@ -759,15 +790,6 @@
   .t-mod-aside {
     display: none;
   }
-  /* Bug 15 Politur (2026-08-18): Auf Desktop/Tablet zeigen wir die
-     „Zurück"/„Drucken"-Buttons wieder inline (Kontextmenü ausblenden).
-     Toggling passiert hier, nicht im Renderer — eine einzige Wahrheit. */
-  .t-mod-header-actions > .t-mod-header-actions-btn {
-    display: inline-flex;
-  }
-  .t-mod-menu {
-    display: none;
-  }
 }
 @container (min-width: 1500px) {
   .t-shell {
@@ -827,94 +849,6 @@
   }
   .t-mod-header-info .t-mod-header-badges .t-badge {
     flex: 0 0 auto;
-  }
-  /* Bug 15 Politur (2026-08-18, User-Punkt 2): „Zurück" und „Drucken"
-     werden auf Mobile in einem Kontextmenü rechts oben gebündelt.
-     Das spart eine komplette Zeile — der Header ist auf Mobile jetzt:
-       Zeile 1: Logo + Titel + Sub + Badge + Menü-Button
-     Statt vorher zwei Zeilen (Logo+Info, dann Buttons). */
-  .t-mod-header-actions {
-    margin-left: 0;
-    /* KEIN flex-basis: 100% mehr — die Aktions-Zeile teilt sich die
-       erste Zeile mit dem Titel via flex-wrap auf dem Header. */
-    display: flex;
-    align-items: center;
-    gap: var(--s2);
-    flex: 0 0 auto;
-  }
-  /* Desktop-Inline-Buttons ausblenden — auf Mobile nur das Kontextmenü. */
-  .t-mod-header-actions > .t-mod-header-actions-btn {
-    display: none;
-  }
-  /* Kontextmenü sichtbar. Auf Desktop (.t-mod-menu-host) ist es
-     ausgeblendet — dort erscheinen die Inline-Buttons. */
-  .t-mod-menu {
-    position: relative;
-    display: block;
-  }
-  .t-mod-menu-toggle {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: 1px solid var(--line);
-    background: var(--surface);
-    color: var(--ink-soft);
-    font-size: 18px;
-    line-height: 1;
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    padding: 0;
-    /* Robuster gegen Emoji-Rendering-Unterschiede zwischen OS. */
-    font-family: inherit;
-  }
-  .t-mod-menu-toggle:hover {
-    background: var(--surface-alt);
-    color: var(--ink);
-  }
-  .t-mod-menu-toggle-icon {
-    transform: translateY(-1px);  /* optisch zentrieren */
-  }
-  .t-mod-menu-list {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 180px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    box-shadow: var(--shadow2);
-    padding: 6px;
-    z-index: 50;
-    display: none;
-  }
-  .t-mod-menu[data-open="true"] .t-mod-menu-list { display: block; }
-  .t-mod-menu-list button {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: none;
-    background: transparent;
-    padding: 9px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    color: var(--ink);
-    font-size: 14px;
-    font-weight: 500;
-    text-align: left;
-    white-space: nowrap;
-  }
-  .t-mod-menu-list button:hover {
-    background: var(--surface-alt);
-  }
-  /* Bug 15 Politur: flex-basis 100% (zweite Zeile) entfällt komplett.
-     Der vorherige .t-mod-header-actions .t-btn { flex: 1 } Block
-     wird hiermit überschrieben. */
-  .t-mod-header-actions .t-btn {
-    flex: 0 0 auto;
-    padding: 8px 14px;
-    font-size: 14px;
   }
   /* Bug 15 (2026-08-18, User-Punkt 4): Kontextspalte entfällt auf
      dem Handy — die Infos wandern in die Übersicht (Etappe B.2).
@@ -1029,12 +963,6 @@
 /* .t-sub bleibt fuer Stellen, die noch einen Untertitel fuehren.
    Im neuen Kopf uebernimmt der Kicker diese Rolle. */
 .t-sub   { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
-.t-mod-header-actions {
-  margin-left: auto;
-  display: flex;
-  gap: var(--s2);
-  flex-wrap: wrap;
-}
 
 /* ----------------------------------------------------------------
    BADGES
@@ -1201,7 +1129,13 @@
   border-bottom: 1px solid var(--line);
 }
 .t-chip {
-  font: inherit;
+  /* Ausgetragen aus dem .t-mod-button-Reset (Kollision Nr. 7) — deshalb
+     traegt der Chip seine Schrift ab hier selbst. Werte aus dem Artefakt,
+     Abschnitt 03: Archivo Narrow, halbfett, gesperrt, Versalien. */
+  font-family: var(--f-cond);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   cursor: pointer;
   padding: 5px 12px;
   border-radius: 999px;
@@ -4792,11 +4726,9 @@ textarea.t-input {
      auf JEDER Seite. */
   .t-mod-nav,
   .t-mod-tabs,
-  .t-mod-menu,
   .t-mod-more-sheet,
   .t-mod-more-overlay,
   .t-mod-more-panel,
-  .t-mod-header-actions,
   .t-mod-aside,
   .t-dialog-host,
   .t-toolbar,
@@ -5033,37 +4965,12 @@ textarea.t-input {
 }
 .t-filter-chip.is-active .t-filter-n { color: var(--panel); opacity: 0.72; }
 
-/* Zurueck-Weg im Kicker statt als Knopf im Kopf. Die Kopfzeile traegt
-   rechts genau EINE Aktion (siehe .t-mod-action) — "Zurueck" ist aber
-   keine Aktion in dieser Ansicht, sondern ein Weg aus ihr heraus.
-   Deshalb links, klein, in derselben Mono-Zeile wie der Turniername. */
-.t-mod-back {
-  flex: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-  font: inherit;
-  color: var(--muted);
-  letter-spacing: inherit;
-}
-.t-mod-back:hover { color: var(--flare); }
 .t-mod-kicker-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Die alte Kopf-Aktionsreihe steht jetzt UNTER dem Kopf statt darin.
-   Sie traegt "Zeitplan neu" und das Mehr-Menue — Dinge, die es nur fuer
-   Organisatoren gibt. Im Kopf haetten sie die eine Aktion verdraengt. */
-.t-mod-header-actions {
-  margin: 0;
-  padding: var(--s2) var(--s4);
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-}
-.t-mod-header-actions:empty { display: none; }
 
 
 /* ----------------------------------------------------------------
@@ -5489,7 +5396,6 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   .t-bogen-baum svg { max-height: 96vh; }
   /* Der Bogen ersetzt die Ansicht: alles andere im Modul bleibt drin. */
   .t-mod > .t-mod-header,
-  .t-mod > .t-mod-header-actions,
   .t-mod > .t-mod-tabs,
   .t-mod .t-mod-nav,
   .t-mod .t-mod-aside,
