@@ -105,7 +105,19 @@
 
   /* ---- Zustaende, strikt getrennt vom Akzent ---- */
   --live:         #00708F;   /* laeuft gerade */
-  --live-soft:    #D3E7ED;
+  /* ABWEICHUNG VOM ARTEFAKT, nachgerechnet — die zweite.
+     Das Artefakt setzt --live-soft #D3E7ED. Gemessen traegt --live
+     darauf 4,43 : 1 und faellt damit durch (WCAG 1.4.3, 4,5 fuer Text
+     unter 18,66px). Betroffen sind zwei Stellen, an denen genau diese
+     Paarung steht: das Fussband des laufenden Spiels (10,5px Mono) und
+     die Status-Pille „Laeuft" in der Turnierliste (11px).
+     #D8EAEF hebt die Flaeche um 0,0124 in der relativen Leuchtdichte —
+     gerechnet 4,56 : 1, bestanden. Gegen das Blatt (#F1F0EB) bleibt der
+     Ton klar unterscheidbar; die Toenung wird eine Spur heller, nicht
+     eine andere Farbe.
+     Der Dunkelmodus bleibt beim Artefakt-Wert: dort ist --live-soft ein
+     rgba-Schleier, und --live steht darauf bei 6,15 : 1. */
+  --live-soft:    #D8EAEF;
   --qual:         #1E6E45;   /* qualifiziert */
   --qual-soft:    #D8E7DD;
   --danger:       #B4123F;   /* Karmin */

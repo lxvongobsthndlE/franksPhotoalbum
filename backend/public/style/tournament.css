@@ -1691,8 +1691,25 @@
 }
 .t-standings-row.is-lead .t-standings-rank::before      { background: var(--flare); }
 .t-standings-row.is-qualified .t-standings-rank::before { background: var(--qual); }
-.t-standings-row.is-lead .t-standings-rank      { color: var(--flare); }
-.t-standings-row.is-qualified .t-standings-rank { color: var(--qual); }
+/* ABWEICHUNG VOM ARTEFAKT, nachgerechnet.
+   Die Vorlage setzt die Rangziffer in der getoenten Zeile auf die
+   Signalfarbe (`tbody tr.lead td.pl { color: var(--flare) }`). Gemessen
+   im Browser steht --flare #BF4413 auf --flare-soft #F2E1D8 bei
+   4,08 : 1 und faellt damit durch — 12px, halbfett, also gilt 4,5.
+   Die Paarung ist an KEINEM Toenungswert zu retten: eine hellere
+   Toenung waere gegen den Papierton nicht mehr zu sehen (gerechnet
+   4,22 : 1 selbst beim helleren #F7E5DC der zweiten Fassung), eine
+   dunklere macht es schlimmer. Orange auf Orange geht nicht.
+
+   Also traegt die Ziffer die Tinte. Das kostet nichts, weil der Zustand
+   dreifach steht: 3-px-Band an der Blattkante, getoente Zeile, Position.
+   Die Vorlage sagt das selbst — „Das Band links bleibt das
+   farbunabhaengige Signal", und eine Ziffer, die man nicht lesen kann,
+   ist kein Signal, sondern Dekoration. Die gruene Paarung besteht mit
+   4,86 : 1; sie zieht trotzdem mit, damit die beiden Ranghinweise nicht
+   verschieden gebaut sind. */
+.t-standings-row.is-lead .t-standings-rank,
+.t-standings-row.is-qualified .t-standings-rank { color: var(--ink); }
 
 /* Fusszeile der Gruppenkarte: die Regel steht unter der Tabelle, auf die
    sie sich bezieht — nicht in einem Hilfetext, den niemand oeffnet. */
@@ -1884,7 +1901,9 @@
    Und „laeuft" trug ORANGE. Orange ist im Modul der Weg zum Titel; was
    gerade laeuft, ist Teal. Wo eine Farbe zwei Dinge bedeutet, bedeutet
    sie keines mehr. */
-.t-list-card-status--draft     { background: var(--sunk);      color: var(--muted); }
+/* --ink-2 statt --muted, aus demselben Grund wie beim Schrittwaehler:
+   auf --sunk traegt --muted nur 4,38 : 1, und die Pille ist 11px. */
+.t-list-card-status--draft     { background: var(--sunk);      color: var(--ink-2); }
 .t-list-card-status--ready     { background: var(--sunk);      color: var(--ink-2); }
 .t-list-card-status--running   { background: var(--live-soft); color: var(--live); }
 .t-list-card-status--finished  { background: var(--qual-soft); color: var(--qual); }
@@ -6395,10 +6414,14 @@ button.t-lrow:disabled:hover { background: none; }
 .t-step-wert::-webkit-outer-spin-button,
 .t-step-wert::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .t-step-wert:focus-visible { outline: 2px solid var(--flare); outline-offset: 2px; border-radius: 4px; }
+/* --ink-2 statt --muted: der Schrittwaehler sitzt auf --sunk, und dort
+   traegt --muted gemessen nur 4,38 : 1 (12px, also gilt 4,5). Auf dem
+   Blatt waere derselbe Ton mit 5,08 : 1 in Ordnung — die vertiefte
+   Flaeche ist der Unterschied. */
 .t-step-einheit {
   font-family: var(--f-mono);
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ink-2);
   padding-right: 6px;
 }
 
