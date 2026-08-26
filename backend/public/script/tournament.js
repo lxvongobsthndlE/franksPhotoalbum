@@ -591,6 +591,15 @@ async function deleteTournamentLogo(tournamentId) {
   return { ok: true };
 }
 
+// Beide Logo-Helfer waren bis zum 26.08.2026 modulintern — der Wizard war
+// der einzige Ort, an dem ein Logo gesetzt werden konnte. Seit es den
+// Block „Turnierlogo" auch in den Einstellungen gibt, braucht ihn ein
+// zweiter Aufrufer. Exportiert statt kopiert: Die Fehlercodes des Servers
+// (no_file, unsupported_format, logo_too_large) werden hier ausgewertet,
+// und zwei Stellen mit derselben Auswertung laufen früher oder später
+// auseinander.
+export { uploadTournamentLogo, deleteTournamentLogo };
+
 /* ================================================================
    [kru:]nest — Turniermodul Renderer
    ----------------------------------------------------------------

@@ -20,6 +20,8 @@ import {
   tournamentModeLabel,
   TOURNAMENT_PHASE_ORDER,
   openConfirmDialog,
+  uploadTournamentLogo,
+  deleteTournamentLogo,
 } from './tournament.js';
 import {
   sortMatchesBySchedule,
@@ -2368,6 +2370,23 @@ function renderTournamentHeaderActions() {
   }
 
   const isInstancesView = normalizeTournamentView(curTournamentView) === 'instances';
+
+  // Rechte-Prüfung, 26.08.2026: „Turnier erstellen" ist eine Admin-Aktion
+  // (POST /api/tournaments antwortet Mitgliedern mit 403). Der Knopf hing
+  // bis hierher allein an isInstancesView — ein Mitglied sah ihn also,
+  // konnte den Wizard durchlaufen und lief erst ganz am Ende in den 403.
+  //
+  // Der P1-Scan hat das nicht gefangen, weil dieser Knopf kein
+  // data-action trägt, sondern über onClick verdrahtet ist. Wer hier
+  // einen weiteren Knopf ergänzt, prüft die Rolle selbst — der Scan
+  // sieht diese Stelle nicht.
+  //
+  // Voreinstellung ist „kein Knopf": renderTournamentHeaderActions läuft
+  // einmal, BEVOR die Liste geladen und currentTournamentListIsAdmin
+  // gesetzt ist. Lieber erscheint der Knopf einen Wimpernschlag später,
+  // als dass ihn kurz jemand sieht, der ihn nicht haben darf.
+  const darfErstellen = currentTournamentListIsAdmin === true;
+
   const actionButtons = isInstancesView
     ? [
         {
@@ -2376,15 +2395,17 @@ function renderTournamentHeaderActions() {
           className: 'btn btn-ghost',
           onClick: () => loadActiveTournamentView(true),
         },
-        {
-          // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
-          // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
-          // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
-          id: 'tournament-new-instance-btn',
-          label: 'Turnier erstellen',
-          className: 'btn btn-primary tournament-new-instance-btn',
-          onClick: openTournamentWizard,
-        },
+        ...(darfErstellen
+          ? [{
+            // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
+            // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
+            // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
+            id: 'tournament-new-instance-btn',
+            label: 'Turnier erstellen',
+            className: 'btn btn-primary tournament-new-instance-btn',
+            onClick: openTournamentWizard,
+          }]
+          : []),
       ]
     : [];
 
@@ -2507,6 +2528,11 @@ async function loadTournamentInstances(reset = false) {
     // P1 (2026-08-24, User-Liste): server-derived isAdmin pro Turnier
     // cachen — renderTournamentInstancesPage braucht es für die Müll-Buttons.
     currentTournamentListIsAdmin = instanceData?.isAdmin === true;
+    // Rechte-Prüfung 26.08.2026: Die Kopfleiste wurde weiter oben schon
+    // gebaut, damals ohne diesen Wert — für einen Admin fehlte der Knopf
+    // „Turnier erstellen" deshalb noch. Jetzt, wo die Rolle feststeht,
+    // einmal nachziehen.
+    renderTournamentHeaderActions();
     // Module ist aktiv — Cache-Flag setzen
     if (typeof window !== 'undefined') window.__tournamentModuleEnabled = true;
 
@@ -4504,6 +4530,9 @@ async function loadEinstellungenTab(t, mount) {
           // auch diese Zeile — sonst rendert er gegen undefined.
           isPublic: t.isPublic === true,
           publicToken: t.publicToken ?? null,
+          // Block „Turnierlogo": ohne dieses Feld zeigte der Block
+          // dauerhaft „kein Logo", auch wenn eines hochgeladen war.
+          logoUrl: t.logoUrl ?? null,
         },
         teams: Array.isArray(t.teams) ? t.teams : [],
         groups: Array.isArray(t.groups) ? t.groups : [],
@@ -4544,6 +4573,45 @@ function wireEinstellungen(mount, t, { finishedCount }) {
       btn.setAttribute('aria-expanded', String(!collapsed));
     });
   });
+
+  // ─── Turnierlogo ──────────────────────────────────────────────────
+  // Der Knopf öffnet nur die Dateiauswahl; die eigentliche Arbeit hängt
+  // am change-Ereignis des versteckten Eingabefelds. Deshalb liegt hier
+  // kein wireGuardedClick um den Upload selbst — der Doppelklick-Schutz
+  // sitzt am Knopf, und ein zweites Öffnen des Dateidialogs ist folgenlos.
+  const logoBtn = mount.querySelector('[data-action="upload-logo"]');
+  const logoInput = mount.querySelector('[data-logo-file-input]');
+  if (logoBtn && logoInput) {
+    wireGuardedClick(logoBtn, async () => {
+      logoInput.click();
+    });
+    logoInput.addEventListener('change', async () => {
+      const datei = logoInput.files?.[0];
+      // Abbruch im Dateidialog liefert eine leere Auswahl — kein Fehler.
+      if (!datei) return;
+      await uploadLogo(t.id, datei);
+      // Zurücksetzen, sonst löst dieselbe Datei beim zweiten Mal kein
+      // change-Ereignis aus und der Austausch wirkt wirkungslos.
+      logoInput.value = '';
+    });
+  }
+
+  const logoRemoveBtn = mount.querySelector('[data-action="remove-logo"]');
+  if (logoRemoveBtn) {
+    wireGuardedClick(logoRemoveBtn, async () => {
+      const ok = await openConfirmDialog({
+        title: 'Logo entfernen',
+        message:
+          'Das Logo wird gelöscht und verschwindet aus dem Turnierkopf, '
+          + 'vom Ausdruck und von der Zuschauer-Seite. Du kannst jederzeit '
+          + 'ein neues hochladen.',
+        confirmLabel: 'Entfernen',
+        danger: true,
+      });
+      if (ok?.cancelled) return;
+      await removeLogo(t.id);
+    });
+  }
 
   // ─── Zuschauer-Link (Spec §11) ────────────────────────────────────
   const createLinkBtn = mount.querySelector('[data-action="create-public-link"]');
@@ -4955,6 +5023,40 @@ async function startTournament(tournamentId) {
   if (saved) {
     await refreshTournamentAfterMutation(tournamentId);
   }
+}
+
+/**
+ * Turnierlogo hochladen oder austauschen.
+ *
+ * Nutzt den Helfer aus tournament.js, statt den Aufruf ein zweites Mal zu
+ * schreiben: Er wertet die Fehlercodes des Servers aus, und zwei Stellen
+ * mit derselben Auswertung laufen früher oder später auseinander.
+ */
+async function uploadLogo(tournamentId, datei) {
+  const res = await uploadTournamentLogo(tournamentId, datei);
+  if (!res.ok) {
+    // Die Codes des Servers in Sätze übersetzen, die sagen, was zu tun ist.
+    const text =
+      res.code === 'unsupported_format'
+        ? 'Dieses Format geht nicht. Nimm PNG, JPEG oder WebP.'
+        : res.code === 'logo_too_large'
+          ? 'Das Bild ist größer als 5 MB. Nimm eine kleinere Datei.'
+          : res.error || 'Logo konnte nicht hochgeladen werden';
+    toast(text, 'error');
+    return;
+  }
+  toast('Logo gespeichert.', 'success');
+  await refreshTournamentAfterMutation(tournamentId);
+}
+
+async function removeLogo(tournamentId) {
+  const res = await deleteTournamentLogo(tournamentId);
+  if (!res.ok) {
+    toast(res.error || 'Logo konnte nicht entfernt werden', 'error');
+    return;
+  }
+  toast('Logo entfernt.', 'success');
+  await refreshTournamentAfterMutation(tournamentId);
 }
 
 /**

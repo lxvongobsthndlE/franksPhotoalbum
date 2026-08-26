@@ -64,6 +64,10 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   // Mutation im Modul, auch wenn sie keine Spieldaten anfasst.
   'create-public-link',
   'revoke-public-link',
+  // Turnierlogo (26.08.2026): Beide Wege schreiben nach MinIO und in die
+  // DB und hängen serverseitig an requireTournamentWrite.
+  'upload-logo',
+  'remove-logo',
 ]);
 
 // Safe-Actions, die auch für isAdmin=false sichtbar bleiben dürfen.

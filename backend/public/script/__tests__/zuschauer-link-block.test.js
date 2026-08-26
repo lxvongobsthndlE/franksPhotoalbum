@@ -108,6 +108,62 @@ describe('Zuschauer-Link-Block — die drei Zustände', () => {
   });
 });
 
+describe('Turnierlogo-Block', () => {
+  it('kein Logo: nur der Hochladen-Knopf', () => {
+    const html = renderEinstellungen(basis({ logoUrl: null }), { isAdmin: true });
+    expect(html).toContain('Turnierlogo');
+    expect(html).toContain('data-action="upload-logo"');
+    expect(html).not.toContain('data-action="remove-logo"');
+  });
+
+  it('Logo vorhanden: Vorschau, Austauschen und Entfernen', () => {
+    const html = renderEinstellungen(
+      basis({ logoUrl: '/api/tournaments/t1/logo' }),
+      { isAdmin: true }
+    );
+    expect(html).toContain('/api/tournaments/t1/logo');
+    expect(html).toContain('data-action="upload-logo"');
+    expect(html).toContain('data-action="remove-logo"');
+  });
+
+  it('die Vorschau trägt einen Cache-Brecher', () => {
+    // Der Ablageort ist für jedes Turnier derselbe („logo"), die Adresse
+    // also auch. Ohne den Zusatz zeigt der Browser nach dem Austausch
+    // weiter das alte Bild — der Upload wirkt dann wirkungslos.
+    const html = renderEinstellungen(
+      basis({ logoUrl: '/api/tournaments/t1/logo' }),
+      { isAdmin: true }
+    );
+    expect(html).toMatch(/\/api\/tournaments\/t1\/logo\?v=\d+/);
+  });
+
+  it('das Dateifeld erlaubt genau die Formate des Servers', () => {
+    // Server-Allowlist ist PNG/JPEG/WebP; SVG ist dort bewusst gesperrt,
+    // weil eine Vektordatei Skripte tragen kann.
+    const html = renderEinstellungen(basis(), { isAdmin: true });
+    expect(html).toContain('accept="image/png,image/jpeg,image/webp"');
+    expect(html).not.toContain('image/svg');
+  });
+
+  it('das Logo lässt sich auch im Entwurf und im laufenden Turnier setzen', () => {
+    // Anders als der Zuschauer-Link: Ein Logo ändert keine Paarung und
+    // kein Ergebnis, es gibt also keinen Grund, es zu sperren.
+    for (const status of ['draft', 'generated', 'group_stage', 'finished']) {
+      const html = renderEinstellungen(basis({ status }), { isAdmin: true });
+      expect(html, `Status ${status}`).toContain('data-action="upload-logo"');
+    }
+  });
+
+  it('Mitglieder sehen den Block nicht', () => {
+    const html = renderEinstellungen(
+      basis({ logoUrl: '/api/tournaments/t1/logo' }),
+      { isAdmin: false }
+    );
+    expect(html).not.toContain('data-action="upload-logo"');
+    expect(html).not.toContain('data-action="remove-logo"');
+  });
+});
+
 describe('Der Aufrufer reicht die Felder durch (Wächter gegen den echten Fehler)', () => {
   let mainQuelle;
   beforeAll(() => {
@@ -146,6 +202,12 @@ describe('Der Aufrufer reicht die Felder durch (Wächter gegen den echten Fehler
     const literal = tournamentLiteral();
     expect(literal).toContain('isPublic');
     expect(literal).toContain('publicToken');
+  });
+
+  it('loadEinstellungenTab gibt logoUrl an den Renderer', () => {
+    // Ohne dieses Feld zeigt der Logo-Block dauerhaft „kein Logo" —
+    // dieselbe Falle wie zuvor bei isPublic.
+    expect(tournamentLiteral()).toContain('logoUrl');
   });
 
   it('die bisherigen Felder sind dabei nicht verloren gegangen', () => {
