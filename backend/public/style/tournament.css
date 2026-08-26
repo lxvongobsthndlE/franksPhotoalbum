@@ -369,7 +369,9 @@
      traegt zuverlaessiger als eine Kontur in --line, und der Kopf hoert
      auf, ein Kasten ueber dem Blatt zu sein. */
   display: block;
-  padding: var(--s2) var(--s4) var(--s4);
+  /* Seitlich dieselben 20px wie in jeder Ansicht — sonst faengt der
+     Titel an einer anderen Stelle an als die Tabelle darunter. */
+  padding: var(--s2) var(--s5) var(--s4);
 }
 /* Der Innenteil traegt das Raster, nicht der <header> selbst: das Logo
    ist optional, und die Klasse dafuer sitzt am Markup, das der Renderer
@@ -835,8 +837,27 @@
 }
 
 /* Hauptbereich (mittlere Spalte) */
+/* ----------------------------------------------------------------
+   DAS SEITLICHE POLSTER GEHOERT DER ANSICHT, NICHT DEM CONTAINER
+   ----------------------------------------------------------------
+   Artefakt Abschnitt 04: „Die Tabelle verliert ihre Huelle und gewinnt
+   Breite: das Rangband sitzt jetzt buendig an der Blattkante." Und
+   Abschnitt 09: „Randlos wird aus dem Fleck eine Bahn."
+
+   Solange .t-mod-main seitlich polstert, kann NICHTS buendig an der
+   Blattkante sitzen — auch nicht mit `left: 0`, denn diese Null bezieht
+   sich auf den Inhaltsbereich, nicht auf das Blatt. Die Vorlage kennt
+   deshalb kein Polster am Bildschirm: dort bringt JEDES Bauteil seine
+   20px selbst mit (.hd, .segs, .tblk .th, die Tabellenzellen, .rw,
+   .glbl, .tfoot), und wer buendig sein will, laesst sie weg.
+
+   Umgesetzt mit einer Ebene weniger Aufwand und derselben Wirkung: das
+   Polster wandert von .t-mod-main auf .t-view. Bauteile, die buendig
+   sein muessen, brechen mit demselben Token wieder aus — ein Wert, zwei
+   Vorzeichen, keine Drift.
+   ---------------------------------------------------------------- */
 .t-mod-main {
-  padding: var(--s6);
+  padding: var(--s6) 0;
   overflow: auto;
   /* Falls Karten in sehr engen Modul-Breiten (≤320px) doch mal
      breiter werden als die Spalte: Clip statt Scroll — die Seite
@@ -845,7 +866,29 @@
   min-width: 0;
 }
 .t-view { display: none; }
-.t-view.is-active { display: block; }
+.t-view.is-active { display: block; padding: 0 var(--s5); }
+/* Die zwei Ausbrecher. Beide sind in der Vorlage buendig an der
+   Blattkante gezeichnet:
+     die TABELLEN, weil Rangband und Toenung ueber die volle Breite
+       laufen sollen — ihre Zellen holen die 20px selbst zurueck
+       (siehe Block „Tabelle ohne Huelle");
+     die SPIELPLAN-LISTE, weil die Karten dort mit 8px Rand stehen und
+       die Zeitmarke genau ueber deren Kanten laeuft. Mit dem Polster
+       der Ansicht saessen sie bei 28px und die Achse waere eingerueckt.
+   `margin-inline` mit demselben Token, aus dem das Polster kommt: eine
+   Wahrheit, zwei Vorzeichen.
+
+   KEIN Kind-Kombinator: die Gruppentabellen haengen unter einem
+   Montagepunkt (`[data-tab-body="gruppen-mount"]`), sind also Enkel der
+   Ansicht. Mit `>` traf die Regel nie — dieselbe Falle wie beim
+   Listen-Host, wo `#content:has(> .t-list-host)` zwei Ebenen daneben
+   griff. Gemessen im Pruefstand: das Rangband sass danach nicht buendig,
+   sondern 8px WEITER innen als vorher. */
+.t-view.is-active #t-schedule-list,
+.t-view.is-active .t-standings-karte,
+.t-view.is-active .t-thirds-card {
+  margin-inline: calc(-1 * var(--s5));
+}
 .t-view-head {
   display: flex; align-items: center; gap: var(--s3);
   margin-bottom: var(--s4); flex-wrap: wrap;
@@ -965,8 +1008,10 @@
   }
   .t-mod-aside { overflow: visible; }
   /* Hauptbereich etwas knapper padden — auf 390px ist jeder Pixel
-     sichtbar. */
-  .t-mod-main { padding: var(--s4) var(--s3); }
+     sichtbar. SEITLICH ist er seit der dritten Fassung ohnehin bei 0:
+     das Polster traegt .t-view, damit die Tabellen daraus ausbrechen
+     koennen. Hier bleibt nur die geringere Hoehe. */
+  .t-mod-main { padding: var(--s4) 0; }
 
   /* ----------------------------------------------------------------
      HIER STAND EINE HOEHEN-KOLLISION (aufgeloest 2026-08-25)
@@ -1493,15 +1538,34 @@
   padding-bottom: 6px;
 }
 
-/* Ausrichtung: Text links, Zahlen rechts — Ueberschrift wie Wert. */
+/* Ausrichtung: Text links, Zahlen rechts — Ueberschrift wie Wert.
+   Die Rang-Spalte steht links. Der Doppelselektor ist Absicht und kein
+   Versehen: main.css fuehrt `.t-standings-table .t-standings-rank`
+   (0,0,2,0) mit `text-align: right` und schlaegt damit ein einfaches
+   `.t-standings-rank` (0,0,1,0) — trotz frueherer Ladereihenfolge. Bei
+   GLEICHER Spezifitaet gewinnt die spaeter geladene Datei, also diese.
+   Das ist die Kollisionsklasse, die in diesem Modul schon achtmal
+   zugeschlagen hat; hier wird sie ausdruecklich mitgezaehlt. */
 .t-standings-table th.is-rank,
 .t-standings-table th.is-team,
-.t-standings-rank,
-.t-standings-team { text-align: left; }
+.t-standings-table .t-standings-rank,
+.t-standings-table .t-standings-team { text-align: left; }
 .t-standings-table th.is-num,
 .t-standings-num { text-align: right; }
 
 .t-standings-rank { color: var(--ink-soft); font-size: 12px; }
+/* Die Differenz traegt KEINE Ampelfarbe mehr (main.css setzte #2e7d32
+   und #c62828, zwei hartcodierte Werte ausserhalb der Palette).
+   Grund ist die Bedeutungsregel des Artefakts: Gruen heisst in diesem
+   Modul „qualifiziert", Karmin heisst „Gefahr". Ein gruenes „+6" sagt
+   also etwas, was es nicht meint — und es stand direkt neben einer
+   gruenen Qualifikationszeile, die dasselbe Gruen fuehrt.
+   Die Vorlage setzt die ganze Tabelle in --ink; die Zahl selbst hat ein
+   Vorzeichen, das reicht. */
+.t-standings-table .t-standings-num.is-positive,
+.t-standings-table .t-standings-num.is-negative,
+.t-thirds-table .t-thirds-num.is-positive,
+.t-thirds-table .t-thirds-num.is-negative { color: var(--ink-2); }
 .t-standings-team {
   font-weight: 500;
   color: var(--ink);
@@ -1548,6 +1612,10 @@
   position: relative;
   font-weight: 600;
 }
+/* Dritte Fassung: 3px statt 4px und mit angeschnittener Aussenkante.
+   Das Band sitzt jetzt BUENDIG an der Blattkante, weil die Tabelle ihre
+   Huelle verloren hat (Block „Tabelle ohne Huelle" weiter unten) — in
+   der Karte hoerte es 14px vor dem Rand auf und wirkte wie ein Fleck. */
 .t-standings-row.is-lead .t-standings-rank::before,
 .t-standings-row.is-qualified .t-standings-rank::before {
   content: "";
@@ -1555,7 +1623,8 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
 }
 .t-standings-row.is-lead .t-standings-rank::before      { background: var(--flare); }
 .t-standings-row.is-qualified .t-standings-rank::before { background: var(--qual); }
@@ -1564,14 +1633,18 @@
 
 /* Fusszeile der Gruppenkarte: die Regel steht unter der Tabelle, auf die
    sie sich bezieht — nicht in einem Hilfetext, den niemand oeffnet. */
+/* Dritte Fassung: ohne Fuellung, mit Regel. „Plaetze 1–2 ziehen direkt
+   ein" sass in einem grau gefuellten Band — jetzt eine Haarlinie
+   darueber, sonst nichts. Der orange Strich davor ist derselbe wie das
+   Rangband: Legende und Sache tragen dieselbe Form. */
 .t-standings-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s3);
-  padding: 10px var(--s4);
-  border-top: 1px solid var(--line);
-  background: var(--raised);
+  padding: 11px var(--s5) 2px;
+  border-top: 1px solid var(--line-soft);
+  background: none;
   font-family: var(--f-mono);
   font-size: 10.5px;
   letter-spacing: 0.06em;
@@ -1580,13 +1653,17 @@
   white-space: nowrap;
 }
 .t-standings-foot > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Aus dem Quadrat wird ein Strich in der Form des Rangbandes: 10x3px mit
+   voller Rundung. Ein Quadrat war die einzige Stelle im Modul, an der
+   die Legende anders aussah als das, was sie erklaert. */
 .t-standings-foot .t-foot-mark {
   display: inline-block;
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 3px;
+  border-radius: var(--r-pill);
   background: var(--flare);
-  margin-right: 6px;
-  vertical-align: -1px;
+  margin-right: 8px;
+  vertical-align: 3px;
 }
 
 /* ----------------------------------------------------------------
@@ -5596,6 +5673,77 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
   margin-top: var(--s5);
 }
 
+/* ----------------------------------------------------------------
+   TABELLE OHNE HUELLE — Artefakt Abschnitt 04
+   ----------------------------------------------------------------
+   „Die Tabelle verliert ihre Huelle und gewinnt Breite: das Rangband
+   sitzt jetzt buendig an der Blattkante statt 14px eingerueckt in einer
+   Karte."
+
+   Das Markup bleibt, wie es ist (`.t-card.t-standings-karte >
+   .t-card-body`). Der Kasten wird hier abgeraeumt, nicht dort
+   herausoperiert — .t-card ist eine Klasse, die an Dutzenden Stellen im
+   Modul haengt, und ein zweites Markup fuer dieselbe Tabelle waere genau
+   die zweite Struktur, an der in diesem Repo schon vier Bedienelemente
+   gestorben sind.
+
+   Das seitliche Polster wandert von der Huelle an die AEUSSEREN ZELLEN.
+   Nur so liegt die linke Kante der ersten Zelle auf der Blattkante — und
+   genau dort setzt das Rangband mit `left: 0` an. Haette die Huelle
+   weiter gepolstert, saesse das Band wieder im Nichts.
+   ---------------------------------------------------------------- */
+.t-card.t-standings-karte,
+.t-card.t-thirds-card {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.t-standings-karte > .t-card-body,
+.t-thirds-card > .t-card-body { padding: 0; }
+
+/* Kopfzeile der Tabelle: 20px seitlich wie die Zellen, oben viel Luft,
+   unten wenig — dieselbe Asymmetrie wie bei den Mono-Beschriftungen.
+   Sie bindet die Ueberschrift an die Zeilen darunter; genau das leistete
+   vorher der Rahmen. */
+.t-standings-head {
+  padding: var(--s5) var(--s5) 7px;
+}
+.t-standings-karte .t-standings-group-title,
+.t-thirds-card .t-thirds-title {
+  font-family: var(--f-disp);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  text-transform: none;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* Aussenspalten tragen das Polster. Die Selektoren sind (0,0,2,0), damit
+   sie mit den main.css-Regeln gleichziehen und ueber die spaetere
+   Ladereihenfolge gewinnen. */
+.t-standings-table th:first-child,
+.t-standings-table td:first-child,
+.t-thirds-table th:first-child,
+.t-thirds-table td:first-child { padding-left: var(--s5); }
+.t-standings-table th:last-child,
+.t-standings-table td:last-child,
+.t-thirds-table th:last-child,
+.t-thirds-table td:last-child { padding-right: var(--s5); }
+
+/* Trennung ZWISCHEN Zeilen statt UNTER jeder Zeile: die letzte Zeile
+   bekommt sonst einen Strich ins Leere, und ohne Huelle sieht der aus
+   wie ein abgeschnittener Rahmen. Auf dem Blatt trennt die weiche Linie.
+   Die Kopfzeile behaelt ihre Linie darunter — sie trennt zwei
+   verschiedene Dinge, nicht zwei gleiche. */
+.t-standings-table td,
+.t-thirds-table td { border-bottom: 0; }
+.t-standings-table tbody tr + tr td,
+.t-thirds-table tbody tr + tr td { border-top: 1px solid var(--line-soft); }
+.t-standings-table thead th,
+.t-thirds-table thead th { border-bottom: 1px solid var(--line-soft); }
+
 .t-standings-head {
   display: flex;
   align-items: baseline;
@@ -5747,8 +5895,12 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 @container (max-width: 600px) {
   .t-mod-header {
     /* Oben mehr als die frueheren 4px: seit das Blatt eine 30px-Ecke hat
-       und das Logo 44px misst, sass beides auf der Rundung. */
-    padding: var(--s3) var(--s3) var(--s2);
+       und das Logo 44px misst, sass beides auf der Rundung.
+       Seitlich bleibt es bei den 20px der Vorlage — Jonas' Beschwerde
+       („nimmt zu viel platz ein") galt der HOEHE des Kopfes, nicht
+       seiner Breite, und ein schmaleres Polster als in den Ansichten
+       darunter setzt den Titel auf eine eigene Fluchtlinie. */
+    padding: var(--s3) var(--s5) var(--s2);
   }
   .t-mod-header-inner { gap: 0; }
   .t-title {
