@@ -170,83 +170,142 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
   }
 
   const startTimeDt = parseStartTime(startTime, baseDate);
-  const teamLastSlot = new Map();   // teamId → letzter Slot-Index
-  // Bug 2b (2026-08-17): Pro Slot tracken wir, welche Felder belegt sind.
-  // Dadurch können mehrere Spiele im SELBEN Slot auf verschiedenen Feldern
-  // stattfinden — vorher hat ein einziger slotIndex-Counter SF1 und SF2
-  // zwangsweise auf unterschiedliche Slots gesetzt, obwohl 4 Felder zur
-  // Verfügung standen.
+
+  // Wartezeit-Steuerung (2026-08-26). Vorher kannte der Planer nur eine
+  // Regel: „ein Team spielt nicht zweimal im selben Slot". Das ist eine
+  // Aussage über Ressourcen, keine über Menschen. Wer um 10:15 spielt und
+  // um 10:30 wieder, hat keine Pause gehabt; wer um 10:15 spielt und um
+  // 12:00 wieder, steht anderthalb Stunden herum. Beides kam vor, beides
+  // war unbeabsichtigt — dass meistens trotzdem nichts direkt hintereinander
+  // lag, war Nebenwirkung der Blocksortierung, nicht Absicht.
+  //
+  // Jetzt gilt zusätzlich:
+  //   H4  Mindestruhe: nach einem Spiel in Slot s frühestens wieder in
+  //       s + 1 + minRest. Mit Fallback — ein Plan, der nicht zustande
+  //       kommt, ist schlechter als einer mit einer harten Naht.
+  //   W1  Längste Pause zuerst: unter den erlaubten Spielen gewinnt das mit
+  //       dem größten min(pause_heim, pause_gast). Das MINIMUM, nicht die
+  //       Summe — sonst schleppt ein sehr ausgeruhtes Team ein gerade
+  //       fertiges mit in den nächsten Slot.
+  //   W2  Tiebreak: Summe beider Pausen.
+  //   W3  Gruppen-Rotation: bei Gleichstand die Gruppe, die am längsten
+  //       nicht dran war (A, B, C, A, B, C …).
+  //   W4  Determinismus: bracketPos, dann id — §10.9 bleibt gültig.
+  const minRest = Math.max(0, Math.min(4, sched.minRestSlots ?? 1));
+
+  const teamLastSlot = new Map();    // teamId → letzter belegter Slot
+  const slotTeams = new Map();       // slotIndex → Set<teamId>
   const slotFieldUsed = new Map();   // slotIndex → Set<field>
-  let slotIndex = 0;
   const result = new Map();
 
+  /**
+   * Wählt das nächste Spiel für diesen Slot — oder null.
+   *
+   * Genommen wird das ERSTE Spiel der Vorsortierung, das die Regeln
+   * erfüllt. Dass hier nicht nach „wer hat am längsten pausiert" gesucht
+   * wird, ist das Ergebnis einer Messung und kein Versäumnis:
+   *
+   * Ein Block ist eine Runde, und in einer Runde spielt jedes Team genau
+   * einmal. Die Position eines Spiels innerhalb des Blocks bestimmt damit
+   * allein, wann seine beiden Teams drankommen — und weil die Vorsortierung
+   * (groupKey, bracketPos) in jeder Runde dieselbe Reihenfolge herstellt,
+   * behält jedes Team über alle Runden hinweg seine relative Position. Der
+   * Abstand zwischen zwei Spielen eines Teams ist dann konstant genau
+   * S = ceil(Spiele je Runde / Felder) — der bestmögliche Wert überhaupt.
+   *
+   * Eine Auswahl nach längster Pause klingt besser und ist es nicht: Sie
+   * mischt die Reihenfolge zwischen den Runden und zerstört genau diesen
+   * Positionserhalt. Gemessen am 2026-08-26 über 16 Konstellationen fiel
+   * die Spanne dadurch von 4..4 auf 2..6 (4 Gruppen à 4 Teams, 2 Felder) —
+   * jedes zweite Team wartete plötzlich doppelt so lang wie nötig, damit
+   * kein Team länger als nötig wartete.
+   *
+   * `restPflicht` schaltet H4 (Mindestruhe) scharf.
+   */
+  function waehle(offen, slot, restPflicht) {
+    const belegteTeams = slotTeams.get(slot) ?? new Set();
+    for (const m of offen) {
+      // H1: kein Team zweimal im selben Slot.
+      if (m.teamHome != null && belegteTeams.has(m.teamHome)) continue;
+      if (m.teamAway != null && belegteTeams.has(m.teamAway)) continue;
+
+      if (restPflicht) {
+        // H4: nach einem Spiel in Slot s frühestens wieder in s+1+minRest.
+        const rh = m.teamHome != null && teamLastSlot.has(m.teamHome)
+          ? slot - teamLastSlot.get(m.teamHome) : Infinity;
+        const ra = m.teamAway != null && teamLastSlot.has(m.teamAway)
+          ? slot - teamLastSlot.get(m.teamAway) : Infinity;
+        if (Math.min(rh, ra) <= minRest) continue;
+      }
+
+      return m;
+    }
+    return null;
+  }
+
+  function platziere(m, slot, feld) {
+    result.set(m.id, {
+      ...m,
+      scheduledAt: addMinutes(startTimeDt, slot * slotMinutes),
+      field: feld,
+    });
+    if (!slotFieldUsed.has(slot)) slotFieldUsed.set(slot, new Set());
+    slotFieldUsed.get(slot).add(feld);
+    if (!slotTeams.has(slot)) slotTeams.set(slot, new Set());
+    const ts = slotTeams.get(slot);
+    if (m.teamHome != null) { ts.add(m.teamHome); teamLastSlot.set(m.teamHome, slot); }
+    if (m.teamAway != null) { ts.add(m.teamAway); teamLastSlot.set(m.teamAway, slot); }
+  }
+
+  let slotIndex = 0;
+
   for (const block of blocks) {
-    for (const m of block.matches) {
-      // Suche (Slot, Feld), in dem:
-      //   - weder Heim noch Auswärts spielen (Team-Konflikt)
-      //   - das Feld in diesem Slot noch frei ist (Field-Konflikt)
-      // Wir probieren Felder 1..parallelFields in Reihenfolge durch. Wenn
-      // alle belegt oder ein Team blockiert, gehen wir zum nächsten Slot.
-      let chosenSlotIndex = slotIndex;
-      let chosenField = 1;
-      let attempts = 0;
-      while (attempts < 64) {
-        const usedFields = slotFieldUsed.get(chosenSlotIndex) ?? new Set();
-        const homeBusy =
-          m.teamHome != null && teamLastSlot.get(m.teamHome) === chosenSlotIndex;
-        const awayBusy =
-          m.teamAway != null && teamLastSlot.get(m.teamAway) === chosenSlotIndex;
+    // Kopie, aus der platzierte Spiele entfernt werden. Reihenfolge ist die
+    // deterministische Vorsortierung — sie ist zugleich der W4-Tiebreak.
+    const offen = block.matches.slice();
+    let slot = slotIndex;
 
-        if (!homeBusy && !awayBusy) {
-          // Suche erstes freies Feld in [1..parallelFields].
-          let f = 1;
-          for (; f <= parallelFields; f++) {
-            if (!usedFields.has(f)) {
-              chosenField = f;
-              break;
-            }
+    // Kürzestmögliche Länge dieses Blocks bei voller Feldauslastung. Sie ist
+    // der Maßstab dafür, wann H4 gelockert werden DARF: Ein leer gelassenes
+    // Feld ist gratis, solange der Block dadurch nicht länger wird als dieses
+    // Minimum — dann verschafft es einem Team echte Pause, ohne das Turnier
+    // für alle anderen zu strecken. Wird der Block dagegen länger, zahlt das
+    // ganze Feld für die Pause eines Einzelnen; dann hat H4 zurückzutreten.
+    // Ein Slot Puffer: Er wird NUR verbraucht, wenn H4 sonst bräche. Wo die
+    // Mindestruhe ohnehin hält, bleibt der Block minimal kurz. Der Tausch ist
+    // bewusst asymmetrisch — ein Zeitfenster mehr je Spieltag kostet alle
+    // etwas Geduld, ein Team ohne Pause kostet dieses Team das Spiel.
+    const slotBudget = Math.max(1, Math.ceil(offen.length / parallelFields)) + 1;
+
+    // Sicherung gegen eine nicht terminierende Suche: mit gelockertem H4 ist
+    // in einem leeren Slot immer mindestens ein Spiel platzierbar, also
+    // reicht die Spielanzahl als obere Schranke.
+    let runden = 0;
+    const maxRunden = offen.length + 1;
+
+    while (offen.length > 0 && runden < maxRunden) {
+      const sIdx = runden;
+      runden += 1;
+
+      for (let feld = 1; feld <= parallelFields && offen.length > 0; feld++) {
+        let m = waehle(offen, slot, true);
+        if (!m) {
+          // Passt der Rest noch in die verbleibenden Pflicht-Slots?
+          const restKapazitaet = Math.max(0, slotBudget - sIdx - 1) * parallelFields;
+          if (offen.length > restKapazitaet) {
+            m = waehle(offen, slot, false);
           }
-          if (f <= parallelFields) break;
         }
-
-        chosenSlotIndex += 1;
-        attempts += 1;
-        if (attempts >= 64) break;
+        if (!m) break;
+        platziere(m, slot, feld);
+        offen.splice(offen.indexOf(m), 1);
       }
 
-      const scheduledAt = addMinutes(startTimeDt, chosenSlotIndex * slotMinutes);
-
-      result.set(m.id, { ...m, scheduledAt, field: chosenField });
-
-      if (!slotFieldUsed.has(chosenSlotIndex)) {
-        slotFieldUsed.set(chosenSlotIndex, new Set());
-      }
-      slotFieldUsed.get(chosenSlotIndex).add(chosenField);
-
-      if (m.teamHome != null) teamLastSlot.set(m.teamHome, chosenSlotIndex);
-      if (m.teamAway != null) teamLastSlot.set(m.teamAway, chosenSlotIndex);
-
-      // Block-Ende: wenn alle parallelen Felder voll sind, springt der
-      // nächste Match automatisch auf den Folge-Slot (chosenSlotIndex+1).
-      // Innerhalb desselben Blocks mit freien Feldern bleibt slotIndex
-      // unverändert — so laufen SF1 + SF2 parallel.
+      slot += 1;
     }
-    // Block-Ende erreicht. Sicherheitshalber slotIndex auf das Maximum
-    // aller in diesem Block vergebenen Slot-Indizes setzen, damit der
-    // nächste Block garantiert später beginnt (Block-Invariante §5.3).
-    let maxSlotInBlock = slotIndex;
-    for (const m of block.matches) {
-      // result.get ist hier sicher, weil wir gerade in der Schleife sind.
-      const r = result.get(m.id);
-      if (r && r.scheduledAt) {
-        // scheduledAt → slotIndex rückrechnen (kann leicht driften bei
-        // manuellen Overrides, aber hier ist alles deterministisch).
-        const diffMin = Math.round((r.scheduledAt.getTime() - startTimeDt.getTime()) / 60_000);
-        const idx = Math.floor(diffMin / slotMinutes);
-        if (idx > maxSlotInBlock) maxSlotInBlock = idx;
-      }
-    }
-    slotIndex = maxSlotInBlock + 1;
+
+    // Block-Invariante §5.3: der nächste Block beginnt garantiert später.
+    slotIndex = slot;
   }
 
   // Reihenfolge wieder in Originalreihenfolge zurück.
@@ -350,4 +409,137 @@ export function detectRoundOverlaps(matches) {
     }
   }
   return verstoesse;
+}
+
+/**
+ * Kennzahlen eines fertigen Plans — die vier Zahlen, an denen sich ein
+ * Spielplan messen lassen muss.
+ *
+ * `detectScheduleConflicts` beantwortet „ist der Plan überhaupt spielbar",
+ * `detectRoundOverlaps` „ist er fachlich möglich". Diese Funktion
+ * beantwortet die dritte Frage, die vorher niemand stellte: „ist er für
+ * die Leute auf dem Platz zumutbar". Ein Plan kann konfliktfrei und
+ * fachlich korrekt sein und trotzdem ein Team dreimal so lang warten
+ * lassen wie ein anderes.
+ *
+ * Zielkorridor: `backToBack === 0` und alle Abstände in S±1, wobei
+ * S = ceil(Spiele je Runde / Felder) die Slots pro Runde sind. Dass ein
+ * Team, das in Runde r spielt, auch in Runde r+1 spielt, macht S zum
+ * natürlichen Abstand — jede Abweichung ist Positionsdrift zwischen den
+ * Runden.
+ *
+ * Zwei Werte sind KEIN Mangel, auch wenn sie den Korridor sprengen:
+ *   - Bei ungerader Teamzahl pausiert je Runde ein Team (BYE) → Abstand 2S.
+ *   - Bei sehr kleinen Gruppen auf einem Feld ist Back-to-Back beweisbar
+ *     unvermeidbar (4 Teams / 1 Feld: Minimum sind 2 Fälle).
+ *
+ * @param {Array}  matches  Spiele mit scheduledAt + field
+ * @param {object} [opts]   { slotMinutes } — das Zeitraster aus der Config.
+ *   Ohne Angabe wird es aus dem Plan geschätzt; siehe unten, warum die
+ *   Schätzung gut genug, aber nicht sicher ist.
+ * @returns {{ spiele, slots, leerSlots, backToBack, betroffeneTeams,
+ *             abstandMin, abstandMax, maxPauseMinuten, slotMinuten }}
+ */
+export function scheduleMetrics(matches, opts = {}) {
+  const geplant = (matches ?? []).filter(
+    (m) => m?.scheduledAt != null && Number.isFinite(new Date(m.scheduledAt).getTime()),
+  );
+  const leer = {
+    spiele: geplant.length,
+    slots: 0,
+    leerSlots: 0,
+    backToBack: 0,
+    betroffeneTeams: [],
+    abstandMin: null,
+    abstandMax: null,
+    maxPauseMinuten: null,
+    slotMinuten: null,
+  };
+  if (geplant.length === 0) return leer;
+
+  const zeiten = [...new Set(geplant.map((m) => new Date(m.scheduledAt).getTime()))]
+    .sort((a, b) => a - b);
+
+  // Das Slot-Raster wird aus den ZEITABSTÄNDEN abgeleitet, nicht aus der
+  // Aufzählung der belegten Anstoßzeiten.
+  //
+  // Der Unterschied ist nicht kosmetisch (Messfehler 2026-08-26): Lässt der
+  // Planer einen Slot bewusst leer, damit alle Teams Pause bekommen, dann
+  // kommt diese Uhrzeit im Plan gar nicht vor. Wer die belegten Zeiten
+  // durchnummeriert, rückt die beiden Spiele davor und danach auf
+  // benachbarte Indizes zusammen — und meldet ausgerechnet die Pause, die
+  // der Planer erkämpft hat, als „direkt hintereinander". Der ggT aller
+  // Abstände zur ersten Anstoßzeit trifft das Raster auch dann, wenn ganze
+  // Slots fehlen.
+  // Vorrang hat das Raster aus der Config: Der Aufrufer WEISS, wie lang ein
+  // Slot ist, während der Plan es nur verrät, solange irgendwo zwei
+  // benachbarte Slots belegt sind. Sind in einem Plan alle Abstände gerade
+  // Vielfache — etwa weil jeder Blockübergang einen Slot überspringt —, dann
+  // schätzt der ggT das Raster doppelt so groß und meldet echte Pausen als
+  // Back-to-Back. Deshalb ist die Schätzung der Rückfall, nicht die Regel.
+  const t0 = zeiten[0];
+  let slotMinuten = 0;
+  const ausConfig = Number(opts?.slotMinutes);
+  if (Number.isFinite(ausConfig) && ausConfig > 0) {
+    slotMinuten = Math.round(ausConfig);
+  } else {
+    for (const z of zeiten) {
+      let a = Math.round((z - t0) / 60_000);
+      let b = slotMinuten;
+      while (a) { const t = b % a; b = a; a = t; }
+      slotMinuten = b;
+    }
+  }
+  const raster = slotMinuten > 0 ? slotMinuten : 1;
+  const slotVon = new Map(
+    zeiten.map((z) => [z, Math.round((z - t0) / 60_000 / raster)]),
+  );
+  if (slotMinuten === 0) slotMinuten = null;
+
+  const proTeam = new Map();
+  const felder = new Set();
+  for (const m of geplant) {
+    const s = slotVon.get(new Date(m.scheduledAt).getTime());
+    if (m.field != null) felder.add(m.field);
+    for (const t of [m.teamHome, m.teamAway]) {
+      if (t == null) continue;
+      if (!proTeam.has(t)) proTeam.set(t, []);
+      proTeam.get(t).push(s);
+    }
+  }
+
+  let backToBack = 0;
+  const betroffene = new Set();
+  let abstandMin = null;
+  let abstandMax = null;
+  for (const [team, slots] of proTeam) {
+    slots.sort((a, b) => a - b);
+    for (let i = 1; i < slots.length; i++) {
+      const d = slots[i] - slots[i - 1];
+      if (d === 1) {
+        backToBack += 1;
+        betroffene.add(team);
+      }
+      if (abstandMin === null || d < abstandMin) abstandMin = d;
+      if (abstandMax === null || d > abstandMax) abstandMax = d;
+    }
+  }
+
+  const feldZahl = Math.max(1, felder.size);
+  const noetigeSlots = Math.ceil(geplant.length / feldZahl);
+  // Gesamtlänge des Plans in Slots — inklusive der leeren.
+  const laenge = Math.max(...[...slotVon.values()]) + 1;
+
+  return {
+    spiele: geplant.length,
+    slots: laenge,
+    // Slots, die der Plan über die volle Feldauslastung hinaus braucht.
+    leerSlots: Math.max(0, laenge - noetigeSlots),
+    backToBack,
+    betroffeneTeams: [...betroffene].sort(),
+    abstandMin,
+    abstandMax,
+    maxPauseMinuten: slotMinuten != null && abstandMax != null ? abstandMax * slotMinuten : null,
+    slotMinuten,
+  };
 }
