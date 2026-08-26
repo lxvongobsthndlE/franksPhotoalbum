@@ -221,3 +221,89 @@ describe('renderEinstellungen', () => {
     expect(occurrences).toBe(4);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Statuskarte am Kopf des Tabs — Markenuebernahme (2026-08-26)
+//
+// Sie beantwortet die Frage, mit der man den Tab oeffnet: laeuft das
+// Ding, und wie weit ist es? Vorher musste man sich das aus den
+// Knoepfen zusammenreimen.
+//
+// Was hier schiefgehen kann, ohne dass man es im Screenshot sieht:
+//   - Die Karte behauptet "laeuft", obwohl das Turnier ein Entwurf ist.
+//   - Die Zahlen weichen vom Spielplan ab, weil sie aus einem
+//     Statistik-Feld statt aus den Spielen kommen.
+//   - Ein Entwurf zeigt "0 gespielt / 0 offen" — eine Statistik ueber
+//     nichts, die aussieht wie ein Fehler.
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderEinstellungen — Statuskarte', () => {
+  const mitSpielen = (n, fertig, extra = {}) => ({
+    tournament: { id: 't1', name: 'Test', status: 'generated', ...extra },
+    teams: [], groups: [],
+    matches: Array.from({ length: n }, (_, i) => ({ id: 'm' + i, isFinished: i < fertig })),
+  });
+
+  const kopf = (html) => {
+    const m = html.match(/<div class="t-status-card-head">([^<]*)<\/div>/);
+    return m ? m[1] : null;
+  };
+  const zahlen = (html) =>
+    [...html.matchAll(/<b>(\d+)<\/b><span>([^<]*)<\/span>/g)].map((m) => [m[2], Number(m[1])]);
+
+  it('steht ganz oben, vor dem ersten Block', () => {
+    const html = renderEinstellungen(mitSpielen(4, 2), { isAdmin: true, finishedCount: 2 });
+    const karte = html.indexOf('t-status-card');
+    const ersterBlock = html.indexOf('data-section=');
+    expect(karte).toBeGreaterThan(-1);
+    expect(karte).toBeLessThan(ersterBlock);
+  });
+
+  it('Entwurf sagt "Entwurf", nicht "laeuft"', () => {
+    const t = mitSpielen(0, 0, { status: 'draft' });
+    const html = renderEinstellungen(t, { isAdmin: true, finishedCount: 0 });
+    expect(kopf(html)).toMatch(/Entwurf/);
+    expect(kopf(html)).not.toMatch(/läuft/i);
+  });
+
+  it('Entwurf ohne Spiele zeigt KEINE Zahlen', () => {
+    // Drei Nullen sind eine Statistik ueber nichts und sehen aus wie ein
+    // Fehler. Lieber nur die Kopfzeile.
+    const html = renderEinstellungen(mitSpielen(0, 0, { status: 'draft' }), { isAdmin: true, finishedCount: 0 });
+    expect(html).not.toContain('t-status-card-nums');
+  });
+
+  it('gestartetes Turnier nennt die Startzeit', () => {
+    const t = mitSpielen(6, 2, { startedAt: '2026-04-18T13:00:00.000Z' });
+    const html = renderEinstellungen(t, { isAdmin: true, finishedCount: 2 });
+    expect(kopf(html)).toMatch(/läuft seit \d{2}:\d{2}/);
+    // Umlaut, nicht 'laeuft': der Text steht in der Oberflaeche.
+    expect(kopf(html)).not.toContain('laeuft');
+  });
+
+  it('beendetes Turnier sagt "beendet"', () => {
+    const t = mitSpielen(6, 6, { status: 'finished', startedAt: '2026-04-18T13:00:00.000Z' });
+    const html = renderEinstellungen(t, { isAdmin: true, finishedCount: 6 });
+    expect(kopf(html)).toMatch(/beendet/i);
+  });
+
+  it('die Zahlen kommen aus den Spielen, nicht aus einem Statistikfeld', () => {
+    // finishedCount absichtlich FALSCH mitgegeben: die Karte darf ihm
+    // nicht glauben, sonst weicht sie vom Spielplan daneben ab.
+    const t = mitSpielen(10, 4, { startedAt: '2026-04-18T13:00:00.000Z' });
+    const html = renderEinstellungen(t, { isAdmin: true, finishedCount: 99 });
+    const z = Object.fromEntries(zahlen(html));
+    expect(z.Gespielt).toBe(4);
+    expect(z.Offen).toBe(6);
+  });
+
+  it('Gespielt plus Offen ergibt immer die Gesamtzahl', () => {
+    for (const [n, f] of [[0, 0], [1, 0], [1, 1], [18, 10], [7, 7]]) {
+      const t = mitSpielen(n, f, { startedAt: '2026-04-18T13:00:00.000Z' });
+      const html = renderEinstellungen(t, { isAdmin: true, finishedCount: f });
+      if (n === 0) continue;
+      const z = Object.fromEntries(zahlen(html));
+      expect(z.Gespielt + z.Offen).toBe(n);
+    }
+  });
+});

@@ -1290,6 +1290,67 @@ function kurzRunde(label) {
  * Wird sowohl als ES-Modul-Export (`import { bracket } from ...`)
  * als auch als Property auf window.spielplanHelpers verwendet.
  */
+/**
+ * Statuskarte am Kopf des Einstellungen-Tabs — Markenuebernahme 2026-08-26.
+ *
+ * Sie beantwortet die Frage, mit der ein Organisator den Tab oeffnet:
+ * laeuft das Ding, und wie weit ist es? Vorher musste man sich das aus
+ * den Knoepfen zusammenreimen — "Turnier starten" ist aktiv, also laeuft
+ * es noch nicht.
+ *
+ *   TURNIER LAEUFT SEIT 13:00
+ *   10          8         3
+ *   GESPIELT    OFFEN     PLATTEN
+ *
+ * Das Band links ist Teal, dieselbe Farbe wie am Rand der laufenden
+ * Match-Karte — gleiche Bedeutung, gleiche Farbe. Bei einem Entwurf oder
+ * einem beendeten Turnier waere "laeuft" falsch, deshalb traegt die
+ * Karte dann eine andere Kopfzeile und ein neutrales Band.
+ *
+ * Die Zahlen kommen aus den Spielen selbst, nicht aus einem
+ * Statistik-Feld: so koennen sie nicht von dem abweichen, was der
+ * Spielplan daneben zeigt.
+ */
+function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }) {
+  const spiele = Array.isArray(matches) ? matches : [];
+  const gespielt = spiele.filter((m) => m?.isFinished).length;
+  const offen = spiele.length - gespielt;
+  const platten = Array.isArray(fields) && fields.length ? fields.length : null;
+
+  let kopf;
+  let modifikator = '';
+  if (isFinished) {
+    kopf = 'Turnier beendet';
+    modifikator = ' t-status-card--done';
+  } else if (isStarted) {
+    const seit = t?.tournament?.startedAt
+      ? new Date(t.tournament.startedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+      : null;
+    kopf = seit ? 'Turnier läuft seit ' + seit : 'Turnier läuft';
+  } else if (status === 'draft') {
+    kopf = 'Entwurf \u2014 noch kein Spielplan';
+    modifikator = ' t-status-card--draft';
+  } else {
+    kopf = 'Bereit zum Start';
+    modifikator = ' t-status-card--draft';
+  }
+
+  // Bei einem Entwurf gibt es nichts zu zaehlen. Drei Nullen waeren eine
+  // Statistik ueber nichts \u2014 dann lieber nur die Kopfzeile.
+  const zahlen = spiele.length
+    ? '<div class="t-status-card-nums">'
+      + '<div><b>' + gespielt + '</b><span>Gespielt</span></div>'
+      + '<div><b>' + offen + '</b><span>Offen</span></div>'
+      + (platten ? '<div><b>' + platten + '</b><span>' + (platten === 1 ? 'Platte' : 'Platten') + '</span></div>' : '')
+      + '</div>'
+    : '';
+
+  return '<div class="t-status-card' + modifikator + '">'
+    + '<div class="t-status-card-head">' + esc(kopf) + '</div>'
+    + zahlen
+    + '</div>';
+}
+
 export const bracket = {
   groupMatchesByRound,
   renderMatchCardBracket,
@@ -1584,6 +1645,7 @@ export function renderEinstellungen(t, opts = {}) {
 
   return `
     <div class="t-settings-grid">
+      ${renderStatusKarte({ t, status, isStarted, isFinished, matches, fields })}
       ${actionsBlock}
       <section class="t-settings-section" data-section="groups" data-collapsed="${!defaultOpen.groups}">
         <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${defaultOpen.groups}">

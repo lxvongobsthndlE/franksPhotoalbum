@@ -3868,20 +3868,125 @@ textarea.t-input {
   flex-direction: column;
   gap: var(--s5);
 }
+/* ----------------------------------------------------------------
+   EINSTELLUNGEN ALS LISTE — Markenuebernahme Etappe 7
+   ----------------------------------------------------------------
+   "Listen statt Formular": jede Sektion ist eine Karte, die Kopfzeile
+   traegt den Namen in Mono-Versalien, darunter stehen Zeilen mit
+   Beschriftung links und Wert rechts.
+
+   Die AUFKLAPPBARKEIT bleibt. Sie stammt aus Etappe B.7 und ist
+   zustandsabhaengig vorbelegt (im Entwurf offen, im Lauf zu). Der
+   Marken-Entwurf zeigt zwar flache Abschnitte, aber das ist eine
+   Zeichnung von vier Sektionen — im echten Turnier sind es sieben, und
+   zugeklappte Bereiche sind dort kein Schmuck, sondern der Grund, warum
+   der Tab ueberhaupt bedienbar ist. Form uebernommen, Funktion behalten.
+   ---------------------------------------------------------------- */
 .t-settings-section {
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-s);
+  overflow: hidden;
 }
 .t-settings-section-title {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-soft);
-  font-weight: 600;
+  color: var(--muted);
+  font-weight: 500;
   margin: 0;
 }
-.t-settings-section-body { display: flex; flex-direction: column; gap: var(--s3); }
+.t-settings-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4) var(--s4);
+}
+
+/* ----------------------------------------------------------------
+   LISTENZEILE — Beschriftung links, Wert rechts
+   ----------------------------------------------------------------
+   Die Grundform der Einstellungen. Der Wert steht in Mono, weil er
+   meistens eine Zahl, eine Zeit oder ein Name ist und rechtsbuendig
+   fluchten soll. Die Erklaerung steht KLEIN UNTER der Beschriftung,
+   nicht daneben: auf 390px ist rechts kein Platz fuer zwei Spalten
+   Text, und ein Hilfetext, der den Wert verdraengt, ist keiner.
+   ---------------------------------------------------------------- */
+.t-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 12px var(--s4);
+  min-width: 0;
+}
+.t-list-row + .t-list-row { border-top: 1px solid var(--line-soft); }
+.t-list-label {
+  min-width: 0;
+  font-weight: 500;
+  color: var(--ink);
+}
+.t-list-label small {
+  display: block;
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.t-list-value {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.t-list-chevron { color: var(--muted); }
+
+/* Statuskarte am Kopf des Tabs. Das Band links ist Teal, weil sie sagt
+   "laeuft gerade" — dieselbe Bedeutung wie am Rand der laufenden
+   Match-Karte, also dieselbe Farbe. */
+.t-status-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--live);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-s);
+  padding: var(--s3) var(--s4);
+}
+.t-status-card-head {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--live);
+}
+.t-status-card-nums {
+  display: flex;
+  gap: var(--s6);
+  margin-top: var(--s2);
+}
+.t-status-card-nums b {
+  display: block;
+  font-family: var(--f-disp);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink);
+}
+.t-status-card-nums span {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .t-settings-actions {
   display: flex;
   gap: var(--s2);
@@ -3925,20 +4030,19 @@ textarea.t-input {
 
 /* === Etappe B.8 — Klappbar (Einstellungen-Tab) ==================== */
 .t-settings-section-header {
-  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s3, 12px);
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--line, #e5e2da);
-  padding: var(--s3, 12px) 0;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  background: var(--raised);
+  border: 0;
+  border-bottom: 1px solid var(--line);
   font: inherit;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: var(--r-card, 8px) var(--r-card, 8px) 0 0;
 }
 .t-settings-section-header:hover {
   background: var(--surface-alt);
@@ -5126,3 +5230,20 @@ textarea.t-input {
   color: var(--panel);
 }
 .bracket-tab.is-active .bracket-tab-stand { color: var(--panel); opacity: 0.7; }
+
+/* Gefahrenzone: Karmin am Rand und in der Kopfzeile. Sie ist der einzige
+   Bereich, der eine eigene Farbe traegt — alles andere in den
+   Einstellungen ist neutral, damit dieser eine Block auffaellt, ohne
+   dass man ihn suchen muss. */
+.t-settings-section.t-danger-zone { border-color: var(--danger); }
+.t-settings-section.t-danger-zone .t-settings-section-header {
+  background: var(--panel);
+  border-bottom-color: var(--danger);
+}
+.t-settings-section.t-danger-zone .t-settings-section-title { color: var(--danger); }
+
+/* Zuschauer-Link: die Zeile aus der Nachbar-Session trug ein Inline-Flex
+   am Eingabefeld, weil tournament.css waehrend ihres Baus umgebaut wurde
+   (bewusst kein neues CSS von dort). Die Klasse holt das nach — das
+   Inline-Style darf beim naechsten Anfassen des Blocks raus. */
+.t-settings-actions > .t-input { flex: 1; min-width: 0; }
