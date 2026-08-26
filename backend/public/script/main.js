@@ -2741,11 +2741,24 @@ function renderTournamentInstancesPage() {
         }))
         .join('');
 
-      return `<section class="tournament-instance-group" data-phase-group="${esc(phase)}">
-        <div class="tournament-instance-group-head">
-          <h2>${esc(tournamentPhaseLabel(phase))}</h2>
-          <span class="tournament-meta-pill">${instances.length}</span>
-        </div>
+      // Beschwerde 5 (2026-08-26): „unter 'bereit' bei der turnierauswahl
+      // ist noch ein kasten im hintergrund". Jede Statusgruppe sass in
+      // einem gerahmten, gefuellten Kasten — hell rgba(255,255,255,.5),
+      // fuer 'live' rgba(255,244,220,.55) und fuer 'other'
+      // rgba(245,222,179,.45) mit Rand #c5a25c. Also genau das Creme,
+      // das aus dem Modul verschwinden sollte, und obendrein ein
+      // Behaelter um Karten, die selbst schon Behaelter sind.
+      //
+      // Die Vorlage kennt an dieser Stelle KEINEN Kasten: eine kleine
+      // Mono-Beschriftung (.grp-lbl) und darunter die Karten. Der Status
+      // steht ausserdem auf jeder Karte als Pille — die Gruppenfarbe
+      // sagte dasselbe ein zweites Mal, nur unschaerfer.
+      //
+      // Die Anzahl bleibt, aber im Label statt in einer eigenen Pille;
+      // die Vorlage setzt Zusatzangaben mit Mittelpunkt an die
+      // Beschriftung ("Beste Dritte · 2 Plaetze frei").
+      return `<section class="t-list-group" data-phase-group="${esc(phase)}">
+        <div class="t-list-group-label">${esc(tournamentPhaseLabel(phase))} · ${instances.length}</div>
         <div class="tournament-instance-grid">
           ${instanceCards}
         </div>
@@ -3770,31 +3783,10 @@ function bindSpielplanInteractions(t) {
   section.dataset.bound = '1';
 
   section.addEventListener('click', (e) => {
-    // Filter-Trigger (Etappe A2.6, 2026-08-20): öffnet/schließt das
-    // Dropdown, in dem alle Filter zur Auswahl stehen.
-    const trigger = e.target.closest('[data-action="toggle-filter-dropdown"]');
-    if (trigger && section.contains(trigger)) {
-      const dropdown = trigger.parentElement.querySelector('[data-filter-dropdown]');
-      if (!dropdown) return;
-      const isOpen = !dropdown.hasAttribute('hidden');
-      if (isOpen) {
-        dropdown.setAttribute('hidden', '');
-        trigger.setAttribute('aria-expanded', 'false');
-      } else {
-        dropdown.removeAttribute('hidden');
-        trigger.setAttribute('aria-expanded', 'true');
-      }
-      return;
-    }
-    // Filter-Item im Dropdown: setzt den aktiven Filter + schließt das
-    // Dropdown + re-rendert.
-    const item = e.target.closest('.t-filter-item[data-filter]');
-    if (item && section.contains(item)) {
-      currentSpielplanFilter = item.dataset.filter;
-      renderSpielplan(t);
-      return;
-    }
-    // Aktiver Filter-Chip neben dem Trigger: gleicher Eff wie Dropdown-Item.
+    // Nacharbeit (2026-08-26), Beschwerde 4: Das Aufklappmenue ist
+    // entfallen, die Chips stehen wieder in einer scrollenden Reihe
+    // (siehe renderFilterChips). Damit faellt hier der Trigger-Zweig weg
+    // und der Zweig fuer die Menue-Eintraege — es gibt nur noch Chips.
     const chip = e.target.closest('.t-chip[data-filter]');
     if (chip && section.contains(chip)) {
       currentSpielplanFilter = chip.dataset.filter;
@@ -3837,23 +3829,11 @@ function bindSpielplanInteractions(t) {
     }
   });
 
-  // Click-Outside schließt das Filter-Dropdown (Etappe A2.6, 2026-08-20).
-  // Wir binden genau EINEN document-Listener, der alle offenen
-  // Dropdowns schließt, wenn der Klick nicht innerhalb eines
-  // .t-filter-wrap landet. Idempotent über `data-bound`-Flag.
-  if (!section.dataset.clickOutsideBound) {
-    section.dataset.clickOutsideBound = '1';
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.t-filter-wrap')) {
-        section.querySelectorAll('[data-filter-dropdown]').forEach((dd) => {
-          dd.setAttribute('hidden', '');
-        });
-        section.querySelectorAll('[data-action="toggle-filter-dropdown"]').forEach((tr) => {
-          tr.setAttribute('aria-expanded', 'false');
-        });
-      }
-    });
-  }
+  // Der Click-Outside-Listener fuer das Filter-Dropdown ist mit dem
+  // Dropdown selbst entfallen (2026-08-26, Beschwerde 4). Er hing am
+  // `document` und lief bei JEDEM Klick der ganzen Anwendung mit, um
+  // etwas zuzuklappen, das es nicht mehr gibt. Eine Chip-Reihe hat
+  // keinen offenen Zustand, den man schliessen muesste.
 }
 
 /**

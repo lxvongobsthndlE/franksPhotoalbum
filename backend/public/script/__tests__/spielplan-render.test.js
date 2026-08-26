@@ -185,25 +185,43 @@ describe('renderFilterChips', () => {
   const offenesKO = makeMatch({ isKoMatch: true, isFinished: false });
   const matches = [offenesGruppenspiel, beendetesGruppenspiel, offenesKO];
 
-  it('rendert EINEN Trigger + Dropdown mit allen Filtern', () => {
-    // A2.6 (2026-08-20): Statt alle Chips direkt zu rendern, gibt es
-    // einen Button + Dropdown. Die Filter-IDs sind weiterhin im HTML
-    // (im Dropdown als menuitems).
+  it('rendert eine sichtbare Chip-Reihe, kein Aufklappmenü', () => {
+    // Nacharbeit 2026-08-26, Beschwerde 4: „auch die filter sahen im
+    // artefakt wesentlich besser aus". A2.6 hatte hier einen Trigger
+    // plus Dropdown gebaut; die Vorlage haelt die Chips sichtbar und
+    // laesst die Reihe scrollen. Dieser Test haelt fest, dass das
+    // Aufklappmenü NICHT zurueckkommt — sein Kern war, die Anzahlen zu
+    // verstecken, und die Anzahl ist der ganze Wert eines Filterchips.
     const html = renderFilterChips(matches, [], 'alle');
-    expect(html).toContain('data-action="toggle-filter-dropdown"');
-    expect(html).toContain('data-filter-dropdown');
-    // Dropdown enthält alle 3 Basis-Filter als menuitems
-    expect(html).toContain('data-filter="alle"');
-    expect(html).toContain('data-filter="offen"');
-    expect(html).toContain('data-filter="beendet"');
+    expect(html).toContain('class="t-chips"');
+    expect(html).not.toContain('toggle-filter-dropdown');
+    expect(html).not.toContain('data-filter-dropdown');
+    expect(html).not.toContain('t-filter-item');
+    for (const id of ['alle', 'offen', 'beendet']) {
+      expect(html).toContain(`data-filter="${id}"`);
+    }
   });
 
-  it('zeigt Counts aus UNGefilterter Liste (auch wenn "offen" aktiv)', () => {
-    // Counts sind im Dropdown sichtbar — "Alle 3" auch wenn Filter offen.
+  it('jeder Chip trägt seine Anzahl — aus der UNgefilterten Liste', () => {
+    // „Wer 'Offen 7' sieht, weiss ohne Tippen, wie weit der Tag ist."
+    // Die Zahlen duerfen sich also NICHT mitfiltern.
     const html = renderFilterChips(matches, [], 'offen');
     expect(html).toContain('<span class="count">3</span>');
     expect(html).toContain('<span class="count">2</span>');
     expect(html).toContain('<span class="count">1</span>');
+    // Und zwar an jedem Chip, nicht nur am aktiven.
+    const chips = html.match(/<button[^>]*data-filter=/g) || [];
+    const zahlen = html.match(/<span class="count">/g) || [];
+    expect(zahlen).toHaveLength(chips.length);
+  });
+
+  it('benutzt die kurzen Beschriftungen der Vorlage', () => {
+    // „Offen"/„Fertig" statt „Nur offene"/„Beendet" — in einer
+    // scrollenden Reihe kostet jedes Zeichen Platz.
+    const html = renderFilterChips(matches, [], 'alle');
+    expect(html).toContain('Offen <span');
+    expect(html).toContain('Fertig <span');
+    expect(html).not.toContain('Nur offene');
   });
 
   it('Phasen-Filter nur, wenn in dieser Kategorie Spiele existieren', () => {
@@ -231,30 +249,18 @@ describe('renderFilterChips', () => {
     expect(aIdx).toBeLessThan(bIdx);
   });
 
-  it('aktiver Filter bekommt is-active Klasse + aria-pressed=true', () => {
+  it('genau EIN Chip ist aktiv, mit is-active und aria-pressed=true', () => {
     const html = renderFilterChips(matches, [], 'offen');
-    // Im Dropdown: aktives menuitem mit is-active.
-    expect(html).toMatch(/class="t-filter-item is-active"[^>]*data-filter="offen"/);
+    expect(html).toMatch(/class="t-chip is-active"[^>]*data-filter="offen"/);
     expect(html).toContain('data-filter="offen" aria-pressed="true"');
+    expect((html.match(/aria-pressed="true"/g) || [])).toHaveLength(1);
+    expect((html.match(/class="t-chip is-active"/g) || [])).toHaveLength(1);
   });
 
-  it('inaktiver Filter bekommt KEIN is-active', () => {
+  it('inaktive Chips tragen weder is-active noch aria-pressed=true', () => {
     const html = renderFilterChips(matches, [], 'offen');
-    // "Alle" menuitem ist NICHT is-active
     expect(html).toMatch(/data-filter="alle"[^>]*aria-pressed="false"/);
-    expect(html).not.toContain('class="t-filter-item is-active" data-filter="alle"');
-  });
-
-  it('aktiver Filter erscheint auch als sichtbarer Chip neben dem Trigger', () => {
-    // A2.6: Damit der User die aktive Auswahl auf einen Blick sieht,
-    // wird der aktive Filter als zweiter Chip neben dem Trigger gezeigt.
-    const html = renderFilterChips(matches, [], 'offen');
-    expect(html).toMatch(/<button[^>]*class="t-chip is-active"[^>]*data-filter="offen"/);
-  });
-
-  it('Trigger zeigt das Label des aktiven Filters', () => {
-    const html = renderFilterChips(matches, [], 'beendet');
-    expect(html).toContain('Filter: Beendet');
+    expect(html).not.toMatch(/class="t-chip is-active"[^>]*data-filter="alle"/);
   });
 
   it('null/undefined Matches rendert ohne Crash', () => {

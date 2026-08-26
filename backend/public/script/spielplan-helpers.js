@@ -138,10 +138,14 @@ export function renderFilterChips(matches, groups, currentFilter) {
   const countGroup = matches.filter((m) => m?.isGroupMatch).length;
   const countKo = matches.filter((m) => m?.isKoMatch).length;
 
+  // Beschriftungen nach Vorlage (Abschnitt 03): "Alle", "Offen",
+  // "Fertig" — nicht "Nur offene" / "Beendet". Kuerzer ist hier kein
+  // Geschmack, sondern Notwendigkeit: die Chips stehen nebeneinander in
+  // einer scrollenden Reihe, und jedes Zeichen kostet dort Platz.
   const chips = [
     { id: 'alle', label: 'Alle', count: countAll },
-    { id: 'offen', label: 'Nur offene', count: countOpen },
-    { id: 'beendet', label: 'Beendet', count: countDone },
+    { id: 'offen', label: 'Offen', count: countOpen },
+    { id: 'beendet', label: 'Fertig', count: countDone },
   ];
   if (countGroup > 0) chips.push({ id: 'gruppe', label: 'Gruppenphase', count: countGroup });
   if (countKo > 0) chips.push({ id: 'ko', label: 'K.O.', count: countKo });
@@ -160,35 +164,30 @@ export function renderFilterChips(matches, groups, currentFilter) {
     }
   }
 
-  // Etappe A2.6 (2026-08-20): Statt alle Chips direkt sichtbar zu
-  // rendern, bauen wir EINEN Filter-Button + Dropdown. Aktive Filter
-  // werden als Chips neben dem Button angezeigt, damit der User die
-  // aktuelle Auswahl auf einen Blick sieht. Das Dropdown selbst enthält
-  // die volle Liste inkl. Counts.
-  const activeChip = chips.find((c) => c.id === currentFilter);
-  const activeLabel = activeChip ? activeChip.label : 'Alle';
-
-  const dropdownItems = chips.map((c) => {
-    const active = c.id === currentFilter ? ' is-active' : '';
-    return `<button type="button" role="menuitem" class="t-filter-item${active}" data-filter="${esc(c.id)}" aria-pressed="${active ? 'true' : 'false'}"><span class="t-filter-item-label">${esc(c.label)}</span><span class="count">${c.count}</span></button>`;
-  }).join('');
-
-  const dropdownHtml = `<div class="t-filter-dropdown" data-filter-dropdown hidden>
-    <div class="t-filter-dropdown-inner" role="menu">${dropdownItems}</div>
-  </div>`;
-
-  const activeChipHtml = activeChip
-    ? `<button type="button" class="t-chip is-active" data-filter="${esc(activeChip.id)}" aria-pressed="true">${esc(activeChip.label)} <span class="count">${activeChip.count}</span></button>`
-    : '';
-
-  return `<div class="t-filter-wrap">
-    <button type="button" class="t-filter-trigger" data-action="toggle-filter-dropdown" aria-haspopup="menu" aria-expanded="false">
-      <span class="t-filter-trigger-label">Filter: ${esc(activeLabel)}</span>
-      <span class="t-filter-trigger-caret" aria-hidden="true">▾</span>
-    </button>
-    ${dropdownHtml}
-    ${activeChipHtml}
-  </div>`;
+  // Beschwerde 4 (2026-08-26): „auch die filter sahen im artefakt
+  // wesentlich besser aus".
+  //
+  // Etappe A2.6 (2026-08-20) hatte hier EINEN Knopf „Filter: Alle ▾" mit
+  // Aufklappmenue gebaut, weil bei vielen Gruppen bis zu neun Chips
+  // zusammenkamen. Die Vorlage loest dasselbe Problem anders und besser:
+  // die Chips bleiben Chips und die REIHE scrollt waagerecht. Damit ist
+  // die Anzahl weiter sichtbar, ohne dass man etwas oeffnen muss — und
+  // genau das ist der Punkt, den die Vorlage betont: „Wer 'Offen 7'
+  // sieht, weiss ohne Tippen, wie weit der Tag ist." Hinter einem
+  // Aufklappmenue sieht das niemand.
+  //
+  // Der aktive Chip wird SCHWARZ gefuellt, nicht orange. Orange ist im
+  // ganzen Modul dem Weg zum Titel vorbehalten; ein Filterzustand ist
+  // kein Titelweg. Das galt hier bisher nicht — der aktive Chip trug
+  // var(--accent).
+  return `<div class="t-chips" role="group" aria-label="Spiele filtern">${
+    chips.map((c) => {
+      const aktiv = c.id === currentFilter;
+      return `<button type="button" class="t-chip${aktiv ? ' is-active' : ''}"`
+        + ` data-filter="${esc(c.id)}" aria-pressed="${aktiv ? 'true' : 'false'}">`
+        + `${esc(c.label)} <span class="count">${c.count}</span></button>`;
+    }).join('')
+  }</div>`;
 }
 
 /**

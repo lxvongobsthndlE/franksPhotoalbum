@@ -258,34 +258,12 @@ button.tournament-header-btn {
   margin: 0 auto;
 }
 
-.tournament-instance-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid var(--border2);
-}
-
-.tournament-instance-group[data-phase-group='live'] {
-  border-color: var(--accent);
-  background: rgba(255, 244, 220, 0.55);
-}
-
-.tournament-instance-group[data-phase-group='other'] {
-  border-color: #c5a25c;
-  background: rgba(245, 222, 179, 0.45);
-}
-
-.tournament-instance-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
+/* Der Kasten um jede Statusgruppe ist am 26.08. ersatzlos entfallen
+   (Beschwerde 5). Er war gefuellt und gerahmt, in zwei Faellen sogar
+   cremefarben — ein Behaelter um Karten, die selbst Behaelter sind,
+   und ein zweiter Traeger fuer einen Status, den jede Karte schon als
+   Pille zeigt. Ersatz ist eine Mono-Beschriftung: .t-list-group-label
+   in tournament.css, weil sie Marken-Tokens braucht. */
 .tournament-instance-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -323,7 +301,11 @@ button.tournament-header-btn {
    Auf Desktop bleiben die leeren Phasen sichtbar — der User sieht
    dort schneller, dass er nichts hat. */
 @media (max-width: 480px) {
-  .tournament-instance-group:has(> .tournament-instance-grid > .tournament-instance-empty:only-child) {
+  /* Klasse am 26.08. von .tournament-instance-group auf .t-list-group
+     umbenannt (Beschwerde 5). Diese Regel haette den Rename still
+     ueberlebt und nichts mehr getroffen — leere Phasen waeren auf dem
+     Handy zurueckgekommen, ohne dass ein Test es merkt. */
+  .t-list-group:has(> .tournament-instance-grid > .tournament-instance-empty:only-child) {
     display: none;
   }
 }
