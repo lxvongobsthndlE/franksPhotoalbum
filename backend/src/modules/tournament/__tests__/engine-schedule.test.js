@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateSchedule, detectScheduleConflicts } from '../engine/schedule.js';
+import {
+  generateSchedule,
+  detectScheduleConflicts,
+  detectRoundOverlaps,
+} from '../engine/schedule.js';
 
 const baseConfig = {
   schedule: {
@@ -213,5 +217,92 @@ describe('detectScheduleConflicts', () => {
       { id: 'm2', field: 1, scheduledAt: new Date('2026-09-05T10:00') },
     ];
     expect(detectScheduleConflicts(matches)).toEqual([]);
+  });
+});
+
+describe('Runden laufen nacheinander, nicht gleichzeitig', () => {
+  // Spec §5.3. Der Befund vom 2026-08-26: im Spielplan lagen Spiel um
+  // Platz 3 und Finale um 12:15, das Viertelfinale erst um 12:30.
+  const koCfg = {
+    schedule: {
+      matchDurationMinutes: 10,
+      pauseAfterMatches: 5,
+      parallelFields: 4,   // bewusst mehr Plätze als Spiele pro Runde
+      startTime: '10:00',
+    },
+  };
+  const ko = (id, round, pos) => ({
+    id, teamHome: null, teamAway: null, stageType: 'ko', round, bracketPos: pos,
+  });
+  const baum = [
+    ko('qf1', 'QF', 1), ko('qf2', 'QF', 2), ko('qf3', 'QF', 3), ko('qf4', 'QF', 4),
+    ko('sf1', 'SF', 1), ko('sf2', 'SF', 2),
+    ko('p3', '3RD', 1), ko('fin', 'F', 1),
+  ];
+
+  it('vier freie Plätze verführen nicht dazu, VF und HF zusammenzulegen', () => {
+    // Vier Plätze und vier Viertelfinals: der Planer KÖNNTE ab 10:15
+    // das Halbfinale danebenlegen. Er darf nicht — die Halbfinalisten
+    // stehen erst fest, wenn das Viertelfinale gespielt ist.
+    const sched = generateSchedule(baum, koCfg, baseDate);
+    const at = (id) => sched.find((m) => m.id === id).scheduledAt.getTime();
+    const qfEnde = Math.max(at('qf1'), at('qf2'), at('qf3'), at('qf4'));
+    const sfStart = Math.min(at('sf1'), at('sf2'));
+    expect(sfStart).toBeGreaterThan(qfEnde);
+    expect(at('p3')).toBeGreaterThan(Math.max(at('sf1'), at('sf2')));
+    expect(at('fin')).toBeGreaterThan(at('p3'));
+  });
+
+  it('detectRoundOverlaps meldet nichts an einem sauberen Plan', () => {
+    const sched = generateSchedule(baum, koCfg, baseDate);
+    expect(detectRoundOverlaps(sched)).toEqual([]);
+  });
+
+  it('detectRoundOverlaps erkennt Gleichzeitigkeit und verkehrte Reihenfolge', () => {
+    // Ein von Hand gebauter, unmöglicher Plan: alle Runden um 12:00,
+    // das Finale sogar davor. Ressourcenfrei (verschiedene Plätze) und
+    // trotzdem kein Turnier — genau die Lücke, die
+    // detectScheduleConflicts nicht sieht.
+    const t = (iso) => new Date(iso);
+    const kaputt = [
+      { ...ko('qf1', 'QF', 1), scheduledAt: t('2026-09-05T12:00:00Z'), field: 1 },
+      { ...ko('sf1', 'SF', 1), scheduledAt: t('2026-09-05T12:00:00Z'), field: 2 },
+      { ...ko('fin', 'F', 1),  scheduledAt: t('2026-09-05T11:45:00Z'), field: 3 },
+    ];
+    expect(detectScheduleConflicts(kaputt)).toEqual([]);   // Plätze sind frei
+    const gruende = detectRoundOverlaps(kaputt).map((v) => v.reason);
+    expect(gruende).toContain('round_overlap');
+    expect(gruende).toContain('round_out_of_order');
+  });
+
+  it('ein unbekanntes Rundenkürzel bekommt einen eigenen Block, keinen Sammelblock', () => {
+    // Fällt ein Kürzel aus der Tabelle (Tippfehler, neuer Modus, ein
+    // Aufrufer der `round` unterwegs zur Zahl macht), dann lagen vorher
+    // ALLE betroffenen Spiele auf demselben Anstoß. Unbekannt heißt
+    // jetzt „Reihenfolge geraten", nicht mehr „alles gleichzeitig".
+    const fremd = [
+      ko('a1', 'ACHTELFINALE', 1), ko('a2', 'ACHTELFINALE', 2),
+      ko('b1', 'ZWISCHENRUNDE', 1),
+    ];
+    const sched = generateSchedule(fremd, koCfg, baseDate);
+    const at = (id) => sched.find((m) => m.id === id).scheduledAt.getTime();
+    expect(at('b1')).not.toBe(at('a1'));
+    expect(at('a1')).toBe(at('a2'));   // gleiche Runde bleibt parallel
+  });
+
+  it('Gruppen-Spieltage bleiben getrennt: erst Spieltag 1 aller Gruppen', () => {
+    const g = (id, gk, rn, home, away) => ({
+      id, teamHome: home, teamAway: away, stageType: 'group',
+      groupKey: gk, roundNumber: rn, bracketPos: 1,
+    });
+    const matches = [
+      g('a1', 'A', 1, 't1', 't2'), g('a2', 'A', 2, 't1', 't3'),
+      g('b1', 'B', 1, 't5', 't6'), g('b2', 'B', 2, 't5', 't7'),
+    ];
+    const sched = generateSchedule(matches, koCfg, baseDate);
+    const at = (id) => sched.find((m) => m.id === id).scheduledAt.getTime();
+    expect(at('b1')).toBe(at('a1'));                 // Spieltag 1 parallel
+    expect(at('a2')).toBeGreaterThan(at('b1'));      // Spieltag 2 danach
+    expect(at('b2')).toBe(at('a2'));
   });
 });

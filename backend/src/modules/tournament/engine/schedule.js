@@ -39,9 +39,50 @@ const KO_ROUND_ORDER = {
 const GROUP_BLOCK_OFFSET = 0;
 const KO_BLOCK_OFFSET = 100_000;
 
-function blockIndex(m) {
+/**
+ * Ordnet unbekannte K.-o.-Rundenkürzel deterministisch hinter die bekannten.
+ *
+ * Warum das existiert (2026-08-26): Fällt ein Kürzel aus KO_ROUND_ORDER
+ * heraus — ein Tippfehler, ein neuer Modus, ein Aufrufer, der `round`
+ * unterwegs zur Zahl macht —, dann hatten vorher ALLE diese Spiele
+ * denselben Block-Index. Ein Block heißt für den Planer „darf
+ * gleichzeitig laufen": Viertel-, Halbfinale, Spiel um Platz 3 und
+ * Finale landeten auf demselben Anstoß, in ID-Reihenfolge, das Finale
+ * teils VOR dem Viertelfinale. Ein Datenfehler wurde so zu einem
+ * fachlich unmöglichen Spielplan.
+ *
+ * Jetzt bekommt jedes unbekannte Kürzel seinen eigenen Block. Die
+ * Reihenfolge unter ihnen ist geraten, aber sie ist eine Reihenfolge:
+ * mehr Spiele = frühere Runde (ein K.-o.-Baum halbiert sich je Runde),
+ * bei Gleichstand alphabetisch. Nacheinander in unsicherer Reihenfolge
+ * ist immer noch ein Turnier; gleichzeitig ist keines.
+ */
+function unknownRoundOrder(matches) {
+  const counts = new Map();
+  for (const m of matches) {
+    if (m?.stageType !== 'ko') continue;
+    const key = String(m.round ?? '');
+    if (KO_ROUND_ORDER[key] !== undefined) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const keys = [...counts.keys()].sort((a, b) => {
+    const d = counts.get(b) - counts.get(a);
+    if (d !== 0) return d;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  const order = new Map();
+  const nachBekannt = Math.max(...Object.values(KO_ROUND_ORDER)) + 1;
+  keys.forEach((k, i) => order.set(k, nachBekannt + i));
+  return order;
+}
+
+function blockIndex(m, unknownOrder) {
   if (m?.stageType === 'ko') {
-    const order = KO_ROUND_ORDER[m.round] ?? Number.MAX_SAFE_INTEGER;
+    const key = String(m?.round ?? '');
+    const known = KO_ROUND_ORDER[key];
+    const order = known !== undefined
+      ? known
+      : (unknownOrder?.get(key) ?? Number.MAX_SAFE_INTEGER);
     return KO_BLOCK_OFFSET + order;
   }
   // Default: Gruppen-Spiel
@@ -89,9 +130,13 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
 
   // Block-Sortierung: alle Spiele in Block N vor allen Spielen in Block N+1.
   // Innerhalb eines Blocks: Gruppe (für Gruppenphase), dann bracketPos, dann id.
+  // Muss VOR der Sortierung stehen: die Ordnung unbekannter Runden wird
+  // aus dem gesamten Spielsatz abgeleitet, nicht aus einem Paar.
+  const unknownOrder = unknownRoundOrder(matches);
+
   const sorted = matches.slice().sort((a, b) => {
-    const ba = blockIndex(a);
-    const bb = blockIndex(b);
+    const ba = blockIndex(a, unknownOrder);
+    const bb = blockIndex(b, unknownOrder);
     if (ba !== bb) return ba - bb;
 
     // Innerhalb KO: bracketPos, dann id
@@ -116,7 +161,7 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
   const blocks = [];
   let currentBlockIdx = null;
   for (const m of sorted) {
-    const idx = blockIndex(m);
+    const idx = blockIndex(m, unknownOrder);
     if (currentBlockIdx === null || currentBlockIdx !== idx) {
       currentBlockIdx = idx;
       blocks.push({ idx, matches: [] });
@@ -235,4 +280,74 @@ export function detectScheduleConflicts(matches) {
     }
   }
   return conflicts;
+}
+
+/**
+ * Prüft die fachliche Reihenfolge der Runden — Spec §5.3, Block-Invariante.
+ *
+ * `detectScheduleConflicts` beantwortet „belegt zwei Spiele dieselbe
+ * Platte zur selben Zeit". Das ist eine Frage über Ressourcen. Die Frage
+ * über das Turnier ist eine andere: läuft das Halbfinale, bevor das
+ * Viertelfinale entschieden ist? Ein Plan kann ressourcenfrei und
+ * trotzdem unmöglich sein, und genau dieser Fall stand am 2026-08-26 im
+ * Spielplan (Finale 12:15, Viertelfinale 12:30).
+ *
+ * Zwei Verstöße werden gemeldet:
+ *   - `round_overlap`     zwei verschiedene Runden zur selben Zeit
+ *   - `round_out_of_order` eine spätere Runde beginnt vor einer früheren
+ *
+ * Nur bekannte K.-o.-Kürzel werden beurteilt; über unbekannte gibt es
+ * kein Urteil, also auch keinen Vorwurf (fail-open).
+ *
+ * @param {Array} matches  Spiele mit scheduledAt, stageType, round
+ * @returns {Array<{ round, otherRound, at, otherAt, reason }>}
+ */
+export function detectRoundOverlaps(matches) {
+  // Je bekannter Runde: früheste und späteste Anstoßzeit.
+  const spans = new Map();
+  for (const m of matches ?? []) {
+    if (m?.stageType !== 'ko' || m?.scheduledAt == null) continue;
+    const key = String(m.round ?? '');
+    const order = KO_ROUND_ORDER[key];
+    if (order === undefined) continue;
+    const t = new Date(m.scheduledAt).getTime();
+    if (!Number.isFinite(t)) continue;
+    const cur = spans.get(key);
+    if (!cur) spans.set(key, { order, min: t, max: t });
+    else {
+      if (t < cur.min) cur.min = t;
+      if (t > cur.max) cur.max = t;
+    }
+  }
+
+  const rounds = [...spans.entries()]
+    .map(([round, v]) => ({ round, ...v }))
+    .sort((a, b) => a.order - b.order);
+
+  const verstoesse = [];
+  for (let i = 0; i < rounds.length; i++) {
+    for (let j = i + 1; j < rounds.length; j++) {
+      const frueh = rounds[i];
+      const spaet = rounds[j];
+      const gleichzeitig = spaet.min <= frueh.max && frueh.min <= spaet.max;
+      if (gleichzeitig) {
+        verstoesse.push({
+          round: frueh.round,
+          otherRound: spaet.round,
+          at: new Date(frueh.max),
+          otherAt: new Date(spaet.min),
+          reason: 'round_overlap',
+        });
+      } else if (spaet.min < frueh.min) {
+        verstoesse.push({
+          round: frueh.round,
+          otherRound: spaet.round,
+          at: new Date(frueh.min),
+          otherAt: new Date(spaet.min),
+          reason: 'round_out_of_order',
+        });
+      }
+    }
+  }
+  return verstoesse;
 }

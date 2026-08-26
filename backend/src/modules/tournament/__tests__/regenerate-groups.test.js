@@ -208,6 +208,73 @@ describe('regeneriereGruppenphase', () => {
     expect(frueheste.getUTCDate()).toBe(5);
   });
 
+  it('hält die K.-o.-Runden auseinander: VF, dann HF, dann Platz 3, dann Finale', async () => {
+    // Der Befund vom 2026-08-26. Die Spalte `match.round` heißt in der
+    // Gruppenphase "1", "2", "3" und in der K.-o.-Phase "QF", "SF",
+    // "3RD", "F". Diese Funktion schickte beides durch parseInt; aus
+    // jedem Kürzel wurde die Zahl 1, und der Planer sah statt vier
+    // Runden EINEN Block, den er parallel auf die Plätze legte. Im
+    // Spielplan stand daraufhin das Finale um 12:15 und das
+    // Viertelfinale um 12:30.
+    //
+    // Geprüft wird nicht, ob übersetzt wird, sondern das, was der
+    // Mensch im Spielplan sieht: keine zwei Runden zur selben Zeit,
+    // und keine spätere Runde vor einer früheren.
+    zustand.tournament.config = {
+      mode: 'groups_ko', numGroups: 2, qualifyPerGroup: 2,
+      schedule: { matchDurationMinutes: 10, pauseAfterMatches: 5, parallelFields: 2, startTime: '10:00' },
+    };
+    zustand.memberships = [
+      { id: 'm1', groupId: 'gA', teamId: 't1', position: 0 },
+      { id: 'm2', groupId: 'gA', teamId: 't2', position: 1 },
+      { id: 'm3', groupId: 'gA', teamId: 't3', position: 2 },
+      { id: 'm4', groupId: 'gA', teamId: 't4', position: 3 },
+      { id: 'm5', groupId: 'gB', teamId: 't5', position: 0 },
+      { id: 'm6', groupId: 'gB', teamId: 't6', position: 1 },
+      { id: 'm7', groupId: 'gB', teamId: 't7', position: 2 },
+      { id: 'm8', groupId: 'gB', teamId: 't8', position: 3 },
+    ];
+    const ko = (id, round, pos) => ({
+      id, tournamentId: 'T', stageId: 'sk', groupId: null,
+      teamHome: null, teamAway: null, scoreHome: null, scoreAway: null,
+      status: 'scheduled', round, bracketPos: pos,
+      scheduledAt: new Date('2026-09-05T12:00:00Z'), field: 1,
+    });
+    zustand.matches = [
+      zustand.matches[0], zustand.matches[1],
+      ko('qf1', 'QF', 1), ko('qf2', 'QF', 2),
+      ko('sf1', 'SF', 1), ko('sf2', 'SF', 2),
+      ko('p3', '3RD', 1), ko('fin', 'F', 1),
+    ];
+
+    const db = fakeDb(zustand);
+    await regeneriereGruppenphase(db, 'T', engine);
+
+    const zeit = (id) => new Date(
+      zustand.matches.find((m) => m.id === id).scheduledAt,
+    ).getTime();
+    const runde = {
+      QF: ['qf1', 'qf2'].map(zeit),
+      SF: ['sf1', 'sf2'].map(zeit),
+      '3RD': [zeit('p3')],
+      F: [zeit('fin')],
+    };
+    const spaetestes = (r) => Math.max(...runde[r]);
+    const fruehestes = (r) => Math.min(...runde[r]);
+
+    // Jede Runde beginnt erst, wenn die vorige durch ist.
+    expect(fruehestes('SF')).toBeGreaterThan(spaetestes('QF'));
+    expect(fruehestes('3RD')).toBeGreaterThan(spaetestes('SF'));
+    expect(fruehestes('F')).toBeGreaterThan(spaetestes('3RD'));
+
+    // Und die Gruppenphase liegt komplett davor.
+    const gruppenEnde = Math.max(
+      ...zustand.matches.filter((m) => m.stageId === 'sg')
+        .map((m) => new Date(m.scheduledAt).getTime()),
+    );
+    expect(fruehestes('QF')).toBeGreaterThan(gruppenEnde);
+  });
+
   it('lässt ein reines K.-o.-Turnier unangetastet', async () => {
     zustand.stages = [{ id: 'sk', tournamentId: 'T', type: 'ko', orderIndex: 0 }];
     zustand.groups = [];

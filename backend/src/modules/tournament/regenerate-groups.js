@@ -148,13 +148,40 @@ export async function regeneriereGruppenphase(tx, tournamentId, engine) {
     orderBy: [{ scheduledAt: 'asc' }, { id: 'asc' }],
   });
   if (alle.length > 0) {
-    const engineInput = alle.map((m) => ({
-      id: m.id,
-      teamHome: m.teamHome,
-      teamAway: m.teamAway,
-      stageType: istGruppenStage(m.stage ?? {}) ? 'group' : 'ko',
-      round: Number.parseInt(m.round ?? '1', 10) || 1,
-    }));
+    //    Die Spalte `match.round` trägt ZWEI Bedeutungen: in der
+    //    Gruppenphase den Spieltag als Zahl ("1", "2", "3"), in der
+    //    K.-o.-Phase das Rundenkürzel ("QF", "SF", "3RD", "F"). Wer sie
+    //    pauschal durch parseInt schickt, macht aus jeder K.-o.-Runde
+    //    dieselbe Zahl — und die Engine sieht statt vier aufeinander
+    //    folgenden Runden EINEN Block, den sie parallel auf die Felder
+    //    legt. Gemessen am 2026-08-26: Spiel um Platz 3 und Finale lagen
+    //    um 12:15, das Viertelfinale erst um 12:30.
+    //    Deshalb wird hier je Stage-Art übersetzt, wie es die
+    //    Reschedule-Route tut: Kürzel als `round`, Spieltag als
+    //    `roundNumber` — und `bracketPos`/`groupKey` mit, sonst fällt
+    //    die Sortierung innerhalb eines Blocks auf die ID zurück.
+    const engineInput = alle.map((m) => {
+      if (!istGruppenStage(m.stage ?? {})) {
+        return {
+          id: m.id,
+          teamHome: m.teamHome,
+          teamAway: m.teamAway,
+          stageType: 'ko',
+          round: m.round,
+          bracketPos: m.bracketPos,
+        };
+      }
+      const spieltag = Number.parseInt(m.round ?? '1', 10);
+      return {
+        id: m.id,
+        teamHome: m.teamHome,
+        teamAway: m.teamAway,
+        stageType: 'group',
+        groupKey: m.groupId,
+        roundNumber: Number.isFinite(spieltag) ? spieltag : 1,
+        bracketPos: m.bracketPos,
+      };
+    });
     const fruehester = alle
       .filter((m) => m.scheduledAt != null)
       .map((m) => new Date(m.scheduledAt).getTime())
