@@ -687,6 +687,7 @@ const ICON_SHEET_RULES      = `<svg viewBox="0 0 24 24" fill="none" stroke="curr
 const ICON_SHEET_PRINT      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`;                                                          // printer
 const ICON_SHEET_SETTINGS   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`; // settings
 const ICON_SHEET_BACK       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;                                                                                   // arrow-left
+const ICON_SHEET_NEU        = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`;                                                                                                       // plus
 const ICON_RELOAD       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>`;  // rotate-cw
 
 // ── TOAST NOTIFICATIONS ─────────────────────────────────
@@ -3634,7 +3635,8 @@ function renderTournamentInstanceDetailV3(t) {
             <h2 class="t-mod-more-title">Mehr</h2>
             <nav class="t-mod-more-list">
               ${sheetButtonsHtml}
-              <button type="button" data-action="back">${ICON_SHEET_BACK}<span>Zurück zur Liste</span></button>
+              <button type="button" data-action="back">${ICON_SHEET_BACK}<span>Zurück zur Übersicht</span></button>
+              ${isAdmin ? `<button type="button" data-action="new-tournament">${ICON_SHEET_NEU}<span>Neues Turnier</span></button>` : ''}
             </nav>
           </div>
         </div>
@@ -3814,6 +3816,24 @@ function renderTournamentInstanceDetailV3(t) {
     });
     detail.querySelectorAll('[data-action="print"]').forEach((btn) => {
       btn.addEventListener('click', () => window.print());
+    });
+
+    // „Neues Turnier" aus dem geoeffneten Turnier heraus (2026-08-26,
+    // zweite Beschwerde). Der Wizard mountet in `grid`, und `grid` traegt
+    // im Detail die Host-Klasse T_DETAIL_HOST_CLASS — direkt aufmachen
+    // wuerde ihn in eine Schale setzen, die fuer die Detailansicht
+    // eingerichtet ist. Deshalb erst regulaer in die Uebersicht wechseln
+    // (die den Grid-Zustand zuruecksetzt und den Wizard-Rest abraeumt),
+    // dann oeffnen. Ein Weg, nicht zwei.
+    //
+    // forceList unterdrueckt dabei den Auto-Sprung: ohne das Argument
+    // laege bei genau einem Turnier sofort wieder das Detail obenauf und
+    // der Wizard mountete in eine Schale, die er gerade verlassen hat.
+    detail.querySelectorAll('[data-action="new-tournament"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await switchToTournamentInstances({ forceList: true });
+        await openTournamentWizard();
+      });
     });
 
     // Bug 15 Politur (2026-08-18): Kontextmenü-Toggle für Mobile.

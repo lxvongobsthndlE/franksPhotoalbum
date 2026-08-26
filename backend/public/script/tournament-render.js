@@ -49,6 +49,11 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   'reschedule-auto',
   'reset-results',
   'delete-tournament',
+  // Nachtrag 2026-08-26: „Neues Turnier" in der Turnier-Seitenleiste.
+  // POST /api/tournaments antwortet Mitgliedern mit 403 — der Weg dorthin
+  // darf ihnen also gar nicht erst angeboten werden. Steht die Aktion hier,
+  // bewacht der Read-Only-Pruefstand sie ohne eigenen Test mit.
+  'new-tournament',
   // P3 (2026-08-24): Fallback aus dem Baum-Tab für „K.-o.-Phase
   // starten". Wird per openConfirmDialog / direkter API-Call gehandhabt
   // und ist isAdmin-gegated (loadBracketTab prüft tournament.isAdmin
@@ -403,6 +408,32 @@ export function renderDetailSidebar({ isAdmin }) {
   // der schon beide Saetze im DOM bedient.
   const zurueckItem =
     '<button type="button" class="t-mod-nav-back" data-action="back">Zurück zur Übersicht</button>';
+
+  // Nachtrag am selben Tag, zweite Beschwerde: „die turnierauswahl laedt
+  // automatisch und es oeffnet sich nach ca 1 sek das turnier, ich kann
+  // also nicht neue turniere erstellen."
+  //
+  // Der Auto-Sprung beim Betreten des Moduls bleibt — er ist der Entscheid
+  // vom 25.08. („wenn es nur eins gibt, ist die Liste ueberfluessig").
+  // Falsch war nicht der Sprung, sondern dass „Neues Turnier" AN DER LISTE
+  // hing: eine Ansicht, die man per Entscheid ueberspringt, kann nicht die
+  // einzige Tuer zu einer Handlung sein. Der Erstellen-Weg gehoert ans
+  // MODUL, nicht an eine seiner Ansichten.
+  //
+  // Deshalb steht er hier unten und leise — nicht als zweiter Primaerknopf
+  // im Kopf. Genau die Dopplung war die Beschwerde vom 26.08. („das brauch
+  // ich da gar nicht waehrend ich in einem turnier drin bin"): sie galt dem
+  // grossen Knopf neben „Aktualisieren", der eine zweite Aktionsleiste
+  // ueber der ersten aufmachte. Ein Eintrag am Fuss der Navigationsspalte
+  // ist keine Aktionsleiste.
+  //
+  // Admin-only: POST /api/tournaments antwortet Mitgliedern mit 403.
+  // `new-tournament` steht in MUTATING_DATA_ACTIONS — damit bewacht der
+  // Read-Only-Pruefstand (P1) diese Rolle mit, ohne dass hier ein eigener
+  // Test noetig waere.
+  const neuItem = isAdmin
+    ? '<button type="button" class="t-mod-nav-neu" data-action="new-tournament">Neues Turnier</button>'
+    : '';
   return `<nav class="t-mod-nav" id="t-nav" aria-label="Turnier-Ansichten">
             ${zurueckItem}
             <button type="button" class="is-active" data-view="spielplan">Spielplan <span class="count" id="cnt-matches"></span></button>
@@ -412,6 +443,7 @@ export function renderDetailSidebar({ isAdmin }) {
             <button type="button" data-view="regeln">Regeln</button>
             <button type="button" data-view="drucken">Drucken</button>
             ${einstellungenItem}
+            ${neuItem}
           </nav>`;
 }
 

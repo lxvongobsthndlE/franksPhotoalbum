@@ -109,7 +109,53 @@ describe('Auto-Sprung bei genau einem Turnier', () => {
   });
 });
 
-describe('„Neu" steht in der Uebersicht — und nur dort', () => {
+describe('Der Erstellen-Weg haengt nicht an der Uebersicht', () => {
+  // Zweite Beschwerde am selben Tag: „die turnierauswahl laedt automatisch
+  // und es oeffnet sich nach ca 1 sek das turnier, ich kann also nicht neue
+  // turniere erstellen." Der Auto-Sprung bleibt (Entscheid 25.08.) — aber
+  // eine Ansicht, die man per Entscheid ueberspringt, darf nicht die einzige
+  // Tuer zu einer Handlung sein.
+
+  it('die Turnier-Seitenleiste bietet Admins „Neues Turnier"', () => {
+    const html = renderDetailSidebar({ isAdmin: true });
+    expect(findDataActions(html).has('new-tournament')).toBe(true);
+    expect(html).toContain('Neues Turnier');
+  });
+
+  it('Mitglieder bekommen ihn nicht — POST /api/tournaments antwortet ihnen 403', () => {
+    const html = renderDetailSidebar({ isAdmin: false });
+    expect(findDataActions(html).has('new-tournament')).toBe(false);
+  });
+
+  it('das mobile Mehr-Blatt traegt beide Wege — dort ist die Seitenleiste aus', () => {
+    // Unter 600px ist `.t-mod-nav` display:none. Stuende der Erstellen-Weg
+    // nur in der Spalte, waere er auf dem Handy weg — und Mobile ist laut
+    // Jonas der Hauptfall.
+    const sheet = mainSrc.slice(
+      mainSrc.indexOf('t-mod-more-list'),
+      mainSrc.indexOf('</nav>', mainSrc.indexOf('t-mod-more-list')),
+    );
+    expect(sheet).toContain('data-action="back"');
+    expect(sheet).toContain('data-action="new-tournament"');
+    expect(sheet, 'Der Erstellen-Weg im Sheet ist nicht isAdmin-gegated').toMatch(
+      /isAdmin\s*\?[\s\S]*new-tournament/,
+    );
+  });
+
+  it('der Handler wechselt erst in die Uebersicht, dann oeffnet er den Wizard', () => {
+    // Der Wizard mountet in `grid`, und `grid` traegt im Detail die
+    // Host-Klasse der Detailansicht. Direkt oeffnen setzt ihn in die
+    // falsche Schale.
+    const h = mainSrc.slice(mainSrc.indexOf("data-action=\"new-tournament\"]').forEach"));
+    const block = h.slice(0, h.indexOf('openTournamentWizard()') + 30);
+    expect(block).toMatch(/switchToTournamentInstances\(\{\s*forceList:\s*true\s*\}\)/);
+    expect(block.indexOf('switchToTournamentInstances')).toBeLessThan(
+      block.indexOf('openTournamentWizard'),
+    );
+  });
+});
+
+describe('„Neu" im Modulkopf steht in der Uebersicht — und nur dort', () => {
   it('haengt an isInstancesView und der Admin-Rolle', () => {
     const fn = mainSrc.slice(mainSrc.indexOf('function renderTournamentHeaderActions'));
     const body = fn.slice(0, fn.indexOf('\n}\n'));

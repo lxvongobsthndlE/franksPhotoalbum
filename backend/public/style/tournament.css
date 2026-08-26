@@ -570,6 +570,25 @@
   background: transparent;
   color: var(--ink);
 }
+/* „Neues Turnier" am Fuss der Spalte, 2026-08-26. Spiegelbild zum Ausgang
+   oben: Linie DARUEBER statt darunter, weil es wieder keine Ansicht ist.
+   Gleiche Zurueckhaltung, aber in Akzentfarbe — es ist die einzige
+   erzeugende Handlung im Modul, und der Auto-Sprung macht diese Spalte
+   fuer den Organisator zum Regelfall statt zur Ausnahme.
+   Wieder mit `.t-mod-nav button` davor: die Basisregel ist (0,1,1). */
+.t-mod-nav button.t-mod-nav-neu {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+  padding-top: var(--s3);
+  margin-top: var(--s3);
+  border-top: 1px solid var(--line-soft);
+  border-radius: 0;
+}
+.t-mod-nav button.t-mod-nav-neu:hover {
+  background: transparent;
+  text-decoration: underline;
+}
 
 /* ----------------------------------------------------------------
    MOBILE TAB-LEISTE — verbindlich (§13 Bug aus altem Stand)
