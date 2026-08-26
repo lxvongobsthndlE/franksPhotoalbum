@@ -37,6 +37,7 @@ import {
 } from './spielplan-helpers.js';
 import { renderRulesParagraphs } from './rules-helpers.js';
 import {
+  renderModulKopf,
   renderSpielplanSectionHead,
   renderRegelnSectionHead,
   renderEinstellungenSection,
@@ -3532,24 +3533,22 @@ function renderTournamentInstanceDetailV3(t) {
     // Jetzt traegt der Titel die ANSICHT ("Spielplan", "Gruppen"), und
     // das Turnier wandert in den Kicker darueber.
     //
-    // Nacharbeit am selben Tag: Logo und Badges sind hier ersatzlos raus.
-    // Das Logo hat seinen Platz auf den Zuschauerseiten und im Ausdruck,
-    // nicht auf jedem der sieben Screens; der Oeffentlich-Status ist eine
-    // Einstellung und steht dort, wo man ihn aendert.
+    // Nacharbeit am selben Tag: die BADGES sind hier ersatzlos raus — der
+    // Oeffentlich-Status ist eine Einstellung und steht dort, wo man ihn
+    // aendert.
     // Nacharbeit (2026-08-26): Der Kicker traegt keinen Sockel mehr und
     // keinen Zurueck-Knopf. Die Vorlage zeigt an dieser Stelle NUR Text —
     // der Weg zurueck liegt im Mehr-Blatt, wo die uebrigen Ortswechsel
     // auch liegen. Ein Knopf im Kicker sah aus wie eine Brotkrume und
     // verhielt sich wie ein Reiter; zwei Bedeutungen auf einer Zeile.
     // Den Text setzt applyViewChrome() je Ansicht, siehe T_VIEW_CHROME.
-    const headerHtml = `
-      <div class="t-mod-kicker">
-        <span class="t-mod-kicker-text"></span>
-      </div>
-      <div class="t-mod-titlerow">
-        <h1 class="t-title" data-view-title>Spielplan</h1>
-        <button type="button" class="t-mod-action" data-view-action hidden></button>
-      </div>`;
+    //
+    // Das LOGO kommt mit der dritten Artefakt-Fassung zurueck. Es war in
+    // derselben Nacharbeit mit den Badges hinausgefallen; das Artefakt
+    // widerspricht dem ausdruecklich und gibt ihm den Modulkopf als
+    // festen Platz („0 → 3" in der Bilanz). Markup und Regel dazu stehen
+    // in renderModulKopf — eine Wahrheit fuer App und Pruefstand.
+    const headerHtml = renderModulKopf({ t, titel: 'Spielplan', cacheBust: t?.logoUrl ? Date.now() : null });
 
     // Spielplan-View-Inhalt: kommt in Schritt 3.
     // Platzhalter zeigt ehrlich, was sie noch nicht können — vgl. Module-Scope

@@ -306,22 +306,46 @@ describe('tournament.css: der Host nimmt die .t-mod-Layout-Eigenschaften zurück
     }
   });
 
-  it('gefüllte Knöpfe holen ihre Textfarbe aus einem Token, nicht aus #fff', () => {
+  it('gefüllte Knöpfe holen ihre Textfarbe aus einem Token, der in ALLEN DREI Blöcken steht', () => {
     // Weiß trägt nur im HELLEN Modus: im Dunkelmodus sind die Füllungen
-    // heller (Weiß auf --accent #B8916A nur 2.88:1, auf --danger
-    // #D66B60 nur 3.43:1). Deshalb --accent-ink / --danger-ink.
-    expect(tournamentCss).toMatch(/\.t-btn--primary \{[^}]*color: var\(--accent-ink\)/);
-    expect(tournamentCss).toMatch(/\.t-btn--danger \{[^}]*color: var\(--danger-ink\)/);
-    // In beiden Themes definiert — plus einmal im Druck-Block, der den
-    // ganzen Token-Satz auf Schwarz-auf-Weiss zuruecksetzt (Papier hat
-    // genau ein Thema). Deshalb >= 2 und nicht == 2.
-    // Gesucht wird ueber BEIDE Stylesheets: die Themen-Definitionen liegen
-    // seit der Markenuebernahme in tokens.css, der Druck-Block weiter in
-    // tournament.css. Die Aussage des Tests ist unveraendert — der Token
-    // muss in jedem Thema einen Wert haben, sonst faellt der Knopftext auf
-    // Weiss zurueck und wird auf heller Fuellung unlesbar.
-    expect((styleQuellen.match(/--accent-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
-    expect((styleQuellen.match(/--danger-ink:/g) || []).length).toBeGreaterThanOrEqual(2);
+    // heller. Deshalb ein Token statt eines festen #fff.
+    //
+    // BIS 2026-08-26 hießen die Token --accent-ink / --danger-ink, und
+    // dieser Test hat den echten Fehler NICHT gefunden: er zählte, wie oft
+    // der Token definiert ist (>= 2), nicht WO. Beide standen ausschließlich
+    // in den zwei Dunkel-Blöcken. Im Hellmodus war der Token damit
+    // undefiniert — und eine undefinierte Custom Property löscht die ganze
+    // Deklaration still. Der orange Hauptknopf trug tintenschwarze Schrift,
+    // im Browser gemessen rgb(11,11,12) auf rgb(191,68,19) = 3,73 : 1.
+    // Der Zähler stand auf 2 und bewies nichts.
+    //
+    // Die dritte Fassung des Artefakts führt --on-flare / --on-danger, und
+    // dieser Test prüft jetzt die Aussage statt der Anzahl: der Token muss
+    // in JEDEM der drei Theme-Zustände einen Wert haben — hell, System-
+    // dunkel (prefers-color-scheme) und ausdrücklich dunkel ([data-theme]).
+    expect(tournamentCss).toMatch(/\.t-btn--primary \{[^}]*color: var\(--on-flare\)/);
+    expect(tournamentCss).toMatch(/\.t-btn--danger \{[^}]*color: var\(--on-danger\)/);
+
+    // tokens.css zerfällt in genau drei Träger-Blöcke, in dieser Reihenfolge:
+    // Hell-Block, @media (prefers-color-scheme: dark), [data-theme='dark'].
+    // Gesucht wird der ZEILENANFANG der jeweiligen Regel, nicht ihr
+    // erstes Vorkommen: der erklärende Kommentar über den Blöcken nennt
+    // `[data-theme='dark']` im Fließtext und läge sonst davor.
+    const hellAb = 0;
+    const systemAb = tokensCss.search(/^@media \(prefers-color-scheme: dark\)/m);
+    const attributAb = tokensCss.search(/^\[data-theme='dark'\] /m);
+    expect(systemAb).toBeGreaterThan(hellAb);
+    expect(attributAb).toBeGreaterThan(systemAb);
+    const bloecke = {
+      hell: tokensCss.slice(hellAb, systemAb),
+      systemDunkel: tokensCss.slice(systemAb, attributAb),
+      attributDunkel: tokensCss.slice(attributAb),
+    };
+    for (const token of ['--on-flare', '--on-danger']) {
+      for (const [name, block] of Object.entries(bloecke)) {
+        expect(block, `${token} fehlt im Block ${name}`).toContain(`${token}:`);
+      }
+    }
   });
 
   it('der Bottom-Sheet gilt nur für den Ergebnis-Dialog, nicht für jede Bestätigung', () => {

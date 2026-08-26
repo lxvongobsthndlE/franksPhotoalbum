@@ -223,6 +223,58 @@ export function renderTournamentListCard({
   </article>`;
 }
 
+// ── Modulkopf ───────────────────────────────────────────────────────
+
+/**
+ * Der Kopf des Turniermoduls: Turnierlogo (falls vorhanden), Kicker,
+ * Ansichtstitel und genau EINE Aktion.
+ *
+ * Artefakt „Turniermodul ohne Kaestchen", Abschnitt 01. Das Logo war
+ * bisher hochladbar, aber in keiner einzigen Ansicht zu sehen — die
+ * Bilanz des Artefakts fuehrt es als „0 → 3" (Modulkopf, Desktop-Kopf,
+ * Druckbogen). Hier ist der erste der drei Orte.
+ *
+ * ZWEI Regeln, beide woertlich aus der Vorlage:
+ *
+ *  1. OHNE LOGO KEIN PLATZHALTER. Der Kopf bleibt dann ein schlichter
+ *     Block; erst das Bild macht daraus ein zweispaltiges Raster. Kein
+ *     grauer Ersatzkasten, kein Anfangsbuchstabe im Kreis — die Mehrheit
+ *     der Turniere hat keins, und eine reservierte Leerstelle faellt
+ *     staerker auf als gar nichts. Deshalb haengt die Raster-Klasse am
+ *     Kopf, nicht am Bild.
+ *  2. Das Logo steht neben BEIDEN Zeilen, nicht ueber oder unter einer.
+ *     Dadurch liest der Kopf als ein Gegenstand und nicht als drei
+ *     gestapelte Teile.
+ *
+ * Warum das hier steht und nicht als Template-Literal in main.js: der
+ * Pruefstand baut denselben Kopf. Zwei Kopien desselben Markups sind
+ * zwei Gelegenheiten, sie auseinanderlaufen zu lassen — und ein
+ * Pruefstand mit nachgetipptem Markup hat in diesem Repo schon fuenfmal
+ * einen intakten Zustand fuer kaputt erklaert.
+ *
+ * Der Cache-Buster am Bild ist derselbe wie im Einstellungen-Block: der
+ * Dateiname am Server ist fuer alle Turniere gleich („logo"), ohne ihn
+ * zeigt der Browser nach einem Austausch das alte Bild.
+ */
+export function renderModulKopf({ t, titel = 'Spielplan', cacheBust = null } = {}) {
+  const logoUrl = (typeof t?.logoUrl === 'string' && t.logoUrl) ? t.logoUrl : null;
+  const v = cacheBust == null ? '' : `${logoUrl && logoUrl.includes('?') ? '&' : '?'}v=${cacheBust}`;
+  const logoHtml = logoUrl
+    ? `<img class="t-mod-logo" src="${esc(logoUrl)}${v}" alt="" aria-hidden="true">`
+    : '';
+  return `
+      <div class="t-mod-header-inner${logoUrl ? ' t-mod-header-inner--logo' : ''}">
+        ${logoHtml}
+        <div class="t-mod-kicker">
+          <span class="t-mod-kicker-text"></span>
+        </div>
+        <div class="t-mod-titlerow">
+          <h1 class="t-title" data-view-title>${esc(titel)}</h1>
+          <button type="button" class="t-mod-action" data-view-action hidden></button>
+        </div>
+      </div>`;
+}
+
 // ── Section-Renderer ────────────────────────────────────────────────
 
 /**

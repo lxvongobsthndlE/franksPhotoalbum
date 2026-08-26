@@ -71,6 +71,44 @@
 .t-mod *,
 .t-mod *::before,
 .t-mod *::after { box-sizing: border-box; }
+/* ----------------------------------------------------------------
+   DAS BLATT — die einzige erhobene Ebene
+   ----------------------------------------------------------------
+   Artefakt „Turniermodul ohne Kaestchen", dritte Fassung. Bis hierher
+   war das Modul durchsichtig: der Kopf hatte einen eigenen weissen
+   Grund, die Seitenleiste auch, und dazwischen sah man den Seitengrund
+   durch. Drei Flaechen fuer einen Bildschirm.
+
+   Jetzt gibt es genau eine: das Blatt (--panel) auf dem Grund
+   (--ground). Der Sprung #F1F0EB auf #D7D6D0 zeichnet die Kante schon —
+   1,276 : 1, gemessen genauso viel wie vorher Weiss gegen Hellgrau.
+   Darauf liegt genau eine weitere Flaeche, die Spielkarte.
+
+   WARUM :not(.t-dialog-host)
+   Die drei Dialoge tragen `t-mod t-dialog-host`, weil sie an
+   document.body haengen und die Tokens brauchen (siehe Block DIALOG-HOST
+   am Dateiende). Sie sind aber der VORHANG, nicht das Blatt — ein
+   --panel darauf haette den halbdurchsichtigen Ueberzug zugestrichen.
+   `:not()` zaehlt sein Argument mit, die Regel steht damit bei (0,0,2,0)
+   und gewinnt unabhaengig von der Quell-Reihenfolge gegen
+   `.t-list-host { background: transparent }` weiter unten. Das ist
+   Absicht: die Turnierliste ist nach Abschnitt 02 der Vorlage ebenfalls
+   ein Blatt, auf dem Bloecke liegen.
+   ---------------------------------------------------------------- */
+.t-mod:not(.t-dialog-host) {
+  background: var(--panel);
+}
+/* Am Handy ist das Blatt das GERAET aus Abschnitt 01 — weit gerundet
+   (--r-dev, 30px) und mit demselben flachen Hebewert. Auf Desktop wird
+   daraus die Schale aus Abschnitt 09 mit der kleineren Flaechen-Ecke;
+   diese Regel steht weiter oben bei .t-detail-host.
+   Kein Rahmen in beiden Faellen: der Sprung vom Grund auf das Blatt
+   zeichnet die Kante schon. */
+.t-detail-host > .t-mod,
+.t-list-host {
+  border-radius: var(--r-dev);
+  box-shadow: var(--lift);
+}
 .t-mod {
   margin: 0; padding: 0; min-width: 0;
   /* Markenuebernahme: das Modul erbt die Schrift NICHT mehr vom Body.
@@ -202,6 +240,13 @@
   .t-detail-host > .t-mod {
     height: calc(100vh - 60px);
     overflow: hidden;
+    /* Ab hier ist das Blatt als Blatt zu sehen: gerundete Ecke und EIN
+       sehr weit gestreuter, sehr flacher Schatten (84px Streuung bei 7%
+       Deckkraft). Kein Rahmen — der Tonsprung zum Grund zeichnet die
+       Kante bereits. Am Handy ist das Blatt randlos, dort waere eine
+       Ecke nur eine abgeschnittene Zeile. */
+    border-radius: var(--r-plane);
+    box-shadow: var(--lift);
   }
 }
 
@@ -315,13 +360,57 @@
      Badges und beliebig viele Knoepfe in EINER Flex-Reihe; auf 390px
      brach das in drei Zeilen um und der Titel war so gross wie alles
      andere. Jetzt: der Titel ist das Groesste auf dem Screen, daran
-     erkennt man die Ansicht im Vorbeigehen. */
+     erkennt man die Ansicht im Vorbeigehen.
+
+     Dritte Fassung: KEINE Trennlinie und KEIN eigener Grund mehr.
+     Der Kopf sitzt auf demselben Papierton wie der Inhalt; getrennt wird
+     durch den Schriftsprung — 27px Archivo 800 gegen 12,5px Archivo
+     Narrow, das sind 14,5px Groessenunterschied und zwei Schnitte. Das
+     traegt zuverlaessiger als eine Kontur in --line, und der Kopf hoert
+     auf, ein Kasten ueber dem Blatt zu sein. */
+  display: block;
+  padding: var(--s2) var(--s4) var(--s4);
+}
+/* Der Innenteil traegt das Raster, nicht der <header> selbst: das Logo
+   ist optional, und die Klasse dafuer sitzt am Markup, das der Renderer
+   liefert (renderModulKopf). Ohne Logo bleibt es ein schlichter Block. */
+.t-mod-header-inner {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--s2) var(--s4) var(--s4);
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  min-width: 0;
+}
+/* MIT Logo wird daraus ein zweispaltiges Raster: das Bild steht neben
+   BEIDEN Zeilen, nicht ueber oder unter einer. Dadurch liest der Kopf
+   als ein Gegenstand statt als drei gestapelte Teile. */
+.t-mod-header-inner--logo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "logo kicker"
+    "logo titel";
+  column-gap: 13px;
+  align-items: center;
+}
+.t-mod-header-inner--logo > .t-mod-logo     { grid-area: logo; }
+.t-mod-header-inner--logo > .t-mod-kicker   { grid-area: kicker; align-self: end; }
+.t-mod-header-inner--logo > .t-mod-titlerow { grid-area: titel; align-self: start; margin-top: 3px; }
+/* Der Radius ist RELATIV angegeben, damit er bei 26px im Desktop-Kopf
+   genauso sitzt wie bei 54px auf dem Druckbogen — ein fester Pixelwert
+   waere in der kleinen Groesse fast ein Kreis.
+   Der Haarlinien-Ring ist eine der wenigen bewussten Konturen dieser
+   Fassung: es ist das einzige Bild auf dem Schirm, das wir nicht selbst
+   zeichnen. Ein sehr helles Logo haette auf dem Blatt sonst keine Kante,
+   und wir koennen dem Veranstalter nicht vorschreiben, was er hochlaedt. */
+.t-mod-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 24%;
+  object-fit: cover;
+  background: var(--sunk);
+  border: 1px solid var(--line-soft);
+  flex: none;
+  display: block;
 }
 /* Kicker: Turniername und Datum, Mono und gesperrt. Er wiederholt NIE den
    Titel darunter — wer beides gleich benennt, verschenkt eine Zeile. */
@@ -362,20 +451,27 @@
   min-height: 0;
 }
 
-/* Modul-Navigation (linke Spalte) */
+/* Modul-Navigation (linke Spalte).
+   Dritte Fassung, Abschnitt 09: die Leiste ist kein Panel mehr. Vorher
+   hatte die Schale einen Rahmen UND die Leiste darin einen eigenen Grund
+   — zwei Flaechen fuer eine Spalte. Jetzt trennt eine senkrechte
+   Haarlinie, dieselbe wie zwischen zwei Tabellenzeilen, nur um 90 Grad
+   gedreht. Auf dem Blatt trennt die WEICHE Linie. */
 .t-mod-nav {
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--line-soft);
   padding: var(--s4) var(--s3);
-  background: var(--surface);
+  background: transparent;
   overflow: auto;
 }
+/* Voller Radius statt 10px-Rechteck: derselbe Koerper wie die aktive
+   Filterpille am Handy — ein Muster, zwei Bildschirmgroessen. */
 .t-mod-nav button {
   display: flex;
   align-items: center;
   gap: var(--s3);
   width: 100%;
   padding: 9px var(--s3);
-  border-radius: var(--r-btn);
+  border-radius: var(--r-pill);
   color: var(--ink-soft);
   text-align: left;
   margin-bottom: 2px;
@@ -979,13 +1075,31 @@
 /* ----------------------------------------------------------------
    BUTTONS — eine Größe + drei Modifiers
    ---------------------------------------------------------------- */
+/* Dritte Fassung, Abschnitt 07: der Knopf ist eine gefuellte PILLE ohne
+   Kontur. Vorher: weisse Flaeche mit 1px-Rahmen in --line auf weissem
+   Blatt — eine Kontur, die nur behauptet, dass man hier druecken darf.
+   Jetzt sagt es die Fuellung. --sunk ist die eingesenkte Flaeche, die
+   auch Schrittwaehler, Eingabefelder und Herkunftspillen tragen; in
+   beiden Themen liegt sie UNTER dem Blatt, nicht darueber.
+
+   Der Rahmen bleibt als `1px solid transparent` stehen, obwohl er nichts
+   mehr zeichnet: .t-btn--ghost setzt seit jeher nur `border-color` und
+   verliesse sich sonst auf eine Breite, die es nicht mehr gaebe — die
+   Knopfreihe wuerde beim Ueberfahren um 2px springen.
+
+   Schrift: Archivo Narrow, Versalien, gesperrt. Dieselbe Sprache wie
+   die Segmentpillen und die Kopf-Aktion — im ganzen Modul gibt es nur
+   noch diese eine Beschriftungsform fuer Handlungen. */
 .t-btn {
-  display: inline-flex; align-items: center; gap: var(--s2);
-  padding: 8px 14px;
-  border-radius: var(--r-btn);
-  font-size: 14px; font-weight: 500;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  padding: 9px 16px;
+  border-radius: var(--r-pill);
+  font-family: var(--f-cond);
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  background: var(--sunk);
   color: var(--ink);
   white-space: nowrap;
 }
@@ -1006,18 +1120,29 @@
    `.t-btn:not(...)` an der Basis: die Basis-Hover soll fuer den
    Standardknopf weiter gelten. */
 .t-btn:hover { background: var(--surface-alt); }
+/* KASKADENKOLLISION Nr. 9, gemessen 2026-08-26 im Browser.
+   Hier stand `color: var(--accent-ink)`. Dieser Token ist in tokens.css
+   NUR in den beiden Dunkel-Bloecken definiert — im Hellmodus gibt es ihn
+   nicht. Eine undefinierte Custom Property loescht die GANZE Deklaration
+   still: der Knopf fiel auf `color: var(--ink)` aus der Basisregel
+   zurueck und trug damit tintenschwarze Schrift auf Orange.
+   Gemessen: rgb(11,11,12) auf rgb(191,68,19) = 3,73 : 1, durchgefallen.
+   Sichtbar war es nicht — schwarz auf Orange sieht nicht kaputt aus,
+   es sieht nur schlecht aus, und im Nachtmodus stimmte es sogar.
+   --on-flare aus dem Artefakt ist in ALLEN DREI Traeger-Bloecken
+   definiert (hell #FFFFFF = 5,19 : 1, dunkel #160A04) und ist genau
+   dafuer gemacht: die Schrift AUF der Signalfarbe. */
 .t-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 600;
+  color: var(--on-flare);
 }
 .t-btn--primary:hover {
   background: var(--accent);          /* Nr. 5: Fuellung erneut setzen */
   border-color: var(--accent);
   filter: brightness(1.06);
 }
-.t-btn--sm { padding: 5px 10px; font-size: 13px; }
+.t-btn--sm { padding: 6px 12px; font-size: 12px; }
 .t-btn--ghost {
   border-color: transparent;
   background: transparent;
@@ -3229,9 +3354,13 @@ textarea.t-input {
   justify-content: flex-end;
   gap: var(--s2);
 }
+/* Derselbe Fall wie bei --accent-ink eine Regel weiter oben: --danger-ink
+   ist nur im Dunkeln definiert, und ohne ihn trug der gefaehrlichste
+   Knopf der App hell schwarze Schrift auf Karmin. --on-danger steht in
+   allen drei Bloecken. */
 .t-btn--danger {
   background: var(--danger);
-  color: var(--danger-ink);
+  color: var(--on-danger);
   border: 1px solid var(--danger);
 }
 /* Kaskadenkollision Nr. 5, zweiter Fall: ohne diese Regel schlaegt
@@ -5582,8 +5711,20 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    dieselbe Falle wie beim Dialog-Host. Der Fehler saehe dann exakt so
    aus wie gar keine Regel.
    ---------------------------------------------------------------- */
+/* Nachtrag 2026-08-26, dritte Fassung: der Listen-Zweig hat nie
+   getroffen. Die Liste haengt zwei Ebenen tiefer —
+     #content > #grid.tournaments-grid > section.t-list-host
+   (main.js:2807) —, `> .t-list-host` verlangt aber ein direktes Kind.
+   Ergebnis: die Turnieruebersicht stand weiter im cremefarbenen
+   App-Grund, waehrend die Detailansicht laengst auf dem Papierton lag.
+   tokens.css hatte dieselbe Lehre schon gezogen und dort das `>`
+   gestrichen (Zeile 60); hier war es stehengeblieben — dieselbe Regel
+   an zwei Stellen, eine davon repariert. Gemessen im Pruefstand, nicht
+   erschlossen: rgb(248,245,241) hinter der Liste.
+   Der Detail-Zweig behaelt sein `>` mit Grund: dort IST der Host das
+   direkte Kind, und die engere Fassung haelt den Radius klein. */
 #content:has(> .t-detail-host),
-#content:has(> .t-list-host),
+#content:has(.t-list-host),
 #content:has(> .tournament-page-shell.t-mod) {
   background: var(--ground);
 }
@@ -5605,9 +5746,11 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    ---------------------------------------------------------------- */
 @container (max-width: 600px) {
   .t-mod-header {
-    padding: var(--s1) var(--s3) var(--s2);
-    gap: 0;
+    /* Oben mehr als die frueheren 4px: seit das Blatt eine 30px-Ecke hat
+       und das Logo 44px misst, sass beides auf der Rundung. */
+    padding: var(--s3) var(--s3) var(--s2);
   }
+  .t-mod-header-inner { gap: 0; }
   .t-title {
     font-size: 21px;
     line-height: 1.15;
@@ -5665,15 +5808,27 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 
    380px ist gemessen, nicht gegriffen: das iPhone SE hat 375px Viewport,
    der Container ist nach Polster etwa 347px breit.
+
+   NACHTRAG 2026-08-26, dritte Fassung — Massnahme 2 ist zurueckgenommen.
+   Sie stammt aus der Zeit, als rechts im Band ein WORT stand
+   ("Bestaetigt", "20 Min"). Untereinander gestapelt las sich das noch
+   als zwei Angaben. Seit die harte Fassung dort die AKTION traegt, steht
+   nach dem Umbruch ein einzelner Knopf allein in einer eigenen Zeile —
+   im Screenshot bei 390px sah das aus wie ein Fehler, nicht wie ein
+   Fussband. Die Vorlage (`.mhard .cap`) kennt genau zwei Haelften auf
+   EINER Zeile.
+   Statt zu stapeln darf jetzt der linke Teil UMBRECHEN: der Ort behaelt
+   beide Angaben, die Aktion bleibt rechts und buendig oben. Massnahme 1
+   (das geschuetzte Leerzeichen) traegt weiterhin die eigentliche
+   Reparatur — sie verhindert den Umbruch mitten im Begriff.
    ---------------------------------------------------------------- */
 @container (max-width: 380px) {
   .t-match-meta {
-    flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: var(--s2);
   }
   .t-match-meta > * {
-    max-width: 100%;
+    min-width: 0;
   }
 }
 
