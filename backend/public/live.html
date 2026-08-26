@@ -23,35 +23,24 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;1,800&family=Archivo+Narrow:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 
+<link rel="stylesheet" href="/style/tokens.css">
+
 <style>
-/* Tokens: [kru:]nest. Gleiche Werte wie im Modul, damit die
-   Zuschauer-Ansicht nicht wie eine fremde Anwendung aussieht. */
-:root{
-  --ground:#E4E4E2; --panel:#FFFFFF; --raised:#F5F5F3; --sunk:#EDEDEA;
-  --line:#D1D1CD; --line-soft:#E5E5E1;
-  --ink:#0B0B0C; --ink-2:#3A3A3C; --muted:#65656A;
-  --flare:#BF4413; --flare-soft:#F7E5DC;
-  --live:#00708F; --live-soft:#D8EDF3;
-  --qual:#1E6E45; --qual-soft:#DCEDE3;
-  --brand-orange:#DE5426;
-  --shadow:0 1px 2px rgba(11,11,12,.07), 0 20px 48px rgba(11,11,12,.13);
-  --r:10px;
-  --f-disp:'Archivo','Helvetica Neue',Arial,sans-serif;
-  --f-cond:'Archivo Narrow','Arial Narrow','Helvetica Neue',sans-serif;
-  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --f-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --ground:#0B0B0C; --panel:#161618; --raised:#202024; --sunk:#0F0F11;
-    --line:#2F2F35; --line-soft:#232328;
-    --ink:#F1F0ED; --ink-2:#C5C4C0; --muted:#9A9A9F;
-    --flare:#F0794D; --flare-soft:rgba(240,121,77,.16);
-    --live:#4FC5E8; --live-soft:rgba(79,197,232,.14);
-    --qual:#5FBE8C; --qual-soft:rgba(95,190,140,.14);
-    --shadow:0 1px 0 rgba(255,255,255,.04), 0 32px 72px rgba(0,0,0,.66);
-  }
-}
+/* Palette, Zustandsfarben und die vier Schriftfamilien kommen aus
+   /style/tokens.css — dieselbe Datei, die das Turniermodul lädt. Der
+   Selektor dort ist `.t-mod, .t-brand`, deshalb trägt der body unten
+   class="t-brand".
+
+   Bis zum 26.08.2026 stand hier eine eigene Kopie derselben Werte. Sie
+   war von Anfang an als Übergang gedacht: Die Zuschauerseite lädt
+   tournament.css bewusst nicht (ein Unangemeldeter soll den angemeldeten
+   Client gar nicht erst holen), und tokens.css gab es noch nicht.
+
+   Die drei Themen-Zustände regelt tokens.css vollständig — ausdrücklich
+   hell, ausdrücklich dunkel, und „wie das System" ganz ohne Attribut.
+   Der letzte ist auf dieser Seite der Normalfall: Hier läuft kein
+   main.js, das ein data-theme setzen würde, und ein Zuschauer hat keinen
+   Umschalter. */
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -112,7 +101,7 @@ section{margin-top:26px}
 
 /* ── Spielkarte ─────────────────────────────────────── */
 .match{
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);
   padding:11px 13px;display:grid;
   grid-template-columns:1fr auto;gap:4px 12px;align-items:center;
   margin-bottom:8px;
@@ -151,7 +140,7 @@ section{margin-top:26px}
 }
 table{
   width:100%;border-collapse:collapse;background:var(--panel);
-  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden;
   font-variant-numeric:tabular-nums;
 }
 th,td{padding:8px 6px;text-align:right;font-size:13.5px;white-space:nowrap}
@@ -202,7 +191,7 @@ tr.is-qual td:first-child{box-shadow:inset 3px 0 0 var(--qual)}
 }
 .empty{
   padding:22px 14px;text-align:center;color:var(--muted);font-size:14px;
-  background:var(--panel);border:1px dashed var(--line);border-radius:var(--r);
+  background:var(--panel);border:1px dashed var(--line);border-radius:var(--r-card);
 }
 
 /* ── Fuß ────────────────────────────────────────────── */
@@ -230,7 +219,7 @@ tr.is-qual td:first-child{box-shadow:inset 3px 0 0 var(--qual)}
 }
 </style>
 </head>
-<body>
+<body class="t-brand">
   <div class="page" id="app">
     <div class="state" id="boot">
       <div class="mark">[kru:]nest</div>

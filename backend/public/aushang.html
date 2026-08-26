@@ -23,22 +23,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;1,800&family=Archivo+Narrow:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500&display=swap">
 
+<link rel="stylesheet" href="/style/tokens.css">
+
 <style>
-:root{
-  --ground:#E4E4E2; --panel:#FFFFFF; --line:#D1D1CD;
-  --ink:#0B0B0C; --ink-2:#3A3A3C; --muted:#65656A;
-  --brand-orange:#DE5426;
-  --f-disp:'Archivo','Helvetica Neue',Arial,sans-serif;
-  --f-cond:'Archivo Narrow','Arial Narrow','Helvetica Neue',sans-serif;
-  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --f-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --ground:#0B0B0C; --panel:#161618; --line:#2F2F35;
-    --ink:#F1F0ED; --ink-2:#C5C4C0; --muted:#9A9A9F;
-  }
-}
+/* Palette und Schriften kommen aus /style/tokens.css; der body trägt
+   dafür class="t-brand". Siehe live.html für die längere Begründung —
+   kurz: eine Wahrheit für alle Flächen der Marke.
+
+   Der Druckteil unten setzt bewusst eigene, feste Farben statt Tokens.
+   Ein Aushang geht durch einen Bürodrucker, und dort gilt schwarz auf
+   weiß, unabhängig davon, welches Thema der Bildschirm gerade zeigt. */
 
 *{box-sizing:border-box}
 body{
@@ -131,7 +125,7 @@ h1{
 }
 </style>
 </head>
-<body>
+<body class="t-brand">
   <div class="blatt" id="blatt">
     <p class="fehler">Aushang wird vorbereitet …</p>
   </div>
