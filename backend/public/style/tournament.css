@@ -5659,17 +5659,9 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
    Mitte, nur muss man es nicht.
    ================================================================ */
 
-/* ---- Gruppenbeschriftung ueber einer Liste ---- */
-.t-grp-lbl {
-  font-family: var(--f-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: var(--s1) var(--s1) 0;
-}
-.t-grp-lbl--danger { color: var(--danger); }
+/* Die Gruppenbeschriftung ist mit den einklappbaren Abschnitten
+   entfallen — sie ist dort die Kopfzeile (.t-settings-section-title).
+   Totes CSS sieht aus wie eine Moeglichkeit. */
 
 /* ---- Die Liste ---- */
 .t-lst {
@@ -5925,34 +5917,24 @@ button.t-lrow:disabled:hover { background: none; }
 /* ----------------------------------------------------------------
    EINSTELLUNGEN EINGEKLAPPT — Entscheid Jonas 2026-08-26
    ----------------------------------------------------------------
-   „es soll eingeklappt sein die ganzen einstellungen sodass es
-   übersichtlicher ist."
+   "es soll eingeklappt sein die ganzen einstellungen sodass es
+   uebersichtlicher ist."
 
    Zu heisst nicht versteckt: alle Kopfzeilen stehen da, mit Namen. Der
    Tab ist damit ein Inhaltsverzeichnis statt einer Liste, durch die man
-   scrollt. Wer etwas aendern will, weiss vorher WAS — er sucht den
-   Namen, nicht die Zeile.
+   scrollt.
 
-   Die Kopfzeile ist selbst eine Zeile, nur kleiner gesetzt: eine
-   Trefferflaeche fuer den Daumen, kein kleines Dreieck, das man treffen
-   muss. Aus demselben Grund liegt der Pfeil rechts und nicht links —
-   dort, wo bei allen anderen Zeilen der Wert steht.
+   HIER STAND ZUERST EIN ZWEITER SATZ KLASSEN (.t-grp, .t-grp-kopf,
+   .t-grp-koerper) neben dem vorhandenen .t-settings-section — und
+   damit die achte Kollision derselben Art in dieser Datei: zwei Regeln
+   fuer dieselbe Sache, von denen eine gewinnt. Sichtbar wurde es
+   anders: der Umschalt-Handler kannte die neuen Klassen nicht, und vier
+   Abschnitte hatten eine Kopfzeile, die auf Klick nichts tat.
 
-   `.t-settings-section` bekommt dieselbe Optik: die drei alten
-   Abschnitte (Gruppen, Setzung, Spielfelder) enthalten Editoren statt
-   Zeilen und wurden deshalb nicht umgebaut. Zwei Kopfformen im selben
-   Tab waeren aber genau die Unruhe, die hier gerade verschwindet.
+   Jetzt gibt es nur .t-settings-section. Was hier steht, ergaenzt die
+   vorhandene Optik um zwei Dinge: eine groessere Trefferflaeche fuer
+   den Daumen und den Zustand des Pfeils.
    ---------------------------------------------------------------- */
-.t-grp,
-.t-settings-section {
-  border-top: 1px solid var(--line-soft);
-}
-.t-grp:first-of-type,
-.t-settings-section:first-of-type {
-  border-top: 0;
-}
-
-.t-grp-kopf,
 .t-settings-section-header {
   display: flex;
   align-items: center;
@@ -5960,28 +5942,14 @@ button.t-lrow:disabled:hover { background: none; }
   gap: var(--s3);
   width: 100%;
   min-height: 48px;
-  padding: var(--s3) var(--s2);
+  padding: var(--s3) var(--s4);
   background: none;
   border: 0;
   cursor: pointer;
   text-align: left;
 }
-.t-grp-kopf:hover,
 .t-settings-section-header:hover { background: var(--raised); }
-
-.t-grp-titel,
-.t-settings-section-title {
-  font-family: var(--f-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.t-grp-kopf--danger .t-grp-titel,
 .t-danger-zone .t-settings-section-title { color: var(--danger); }
-
-.t-grp-pfeil,
 .t-settings-section-toggle {
   flex: none;
   color: var(--muted);
@@ -5989,20 +5957,16 @@ button.t-lrow:disabled:hover { background: none; }
   line-height: 1;
   transition: transform 0.15s ease;
 }
-/* Zu: Pfeil zeigt nach unten (= „hier ist mehr"). Offen: nach oben. */
-.t-grp[data-collapsed="false"] .t-grp-pfeil,
-.t-settings-section[data-collapsed="false"] .t-settings-section-toggle {
-  transform: rotate(180deg);
+/* Der Rumpf sitzt in einer Karte, die schon einen Rand hat — die Liste
+   darin braucht keinen zweiten. Sonst waere es wieder ein Kaestchen im
+   Kaestchen, genau das, was Jonas beim Spielplan beanstandet hat. */
+.t-settings-section-body > .t-lst {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 1px solid var(--line-soft);
 }
-
-.t-grp-koerper,
-.t-settings-section-body {
-  padding-bottom: var(--s4);
-}
-.t-grp[data-collapsed="true"] .t-grp-koerper,
-.t-settings-section[data-collapsed="true"] .t-settings-section-body {
-  display: none;
-}
+.t-settings-section-body > .t-hint { padding: var(--s3) var(--s4); }
 
 /* ----------------------------------------------------------------
    SPIELPLAN-LEISTE — Filter und Aktion in EINER Zeile

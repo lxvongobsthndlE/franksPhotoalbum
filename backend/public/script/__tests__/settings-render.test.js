@@ -89,7 +89,10 @@ describe('renderEinstellungen', () => {
     const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
     // Klasse erneut gewechselt (26.08., dritte Runde): die Gruppen sind
     // jetzt einklappbar, die Beschriftung ist eine Kopfzeile geworden.
-    expect(html).toContain('t-grp-kopf--danger');
+    // Wieder auf die etablierte Klasse: die Parallelstruktur .t-grp ist
+    // am selben Tag zurueckgebaut worden (der Umschalt-Handler kannte sie
+    // nicht, vier Abschnitte taten auf Klick nichts).
+    expect(html).toContain('t-danger-zone');
     expect(html).toContain('t-lst--danger');
     expect(html).toContain('Gefahrenzone');
     expect(html).toContain('Alle Ergebnisse löschen');

@@ -1797,10 +1797,9 @@ if (typeof window !== 'undefined') {
 // Daumen. Ein Eingabefeld holt erst die Tastatur.
 // ─────────────────────────────────────────────────────────────────
 
-/** Beschriftung über einer Liste. `gefahr` färbt sie karminrot. */
-function grpLbl(text, gefahr = false) {
-  return `<div class="t-grp-lbl${gefahr ? ' t-grp-lbl--danger' : ''}">${esc(text)}</div>`;
-}
+// grpLbl() ist mit den einklappbaren Gruppen entfallen: die Beschriftung
+// ist dort keine eigene Zeile mehr, sondern die Kopfzeile des Abschnitts.
+// Eine ungenutzte Funktion sieht aus wie eine Wahlmoeglichkeit.
 
 /** Umschlag um eine Folge von Zeilen. Leere Listen entfallen ganz. */
 function lst(zeilen, gefahr = false) {
@@ -1866,13 +1865,26 @@ function gruppe(name, titel, zeilen, opts = {}) {
   const { gefahr = false, offen = false, hinweis = '' } = opts;
   const inhalt = (Array.isArray(zeilen) ? zeilen : [zeilen]).filter(Boolean);
   if (!inhalt.length) return '';
-  const klasse = gefahr ? 't-grp-kopf t-grp-kopf--danger' : 't-grp-kopf';
-  return `<section class="t-grp" data-section="${esc(name)}" data-collapsed="${offen ? 'false' : 'true'}">
-      <button type="button" class="${klasse}" data-action="toggle-section" aria-expanded="${offen ? 'true' : 'false'}">
-        <span class="t-grp-titel">${esc(titel)}</span>
-        <span class="t-grp-pfeil" aria-hidden="true">▾</span>
+  // FEHLER VOM SELBEN TAG, hier behoben: Diese Funktion hat zuerst eine
+  // EIGENE Struktur erzeugt (.t-grp / .t-grp-kopf / .t-grp-koerper) statt
+  // die vorhandene zu benutzen. Der Umschalt-Handler sucht aber
+  // `btn.closest('.t-settings-section')` — meine Gruppen fand er nie.
+  // Ergebnis im Browser: vier Abschnitte mit Kopfzeile, die auf Klick
+  // nichts taten. Jonas: „dass 4 einstellungen nonexistent sind und es
+  // hier nur leere überschriften gibt ist definitiv ein fehler."
+  //
+  // Die Lehre ist nicht „Handler erweitern", sondern: keine zweite
+  // Struktur für dieselbe Sache. Es gibt EINEN Abschnitt in diesem Tab,
+  // und der heißt .t-settings-section. Damit greifen Handler, CSS und die
+  // vorhandenen Tests ohne Zutun — und die nächste Gruppe, die jemand
+  // ergänzt, funktioniert automatisch mit.
+  const klassen = gefahr ? 't-settings-section t-danger-zone' : 't-settings-section';
+  return `<section class="${klassen}" data-section="${esc(name)}" data-collapsed="${offen ? 'false' : 'true'}">
+      <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="${offen ? 'true' : 'false'}">
+        <span class="t-settings-section-title">${esc(titel)}</span>
+        <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
       </button>
-      <div class="t-grp-koerper">
+      <div class="t-settings-section-body">
         ${lst(inhalt, gefahr)}
         ${hinweis ? `<div class="t-hint">${esc(hinweis)}</div>` : ''}
       </div>
@@ -2088,7 +2100,13 @@ export function renderEinstellungen(t, opts = {}) {
         </div>
       </section>
       ${renderLogoBlock({ t, isAdmin })}
-      ${renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen: !isDraft })}
+      <!-- defaultOpen: false. Entscheid Jonas 2026-08-26 — ALLE Abschnitte
+           sind zu, wenn der Tab aufgeht. Der Zuschauer-Link ging bisher
+           ausserhalb des Entwurfs von selbst auf; das war gut gemeint
+           (er ist die Handlung, die man sucht, sobald das Turnier steht),
+           aber es macht die Regel kaputt: ein Tab, in dem EIN Abschnitt
+           offen ist, sieht aus wie ein Fehler, nicht wie eine Absicht. -->
+      ${renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen: false })}
       ${notfallZone}
       ${dangerZone}
     </div>
