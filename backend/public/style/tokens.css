@@ -58,36 +58,45 @@
    Der Geltungsbereich bleibt trotzdem eng: .t-list-host gibt es nur in
    dieser einen Ansicht. */
 #content:has(.t-list-host) {
-/* ---- Flaechen ---- */
-  --ground:       #E4E4E2;   /* Seitengrund */
-  --panel:        #FFFFFF;   /* Karte */
-  --raised:       #F5F5F3;   /* leicht erhoben */
-  --sunk:         #EDEDEA;   /* eingesenkt, Segment-Leisten */
-  --line:         #D1D1CD;
-  --line-soft:    #E5E5E1;
+/* ---- Flaechen ----
+     Dritte Fassung des Artefakts, 2026-08-26 („Turniermodul ohne
+     Kaestchen"). Das Blatt ist kein reines Weiss mehr, sondern ein
+     Papierton — reines Weiss liegt in CIE L* bei 100, dem oberen Ende
+     der Skala, und liest sich als Flaeche, die nicht gewaehlt wurde,
+     sondern uebrig blieb.
+
+     Gerechnet, nicht geschaetzt (Werte aus dem Artefakt):
+       Blatt #F1F0EB auf Grund #D7D6D0  ->  1,276 : 1 · dL* 9,19
+       vorher #FFFFFF auf #E4E4E2       ->  1,273 : 1 · dL* 9,46
+     Der Grund wandert also dieselbe Strecke mit; der Abstand bleibt
+     erhalten. --raised ist ab jetzt der Ton der SPIELKARTE (dL* 3,18
+     ueber dem Blatt) und nicht mehr arbeitslos.
+
+     Reihenfolge in beiden Themen gleich: Grund < Blatt < Karte. */
+  --ground:       #D7D6D0;   /* Seitengrund */
+  --panel:        #F1F0EB;   /* Blatt */
+  --raised:       #FAF9F6;   /* Spielkarte */
+  --sunk:         #E1E0DA;   /* eingesenkt, Pillen, Eingabefelder */
+  --line:         #C6C5BE;
+  --line-soft:    #DAD9D3;
 
   /* ---- Tinte ---- */
   --ink:          #0B0B0C;
   --ink-2:        #3A3A3C;
-  /* ABWEICHUNG VOM ARTEFAKT, nachgerechnet — die einzige.
-     Das Artefakt setzt --muted #75757A. Gemessen (WCAG 1.4.3):
-         auf --panel  #FFFFFF  4.583:1   bestanden
-         auf --raised #F5F5F3  4.199:1   DURCHGEFALLEN
-         auf --sunk   #EDEDEA  3.907:1   DURCHGEFALLEN
-         auf --ground #E4E4E2  3.600:1   DURCHGEFALLEN
-     Der Ton traegt also nur auf reinem Weiss. Genau dort steht er aber
-     selten: die Sektionslabels ("TURNIER", "SPIELBETRIEB", "BESTE
-     DRITTE") liegen auf --ground, die Tabellen-Kopfzeilen auf --raised.
-     #65656A besteht ueberall — ground 4.55, sunk 4.94, raised 5.31,
-     panel 5.80 — und ist 16 Stufen je Kanal dunkler, also praktisch
-     derselbe Grauton. Der Charakter bleibt, der Ausfall nicht.
-     Dunkelmodus bleibt beim Artefakt-Wert #8B8B90: der besteht dort
-     ueberall (panel 5.33, raised 4.79, ground 5.80). */
+  /* Die zweite Fassung des Artefakts setzte hier #75757A; nachgerechnet
+     fiel der Ton auf jeder Flaeche ausser reinem Weiss unter 4,5 : 1
+     durch, und genau dort steht er selten. #65656A besteht ueberall.
+     Die DRITTE Fassung fuehrt denselben Wert — die Abweichung von
+     damals ist zur Vorlage geworden und ist keine mehr.
+     Der Nachtmodus zieht mit dem Artefakt auf #9A9A9F. */
   --muted:        #65656A;
 
-  /* ---- Marke: der Weg zum Titel, sonst nichts ---- */
+  /* ---- Marke: der Weg zum Titel, sonst nichts ----
+     Die Signalfarben selbst sind unveraendert. Ihre Toenungen wandern
+     mit dem Blatt mit — auf dem Papierton waeren die alten Baender
+     sonst kaum noch vom Grundton zu unterscheiden. */
   --flare:        #BF4413;
-  --flare-soft:   #F7E5DC;
+  --flare-soft:   #F2E1D8;
   --flare-line:   #E4AE97;
   /* Druckfarben der Wortmarke — in BEIDEN Themen unveraendert, das ist
      Druckfarbe und kein UI-Ton. */
@@ -96,13 +105,32 @@
 
   /* ---- Zustaende, strikt getrennt vom Akzent ---- */
   --live:         #00708F;   /* laeuft gerade */
-  --live-soft:    #D8EDF3;
+  --live-soft:    #D3E7ED;
   --qual:         #1E6E45;   /* qualifiziert */
-  --qual-soft:    #DCEDE3;
+  --qual-soft:    #D8E7DD;
   --danger:       #B4123F;   /* Karmin */
+  /* Nachgetragen mit der dritten Fassung: die Gefahrenzone hatte bisher
+     keine eigene Toenung und musste sich mit einem Rahmen behelfen. */
+  --danger-soft:  #F3DCE3;
+
+  /* Schrift AUF den Signalfarben. Im Dunkeln hellen Orange und Karmin
+     auf, weiss faellt dort auf 2,6 : 1 zurueck — deshalb ein eigener
+     Token statt eines festen #fff an der Komponente. */
+  --on-flare:     #FFFFFF;
+  --on-danger:    #FFFFFF;
 
   --shadow:       0 1px 2px rgba(11,11,12,.07), 0 20px 48px rgba(11,11,12,.13);
   --shadow-s:     0 1px 2px rgba(11,11,12,.06);
+
+  /* ---- Hebung: EIN Wert, weit gestreut, flach ----
+     Dritte Fassung: nur noch, was wirklich ueber dem Grund liegt, traegt
+     einen Schatten — das Modul-Blatt, der Dialog, der Druckbogen. Alles
+     darin liegt darauf und bekommt keinen eigenen.
+     --shadow/--shadow-s bleiben als Bruecke stehen, solange Altregeln
+     sie fuehren; wer eine Regel anfasst, zieht sie auf --lift um. */
+  --lift:         0 1px 2px rgba(11,11,12,.03), 0 12px 26px rgba(11,11,12,.055), 0 40px 84px rgba(11,11,12,.07);
+  --lift-hi:      0 2px 4px rgba(11,11,12,.05), 0 18px 40px rgba(11,11,12,.10), 0 56px 110px rgba(11,11,12,.10);
+  --paper-shadow: 0 2px 4px rgba(11,11,12,.08), 0 26px 62px rgba(11,11,12,.15);
 
   /* ---- Schrift ---- */
   --f-disp: 'Archivo','Helvetica Neue',Arial,sans-serif;
@@ -156,7 +184,25 @@
      selbst hat harte Ecken, die Flaechen duerfen deshalb nicht
      ausfransen. --r-board bleibt 4px, wird aber mit dem Wegfall der
      Anzeigetafel gegenstandslos. */
-  --r-card:  10px;
+  /* Dritte Fassung: aus elf Radien werden vier.
+       --r-dev    30px   das Geraet / das Modul-Blatt
+       --r-plane  18px   jede Flaeche darauf (Dialog, Karte, Schale)
+       --r-pill  999px   alles, was gedrueckt wird
+       --r-focus   6px   der Fokusring
+     Zwei erklaerte Ausnahmen bleiben: 24 % relativ am Turnierlogo
+     (fremdes Bild, relativer Radius traegt von 26 bis 54 px) und 3 px
+     auf dem Druckbogen. Eine dritte kommt aus Jonas' Abnahme dazu: die
+     Spielkarte im Spielplan behaelt ihre 12 px, siehe .t-match. */
+  --r-dev:   30px;
+  --r-plane: 18px;
+  --r-pill:  999px;
+  --r-focus: 6px;
+
+  /* Alte Namen, neue Werte — dieselbe Bruecke wie oben bei den Farben.
+     --r-card zeigt auf die Flaeche, --r-btn bleibt vorerst stehen, weil
+     er auch an Eingabefeldern haengt; wer eine Knopf-Regel anfasst,
+     zieht sie auf --r-pill um. */
+  --r-card:  var(--r-plane);
   --r-btn:   10px;
   --r-board: 4px;
 
@@ -223,11 +269,11 @@
   --raised:       #202024;
   --sunk:         #0F0F11;
   --line:         #2F2F35;
-  --line-soft:    #232328;
+  --line-soft:    #26262B;
 
   --ink:          #F1F0ED;
   --ink-2:        #C5C4C0;
-  --muted:        #8B8B90;
+  --muted:        #9A9A9F;
 
   --flare:        #F0794D;
   --flare-soft:   rgba(240,121,77,.16);
@@ -236,11 +282,21 @@
   --live:         #4FC5E8;
   --live-soft:    rgba(79,197,232,.14);
   --qual:         #5FBE8C;
-  --qual-soft:    rgba(95,190,140,.14);
+  --qual-soft:    rgba(95,190,140,.13);
   --danger:       #FF7091;
+  --danger-soft:  rgba(255,112,145,.13);
+
+  /* Textfarbe AUF den Signalfarben: im Dunkeln ist die Fuellung HELLER
+     als der Text darauf sein darf, also kippt er auf die Tinte. */
+  --on-flare:     #160A04;
+  --on-danger:    #2A0512;
 
   --shadow:       0 1px 0 rgba(255,255,255,.04), 0 32px 72px rgba(0,0,0,.66);
   --shadow-s:     0 1px 0 rgba(255,255,255,.04);
+
+  --lift:         0 1px 0 rgba(255,255,255,.035), 0 24px 60px rgba(0,0,0,.55);
+  --lift-hi:      0 1px 0 rgba(255,255,255,.05), 0 34px 84px rgba(0,0,0,.68);
+  --paper-shadow: 0 1px 0 rgba(255,255,255,.05), 0 30px 76px rgba(0,0,0,.7);
 
   /* Schrift auf dunkler Flaeche: bei --flare #F0794D und --live #4FC5E8
      ist die Fuellung HELLER als der Text darauf sein duerfte, also kippt
@@ -267,11 +323,11 @@
   --raised:       #202024;
   --sunk:         #0F0F11;
   --line:         #2F2F35;
-  --line-soft:    #232328;
+  --line-soft:    #26262B;
 
   --ink:          #F1F0ED;
   --ink-2:        #C5C4C0;
-  --muted:        #8B8B90;
+  --muted:        #9A9A9F;
 
   --flare:        #F0794D;
   --flare-soft:   rgba(240,121,77,.16);
@@ -280,11 +336,21 @@
   --live:         #4FC5E8;
   --live-soft:    rgba(79,197,232,.14);
   --qual:         #5FBE8C;
-  --qual-soft:    rgba(95,190,140,.14);
+  --qual-soft:    rgba(95,190,140,.13);
   --danger:       #FF7091;
+  --danger-soft:  rgba(255,112,145,.13);
+
+  /* Textfarbe AUF den Signalfarben: im Dunkeln ist die Fuellung HELLER
+     als der Text darauf sein darf, also kippt er auf die Tinte. */
+  --on-flare:     #160A04;
+  --on-danger:    #2A0512;
 
   --shadow:       0 1px 0 rgba(255,255,255,.04), 0 32px 72px rgba(0,0,0,.66);
   --shadow-s:     0 1px 0 rgba(255,255,255,.04);
+
+  --lift:         0 1px 0 rgba(255,255,255,.035), 0 24px 60px rgba(0,0,0,.55);
+  --lift-hi:      0 1px 0 rgba(255,255,255,.05), 0 34px 84px rgba(0,0,0,.68);
+  --paper-shadow: 0 1px 0 rgba(255,255,255,.05), 0 30px 76px rgba(0,0,0,.7);
 
   /* Schrift auf dunkler Flaeche: bei --flare #F0794D und --live #4FC5E8
      ist die Fuellung HELLER als der Text darauf sein duerfte, also kippt

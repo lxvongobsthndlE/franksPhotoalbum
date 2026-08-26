@@ -1761,23 +1761,44 @@
    Der Balken ist nicht mehr die Statusanzeige (dafuer traegt die Karte
    selbst einen Rand), sondern nur noch bei laufenden Spielen sichtbar.
    Siehe .t-match-bar weiter unten. */
+/* ----------------------------------------------------------------
+   DIE HARTE FASSUNG — Abnahme Jonas, 2026-08-26
+   ----------------------------------------------------------------
+   „nimm bei den spielen im spielplan fassung 1 (hart) aber genauso wie
+   sie dort eben angezeigt wird."
+
+   Das Artefakt stellt in Abschnitt 03 b dieselbe Paarung dreimal
+   nebeneinander — hart, aufgeloest, weich — und setzt im Modul selbst
+   die WEICHE ein. Fuer die Spielkarten im Spielplan gilt ausdruecklich
+   die HARTE. Sie ist die einzige Stelle im Modul, an der ein Kaestchen
+   bleibt; alles andere (Tabellen, Listen, Fussbaender) ist aufgeloest.
+
+   Gemessen an der Vorlage (getComputedStyle auf `.mhard`), nicht
+   geschaetzt — das sind die Zahlen, die dort stehen:
+     Fuellung   --raised   (#FAF9F6 hell, #202024 dunkel)
+     Rahmen     1px solid --line
+     Ecke       12px  — die dritte erklaerte Ausnahme neben Logo (24 %)
+                       und Druckbogen (3 px). Kein --r-plane: die harte
+                       Fassung ist an ihrer kleineren Ecke erkennbar.
+     Schatten   keiner
+     Rand       0 8px, 14px zwischen zwei Karten
+   ---------------------------------------------------------------- */
 .t-match {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     "rows"
-    "meta"
-    "act";
+    "meta";
   gap: 0;
   padding: 0;
-  margin-bottom: var(--s2);
+  margin: 0 var(--s2) 14px;
   border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--panel);
-  box-shadow: var(--shadow-s);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: none;
   overflow: hidden;
 }
-.t-match:last-child { border-bottom: none; }
+.t-match:last-child { margin-bottom: 0; }
 
 /* Der Balken traegt keinen Status mehr — das tut jetzt der Rand der
    Karte. Er bleibt im Markup (der Renderer liefert ihn) und wird
@@ -1805,22 +1826,28 @@
   color: var(--flare);
   font-weight: 600;
 }
+/* Laufend, harte Fassung: Farbrahmen PLUS Schattenring PLUS eingefaerbtes
+   Fussband. Die weiche Fassung ersetzt das durch einen 3-px-Streifen —
+   hier gilt aber die harte, und dort sind es diese drei Mittel.
+   Der Ring misst 3 px (Vorlage: `box-shadow: 0 0 0 3px var(--live-soft)`),
+   nicht 1 px wie bisher. */
 .t-match--live {
   border-color: var(--live);
-  box-shadow: 0 0 0 1px var(--live), var(--shadow-s);
+  box-shadow: 0 0 0 3px var(--live-soft);
 }
 .t-match--live .t-match-meta {
   background: var(--live-soft);
+  border-top-color: var(--live);
   color: var(--live);
 }
 
-/* Meta-Spalte — ZWEI Zeilen oben links.
-     Zeile 1: Zeit · Tisch — 14 px, tabular-nums, --ink
-     Zeile 2: Bezeichnung — 11 px, UPPERCASE, --ink-soft, darf umbrechen */
-/* Meta-Zeile: wandert unter die Teams, wird waagerecht und traegt die
-   eingesenkte Flaeche. Links der Ort (Gruppe, Platte), rechts der
-   Zustand (Dauer, "Bestaetigt"). Beides Mono, gesperrt, gedaempft —
-   es ist Beiwerk, nicht Inhalt. */
+/* Das FUSSBAND der harten Fassung. Es sitzt buendig an der unteren
+   Kante (die Karte hat overflow:hidden, der Radius schneidet es an),
+   traegt die eingesenkte Flaeche und ist durch eine harte Linie vom
+   Spielfeld darueber getrennt.
+   Vorlage `.mhard .cap`: padding 8px 12px, background --sunk,
+   border-top 1px solid --line. Links der Ort, rechts der Zustand bzw.
+   die Aktion — beides Mono 10,5px, gesperrt, gedaempft. */
 .t-match-meta {
   grid-area: meta;
   display: flex;
@@ -1829,9 +1856,9 @@
   justify-content: space-between;
   gap: var(--s3);
   min-width: 0;
-  padding: 8px var(--s4);
+  padding: 8px var(--s3);
   border-top: 1px solid var(--line);
-  background: var(--raised);
+  background: var(--sunk);
   font-family: var(--f-mono);
   font-size: 10.5px;
   letter-spacing: 0.1em;
@@ -1850,19 +1877,23 @@
   text-overflow: clip;
   white-space: normal;
 }
-.t-match-meta-time {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--ink);
-  letter-spacing: 0.01em;
+/* Der Ort: Gruppe und Platte, bei einem laufenden Spiel „Laeuft" und
+   die Platte. Die Uhrzeit steht nicht mehr hier — sie steht einmal je
+   Block in der Zeitmarke. */
+.t-match-meta-ort {
+  display: inline-flex;
+  align-items: center;
 }
-.t-match-meta-label {
-  font-size: 11px;
-  color: var(--ink-soft);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-weight: 600;
+/* Der Punkt vor „Laeuft" nimmt die Farbe des Bandes an, statt eine
+   eigene mitzubringen: im Fussband eines laufenden Spiels ist ohnehin
+   alles Teal, und ein zweites Teal daneben waere eine Behauptung. */
+.t-dot-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  flex: none;
 }
 
 /* Team+Score-Wrapper (Redesign A2.1) — hält die beiden Zeilen zusammen
@@ -1890,9 +1921,12 @@
    "zwei Parteien", waehrend ein Rahmen nur "ein Kasten" sagt. */
 .t-match-rows > :nth-child(3),
 .t-match-rows > :nth-child(4) { border-top: 1px solid var(--line-soft); }
-.t-match-rows > * { padding: 11px 0; }
-.t-match-rows > .t-match-team  { padding-left: var(--s4); padding-right: var(--s3); }
-.t-match-rows > .t-match-score { padding-right: var(--s4); }
+/* Vorlage `.mhard .tmr`: 9px 12px. Die Zelle traegt das Polster, nicht
+   die Karte — sonst laege die Trennlinie zwischen den Teams nicht auf
+   voller Breite. */
+.t-match-rows > * { padding: 9px 0; }
+.t-match-rows > .t-match-team  { padding-left: var(--s3); padding-right: var(--s3); }
+.t-match-rows > .t-match-score { padding-right: var(--s3); }
 .t-match-rows .t-match-team         { grid-area: home; }
 .t-match-rows .t-match-team.right   { grid-area: away; }
 .t-match-rows .t-match-score[data-area="home-score"] { grid-area: home-s; }
@@ -2045,8 +2079,7 @@
   gap: 6px var(--s4);
 }
 .t-match.t-match--large:last-child { margin-bottom: 0; }
-.t-match.t-match--large .t-match-meta-time  { font-size: 16px; }
-.t-match.t-match--large .t-match-meta-label { font-size: 12px; }
+.t-match.t-match--large .t-match-meta-ort { font-size: 12px; }
 .t-match.t-match--large .t-match-team       { font-size: 17px; }
 .t-match.t-match--large .t-match-score      { font-size: 22px; height: 40px; min-width: 60px; }
 
@@ -4816,7 +4849,7 @@ textarea.t-input {
   }
   .t-match--live .t-match-bar { border-left-style: double; border-left-width: 4px; }
   .t-match--done .t-match-bar { border-left-style: solid; }
-  .t-match--live .t-match-meta-time::after { content: " · laeuft"; font-weight: 700; }
+  .t-match--live .t-match-meta-ort::after { content: " · laeuft"; font-weight: 700; }
   .t-match--done .t-match-team { color: #000; }
   .t-match { background: none; border-bottom: 1px solid #ccc; }
   .t-match-action-text { display: inline; font-size: 10pt; }
@@ -4997,15 +5030,16 @@ textarea.t-input {
    Sie traegt entweder den Admin-Knopf ("Ergebnis erfassen") oder den
    Mitglieder-Text ("Beendet"). Vorher lag sie als vierte Grid-Spalte
    neben den Teams und lief bei langen Namen aus der Karte. */
+/* Die Aktion ist die rechte Haelfte des Fussbands, keine eigene Zeile
+   mehr. Kein Grid-Bereich, keine Trennlinie, kein eigenes Polster — das
+   bringt das Band mit. */
 .t-match-action {
-  grid-area: act;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--s2);
   min-width: 0;
-  padding: 8px var(--s4);
-  border-top: 1px solid var(--line-soft);
+  flex: none;
 }
 .t-match-action:empty { display: none; }
 /* Der Mitglieder-Text ist Zustand, kein Knopf — also dieselbe Sprache
@@ -5035,8 +5069,13 @@ textarea.t-input {
 .t-zeitmarke {
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  margin: var(--s5) 0 var(--s2);
+  gap: 11px;
+  /* Vorlage `.tmk`: 24px Luft darueber, 8px darunter, seitlich auf der
+     Kante der Karten (die tragen margin: 0 8px). Die Uhrzeit haengt
+     damit 12px weiter links als die Teamnamen — die Zeitmarke steht
+     eine Ebene ueber den Karten, also darf sie ausbrechen. */
+  margin: var(--s6) 0 var(--s2);
+  padding: 0 var(--s2);
   font-family: var(--f-mono);
 }
 .t-zeitmarke:first-child { margin-top: 0; }
@@ -5050,7 +5089,10 @@ textarea.t-input {
 .t-zeitmarke-linie {
   flex: 1;
   height: 1px;
-  background: var(--line);
+  /* Auf dem Blatt trennt die WEICHE Linie. --line waere hier der Ton,
+     den die Karten als Rahmen tragen — zwei gleich harte Kanten
+     nebeneinander, und die Achse waere so laut wie die Spiele. */
+  background: var(--line-soft);
 }
 .t-zeitmarke-zustand {
   flex: none;

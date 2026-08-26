@@ -213,17 +213,63 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   const homeScoreText = hasScore ? String(m.scoreHome) : '–';
   const awayScoreText = hasScore ? String(m.scoreAway) : '–';
 
-  const timeStr = m?.scheduledTime || '–';
+  // Markenuebernahme, dritte Fassung (2026-08-26): die UHRZEIT steht
+  // nicht mehr auf der Karte. Sie steht in der Zeitmarke darueber, und
+  // zwar einmal je Block statt einmal je Spiel — bei achtzehn Spielen
+  // war sie achtzehnmal dieselbe Zeile. Was auf der Karte bleibt, ist
+  // der ORT (Gruppe, Platte) links und der ZUSTAND rechts. Genau die
+  // zwei Haelften, die das Artefakt im Fussband zeigt.
+  //
+  // Das laufende Spiel steht ausserhalb der Zeitachse und hat keine
+  // Uhrzeit — es ist jetzt. Sein Fussband sagt deshalb "Laeuft" und
+  // dahinter die Platte, sonst waere nicht ablesbar, WO es laeuft.
   const tableStr = m?.field != null
     ? resolveFieldName(m.field, fieldsConfig)
-    : '–';
-  const metaLine1 = `${timeStr} · ${tableStr}`;
-  const metaLine2 = m?.label || '';
+    : '';
+  const ortTeile = m?.isLive
+    ? ['Läuft', tableStr]
+    : [m?.label || '', tableStr];
+  const metaOrt = ortTeile.filter(Boolean).join(' · ');
 
   // Etappe B.7: Im Edit-Modus Inputs für Zeit (HH:MM) und Platte rendern.
   // KO-Matches bleiben disabled (Slot-Position nicht isoliert editierbar).
   const isKo = !!m?.isKo || m?.stageType === 'ko';
   const editDisabled = !!(isEdit && (isKo || !!m?.isFinished));
+
+  const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
+  const homeDot = `<i class="t-dot" style="${dotStyle(homeColor)}" aria-hidden="true"></i>`;
+  const awayDot = `<i class="t-dot" style="${dotStyle(awayColor)}" aria-hidden="true"></i>`;
+
+  // Aktion — die RECHTE Haelfte des Fussbands, nicht mehr eine eigene
+  // Zeile darunter. Die harte Fassung der Vorlage (Abschnitt 03 b) zeigt
+  // genau drei Baender: Team, Team, Fussband. Eine vierte Zeile fuer den
+  // Knopf haette das Fussband von der unteren Kante geloest, und genau
+  // diese buendige Kante ist das, was "gefuelltes Fussband" ausmacht.
+  //   Admin       &  !beendet → Button "Ergebnis eintragen"
+  //   Admin       &  beendet  → Button "Erneut"
+  //   Member      &  beendet  → Text "Beendet"
+  //   Member      &  !beendet → Text m.sub
+  //   kein Admin  &  kein sub → gar nichts (die Haelfte bleibt leer)
+  let actionHtml;
+  if (isAdmin) {
+    const btnLabel = m?.isFinished ? 'Erneut' : 'Ergebnis';
+    actionHtml = `<div class="t-match-action"><button type="button" class="t-btn t-btn--ghost t-btn--sm" data-action="enter-result" data-match-id="${esc(m?.id)}">${btnLabel}</button></div>`;
+  } else if (m?.isFinished) {
+    actionHtml = '<div class="t-match-action"><span class="t-match-action-text">Beendet</span></div>';
+  } else if (m?.sub) {
+    actionHtml = `<div class="t-match-action"><span class="t-match-action-text">${esc(m.sub)}</span></div>`;
+  } else {
+    // Markenuebernahme (2026-08-26): GAR NICHTS statt eines
+    // Gedankenstrichs. Der Strich war die ehrliche Antwort, solange die
+    // Aktionsspalte rechts neben den Teams lag und sonst leer gewesen
+    // waere — eine leere Grid-Spalte sieht nach Fehler aus.
+    // In der Fussband-Haelfte kostet ein Strich nichts an Hoehe, sagt
+    // aber trotzdem nur "hier steht nichts". Also nichts.
+    actionHtml = '';
+  }
+
+  // Das Fussband: links der Ort, rechts der Zustand bzw. die Aktion.
+  // Im Bearbeiten-Modus treten an seine Stelle die zwei Eingabefelder.
   let metaHtml;
   if (isEdit) {
     const hh = m?.scheduledTime && /^\d{2}:\d{2}$/.test(m.scheduledTime)
@@ -239,42 +285,10 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   } else {
     metaHtml = `
       <div class="t-match-meta">
-        <div class="t-match-meta-line t-match-meta-time">${esc(metaLine1)}</div>
-        ${metaLine2 ? `<div class="t-match-meta-line t-match-meta-label">${esc(metaLine2)}</div>` : ''}
+        <div class="t-match-meta-line t-match-meta-ort">${m?.isLive ? '<span class="t-dot-live" aria-hidden="true"></span>' : ''}${esc(metaOrt)}</div>
+        ${actionHtml}
       </div>
     `;
-  }
-
-  const dotStyle = (color) => color ? `background:${esc(color)}` : 'background:var(--line)';
-  const homeDot = `<i class="t-dot" style="${dotStyle(homeColor)}" aria-hidden="true"></i>`;
-  const awayDot = `<i class="t-dot" style="${dotStyle(awayColor)}" aria-hidden="true"></i>`;
-
-  // Aktion-Spalte — NIE leer (das war ein Bug: das Grid wurde nicht
-  // "stabil gehalten", sondern es entstand eine sichtbare Lücke).
-  //   Admin       &  !beendet → Button "Ergebnis eintragen"
-  //   Admin       &  beendet  → Button "Erneut"
-  //   Member      &  beendet  → Text "Beendet"
-  //   Member      &  !beendet → Text m.sub
-  //   kein Admin  &  kein sub → Text "–"
-  let actionHtml;
-  if (isAdmin) {
-    const btnLabel = m?.isFinished ? 'Erneut' : 'Ergebnis';
-    actionHtml = `<div class="t-match-action"><button type="button" class="t-btn t-btn--ghost t-btn--sm" data-action="enter-result" data-match-id="${esc(m?.id)}">${btnLabel}</button></div>`;
-  } else if (m?.isFinished) {
-    actionHtml = '<div class="t-match-action"><span class="t-match-action-text">Beendet</span></div>';
-  } else if (m?.sub) {
-    actionHtml = `<div class="t-match-action"><span class="t-match-action-text">${esc(m.sub)}</span></div>`;
-  } else {
-    // Markenuebernahme (2026-08-26): GAR NICHTS statt eines
-    // Gedankenstrichs. Der Strich war die ehrliche Antwort, solange die
-    // Aktionsspalte rechts neben den Teams lag und sonst leer gewesen
-    // waere — eine leere Grid-Spalte sieht nach Fehler aus.
-    // Seit die Aktion eine eigene ZEILE unter der Meta ist, kostet ein
-    // Strich eine ganze Zeile Hoehe fuer die Aussage "hier steht
-    // nichts". Bei sechs offenen Spielen untereinander sind das sechs
-    // leere Zeilen. Die Karte laesst die Zeile jetzt weg
-    // (.t-match-action:empty { display: none }).
-    actionHtml = '';
   }
 
   // Anzeigetafel-Layout (Redesign Teil 1, A2): Teams UNTEREINANDER,
@@ -292,14 +306,13 @@ export function renderMatchCard(m, isAdmin, isEdit = false, fieldsConfig = null)
   return `
     <div class="t-match${m?.isFinished ? ' t-match--done' : ''}${m?.isLive ? ' t-match--live' : ''}" data-match-id="${esc(m?.id)}">
       <div class="t-match-bar"></div>
-      ${metaHtml}
       <div class="t-match-rows">
         <div class="t-match-team${homeIsWinner ? ' is-winner' : ''}">${homeDot}<span class="name">${esc(homeName)}</span></div>
         <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="home-score">${esc(homeScoreText)}</div>
         <div class="t-match-team right${awayIsWinner ? ' is-winner' : ''}">${awayDot}<span class="name">${esc(awayName)}</span></div>
         <div class="t-match-score${scoreEmpty ? ' empty' : ''}" data-area="away-score">${esc(awayScoreText)}</div>
       </div>
-      ${actionHtml}
+      ${metaHtml}
     </div>
   `;
 }

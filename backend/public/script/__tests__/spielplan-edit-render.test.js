@@ -25,7 +25,12 @@ describe('renderMatchCard — Edit-Modus', () => {
     const html = renderMatchCard(sample, false, false, null);
     expect(html).not.toContain('t-match-edit-time');
     expect(html).not.toContain('t-match-edit-field');
-    expect(html).toContain('14:30');
+    // Die Lese-Ansicht zeigt seit der dritten Fassung den ORT, nicht die
+    // Uhrzeit — die traegt die Zeitmarke ueber dem Block. Im BEARBEITEN-
+    // Modus bleibt die Uhrzeit natuerlich da: dort ist sie das, was
+    // geaendert wird (naechster Test).
+    expect(html).toContain('t-match-meta-ort');
+    expect(html).not.toContain('14:30');
   });
 
   it('isEdit=true rendert Inputs für Zeit und Platte', () => {

@@ -257,8 +257,15 @@ describe('renderMatchCard', () => {
     // hat das genutzt und die Nummer auf eine eigene Zeile geschoben.
     // Der Test prueft das \u00A0 ausdruecklich, weil ein normales
     // Leerzeichen hier optisch gleich aussieht und trotzdem falsch ist.
-    expect(html).toContain('14:30 · Platte 2');
-    expect(html).toContain('VF 1');
+    //
+    // Artefakt „Turniermodul ohne Kaestchen“, dritte Fassung (Abnahme
+    // 2026-08-26): das Fussband der Karte traegt den ORT, nicht die
+    // Uhrzeit — in der Vorlage steht dort „Gruppe A · Platte 1“. Die
+    // Uhrzeit gliedert stattdessen einmal je Block die Zeitachse
+    // (renderZeitmarke, geprueft in zeitachse.test.js). Vorher trugen
+    // achtzehn Karten achtzehnmal dieselbe Zeile.
+    expect(html).toContain('VF 1 · Platte 2');
+    expect(html).not.toContain('14:30');
     // Anzeigetafel-Layout (Redesign A2): zwei separate Score-Felder.
     expect(html).toContain('data-area="home-score">3<');
     expect(html).toContain('data-area="away-score">1<');
