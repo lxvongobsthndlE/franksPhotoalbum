@@ -5924,7 +5924,10 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
   dlg.innerHTML = `
     <div class="t-dialog" role="dialog" aria-modal="true" aria-labelledby="re-title">
       <div class="t-dialog-head">
-        <h3 class="t-dialog-title" id="re-title">Ergebnis eintragen</h3>
+        <div class="t-dialog-head-text">
+          <div id="re-subline" class="t-dialog-subline" aria-live="polite"></div>
+          <h3 class="t-dialog-title" id="re-title">Ergebnis eintragen</h3>
+        </div>
         <button type="button" class="t-dialog-close" data-action="close" aria-label="Schließen">✕</button>
       </div>
       <form id="result-entry-form" class="t-dialog-body">
@@ -5942,7 +5945,6 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
                 </div>`
               : `<p class="t-hint">Keine offenen Spiele vorhanden — bitte zuerst Spiele generieren.</p>`
             )}
-        <div id="re-subline" class="t-dialog-subline" aria-live="polite"></div>
         <div class="t-score-entry">
           <div class="t-score-entry-row">
             <span class="t-score-entry-team">
@@ -5950,7 +5952,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
               <span class="name" id="re-home-name">–</span>
             </span>
             <input id="re-home" type="number" min="0" inputmode="numeric" required
-                   class="t-score-entry-input" aria-label="Punkte Heimteam">
+                   class="t-score-entry-input" placeholder="–" aria-label="Punkte Heimteam">
           </div>
           <div class="t-score-entry-row">
             <span class="t-score-entry-team">
@@ -5958,7 +5960,7 @@ async function openResultEntryModal(tournamentId, matchId = null, allMatches = [
               <span class="name" id="re-away-name">–</span>
             </span>
             <input id="re-away" type="number" min="0" inputmode="numeric" required
-                   class="t-score-entry-input" aria-label="Punkte Gastteam">
+                   class="t-score-entry-input" placeholder="–" aria-label="Punkte Gastteam">
           </div>
         </div>
       </form>

@@ -3201,28 +3201,15 @@ textarea.t-input {
   padding: 16px;
 }
 .t-confirm-dialog {
-  background: var(--surface);
-  /* War var(--r3) — nie definiert, der Dialog bekam eckige Ecken.
-     Kein neuer Token: die Radien-Skala ist semantisch
-     (--r-card/--r-btn/--r-board), ein numerisches --r3 waere ein zweites
-     Schema. Der Dialog ist eine Karte, also --r-card.
-
-     WARUM HIER TROTZDEM EIN FALLBACK STEHT (und nur hier):
-     dieser Dialog wird per document.body.appendChild() eingehaengt
-     (tournament.js:4157) und liegt damit AUSSERHALB von .t-mod. Die
-     Modul-Tokens sind auf .t-mod definiert und werden vererbt — am
-     document.body greift also weder --r-card noch --s2/--s3/--line/--ink.
-     (Was dort GREIFT, weil main.css es auf :root setzt: --surface,
-     --accent, --r2. Deshalb hat der Dialog Hintergrund und Fokus-Ring,
-     aber keine Ecken und keinen gap.)
-     Der Fallback ist also kein zweiter Wahrheitswert fuer den Token,
-     sondern die Absicherung einer Regel, die ausserhalb seiner
-     Reichweite lebt. Er wird von selbst wirkungslos, sobald der Dialog
-     seine Modul-Klasse bekommt — daran arbeitet die Spur
-     fix/tourney-dialog (.t-dialog-host). Dann ist das hier der
-     eigentliche --r-card-Wert und der Fallback totes Gewicht, das
-     ersatzlos raus kann. */
-  border-radius: var(--r-card, 12px);
+  background: var(--panel);
+  /* Der Fallback `var(--r-card, 12px)` ist am 26.08. entfallen.
+     Begruendung von gestern, eingeloest: der Dialog haengt zwar weiter
+     per document.body.appendChild() ausserhalb von .t-mod, bekommt aber
+     seit der Dialog-Spur die Klassen `t-mod t-dialog-host` mit
+     (DIALOG_TOKEN_CLASSES in dialog-host.js). Damit erreichen ihn die
+     Modul-Tokens, und der Fallback war genau das, was der Kommentar
+     angekuendigt hatte: totes Gewicht, sobald der Host steht. */
+  border-radius: var(--r-card);
   box-shadow: 0 24px 64px rgba(31, 27, 22, 0.32);
   padding: 24px;
   max-width: 440px;
@@ -4510,12 +4497,19 @@ textarea.t-input {
   padding: var(--s4);
   border-bottom: 1px solid var(--line);
 }
+/* Dialog-Kopf — Markenuebernahme Etappe 8.
+   Dieselbe Rangfolge wie die Kopfzeile des Moduls: kleiner Kicker,
+   grosser Display-Titel. Der Kicker ist hier die Subline (welches
+   Spiel, wann, welche Platte) — sie stand vorher UNTER dem Titel und
+   las sich wie eine Fussnote. Ueber dem Titel beantwortet sie die
+   Frage "worueber reden wir", bevor der Titel sagt "was tun wir". */
 .t-dialog-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--ink);
   margin: 0;
-  flex: 1;
+  font-family: var(--f-disp);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  color: var(--ink);
 }
 /* Zwei Klassen, damit die Regel gegen `.t-mod button` (Zeile 217)
    ankommt — sonst fiele die Farbe auf `inherit` zurück. */
@@ -4548,10 +4542,13 @@ textarea.t-input {
 /* Die graue Zeile mit Runde, Zeit und Platte — das Spiel steht damit
    genau einmal im Dialog, nicht zusätzlich in einer Vorschau-Box. */
 .t-dialog-subline {
-  font-size: 12px;
-  color: var(--ink-soft);
-  margin-bottom: var(--s4);
-  letter-spacing: 0.04em;
+  order: -1;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
 }
 .t-dialog-subline:empty { display: none; }
 
@@ -4608,15 +4605,25 @@ textarea.t-input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Die Score-Felder: Mono, gross, mittig. Sie sind das einzige, was in
+   diesem Dialog getippt wird, und sollen mit dem Daumen ohne Hinsehen
+   treffbar sein — deshalb 48px hoch und nicht kleiner.
+
+   LEER, NICHT NULL: die Felder starten ohne Wert (der Renderer setzt
+   keinen). Eine vorbelegte 0 waere ein Ergebnis, das niemand
+   eingetragen hat — und beim Speichern eines halb ausgefuellten
+   Dialogs stuende sie als echtes 0:3 in der Tabelle. Der Platzhalter
+   zeigt denselben Gedankenstrich wie die Karte. */
 .t-score-entry-input {
   width: 100%;
   height: 48px;
   border: 1px solid var(--line);
-  border-radius: var(--r-board);
-  background: var(--surface-alt);
+  border-radius: var(--r-btn);
+  background: var(--raised);
   color: var(--ink);
+  font-family: var(--f-mono);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: center;
   padding: 0;
@@ -5247,3 +5254,55 @@ textarea.t-input {
    (bewusst kein neues CSS von dort). Die Klasse holt das nach — das
    Inline-Style darf beim naechsten Anfassen des Blocks raus. */
 .t-settings-actions > .t-input { flex: 1; min-width: 0; }
+
+/* Teamname im Ergebnis-Dialog: Display-Schnitt wie auf der Karte, damit
+   man dieselbe Partie wiedererkennt, die man angetippt hat. */
+.t-score-entry-team .name {
+  font-family: var(--f-disp);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+/* Der Farbpunkt bleibt HIER, anders als auf der Karte: im Dialog steht
+   nur eine Partie, der Punkt kostet keinen Platz und hilft beim
+   Zuordnen, welches Feld zu welchem Team gehoert. */
+
+/* ---- Bestaetigungs-Dialog ---- */
+.t-confirm-title {
+  margin: 0;
+  font-family: var(--f-disp);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  color: var(--ink);
+}
+.t-confirm-message { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+/* Die Zahl im Satz ist der Punkt: "10 erfasste Ergebnisse gehen
+   verloren" bremst, "Bist du sicher?" nicht. Deshalb traegt sie die
+   Tinte und das Gewicht, waehrend der Rest des Satzes zurueckhaengt. */
+.t-confirm-message strong { color: var(--ink); font-weight: 600; }
+.t-confirm-expected,
+.t-confirm-input {
+  font-family: var(--f-mono);
+}
+.t-confirm-expected { font-size: 12.5px; color: var(--muted); }
+.t-confirm-input {
+  border-radius: var(--r-btn);
+  background: var(--raised);
+  font-size: 14px;
+}
+
+/* Der Platzhalter zeigt denselben Gedankenstrich wie die Karte — leer
+   heisst "noch kein Ergebnis", und das soll im Dialog genauso aussehen
+   wie in der Liste. Ein leeres Feld sagt es auch, aber undeutlicher. */
+.t-score-entry-input::placeholder { color: var(--muted); opacity: 1; font-weight: 500; }
+
+/* Der Dialog-Kopf traegt jetzt zwei Zeilen links und den Schliessen-
+   Knopf rechts. Vorher lag die Subline im Body und las sich wie eine
+   Fussnote unter dem Titel; oben beantwortet sie "worueber reden wir",
+   bevor der Titel sagt "was tun wir" — dieselbe Rangfolge wie die
+   Kopfzeile des Moduls. `order: -1` an der Subline ist damit
+   gegenstandslos, sie steht ohnehin zuerst im Markup. */
+.t-dialog-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.t-dialog-head-text .t-dialog-subline { order: 0; }
