@@ -251,13 +251,23 @@ function viewHead(...knoepfe) {
  * „Ergebnis eintragen" (enter-result-pick). Beide Buttons sind Admin-only.
  */
 export function renderSpielplanSectionHead({ isAdmin, t }) {
-  const editBtn = isAdmin
-    ? '<button type="button" class="t-btn t-btn--ghost" data-action="toggle-schedule-edit" title="Zeit und Platte pro Spiel ändern — Achtung: bei laufenden Spielen gesperrt">Bearbeiten</button>'
-    : '';
+  // Nacharbeit 2026-08-26, zweite Runde (Jonas):
+  //   „bearbeiten kann auch weg das mach ich als admin ja in den
+  //    einstellungen. ergebnis eintragen kann da bleiben, aber auch
+  //    kleiner und nicht so platzeinnehmend."
+  //
+  // „Bearbeiten" (Zeit und Platte je Spiel) ist damit ersatzlos aus dem
+  // Spielplan-Kopf entfallen — es gibt denselben Weg im Einstellungen-Tab,
+  // und zwei Orte fuer eine Handlung sind einer zu viel. Der Edit-Modus
+  // selbst bleibt vollstaendig erhalten, nur sein Einstieg wandert.
+  //
+  // „Ergebnis eintragen" bleibt, wird aber zum kleinen Knopf: es ist die
+  // haeufigste Handlung am Spieltisch, aber es soll nicht ein Viertel des
+  // Bildschirms fuellen, bevor man ueberhaupt ein Spiel sieht.
   const resultBtn = isAdmin
-    ? '<button type="button" class="t-btn t-btn--primary" data-action="enter-result-pick">Ergebnis eintragen</button>'
+    ? '<button type="button" class="t-btn t-btn--primary t-btn--klein" data-action="enter-result-pick">Ergebnis eintragen</button>'
     : '';
-  return `${viewHead(editBtn, resultBtn)}
+  return `${viewHead(resultBtn)}
               <div class="t-toolbar" id="t-filters"></div>
               <div class="t-card"><div class="t-card-body" id="t-schedule-list"></div></div>`;
 }
@@ -266,11 +276,20 @@ export function renderSpielplanSectionHead({ isAdmin, t }) {
  * Regeln-Section-Head mit „Bearbeiten" (edit-rules). Admin-only.
  */
 export function renderRegelnSectionHead({ isAdmin }) {
-  const editBtn = isAdmin
-    ? '<button type="button" class="t-btn t-btn--ghost" data-action="edit-rules">Bearbeiten</button>'
-    : '';
-  return `${viewHead(editBtn)}
-              <div data-tab-body="regeln-mount"></div>`;
+  // Nacharbeit 2026-08-26, zweite Runde (Jonas): „hier gibts zwei mal
+  // bearbeiten, das muss weg."
+  //
+  // Der Modulkopf traegt seit der Markenuebernahme je Ansicht EINE Aktion,
+  // und fuer das Regelwerk ist das „Bearbeiten" (T_VIEW_CHROME). Der alte
+  // Knopf im View-Kopf war damit dieselbe Handlung ein zweites Mal, zwei
+  // Zentimeter tiefer und in anderer Optik. Genau die Dopplung, die schon
+  // beim Titel auffiel — der Kopf wurde ergaenzt, das Alte blieb stehen.
+  //
+  // isAdmin bleibt als Parameter erhalten: die Signatur wird an mehreren
+  // Stellen bedient, und die Rollenfrage ist hier nicht verschwunden,
+  // sondern in den Kopf gewandert (dort `wenn: (t) => t.isAdmin === true`).
+  void isAdmin;
+  return `<div data-tab-body="regeln-mount"></div>`;
 }
 
 /**

@@ -5408,28 +5408,23 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 }
 
 /* ----------------------------------------------------------------
-   GRUPPEN-UMSCHALTER — Nacharbeit 2026-08-26, Beschwerde 2
+   GRUPPENTABELLEN UNTEREINANDER — Stand 2026-08-26, zweite Runde
    ----------------------------------------------------------------
-   „bei tabellen: wieso sind die untereinander". Die Vorlage
-   (Abschnitt 04) zeigt eine Segment-Leiste und genau EINE Tabelle.
-   `.t-seg` stand hier schon vollstaendig — sie wurde nur nie
-   gerendert. Was fehlte, sind die Panels dazu.
+   Der Segment-Umschalter von heute Vormittag ist wieder raus (Entscheid
+   Jonas nach dem Browser-Blick: alle Gruppen untereinander, mit Abstand).
+   Was bleibt, ist die Machart der Vorlage je Tabelle — Kopfzeile mit
+   Spielstand, Baender links, Fusszeile mit der Aufstiegsregel.
 
-   Warum display:none und nicht ein Neu-Rendern beim Umschalten: die
-   Tabellen sind bereits im DOM, wenn die Ansicht steht. Ein Wechsel
-   ist dann ein Klassentausch ohne Netzweg und ohne Flackern — und der
-   Scrollstand der Seite bleibt, wo er war.
+   Der Abstand ist hier kein Zierrat: er uebernimmt die Aufgabe, die
+   vorher der Umschalter hatte, naemlich zu zeigen, wo eine Gruppe endet
+   und die naechste anfaengt. Deshalb --s5 und nicht --s2.
    ---------------------------------------------------------------- */
-.t-standings-panel { display: none; }
-.t-standings-panel.is-active { display: block; }
-/* Bei genau einer Gruppe traegt das einzige Panel die aktive Klasse
-   ohnehin (der Renderer setzt sie auf groups[0]) — ein :only-of-type-
-   Notnagel waere hier ausserdem wirkungslos gewesen: die Geschwister
-   sind ebenfalls <div>, also ist das Panel nie "only of type". Genau
-   solche Regeln sehen aus wie ein Sicherheitsnetz und sind keins. */
+.t-standings-karte + .t-standings-karte,
+.t-standings-karte + .grp-lbl,
+.t-standings-karte + .t-thirds-card {
+  margin-top: var(--s5);
+}
 
-/* Tabellenkopf: Name links, Stand rechts, Grundlinien fluchtend.
-   Werte aus der Vorlage (.tbl .th). */
 .t-standings-head {
   display: flex;
   align-items: baseline;
@@ -5530,4 +5525,93 @@ table.t-bogen-tab td.offen { color: #999; letter-spacing: 0.06em; }
 #content:has(> .t-list-host),
 #content:has(> .tournament-page-shell.t-mod) {
   background: var(--ground);
+}
+
+/* ----------------------------------------------------------------
+   KOPF UND KNOEPFE KOMPAKTER — Nacharbeit 2026-08-26, zweite Runde
+   ----------------------------------------------------------------
+   Jonas: „spielplan kann da kleiner stehen, dieses feld nimmt zu viel
+   platz ein" und „ergebnis eintragen ... auch kleiner und nicht so
+   platzeinnehmend".
+
+   ABWEICHUNG VON DER VORLAGE, ausdruecklich gewuenscht: das Artefakt
+   setzt den Titel auf 27px. Auf einem 390px-Schirm frisst der Kopf damit
+   zusammen mit Kicker und Polster rund ein Fuenftel der Hoehe, bevor der
+   erste Spielstand zu sehen ist. Auf schmalen Schirmen deshalb 21px und
+   engeres Polster. Ab 601px bleibt es bei den Artefakt-Werten — dort ist
+   der Platz da, und der grosse Titel ist das, woran man die Ansicht im
+   Vorbeigehen erkennt.
+   ---------------------------------------------------------------- */
+@container (max-width: 600px) {
+  .t-mod-header {
+    padding: var(--s1) var(--s3) var(--s2);
+    gap: 0;
+  }
+  .t-title {
+    font-size: 21px;
+    line-height: 1.15;
+  }
+  .t-mod-kicker {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+  }
+}
+
+/* Der kleine Knopf. Gleiche Optik wie .t-btn, nur weniger Anlauf:
+   die Handlung bleibt erkennbar, ohne die halbe Zeile zu belegen. */
+.t-btn--klein {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Icon-Knopf in der App-Kopfleiste („Aktualisieren"). Quadratisch, das
+   Zeichen traegt die Bedeutung — die Beschriftung steht im aria-label
+   und im Tooltip, nicht daneben. */
+.tournament-icon-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.tournament-icon-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+}
+
+/* ----------------------------------------------------------------
+   META-ZEILE AUF KLEINEN HANDYS — Fund Jonas, iPhone SE, 2026-08-26
+   ----------------------------------------------------------------
+   „passt platte 1 zB nicht ganz in die zeile und ist dann verschoben
+   weil die 1 dann nicht unter platte steht sondern links."
+
+   Zwei Ursachen, zwei Massnahmen:
+
+   1. Der Umbruch MITTEN im Begriff. Behoben im Renderer mit einem
+      geschuetzten Leerzeichen („Platte 1"), siehe resolveFieldName.
+      Das ist die eigentliche Reparatur — sie wirkt in jeder Breite.
+
+   2. Der Kampf um die Zeile. `.t-match-meta` ist eine Flex-Reihe mit
+      space-between: links Ort, rechts Zustand. Unter ~380px bleibt fuer
+      beides zusammen zu wenig Platz, und der linke Teil bricht um. Statt
+      ihn abzuschneiden (dann fehlt die Platte, und die braucht man am
+      Tisch) stapeln wir: Ort oben, Zustand darunter, beide linksbuendig.
+      Untereinander ist kein Notbehelf — es ist dieselbe Information in
+      der Reihenfolge, in der man sie liest.
+
+   380px ist gemessen, nicht gegriffen: das iPhone SE hat 375px Viewport,
+   der Container ist nach Polster etwa 347px breit.
+   ---------------------------------------------------------------- */
+@container (max-width: 380px) {
+  .t-match-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .t-match-meta > * {
+    max-width: 100%;
+  }
 }

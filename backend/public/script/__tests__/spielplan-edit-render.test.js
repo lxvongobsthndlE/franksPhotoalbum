@@ -119,9 +119,20 @@ describe('resolveFieldName', () => {
     expect(resolveFieldName('f2', fields)).toBe('Platte 2');
   });
 
-  it('Fallback: numerische ID ohne config → "Platte N"', () => {
-    expect(resolveFieldName(3, null)).toBe('Platte 3');
-    expect(resolveFieldName(3, [])).toBe('Platte 3');
+  it('Fallback: numerische ID ohne config baut "Platte N" mit geschuetztem Leerzeichen', () => {
+    // 2026-08-26, Fund von Jonas am iPhone SE: die Meta-Zeile der
+    // Spielkarte darf umbrechen (damit lange Feldnamen nicht abgeschnitten
+    // werden) — sie hat das genutzt und die Nummer auf eine eigene Zeile
+    // geschoben, wo sie linksbuendig unter der Uhrzeit stand.
+    //
+    // Der Fallback ist der EINZIGE Ort, an dem dieser Name entsteht; ein
+    // konfigurierter Feldname kommt unveraendert aus der Config.
+    const NBSP = String.fromCharCode(160);
+    expect(resolveFieldName(3, null)).toBe('Platte' + NBSP + '3');
+    expect(resolveFieldName(3, [])).toBe('Platte' + NBSP + '3');
+    // Gegenprobe. Ohne sie bliebe der Test auch dann gruen, wenn das NBSP
+    // wieder verschwindet: die beiden Zeichen sehen im Quelltext gleich aus.
+    expect(resolveFieldName(3, null)).not.toBe('Platte 3');
   });
 
   it('null/undefined → leerer String', () => {

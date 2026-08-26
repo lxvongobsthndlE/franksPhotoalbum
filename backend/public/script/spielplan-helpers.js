@@ -515,7 +515,7 @@ export function renderAsideTables(matches, limit = 6) {
     const home = m?.home?.name || 'offen';
     const away = m?.away?.name || 'offen';
     const time = m?.scheduledTime || '–';
-    return `<li><strong>Platte ${esc(m.field)}</strong> · ${esc(time)} · ${esc(home)} vs ${esc(away)}</li>`;
+    return `<li><strong>Platte ${esc(m.field)}</strong> · ${esc(time)} · ${esc(home)} vs ${esc(away)}</li>`;
   }).join('');
   return `<ul class="t-aside-list">${items}</ul>`;
 }
@@ -800,32 +800,23 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
     ? qualifyPerGroup
     : 2;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
-  // Beschwerde 2 (2026-08-26): „bei tabellen: wieso sind die untereinander".
-  // Bis hierher hat diese Funktion ALLE Gruppen gemappt und mit join('')
-  // aneinandergeklebt — bei drei Gruppen also drei volle Tabellen unter-
-  // einander, auf 390px weit ausserhalb des Sichtfelds. Die Vorlage zeigt
-  // an dieser Stelle eine Segment-Leiste und GENAU EINE Tabelle.
+  // Beschwerde 2 (2026-08-26) und ihre RUECKNAHME am selben Tag.
   //
-  // Bemerkenswert: die Leiste war nicht zu bauen, sondern nur zu benutzen.
-  // `.t-seg` stand seit der Markenuebernahme vollstaendig im Stylesheet
-  // (tournament.css) und wurde von keiner Zeile Javascript je gerendert.
-  // Genau das ist der rote Faden durch alle Beschwerden: die Bauteile
-  // waren umgefaerbt, die Struktur nie nachgebaut.
+  // Erst hiess es "bei tabellen: wieso sind die untereinander" — daraufhin
+  // stand hier ein Segment-Umschalter mit genau EINER sichtbaren Tabelle,
+  // wie die Vorlage ihn zeigt. Nach dem Blick im Browser hat Jonas anders
+  // entschieden: "es sieht zwar schoen aus aber ich glaube wenn die gruppen
+  // mit etwas abstand alle untereinander waeren, waere ich gluecklicher."
   //
-  // Bei EINER Gruppe gibt es keinen Umschalter — ein Schalter mit einer
-  // Stellung ist eine Bedienung, die nichts bedient.
-  const aktiv = groups[0];
-  const leiste = groups.length > 1
-    ? `<div class="t-seg" role="tablist" data-rolle="gruppen-umschalter">${groups
-        .map((g) => {
-          const name = esc(g.groupName || g.groupKey || 'Gruppe');
-          return `<button type="button" role="tab" data-gruppe="${esc(g.groupKey || name)}"`
-            + ` aria-selected="${g === aktiv ? 'true' : 'false'}"`
-            + `${g === aktiv ? ' class="is-active"' : ''}>${name}</button>`;
-        })
-        .join('')}</div>`
-    : '';
-  return leiste + groups
+  // Das ist kein Rueckschritt auf den Ausgangszustand. Der war: Tabellen
+  // ohne Luft dazwischen, ohne Kopfzeile mit Spielstand, ohne Fusszeile mit
+  // der Aufstiegsregel. Geblieben ist alles, was die Markenuebernahme
+  // gebracht hat — es faellt nur die Regel "genau eine sichtbar". Den
+  // Schnitt zwischen zwei Gruppen macht jetzt der Abstand statt des
+  // Umschalters.
+  //
+  // ABWEICHUNG VON DER VORLAGE, ausdruecklich so entschieden.
+  return groups
     .map((g) => {
       const rows = (g.standings || [])
         .map((s, i) => {
@@ -878,7 +869,7 @@ export function renderStandingsGroups(groups, scoreLabel, qualifyPerGroup = 2) {
       const gespielt = Math.round(zeilenG.reduce((n, s) => n + (s.played ?? 0), 0) / 2);
       const gesamt = (zeilenG.length * (zeilenG.length - 1)) / 2;
       const stand = gesamt > 0 ? `${gespielt} von ${gesamt} Spielen` : '';
-      return `<div class="t-card t-standings-panel${aktiv === g ? ' is-active' : ''}" data-gruppe="${esc(g.groupKey || title)}">
+      return `<div class="t-card t-standings-karte">
         <div class="t-card-body">
           <div class="t-standings-head">
             <h3 class="t-standings-group-title">${title}</h3>
@@ -1152,7 +1143,7 @@ export function renderMatchCardBracket(m, extraStyle = '') {
   const meta = m?.isFinished
     ? 'Beendet'
     : (m?.scheduledTime && typeof m?.field === 'number')
-      ? `${m.scheduledTime} · Platte ${m.field}`
+      ? `${m.scheduledTime} · Platte ${m.field}`
       : '';
 
   const homeIsPlaceholder = m?.home?.kind === 'placeholder';
@@ -1233,7 +1224,12 @@ export function renderBracket(matches) {
       </div>`
     : '';
 
-  const wegHtml = renderWegZumTitel(rundenStand, aktuelleRunde);
+  // Die Miniatur "Der Weg zum Titel" ist am 26.08. auf Entscheid von Jonas
+  // entfallen ("das sieht nicht schoen aus"). ABWEICHUNG VON DER VORLAGE:
+  // das Artefakt zeigt sie in Abschnitt 05 ausdruecklich. Was sie leisten
+  // sollte — zeigen, wie weit es noch ist — leisten die Runden-Reiter
+  // darunter ohnehin, und zwar mit Zahlen statt mit Kreisen.
+  const wegHtml = '';
 
   // Architektur (Etappe B.4 Bug-16-Nachschlag, 2026-08-19):
   //   .bracket-wrap ist Flex, .bracket-col sind echte Flex-Column-Container.
@@ -1266,81 +1262,6 @@ export function renderBracket(matches) {
     </div>`;
 }
 
-/**
- * "Der Weg zum Titel" — die Miniatur ueber dem Baum.
- *
- * Ein vollstaendiger Turnierbaum ist auf 390px unlesbar; das war der
- * Befund, der 2026-08-19 zur heutigen Spaltenansicht gefuehrt hat. Die
- * Miniatur loest das anders als ein geschrumpfter Baum: sie zeigt gar
- * keine Paarungen, sondern nur, WIE WEIT es noch ist.
- *
- *   ●━━━━●━━━━○┈┈┈┈( )
- *   VF   HF   F    TITEL
- *
- * Gespielte Runden sind gefuellt und grau, die aktuelle orange, offene
- * bleiben Umriss. Der Kreis am Ende ist der Titel — die einzige Stelle
- * im ganzen Modul, an der Orange etwas UMSCHLIESST statt es nur zu
- * faerben.
- *
- * Bewusst als SVG mit fester viewBox und `width: 100%`: die Grafik
- * skaliert dann mit der Karte, statt bei jeder Breite neu gerechnet zu
- * werden. Bei einer Runde (nur Finale) waere die Miniatur eine Linie
- * ohne Aussage — dann faellt sie weg.
- */
-function renderWegZumTitel(runden, aktuelle) {
-  if (!Array.isArray(runden) || runden.length < 2) return '';
-
-  const n = runden.length;
-  const links = 60;
-  const rechts = 60;
-  const breite = 320;
-  const y = 26;
-  const spanne = breite - links - rechts;
-  const dx = n > 1 ? spanne / (n - 1) : 0;
-
-  const teile = [];
-  // Strecken zwischen den Stationen
-  for (let i = 0; i < n - 1; i++) {
-    const x1 = links + i * dx;
-    const x2 = links + (i + 1) * dx;
-    const gespielt = runden[i].gesamt > 0 && runden[i].fertig >= runden[i].gesamt;
-    const aktiv = i === aktuelle || i + 1 === aktuelle;
-    const farbe = gespielt ? 'var(--ink-2)' : aktiv ? 'var(--flare)' : 'var(--line)';
-    const strich = gespielt || aktiv ? '' : ' stroke-dasharray="3 5"';
-    teile.push(`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${farbe}" stroke-width="3" stroke-linecap="round"${strich}/>`);
-  }
-  // Stationen
-  runden.forEach((r, i) => {
-    const x = links + i * dx;
-    const gespielt = r.gesamt > 0 && r.fertig >= r.gesamt;
-    const aktiv = i === aktuelle;
-    const farbe = gespielt ? 'var(--ink-2)' : aktiv ? 'var(--flare)' : 'var(--line)';
-    const fuell = gespielt || aktiv ? farbe : 'var(--panel)';
-    teile.push(`<circle cx="${x}" cy="${y}" r="5" fill="${fuell}" stroke="${farbe}" stroke-width="3"/>`);
-  });
-  // Ziel
-  const xZiel = links + (n - 1) * dx;
-  teile.push(`<line x1="${xZiel}" y1="${y}" x2="${xZiel + 34}" y2="${y}" stroke="var(--flare)" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>`);
-  teile.push(`<circle cx="${xZiel + 48}" cy="${y}" r="11" fill="none" stroke="var(--flare)" stroke-width="3" stroke-dasharray="5 5"/>`);
-
-  const beschriftung = runden.map((r, i) => {
-    const x = links + i * dx;
-    return `<text x="${x}" y="${y + 22}" text-anchor="middle" class="t-weg-label">${esc(kurzRunde(r.label))}</text>`;
-  }).join('');
-
-  return `<div class="t-weg">
-    <div class="t-weg-kopf">
-      <span class="t-weg-titel">Der Weg zum Titel</span>
-      <span class="t-weg-stand">Runde ${Math.max(1, aktuelle + 1)} von ${n}</span>
-    </div>
-    <svg class="t-weg-svg" viewBox="0 0 ${breite + 20} 56" role="img"
-         aria-label="Fortschritt: Runde ${Math.max(1, aktuelle + 1)} von ${n}">
-      ${teile.join('')}
-      ${beschriftung}
-      <text x="${xZiel + 48}" y="${y + 22}" text-anchor="middle" class="t-weg-label t-weg-label--ziel">Titel</text>
-    </svg>
-  </div>`;
-}
 
 /**
  * Rundennamen fuer die Miniatur kuerzen. "Viertelfinale" braucht unter
@@ -1960,7 +1881,57 @@ export function renderEinstellungen(t, opts = {}) {
     ? `<div class="t-hint t-hint--info">${esc(canEditFields.reason ?? 'Spielfelder sind gesperrt.')}</div>`
     : '';
 
-  // Block 5 — Gefahrenzone
+  // Block 5 — Notfall (2026-08-26, Entscheid Jonas)
+  //
+  // "ko phase starten sollte ja automatisch passieren, wenn gruppenphase
+  //  durch ist. daher mach den gruppenphase starten button lieber in
+  //  einstellungen, als notfallknopf wenns nicht geht aus irgendeinem grund."
+  //
+  // Der Knopf stand bis hierher als grosser Aufruf UNTER den
+  // Gruppentabellen — an der Stelle, an der man Ergebnisse liest, nicht
+  // an der man Dinge repariert. Und er stand da nur dann, wenn der
+  // Automatik-Weg versagt hatte, also ausgerechnet in dem Moment, in dem
+  // niemand mit einer Aufforderung rechnet.
+  //
+  // Hier ist er dauerhaft und klein. Das ist Absicht: ein Notfallknopf,
+  // den man nur im Notfall SIEHT, findet man im Notfall nicht. Ist nichts
+  // zu tun, antwortet die Route mit "bereits gefuellt" — die Wahrheit
+  // darueber liegt im Server, nicht in einer Bedingung im Frontend, die
+  // hier ohnehin nur geraten waere.
+  // Einstieg in den Spielplan-Edit-Modus (Zeit und Platte je Spiel).
+  // Entscheid Jonas 2026-08-26: "bearbeiten kann auch weg das mach ich
+  // als admin ja in den einstellungen." Der Knopf ist aus dem
+  // Spielplan-Kopf verschwunden — und der Selektor-Drift-Detektor hat
+  // sofort gemeldet, dass die Handler ihn noch suchen. Ohne diesen
+  // Einstieg hier waere der Edit-Modus unerreichbar geworden: die Funktion
+  // haette weiter existiert, nur haette sie niemand mehr aufrufen koennen.
+  const spielplanEdit = isAdmin
+    ? `
+      <div class="t-settings-actions">
+        <button class="t-btn t-btn--ghost t-btn--klein" data-action="toggle-schedule-edit" type="button">Spielzeiten bearbeiten</button>
+      </div>
+      <div class="t-hint t-hint--info">Zeit und Platte einzelner Spiele ändern. Öffnet den Spielplan im Bearbeiten-Modus.</div>
+    `
+    : '';
+
+  const notfallZone = isAdmin
+    ? `
+      <section class="t-settings-section" data-section="notfall" data-collapsed="true">
+        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="false">
+          <span class="t-settings-section-title">Notfall</span>
+          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="t-settings-section-body">
+          <div class="t-settings-actions">
+            <button class="t-btn t-btn--ghost t-btn--klein" data-action="start-ko-phase" type="button">K.-o.-Phase aus den Gruppen füllen</button>
+          </div>
+          <div class="t-hint t-hint--info">Passiert normalerweise von selbst, sobald das letzte Gruppenspiel eingetragen ist. Dieser Knopf ist für den Fall, dass es das nicht getan hat.</div>
+        </div>
+      </section>
+    `
+    : '';
+
+  // Block 6 — Gefahrenzone
   const dangerZone = isAdmin
     ? `
       <section class="t-settings-section t-danger-zone" data-section="danger-zone" data-collapsed="${!defaultOpen['danger-zone']}">
@@ -2024,6 +1995,15 @@ export function renderEinstellungen(t, opts = {}) {
       </section>
       ${renderLogoBlock({ t, isAdmin })}
       ${renderZuschauerLinkBlock({ t, isAdmin, isDraft, defaultOpen: !isDraft })}
+      ${spielplanEdit ? `
+      <section class="t-settings-section" data-section="spielbetrieb" data-collapsed="true">
+        <button class="t-settings-section-header" type="button" data-action="toggle-section" aria-expanded="false">
+          <span class="t-settings-section-title">Spielbetrieb</span>
+          <span class="t-settings-section-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="t-settings-section-body">${spielplanEdit}</div>
+      </section>` : ''}
+      ${notfallZone}
       ${dangerZone}
     </div>
   `;
@@ -2497,7 +2477,15 @@ export function resolveFieldName(fieldId, fieldsConfig) {
   if (hit) return hit.name;
   // Numeric fallback: z.B. altes field=1 → „Platte 1"
   if (typeof fieldId === 'number') {
-    return `Platte ${fieldId}`;
+    // Geschuetztes Leerzeichen (2026-08-26, Fund von Jonas am iPhone SE):
+    // Die Meta-Zeile der Spielkarte darf umbrechen (white-space: normal),
+    // weil lange Feldnamen sonst abgeschnitten werden. Bei "Platte 1" hat
+    // sie das genutzt und die 1 auf die naechste Zeile geschoben — dort
+    // steht sie linksbuendig unter der Uhrzeit statt unter "Platte", und
+    // das sieht nach Fehler aus. Ein normales Leerzeichen ist die einzige
+    // Stelle, an der die Zeile hier brechen KANN; ein geschuetztes nimmt
+    // ihr genau diese Moeglichkeit, ohne den Umbruch woanders zu verbieten.
+    return `Platte ${fieldId}`;
   }
   return String(fieldId);
 }

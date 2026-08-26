@@ -676,6 +676,7 @@ const ICON_SHEET_RULES      = `<svg viewBox="0 0 24 24" fill="none" stroke="curr
 const ICON_SHEET_PRINT      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`;                                                          // printer
 const ICON_SHEET_SETTINGS   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`; // settings
 const ICON_SHEET_BACK       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;                                                                                   // arrow-left
+const ICON_RELOAD       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>`;  // rotate-cw
 
 // ── TOAST NOTIFICATIONS ─────────────────────────────────
 function toast(msg, type = 'info') {
@@ -1928,6 +1929,11 @@ async function switchToTournaments(view = 'instances', { closeSidebarFirst = tru
 }
 
 async function switchToTournamentInstances() {
+  // Gegenrichtung zum Aufbau in openTournamentInstance: wer die Liste
+  // oeffnet, ist in keinem Turnier mehr. Ohne dieses Zuruecksetzen bliebe
+  // das Gate der Kopfleiste auf „Detail offen" stehen und der
+  // Erstellen-Knopf fehlte dort, wo er hingehoert.
+  activeTournamentInstance = null;
   await switchToTournaments('instances');
 }
 
@@ -2357,6 +2363,30 @@ async function loadFeedPosts(reset = false) {
   }
 }
 
+/**
+ * Zuschauer-Link in die Zwischenablage legen.
+ *
+ * Baut die Adresse aus dem Turnier-DTO statt sie aus einem Eingabefeld
+ * im Einstellungen-Tab zu lesen. Der alte Weg lief ueber
+ * `mount.querySelector('[data-public-url]')` und funktionierte deshalb
+ * nur, solange dieser Tab gerendert war — von der Baum-Ansicht aus, wo
+ * die Vorlage "Teilen" zeigt, waere er stumm ins Leere gelaufen.
+ *
+ * Die Bedingung dafuer, dass der Knopf ueberhaupt erscheint, steht in
+ * T_VIEW_CHROME: nur mit isPublic und vorhandenem Token.
+ */
+async function teileZuschauerLink(t) {
+  if (!t?.publicToken) return;
+  const url = `${location.origin}/t/${encodeURIComponent(t.publicToken)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Zuschauer-Link kopiert.', 'success');
+  } catch {
+    // Ohne Zwischenablage-Recht (oder ohne HTTPS) ist die Adresse
+    // im Klartext hilfreicher als eine Fehlermeldung.
+    toast(url, 'info');
+  }
+}
 function renderTournamentHeaderActions() {
   const uploadBtn = $('upload-btn');
   if (!uploadBtn) return;
@@ -2400,9 +2430,15 @@ function renderTournamentHeaderActions() {
   const actionButtons = isInstancesView
     ? [
         {
+          // Nacharbeit 2026-08-26 (Jonas): „aktualisieren kann bleiben
+          // jedoch kleiner mit einem reload symbol oder so". Aus der
+          // breiten Beschriftung wird ein quadratischer Icon-Knopf; die
+          // Beschriftung bleibt als aria-label und Tooltip erhalten,
+          // damit der Knopf fuer Screenreader und beim Zoegern lesbar ist.
           id: 'tournament-refresh-btn',
           label: 'Aktualisieren',
-          className: 'btn btn-ghost',
+          icon: ICON_RELOAD,
+          className: 'btn btn-ghost tournament-icon-btn',
           onClick: () => loadActiveTournamentView(true),
         },
         ...(darfErstellen
@@ -2410,6 +2446,11 @@ function renderTournamentHeaderActions() {
             // Issue 6d (2026-08-13): normal-großer Button rechts oben statt
             // winziges Icon. Beschriftung rein beschreibend — ohne "Wizard",
             // das Wort bleibt dem gleichnamigen Issue 5 vorbehalten.
+            //
+            // 2026-08-26: Der Knopf steht nur noch in der UEBERSICHT, nie
+            // in einem geoeffneten Turnier — Jonas: „lieber turnier
+            // erstellen als admin in der turnierübersicht". Das Gate dafuer
+            // ist `detailOffen` weiter oben.
             id: 'tournament-new-instance-btn',
             label: 'Turnier erstellen',
             className: 'btn btn-primary tournament-new-instance-btn',
@@ -2425,7 +2466,13 @@ function renderTournamentHeaderActions() {
     btn.id = item.id;
     btn.className = `${item.className} tournament-header-btn`;
     btn.type = 'button';
-    btn.textContent = item.label;
+    if (item.icon) {
+      btn.innerHTML = item.icon;
+      btn.setAttribute('aria-label', item.label);
+      btn.title = item.label;
+    } else {
+      btn.textContent = item.label;
+    }
     btn.onclick = item.onClick;
     anchor.after(btn);
     anchor = btn;
@@ -3047,6 +3094,71 @@ function renderDruckenView() {
       </div>`;
 }
 
+/**
+ * Druckboegen laden und rendern (Fehlerbefund Jonas, 2026-08-26).
+ *
+ * WAS KAPUTT WAR: Bogen 2 („Gruppentabellen") druckte die Kopfzeilen und
+ * darunter nichts — leere Tabellen, und als Gruppenname stand ueberall das
+ * Wort „Gruppe", also der Fallback.
+ *
+ * URSACHE: Der Bogen bekam `activeTournamentInstance`. Dessen `groups`
+ * kommen aus dem Detail-Fetch und beschreiben die EINTEILUNG — id, Teams,
+ * sonst nichts. Die Tabelle mit Punkten, Bilanz und Rang wird an einer
+ * anderen Stelle gerechnet und liegt unter GET /:id/standings. Der
+ * Renderer las also `g.standings` an einem Objekt, das dieses Feld nie
+ * hatte, und `.map()` ueber ein leeres Array liefert brav einen leeren
+ * String. Kein Fehler, keine Warnung — nur ein leeres Blatt.
+ *
+ * Das ist dieselbe Fehlerklasse wie beim Einstellungen-Tab (Notiz der
+ * Nachbar-Session: „Was in der Feldliste fehlt, sieht der Renderer nie").
+ * Ein Renderer, der ein fehlendes Feld als „leer" statt als „unbekannt"
+ * liest, kann den Unterschied nicht melden.
+ *
+ * Nebenbei mitgefixt: `qualifyPerGroup` wurde als `t?.tournament?.…`
+ * gelesen. `t` IST das Turnier-DTO, ein `t.tournament` gibt es nicht —
+ * der Wert war immer undefined und der Bogen faerbte stumm zwei
+ * Aufstiegsplaetze, egal was eingestellt war.
+ */
+async function ladeDruckboegen(t, mount) {
+  if (!t?.id || !mount) return;
+  const rendern = (daten, qualify) => {
+    try {
+      mount.innerHTML = window.spielplanHelpers?.renderDruckboegen
+        ? window.spielplanHelpers.renderDruckboegen(daten, qualify)
+        : '';
+    } catch (err) {
+      // Ein kaputter Bogen darf den Tab nicht mitreissen — der
+      // Drucken-Knopf oben funktioniert auch ohne Vorschau.
+      // eslint-disable-next-line no-console
+      console.warn('[drucken] Vorschau fehlgeschlagen', err);
+      mount.innerHTML = '';
+    }
+  };
+
+  try {
+    const daten = await apiCall(
+      `/tournaments/${encodeURIComponent(t.id)}/standings`,
+      'GET'
+    );
+    // Stale-Guard wie an den sechs anderen Stellen im File: zwischen
+    // Absenden und Antwort kann der Nutzer laengst woanders stehen.
+    if (activeTournamentInstance?.id !== t.id) return;
+    const gruppen = Array.isArray(daten?.groups) ? daten.groups : [];
+    // Die gerechneten Gruppen ERSETZEN die rohe Einteilung — sie tragen
+    // dieselbe Identitaet plus die Tabelle. Der Rest von t bleibt, weil
+    // Bogen 1 und 3 daraus Spielplan und Baum ziehen.
+    rendern(
+      { ...t, groups: gruppen.length ? gruppen : (t.groups ?? []) },
+      daten?.qualifyPerGroup ?? t?.config?.advancePerGroup,
+    );
+  } catch (err) {
+    // Ohne Tabellen ist der Spielplan-Bogen immer noch brauchbar —
+    // lieber zwei richtige Blaetter als gar keine Vorschau.
+    // eslint-disable-next-line no-console
+    console.warn('[drucken] Tabellen konnten nicht geladen werden', err);
+    rendern(t, t?.config?.advancePerGroup);
+  }
+}
 function handleTournamentTabSideEffects(view, t, detail) {
   if (!detail) return;
   // Drucken-Tab: die Boegen sind die Vorschau UND das, was gedruckt wird.
@@ -3054,19 +3166,7 @@ function handleTournamentTabSideEffects(view, t, detail) {
   // druckt, will nicht den Stand von vor drei Ergebnissen.
   if (view === 'drucken') {
     const mount = detail.querySelector('[data-tab-body="drucken-mount"]');
-    if (mount) {
-      try {
-        mount.innerHTML = window.spielplanHelpers?.renderDruckboegen
-          ? window.spielplanHelpers.renderDruckboegen(t, t?.tournament?.qualifyPerGroup)
-          : '';
-      } catch (err) {
-        // Ein kaputter Bogen darf den Tab nicht mitreissen — der
-        // Drucken-Knopf oben funktioniert auch ohne Vorschau.
-        // eslint-disable-next-line no-console
-        console.warn('[drucken] Vorschau fehlgeschlagen', err);
-        mount.innerHTML = '';
-      }
-    }
+    if (mount) ladeDruckboegen(t, mount);
   }
   // Einstellungen-Tab (Etappe B.7): Aktionen / Gruppen / Seeding /
   // Spielfelder / Gefahrenzone. Immer re-rendern, damit Status-
@@ -3157,6 +3257,17 @@ async function openTournamentInstance(instanceId) {
       instance.isAdmin = res?.isAdmin === true;
     }
     activeTournamentInstance = instance;
+    // Nacharbeit (2026-08-26, zweite Runde): Die Kopfleiste MUSS hier neu
+    // gebaut werden. Ihr Gate fragt `activeTournamentInstance` ab — aber
+    // gebaut wurde sie zuletzt, als die LISTE offen war, und niemand hat
+    // sie danach angefasst. Das Gate war also richtig und trotzdem ohne
+    // Wirkung: die alten Knoepfe standen einfach noch im DOM.
+    //
+    // Genau dieselbe Mechanik hat die Nachbar-Session bei der
+    // Rollenpruefung beschrieben — Wert setzen und Leiste NICHT neu bauen
+    // heisst, dass der Wert niemanden erreicht. Ein Zustand, den keiner
+    // liest, ist kein Zustand.
+    renderTournamentHeaderActions();
     // Bug-Fix Etappe B.8.1 (User-Feedback 2026-08-20): die Top-Level-Listen
     // (teams/groups/matches/stages) auf den globalen `activeTournamentInstance`
     // patchen, damit `handleTournamentTabSideEffects` über `restoreTournamentViewState`
@@ -3590,11 +3701,25 @@ function renderTournamentInstanceDetailV3(t) {
         // schaltet seine Gegenrichtungs-Pruefung fuer ALLE data-action-Werte
         // ab. Eine Zeile Bequemlichkeit haette den Waechter fuer das ganze
         // Modul blind gemacht. Ausgeschrieben prueft er auch diese zwei mit.
+        // NACHTRAG am selben Tag, ausgeloest vom Selektor-Drift-Detektor:
+        // hier standen zwei `querySelector(...).click()`-Weiterleitungen an
+        // Knoepfe in anderen Ansichten. Der Detektor hat sie als TOTE
+        // SELEKTOREN gemeldet, nachdem beide Knoepfe entfallen waren — und
+        // damit einen Fehler gefunden, den ich sonst ausgeliefert haette:
+        // "Bearbeiten" im Regelwerk-Kopf haette beim Klick nichts getan.
+        //
+        // Die Lehre steckt schon im Weiterleiten selbst. Ein Knopf, der
+        // einen anderen Knopf klickt, haengt daran, dass dieser gerade im
+        // DOM steht — "Teilen" haette nur funktioniert, wenn der Nutzer
+        // vorher im Einstellungen-Tab war. Kein Fehler, kein Hinweis,
+        // einfach nichts. Jetzt ruft jede Kopf-Aktion die Handlung direkt.
         const handlung = headAction.dataset.handlung;
         if (handlung === 'teilen') {
-          detail.querySelector('[data-action="copy-public-link"]')?.click();
+          teileZuschauerLink(t);
         } else if (handlung === 'regelwerk-bearbeiten') {
-          detail.querySelector('[data-action="edit-rules"]')?.click();
+          switchToView('regeln', null);
+          handleTournamentTabSideEffects('regeln', t, detail);
+          enterRulesEditMode(t.id);
         }
       });
     }
@@ -3706,9 +3831,10 @@ function renderTournamentInstanceDetailV3(t) {
     // werden dynamisch von renderRulesView gebaut → wir delegieren
     // auf den Mount, damit renderRulesView die Buttons nicht jedes Mal
     // neu binden muss.
-    detail.querySelector('[data-action="edit-rules"]')?.addEventListener('click', () => {
-      enterRulesEditMode(t.id);
-    });
+    // Der fruehere „Bearbeiten"-Knopf im Regelwerk-View-Kopf ist am
+    // 26.08. entfallen (er stand dort ein zweites Mal, siehe
+    // renderRegelnSectionHead). Der Einstieg liegt jetzt im Modulkopf
+    // und ruft enterRulesEditMode direkt.
     const regelnMount = detail.querySelector('[data-tab-body="regeln-mount"]');
     if (regelnMount) {
       regelnMount.addEventListener('click', (e) => {
@@ -4064,27 +4190,20 @@ async function loadStandingsTab(tournamentId) {
     // ist — also unbedenklich, hier zu konkatenieren.
     const bestThirdsHtml = renderBestThirdsTable(data.bestThirds);
     mount.innerHTML = groupsHtml + bestThirdsHtml;
-    wireGruppenUmschalter(mount);
-    // P5-Re-Fix-3 (2026-08-25): Button „K.-o.-Phase starten" UNTER
-    // den Gruppentabellen anhängen — User-Feedback:
-    // „mach den ko phase starten button lieber bei den gruppen hin
-    // ganz ganz unten". Admin-only (isAdmin-Gate).
-    // Voraussetzungen:
-    //   - Modus groups_ko
-    //   - alle Gruppenspiele finished sind
-    //   - das Bracket noch nicht gefüllt ist (= Slots haben Platzhalter)
-    // Mitglieder sehen den Button NICHT — weder Hinweistext noch CTA.
-    const tournament = activeTournamentInstance;
-    const allGroupsFinished = data?.allGroupsFinished === true;
-    const bracketHasPlaceholders = data?.bracketHasPlaceholders === true;
-    if (
-      tournament?.isAdmin === true
-      && tournament?.mode === 'groups_ko'
-      && allGroupsFinished
-      && bracketHasPlaceholders
-    ) {
-      wireFillKoButton(mount, tournament);
-    }
+    // Nacharbeit 2026-08-26 (Entscheid Jonas): Hier stand der grosse
+    // Aufruf „K.-o.-Phase starten" samt Hinweiskarte, angehaengt unter
+    // den Gruppentabellen. Er ist ersatzlos entfallen und liegt jetzt als
+    // kleiner Notfallknopf im Einstellungen-Tab.
+    //
+    // Der Grund ist nicht Platz, sondern Zustaendigkeit: das Fuellen der
+    // K.-o.-Phase passiert automatisch, sobald das letzte Gruppenspiel
+    // eingetragen ist. Ein Knopf, der nur erscheint, WENN die Automatik
+    // versagt hat, steht ausgerechnet dann da, wenn niemand mit einer
+    // Aufforderung rechnet — und er steht in der Ansicht, in der man
+    // Ergebnisse liest, nicht in der man Dinge repariert.
+    //
+    // Die Route und ihr Handler sind unveraendert; nur der Einstieg ist
+    // umgezogen. Siehe renderEinstellungen -> Block „Notfall".
     // P5-Truncation 2026-08-25: ResizeObserver auf .t-mod, der beim
     // Crossen der 600-px-Grenze die Tabellen mit der passenden
     // Colgroup neu rendert. Refresh-Callback re-fetched nicht (zu
@@ -4148,42 +4267,12 @@ function refreshStandingsTab(tournamentId, groups, bestThirds, scoreLabel, fillK
   const groupsHtml = renderStandingsGroups(groups, scoreLabel, qualifyPerGroup);
   const bestThirdsHtml = renderBestThirdsTable(bestThirds);
   mount.innerHTML = groupsHtml + bestThirdsHtml;
-  wireGruppenUmschalter(mount);
-  if (fillKoButtonArgs) {
-    wireFillKoButton(mount, fillKoButtonArgs.tournament);
-  }
+  // Der KO-Knopf und der Gruppen-Umschalter sind hier beide entfallen
+  // (2026-08-26): der Knopf liegt jetzt im Einstellungen-Tab, und die
+  // Gruppen stehen wieder untereinander statt hinter einem Schalter.
+  void fillKoButtonArgs;
 }
 
-/**
- * Segment-Leiste ueber den Gruppentabellen (Nacharbeit 2026-08-26,
- * Beschwerde 2). Ein Klick tauscht Klassen, sonst nichts: die Tabellen
- * stehen alle im DOM, es gibt keinen Netzweg und keinen Neuaufbau.
- *
- * Bewusst NICHT an `wireGuardedClick`: der Doppelklick-Wächter deckt
- * mutierende Aktionen ab, und ein zweiter Klick auf denselben Reiter
- * richtet hier nichts an — er zeigt dieselbe Tabelle noch einmal.
- * Eine Sperre haette hier nur so ausgesehen, als sei etwas zu schuetzen.
- *
- * Delegation am Mount, damit ein Neu-Rendern der Tabellen (Resize,
- * Ergebnis-Eingabe) die Verdrahtung nicht verliert.
- */
-function wireGruppenUmschalter(mount) {
-  const leiste = mount?.querySelector?.('[data-rolle="gruppen-umschalter"]');
-  if (!leiste) return; // eine Gruppe, kein Umschalter — das ist kein Fehler
-  leiste.addEventListener('click', (ev) => {
-    const knopf = ev.target.closest('button[data-gruppe]');
-    if (!knopf || !leiste.contains(knopf)) return;
-    const ziel = knopf.dataset.gruppe;
-    for (const b of leiste.querySelectorAll('button[data-gruppe]')) {
-      const an = b.dataset.gruppe === ziel;
-      b.classList.toggle('is-active', an);
-      b.setAttribute('aria-selected', an ? 'true' : 'false');
-    }
-    for (const p of mount.querySelectorAll('.t-standings-panel[data-gruppe]')) {
-      p.classList.toggle('is-active', p.dataset.gruppe === ziel);
-    }
-  });
-}
 
 /**
  * Turnierbaum-Tab rendern (Etappe B.4).
@@ -4260,62 +4349,50 @@ async function loadBracketTab(tournamentId) {
  * — wir zeigen den Toast mit dem ersten Matchup, damit der User sofort
  * sieht, was passiert ist.
  */
-function wireFillKoButton(mount, tournament) {
-  if (!mount || !tournament) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 't-btn t-btn--primary t-btn--lg t-fill-ko-btn';
-  btn.dataset.action = 'start-ko-phase';
-  // Lucide-Icon „Swords" für „K.-o.-Phase starten" — Kampf-Symbol
-  // passt zur KO-Phase. Inline-SVG im selben Stil wie die übrigen
-  // Icons der App (siehe ICON_TAB_* / ICON_SHEET_*), damit der
-  // Icon-Look konsistent bleibt.
-  btn.innerHTML = '<svg class="t-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="9.5 6.5 21 17 21 21 17 21 6.5 9.5"/></svg>'
-    + '<span>K.-o.-Phase starten</span>';
-  const wrap = document.createElement('div');
-  wrap.className = 't-fill-ko-cta';
-  // Hinweistext dabei — User soll verstehen, warum der Button da ist.
-  const note = document.createElement('p');
-  note.className = 't-fill-ko-note t-hint';
-  note.textContent = 'Alle Gruppenspiele sind eingetragen — die K.-o.-Phase wurde noch nicht aus den Ergebnissen gefüllt. Klick füllt das Bracket mit den Qualifikanten.';
-  wrap.appendChild(note);
-  wrap.appendChild(btn);
-  // Card drumherum, damit der Block wie ein eigener CTA aussieht
-  // (User-Feedback: „mach dass es mehr wie ein button aussieht").
-  const card = document.createElement('div');
-  card.className = 't-card t-fill-ko-card';
-  const body = document.createElement('div');
-  body.className = 't-card-body t-fill-ko-card-body';
-  card.appendChild(body);
-  body.appendChild(wrap);
-  mount.appendChild(card);
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    btn.textContent = 'Fülle K.-o.-Phase…';
-    let saved = false;
-    try {
-      const result = await apiCall(
-        `/tournaments/${encodeURIComponent(tournament.id)}/fill-ko`,
-        'POST'
-      );
-      const mu = result?.firstMatchup;
-      const msg = mu?.home && mu?.away
-        ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
-        : 'K.-o.-Phase gefüllt';
-      toast(msg, 'success');
-      saved = true;
-    } catch (e) {
-      const errorMsg = e?.status === 409 && /group_phase_not_complete/.test(e.message)
-        ? 'Gruppenphase ist noch nicht abgeschlossen.'
+/**
+ * K.-o.-Phase von Hand aus den Gruppenergebnissen fuellen.
+ *
+ * Bis 2026-08-26 hiess diese Funktion `wireFillKoButton` und tat zwei
+ * Dinge: sie BAUTE einen grossen Aufruf-Knopf samt Hinweiskarte unter den
+ * Gruppentabellen und haengte den Handler daran. Der Knopf ist auf
+ * Entscheid von Jonas in den Einstellungen-Tab gewandert („als
+ * notfallknopf wenns nicht geht aus irgendeinem grund"), und damit bleibt
+ * hier nur noch die Handlung.
+ *
+ * Das ist auch die sauberere Trennung: wer den Knopf zeichnet, entscheidet
+ * ueber Ort und Optik; was er tut, steht an einer Stelle. „Eine Wahrheit,
+ * zwei Ausloeser" (P5, 2026-08-25) gilt unveraendert — der automatische
+ * Weg ueber maybeFillKoFromGroupFinish ruft dieselbe Route.
+ */
+async function fuelleKoPhaseVonHand(tournament) {
+  if (!tournament?.id) return;
+  let erfolg = false;
+  try {
+    const result = await apiCall(
+      `/tournaments/${encodeURIComponent(tournament.id)}/fill-ko`,
+      'POST'
+    );
+    const mu = result?.firstMatchup;
+    const msg = mu?.home && mu?.away
+      ? `K.-o.-Phase steht: ${mu.home} trifft auf ${mu.away}`
+      : 'K.-o.-Phase gefüllt';
+    toast(msg, 'success');
+    erfolg = true;
+  } catch (e) {
+    // Die drei Faelle, die hier wirklich vorkommen, bekommen einen
+    // eigenen Satz. Alles andere faellt auf die Servermeldung zurueck —
+    // eine erfundene Erklaerung waere schlimmer als eine technische.
+    const roh = String(e?.message ?? '');
+    const errorMsg = /group_phase_not_complete/.test(roh)
+      ? 'Die Gruppenphase ist noch nicht abgeschlossen — es fehlen Ergebnisse.'
+      : /bracket_already_filled/.test(roh)
+        ? 'Die K.-o.-Phase steht bereits. Hier ist nichts zu reparieren.'
         : (e?.serverMessage || 'K.-o.-Phase konnte nicht gefüllt werden');
-      toast(errorMsg, 'error');
-      btn.disabled = false;
-      btn.textContent = 'K.-o.-Phase starten';
-    }
-    if (saved) {
-      await refreshTournamentAfterMutation(tournament.id);
-    }
-  });
+    toast(errorMsg, /bracket_already_filled/.test(roh) ? 'info' : 'error');
+  }
+  if (erfolg) {
+    await refreshTournamentAfterMutation(tournament.id);
+  }
 }
 
 /**
@@ -4847,6 +4924,33 @@ function wireEinstellungen(mount, t, { finishedCount }) {
     if (seedingTeamsList && typeof wireTeamsList === 'function') {
       wireTeamsList(mount, t, { isAdmin: true, reorderable: true });
     }
+  }
+
+  // Notfall-Block (2026-08-26): K.-o.-Phase von Hand aus den Gruppen
+  // fuellen. Der Weg dorthin ist derselbe wie beim automatischen Trigger
+  // — „eine Wahrheit, zwei Ausloeser" (P5, 2026-08-25) gilt unveraendert,
+  // nur dass der zweite Ausloeser jetzt hier sitzt statt unter den
+  // Gruppentabellen. An wireGuardedClick, weil die Route mutiert.
+  // Spielzeiten bearbeiten: wechselt in den Spielplan und schaltet dort
+  // den Edit-Modus ein. Der Modus selbst gehoert in die Ansicht, in der
+  // man die Spiele sieht — nur sein EINSTIEG liegt hier.
+  const editEinstiegBtn = mount.querySelector('[data-action="toggle-schedule-edit"]');
+  if (editEinstiegBtn) {
+    editEinstiegBtn.addEventListener('click', () => {
+      const detail = document.getElementById('tournament-detail');
+      if (!detail) return;
+      switchToView('spielplan', null);
+      handleTournamentTabSideEffects('spielplan', t, detail);
+      const section = detail.querySelector('section.t-view[data-view="spielplan"]');
+      if (section) toggleScheduleEditMode(section, t);
+    });
+  }
+
+  const koNotfallBtn = mount.querySelector('[data-action="start-ko-phase"]');
+  if (koNotfallBtn) {
+    wireGuardedClick(koNotfallBtn, async () => {
+      await fuelleKoPhaseVonHand(t);
+    });
   }
 
   // Neu auslosen (Seeding-Block) — Etappe B.8 Bug-Fix: fehlte im wireEinstellungen.

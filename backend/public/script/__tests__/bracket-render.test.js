@@ -242,19 +242,25 @@ describe('renderMatchCardBracket', () => {
     expect(html).toContain('Beendet');
     expect(html).toContain('t-match--done');
     expect(html).not.toContain('14:30');
-    expect(html).not.toContain('Platte 2');
+    expect(html).not.toContain('Platte 2');
     expect(html).toContain('class="t-match-team is-winner" data-area="home"');
     expect(html).toContain('data-area="away"');
     expect(html).toContain('t-match--home-wins');
     expect(html).not.toContain('t-match--away-wins');
   });
 
-  it('offenes Match mit scheduledTime + field rendert "14:30 · Platte 2"', () => {
+  it('offenes Match mit scheduledTime + field rendert "14:30 · Platte 2" (geschuetzt)', () => {
     const m = makeKoMatch({
       scheduledTime: '14:30', field: 2,
     });
     const html = renderMatchCardBracket(m);
-    expect(html).toContain('14:30 · Platte 2');
+        // Geschuetztes Leerzeichen zwischen "Platte" und der Nummer
+    // (2026-08-26, Fund von Jonas am iPhone SE): die Meta-Zeile darf
+    // umbrechen, damit lange Feldnamen nicht abgeschnitten werden — sie
+    // hat das genutzt und die Nummer auf eine eigene Zeile geschoben.
+    // Der Test prueft das \u00A0 ausdruecklich, weil ein normales
+    // Leerzeichen hier optisch gleich aussieht und trotzdem falsch ist.
+    expect(html).toContain('14:30 · Platte 2');
     expect(html).not.toContain('Beendet');
   });
 
@@ -527,40 +533,47 @@ describe('renderBracket — Weg zum Titel und Runden-Stand', () => {
     expect(html).not.toContain('bracket-tab is-active');
   });
 
-  it('die Miniatur erscheint ab zwei Runden, nicht bei einer', () => {
-    const eine = renderBracket(runde('F', 'Finale', 1, 0));
-    expect(eine).not.toContain('t-weg-svg');
-    const zwei = renderBracket([...runde('SF', 'Halbfinale', 2, 0), ...runde('F', 'Finale', 1, 0)]);
-    expect(zwei).toContain('t-weg-svg');
-  });
-
-  it('die Miniatur steht VOR den Pillen und dem Baum', () => {
+  it('zeigt KEINE Weg-zum-Titel-Miniatur mehr', () => {
+    // Entscheid Jonas, 2026-08-26: "dieses visuelle der weg zum titel
+    // kann raus. das sieht nicht schoen aus."
+    //
+    // ABWEICHUNG VON DER VORLAGE: das Artefakt zeigt die Miniatur in
+    // Abschnitt 05 ausdruecklich. Dieser Test haelt fest, dass sie
+    // NICHT zurueckkommt, ohne dass jemand die Entscheidung kennt —
+    // ein geloeschter Test haette die Vorlage beim naechsten Abgleich
+    // stillschweigend gewinnen lassen.
     const html = renderBracket([
       ...runde('SF', 'Halbfinale', 2, 0),
       ...runde('F', 'Finale', 1, 0),
     ]);
-    const weg = html.indexOf('t-weg-svg');
+    expect(html).not.toContain('t-weg-svg');
+    expect(html).not.toContain('t-weg');
+    expect(html).not.toMatch(/aria-label="Fortschritt: Runde/);
+  });
+
+  it('der Rundenstand steht dafuer an den Pillen — mit Zahlen statt Kreisen', () => {
+    // Was die Miniatur leisten sollte (zeigen, wie weit es noch ist),
+    // leisten die Reiter ohnehin, und praeziser: "Halbfinale 0/2" sagt
+    // mehr als ein halbgefuellter Kreis. Deshalb ist mit der Miniatur
+    // keine Information verlorengegangen — genau das wird hier geprueft.
+    const html = renderBracket([
+      ...runde('SF', 'Halbfinale', 2, 1),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
+    expect(html).toContain('bracket-tabs');
+    expect(html).toContain('bracket-tab-stand');
+    expect(html).toContain('1/2');
+    expect(html).toContain('0/1');
+  });
+
+  it('die Pillen stehen VOR dem Baum', () => {
+    const html = renderBracket([
+      ...runde('SF', 'Halbfinale', 2, 0),
+      ...runde('F', 'Finale', 1, 0),
+    ]);
     const pillen = html.indexOf('bracket-tabs');
     const baum = html.indexOf('bracket-wrap');
-    expect(weg).toBeGreaterThan(-1);
-    expect(weg).toBeLessThan(pillen);
+    expect(pillen).toBeGreaterThan(-1);
     expect(pillen).toBeLessThan(baum);
-  });
-
-  it('Rundennamen werden gekuerzt, aber nicht geraten', () => {
-    const html = renderBracket([
-      ...runde('QF', 'Viertelfinale', 2, 0),
-      ...runde('F', 'Finale', 1, 0),
-    ]);
-    expect(html).toContain('>VF<');
-    expect(html).toContain('>F<');
-  });
-
-  it('die Miniatur traegt eine Textfassung fuer Screenreader', () => {
-    const html = renderBracket([
-      ...runde('SF', 'Halbfinale', 2, 0),
-      ...runde('F', 'Finale', 1, 0),
-    ]);
-    expect(html).toMatch(/aria-label="Fortschritt: Runde \d+ von \d+"/);
   });
 });

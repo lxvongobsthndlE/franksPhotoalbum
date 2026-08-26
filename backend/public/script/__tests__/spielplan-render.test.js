@@ -282,7 +282,13 @@ describe('renderMatchCard', () => {
     const html = renderMatchCard(m, true);
     expect(html).toContain('data-match-id="m-1"');
     expect(html).toContain('t-match--done');
-    expect(html).toContain('14:30 · Platte 2');
+        // Geschuetztes Leerzeichen zwischen "Platte" und der Nummer
+    // (2026-08-26, Fund von Jonas am iPhone SE): die Meta-Zeile darf
+    // umbrechen, damit lange Feldnamen nicht abgeschnitten werden — sie
+    // hat das genutzt und die Nummer auf eine eigene Zeile geschoben.
+    // Der Test prueft das \u00A0 ausdruecklich, weil ein normales
+    // Leerzeichen hier optisch gleich aussieht und trotzdem falsch ist.
+    expect(html).toContain('14:30 · Platte 2');
     expect(html).toContain('VF 1');
     // Anzeigetafel-Layout (Redesign A2): zwei separate Score-Felder.
     expect(html).toContain('data-area="home-score">3<');
@@ -516,7 +522,7 @@ describe('renderAsideTables', () => {
       makeMatch({ id: 'b', isFinished: false, field: 1 }),
     ];
     const html = renderAsideTables(matches);
-    expect(html).toContain('<strong>Platte 1</strong>');
+    expect(html).toContain('<strong>Platte' + String.fromCharCode(160) + '1</strong>');
     // 'a' darf NICHT auftauchen
     expect(html).not.toContain('data-match-id');
     expect((html.match(/<li>/g) || []).length).toBe(1);
@@ -528,7 +534,7 @@ describe('renderAsideTables', () => {
       makeMatch({ id: 'b', isFinished: false, field: 2 }),
     ];
     const html = renderAsideTables(matches);
-    expect(html).toContain('Platte 2');
+    expect(html).toContain('Platte 2');
     expect(html).not.toContain('Platte 1');
   });
 

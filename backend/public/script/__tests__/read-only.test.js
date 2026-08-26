@@ -85,19 +85,46 @@ describe('Renderer-Ebene: isAdmin=false darf KEIN mutierendes data-action enthal
 });
 
 describe('Sanity: isAdmin=true DARF mutierende Actions enthalten', () => {
-  it('Spielplan-Section-Head: toggle-schedule-edit + enter-result-pick sichtbar', () => {
+  it('Spielplan-Section-Head: enter-result-pick sichtbar, Bearbeiten NICHT mehr', () => {
+    // Diese Zusicherung ist die POSITIVPROBE der ganzen Datei: ohne sie
+    // waeren die Negativ-Tests darueber leer-gruen, weil ein Renderer,
+    // der gar nichts ausgibt, jede "enthaelt keine mutierende Aktion"-
+    // Pruefung besteht.
+    //
+    // Entscheid Jonas, 2026-08-26: "bearbeiten kann auch weg das mach ich
+    // als admin ja in den einstellungen." Der Einstieg in den Edit-Modus
+    // ist damit aus dem Spielplan-Kopf verschwunden — der Edit-Modus
+    // selbst und seine Rollenpruefung sind unveraendert.
     const html = renderSpielplanSectionHead({ isAdmin: true, t: { id: 't1' } });
     const actions = findDataActions(html);
-    expect(actions.has('toggle-schedule-edit')).toBe(true);
     expect(actions.has('enter-result-pick')).toBe(true);
+    expect(actions.has('toggle-schedule-edit')).toBe(false);
   });
 
-  it('Regeln-Section-Head: edit-rules sichtbar', () => {
-    const html = renderRegelnSectionHead({ isAdmin: true });
-    const actions = findDataActions(html);
-    expect(actions.has('edit-rules')).toBe(true);
-  });
+  it('Regeln-Section-Head traegt gar keine Aktion mehr — sie liegt im Modulkopf', () => {
+    // Jonas: "hier gibts zwei mal bearbeiten, das muss weg." Der Modulkopf
+    // traegt je Ansicht EINE Aktion, fuer das Regelwerk ist das
+    // "Bearbeiten". Der Knopf im View-Kopf war dieselbe Handlung ein
+    // zweites Mal.
+    //
+    // Ein leerer Renderer ist hier KEIN Freibrief: die Rollenpruefung darf
+    // dabei nicht verschwunden sein, sie ist nur umgezogen. Deshalb wird
+    // sie unten am Quelltext von main.js nachgewiesen — sonst haette
+    // dieser Test das Loch selbst aufgemacht, das er bewachen soll.
+    for (const isAdmin of [true, false]) {
+      const html = renderRegelnSectionHead({ isAdmin });
+      expect(findDataActions(html).size).toBe(0);
+    }
 
+    const mainSrc = readFileSync(resolve(__dirname, '..', 'main.js'), 'utf-8');
+    const chrome = mainSrc.slice(mainSrc.indexOf('const T_VIEW_CHROME'));
+    const regelnBlock = chrome.slice(chrome.indexOf('regeln:'), chrome.indexOf('drucken:'));
+    expect(regelnBlock, 'Regelwerk-Aktion fehlt im Modulkopf').toContain('Bearbeiten');
+    expect(
+      regelnBlock,
+      'Die Regelwerk-Aktion im Modulkopf hat KEINE Rollenpruefung mehr',
+    ).toMatch(/wenn:\s*\(t\)\s*=>\s*t\.isAdmin\s*===\s*true/);
+  });
   it('Einstellungen-Section: sichtbar für Admins', () => {
     const html = renderEinstellungenSection({ isAdmin: true });
     expect(html).toContain('data-view="einstellungen"');
