@@ -5845,13 +5845,17 @@ button.tournament-header-btn {
     letter-spacing: 0;
   }
 
-  /* Standings: Sp · S · U · N ausblenden.
-     Bleibt: Pl · Team · Becher · Diff · Pkt (5 Spalten). */
-  .t-standings-table th[data-col="played"],
+  /* Entscheid Jonas, 2026-08-26: Becher faellt auf dem Handy weg,
+     dafuer kommt "Sp" zurueck. Bleibt: Pl · Team · Sp · Diff · Pkt
+     (weiter 5 Spalten, nur andere dritte).
+     Die Breitenliste STANDINGS_COL_WIDTHS_MOBILE in spielplan-helpers.js
+     ist mitgezogen — beide sind EIN Paar, sonst verschieben sich alle
+     folgenden Spalten um eins. */
+  .t-standings-table th[data-col="score"],
   .t-standings-table th[data-col="won"],
   .t-standings-table th[data-col="drawn"],
   .t-standings-table th[data-col="lost"],
-  .t-standings-table td[data-col="played"],
+  .t-standings-table td[data-col="score"],
   .t-standings-table td[data-col="won"],
   .t-standings-table td[data-col="drawn"],
   .t-standings-table td[data-col="lost"] {
@@ -5861,14 +5865,17 @@ button.tournament-header-btn {
   /* Beste-Dritte: Sp · S · U · N ausblenden — dieselben vier wie bei
      Standings. Bleibt: Pl · Team · Gruppe · Becher · Diff · Pkt
      (6 Spalten). Das ist die EINZIGE Mobile-Form der Tabelle; der
+     (Stand 26.08.: Becher ist raus, es sind fuenf.) Der
      frueher hier beschriebene "Konflikt mit dem 430-Block" ist am
      25.08. aufgeloest worden (siehe Kommentar im 430er-Block oben).
      Die Spaltenzahl haengt an THIRDS_COL_WIDTHS_MOBILE in
      spielplan-helpers.js — beide muessen zusammen geaendert werden. */
+  .t-thirds-table th[data-col="score"],
   .t-thirds-table th[data-col="played"],
   .t-thirds-table th[data-col="won"],
   .t-thirds-table th[data-col="drawn"],
   .t-thirds-table th[data-col="lost"],
+  .t-thirds-table td[data-col="score"],
   .t-thirds-table td[data-col="played"],
   .t-thirds-table td[data-col="won"],
   .t-thirds-table td[data-col="drawn"],

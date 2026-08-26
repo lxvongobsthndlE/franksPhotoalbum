@@ -239,21 +239,23 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     expect(cols).toHaveLength(10);
   });
 
-  it('Mobile: 6 <col> für 6 sichtbare Spalten (Sp/S/U/N sind versteckt)', () => {
+  it('Mobile: 5 <col> für 5 sichtbare Spalten (Sp/S/U/N/Becher sind versteckt)', () => {
     setCompactMode(true);
     const cols = (renderBestThirdsTable(sample).match(/<col style="width:[^"]+">/g) || []);
-    expect(cols).toHaveLength(6);
+    expect(cols).toHaveLength(5);
   });
 
-  it('Mobile: exakte Breiten in DOM-Reihenfolge Pl · Team · Gruppe · Becher · Diff · Pkt', () => {
+  it('Mobile: exakte Breiten in DOM-Reihenfolge Pl · Team · Gruppe · Diff · Pkt', () => {
     setCompactMode(true);
     const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
       .map((c) => c.match(/width:([^"]+)"/)[1]);
-    expect(cols).toEqual(['14%', '26%', '10%', '20%', '15%', '15%']);
+    expect(cols).toEqual(['14%', '44%', '12%', '15%', '15%']);
     // Die Invariante, an der die Flucht mit der Standings-Tabelle haengt:
-    // Team + Gruppe muss deren Team-Spalte (36 %) ergeben, sonst beginnen
-    // Becher/Diff/Pkt. in den beiden Tabellen nicht an derselben Stelle.
-    expect(parseFloat(cols[1]) + parseFloat(cols[2])).toBe(36);
+    // Team + Gruppe muss hier so breit sein wie dort Team + Sp. (42 + 14),
+    // sonst beginnen Diff und Pkt. in den beiden Tabellen nicht an
+    // derselben Stelle. Seit dem Wegfall der Becher-Spalte (Entscheid
+    // Jonas, 2026-08-26) ist das 56 statt 36.
+    expect(parseFloat(cols[1]) + parseFloat(cols[2])).toBe(56);
   });
 
   it('Mobile: Summe der Breiten ist genau 100% und es gibt kein auto', () => {
@@ -281,21 +283,32 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     // das Set als Ganzes gegen die dokumentierte Konstante haelt.
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
+    // 20% war bis zum 26.08. die Becher-Breite; seit die Spalte mobil
+    // wegfaellt (Entscheid Jonas) darf sie nicht mehr auftauchen.
+    expect(html).not.toContain('width:20%');
     expect(html).not.toContain('width:18%');
     expect(html).not.toContain('width:13%');
-    expect(html).not.toContain('width:12%');
+    // 12% ist am 26.08. von der schwarzen Liste geflogen: es ist jetzt
+    // legitim die Breite der Gruppen-Spalte. Genau derselbe Vorgang wie
+    // 2026-08-25 bei 8% — und aus demselben Grund, der oben schon steht:
+    // ein Test, der einen gueltigen Zustand verbietet, wird beim naechsten
+    // Rot abgeschaltet statt gelesen. Die Absicherung leistet der Test,
+    // der das Set als Ganzes gegen die dokumentierte Konstante haelt.
   });
 
-  it('Mobile: "12:10" wird gerendert und die Becher-Spalte hat 20%', () => {
-    // 20% der Becher-Spalte: 58px bei 288px Tabellenbreite (390px Viewport),
-    // 52px bei 258px (360px Viewport). "12:10" braucht gemessen 44px, die
-    // Ueberschrift "BECHER" 48px — beides passt in beiden Faellen.
-    // (Vorher 19%; die Spalte hat bei der Flucht-Angleichung einen Punkt
-    // von der ueberdimensionierten Gruppen-Spalte bekommen.)
+  it('Mobile: die Becher-Spalte ist weg, ihre Werte stehen aber im Markup', () => {
+    // Entscheid Jonas, 2026-08-26: "Becher weglassen" auf dem Handy.
+    // Weggelassen heisst AUSGEBLENDET, nicht ungerendert — die Zelle
+    // bleibt im DOM (main.css blendet sie per @container aus) und ist auf
+    // dem Desktop wieder da. Wer sie hier aus dem Markup entfernte,
+    // muesste beim Verbreitern neu rendern statt nur einzublenden.
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     expect(html).toContain('12:10');
-    expect(html).toContain('width:20%');
+    expect(html).toContain('data-col="score"');
+    // Aber keine Colgroup-Breite mehr fuer sie.
+    const cols = (html.match(/<col style="width:([^"]+)">/g) || []);
+    expect(cols).toHaveLength(5);
   });
 
   it('Mobile: gemeinsame Spalten fluchten mit der Standings-Tabelle', () => {
@@ -303,22 +316,23 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     // Kommentar. Beide Tabellen sind gleich breit; wenn die kumulierten
     // Prozente der gemeinsamen Endspalten uebereinstimmen, stehen ihre
     // rechten Kanten uebereinander. Standings mobil: Pl 14 · Team 36 ·
-    // Becher 20 · Diff 15 · Pkt 15. Dritte mobil: Pl 14 · Team 28 ·
-    // Gr 8 · Becher 20 · Diff 15 · Pkt 15.
+    // Sp 14 · Diff 15 · Pkt 15. Dritte mobil: Pl 14 · Team 44 ·
+    // Gr 12 · Diff 15 · Pkt 15. (Becher ist mobil seit 26.08. weg.)
     setCompactMode(true);
     const cols = (renderBestThirdsTable(sample).match(/<col style="width:([^"]+)">/g) || [])
       .map((c) => parseFloat(c.match(/width:([^"]+)%/)[1]));
-    const kanteBecher = cols.slice(0, 4).reduce((a, b) => a + b, 0);
-    const kanteDiff = cols.slice(0, 5).reduce((a, b) => a + b, 0);
-    // Standings: 14+36+20 = 70 bis Becher-Kante, +15 = 85 bis Diff-Kante.
-    expect(kanteBecher).toBe(70);
-    expect(kanteDiff).toBe(85);
+    const kanteVorDiff = cols.slice(0, 3).reduce((a, b) => a + b, 0);
+    const kanteVorPkt = cols.slice(0, 4).reduce((a, b) => a + b, 0);
+    // Standings mobil: 14+42+14 = 70 bis zur Diff-Kante, +15 = 85 bis Pkt.
+    expect(kanteVorDiff).toBe(70);
+    expect(kanteVorPkt).toBe(85);
   });
 
   it('Mobile-Spaltenzahl passt zur Zahl der nicht versteckten data-col-Spalten', () => {
     // Bindet die Colgroup-Länge an das Markup statt an eine Konstante:
     // main.css versteckt auf ≤600px genau played/won/drawn/lost.
-    const HIDDEN_ON_MOBILE = ['played', 'won', 'drawn', 'lost'];
+    // Stand 26.08.: main.css versteckt auf <=600px zusaetzlich 'score'.
+    const HIDDEN_ON_MOBILE = ['played', 'won', 'drawn', 'lost', 'score'];
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     const thead = html.match(/<thead>[\s\S]*?<\/thead>/)[0];
@@ -330,7 +344,7 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     const cols = (html.match(/<col style="width:[^"]+">/g) || []);
     // Nicht leer-gegen-leer vergleichen: der Test soll fehlschlagen, wenn
     // die Regex nichts findet, nicht stillschweigend 0 === 0 bestaetigen.
-    expect(visible).toHaveLength(6);
+    expect(visible).toHaveLength(5);
     expect(cols).toHaveLength(visible.length);
   });
 });

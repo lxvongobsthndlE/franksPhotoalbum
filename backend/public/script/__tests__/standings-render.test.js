@@ -239,19 +239,21 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
     expect(html).toContain('width:9%');
   });
 
-  it('Mobile-Mode: 5 Colgroup-Spalten (14% + 36% + 20% + 15% + 15%, Summe 100%)', () => {
+  it('Mobile-Mode: 5 Colgroup-Spalten (14% + 42% + 14% + 15% + 15%, Summe 100%)', () => {
     // User-Punkt 1 Folge (2026-08-25): Pl-Spalte von 8% auf 14% —
     // 8% war zu schmal für "10." und "Pl." (Header wurde zu "P…"
     // truncated). 14% von 374 px = ~52 px → reicht für Worst-Case-Wert.
-    // Team dafür von 38% auf 36% reduziert. Becher von 22% auf 20%
-    // (~75 px — passt weiter für "12:10"). Diff/Pkt bleiben bei 15%.
+    // Entscheid Jonas, 2026-08-26: Becher faellt mobil weg, 'Sp' kommt
+    // zurueck. 'Sp' braucht weniger Platz als '12:10', deshalb 14% statt
+    // 20% — die frei gewordenen 6 Punkte gehen an die Team-Spalte (42%).
+    // Diff/Pkt bleiben bei 15%.
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(5);
     expect(html).toContain('width:14%');
-    expect(html).toContain('width:36%');
-    expect(html).toContain('width:20%');
+    expect(html).toContain('width:42%');
+    expect(html).not.toContain('width:20%');
     expect(html).toContain('width:15%');
     // Sicherstellen: kein 'auto' mehr im Mobile-Colgroup.
     expect(html).not.toMatch(/<col[^>]*width:auto/);
@@ -265,12 +267,19 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
     expect(html).not.toContain('width:7%');
   });
 
-  it('Mobile-Werte-Beispiel: 12:10 muss in 20%-Spalte passen', () => {
+  it('Mobile: Becher steht im Markup, bekommt aber keine Colgroup-Breite', () => {
+    // Entscheid Jonas, 2026-08-26: mobil weglassen. Weggelassen heisst
+    // ausgeblendet (main.css, @container <=600px), nicht ungerendert —
+    // beim Verbreitern muss die Spalte ohne Neu-Rendern wieder da sein.
+    // Die Colgroup hat dafuer nur noch fuenf Eintraege; haette sie sechs,
+    // rutschten alle folgenden Breiten um eine Spalte nach links. Genau
+    // dieser Fehler hat die Dritten-Tabelle 2026-08-25 zerlegt.
     setCompactMode(true);
     const html = renderStandingsGroups(sample, 'Becher');
-    // 20% von ~374 px = ~75 px → "12:10" (~50 px @ 12px-Font) passt.
     expect(html).toContain('12:10');
-    expect(html).toContain('width:20%');
+    expect(html).toContain('data-col="score"');
+    const cols = html.match(/<col style="width:[^"]+">/g) || [];
+    expect(cols).toHaveLength(5);
   });
 });
 

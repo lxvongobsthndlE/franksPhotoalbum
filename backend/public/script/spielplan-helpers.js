@@ -549,7 +549,17 @@ const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%',
    Team dafür von 38% auf 36% reduziert — reicht immer noch für lange
    Teamnamen, weil die Spalte eh linksbündig ist und am Rand umbrechen
    darf. Summe 14+36+20+15+15 = 100%, weiter kein auto. */
-const STANDINGS_COL_WIDTHS_MOBILE = ['14%', '36%', '20%', '15%', '15%'];
+/* Entscheid Jonas, 2026-08-26: "Becher weglassen" auf dem Handy.
+   Die Vorlage zeigt mobil Pl · Team · Sp · Diff · Pkt; bis hierher stand
+   an dritter Stelle 'Becher' (gf:ga) und 'Sp' war versteckt. Getauscht,
+   nicht ergaenzt — es bleiben fuenf Spalten.
+   'Sp' braucht weniger Platz als '12:6', deshalb wandern 6 Punkte an die
+   Team-Spalte. Summe weiter genau 100%, kein 'auto'.
+   ACHTUNG: Diese Liste und der Ausblendblock in main.css (@container
+   max-width:600px) sind EIN Paar. Wer dort eine Spalte anders schaltet
+   und hier nicht, verschiebt alle folgenden Breiten um eins — genau so
+   ist die Zuordnung schon einmal zerbrochen. */
+const STANDINGS_COL_WIDTHS_MOBILE = ['14%', '42%', '14%', '15%', '15%'];
 const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 /* Beste-Dritte-Mobile — korrigiert 2026-08-25.
  *
@@ -633,7 +643,20 @@ const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9
  * Wer die Gruppen-Spalte anfasst, muss Team gegenlaeufig mitziehen —
  * sonst rutschen die gemeinsamen Spalten wieder auseinander, und genau
  * das war der Befund, den dieser Block behebt. */
-const THIRDS_COL_WIDTHS_MOBILE = ['14%', '26%', '10%', '20%', '15%', '15%'];
+/* Ebenfalls Entscheid Jonas 2026-08-26: Becher faellt auch hier weg.
+   Sichtbar bleiben Pl · Team · Gr. · Diff · Pkt — fuenf statt sechs,
+   wie die Vorlage (Abschnitt 04) es zeigt.
+
+   FLUCHT-INVARIANTE: Beide Tabellen stehen untereinander in derselben
+   Ansicht. Damit Diff und Pkt. an derselben Stelle beginnen, muss hier
+   Team + Gr. so breit sein wie dort Team + Sp.:
+       Standings  14 | 42 | 14 | 15 | 15
+       Dritte     14 | 44 | 12 | 15 | 15
+                       ___ 56 ___/   = 42 + 14
+   Mein erster Entwurf hatte 34+12=46 gegen 56 — die beiden Tabellen
+   waeren um zehn Prozentpunkte gegeneinander verrutscht. Der Test
+   best-thirds-render.test.js prueft genau diese Summe. */
+const THIRDS_COL_WIDTHS_MOBILE = ['14%', '44%', '12%', '15%', '15%'];
 
 function renderColgroup(widths) {
   return `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;

@@ -662,35 +662,38 @@ describe('renderBestThirdsTable — Compact-Mode-Switch (P5-Truncation)', () => 
     expect(cols).toHaveLength(10);
   });
 
-  it('Mobile: 6 Colgroup-Spalten (Pl · Team · Gruppe · Becher · Diff · Pkt)', () => {
+  it('Mobile: 5 Colgroup-Spalten (Pl · Team · Gruppe · Diff · Pkt)', () => {
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
-    expect(cols).toHaveLength(6);
-    // Flucht-Angleichung 2026-08-25: Pl./Becher/Diff/Pkt. tragen dieselben
-    // Prozente wie die Standings-Tabelle, damit die rechten Spaltenkanten
-    // beider Tabellen uebereinanderstehen. Der Platz kam aus der Gruppen-
-    // Spalte, die 19% fuer einen einzigen Buchstaben hatte.
+    expect(cols).toHaveLength(5);
+    // Flucht-Angleichung: Pl./Diff/Pkt. tragen dieselben Prozente wie die
+    // Standings-Tabelle, und Team+Gr. hier ist so breit wie Team+Sp. dort
+    // (44+12 = 42+14 = 56). Damit stehen die rechten Kanten beider
+    // Tabellen uebereinander. Becher ist mobil seit 26.08. weg.
     expect(html).toContain('width:14%');  // Pl.
-    expect(html).toContain('width:26%');  // Team
-    expect(html).toContain('width:10%');  // Gr. (ein Buchstabe)
-    expect(html).toContain('width:20%');  // Becher
+    expect(html).toContain('width:44%');  // Team
+    expect(html).toContain('width:12%');  // Gr. (ein Buchstabe)
     expect(html).toContain('width:15%');  // Diff + Pkt.
-    // Die alten Werte gehoerten zum verschobenen 7er-Set. 8% stand hier
-    // frueher mit auf der Liste, ist seit der Angleichung aber die
-    // legitime Breite der Gruppen-Spalte — siehe oben.
-    expect(html).not.toContain('width:12%');
+    // Die alten Werte gehoerten zum verschobenen 7er-Set. Zweimal ist
+    // hier inzwischen ein Wert von der Liste geflogen, weil er legitim
+    // wurde: 8% am 25.08., 12% am 26.08. (beides die Gruppen-Spalte).
+    // Beide Male aus demselben Grund — ein Test, der einen gueltigen
+    // Zustand verbietet, wird beim naechsten Rot abgeschaltet statt
+    // gelesen. Was hier bleibt, sind Werte, die es im Mobile-Set nicht
+    // geben KANN: 20% war die Becher-Breite, 18% ein verschobener Nachbar.
+    expect(html).not.toContain('width:20%');
     expect(html).not.toContain('width:18%');
   });
 
-  it('Mobile: keine 7%-Geister-Spalten (S/U/N weg) + Spalten-Anzahl = 6', () => {
+  it('Mobile: keine 7%-Geister-Spalten (S/U/N weg) + Spalten-Anzahl = 5', () => {
     setCompactMode(true);
     const html = renderBestThirdsTable(sample);
     // width:7% war die Breite der S/U/N-Spalten im 10er-Desktop-Colgroup.
     // Im Mobile-Set kommt sie nicht mehr vor.
     expect(html).not.toContain('width:7%');
     const cols = html.match(/<col\s+style="width:[^"]+">/g) || [];
-    expect(cols).toHaveLength(6);
+    expect(cols).toHaveLength(5);
     // Summe muss genau 100% sein — kein 'auto', keine Restlücke.
     const sum = cols
       .map((c) => parseFloat(c.match(/width:([\d.]+)%/)[1]))
