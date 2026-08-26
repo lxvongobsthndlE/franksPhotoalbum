@@ -204,11 +204,65 @@ export function buildGroupLookup(rawGroups) {
 }
 
 /**
+ * Ermittelt, WER in einer Gruppe spielt.
+ *
+ * Bis 2026-08-26 war das schlicht die Mitgliederliste (`group.members`).
+ * Das ist richtig, solange Mitgliedschaft und Spielplan dasselbe sagen —
+ * und genau das ist nicht garantiert:
+ *
+ *   Die Gruppeneinteilung laesst sich nach der Generierung noch aendern
+ *   („Zufaellig verteilen", Paar-Tausch). Die MATCHES bleiben dabei
+ *   bewusst, wo sie sind — der Hinweistext im Einstellungen-Tab sagt das
+ *   ausdruecklich: „DnD aendert nur die Anzeige der Gruppentabellen — die
+ *   Spielpaarungen bleiben gleich."
+ *
+ * Nur stimmte das letzte Halbsatz nicht: die Tabelle wurde eben NICHT
+ * nur anders angezeigt, sie wurde falsch. `computeStandings` zaehlt ein
+ * Spiel nur, wenn beide Teams in der uebergebenen Liste stehen. Nach
+ * einem Neuverteilen waren das im gemessenen Fall (26.08., „Franks
+ * Bierpong Turnier 2.0") in JEDER Gruppe drei von vier Teams nicht mehr
+ * — Ergebnis: drei Tabellen, in denen alle Teams bei 0 Spielen standen,
+ * obwohl Ergebnisse eingetragen waren.
+ *
+ * Die Wahrheit einer Gruppentabelle sind die Spiele, die in dieser Gruppe
+ * stattfinden. Wer dort spielt, gehoert in die Tabelle. Solange es noch
+ * keine Spiele gibt (Entwurf), ist die Mitgliederliste die einzige
+ * Auskunft — dann gilt sie.
+ *
+ * Bewusst KEINE Vereinigung beider Mengen: ein Mitglied, das in dieser
+ * Gruppe kein einziges Spiel hat, mit 0 Punkten in ihre Tabelle zu
+ * schreiben, behauptet eine Teilnahme, die es nicht gibt.
+ */
+export function teilnehmerDerGruppe(groupMatches, teamIds) {
+  const ausSpielen = new Set();
+  for (const m of groupMatches ?? []) {
+    if (m?.teamHome) ausSpielen.add(m.teamHome);
+    if (m?.teamAway) ausSpielen.add(m.teamAway);
+  }
+  const liste = Array.isArray(teamIds) ? teamIds : [];
+  // Nur bei echtem WIDERSPRUCH umschalten — also wenn hier jemand spielt,
+  // der nicht auf der Liste steht. Sonst bleibt die Liste gueltig.
+  // Der erste Entwurf hat die Spiele immer gewinnen lassen und dabei ein
+  // Mitglied verloren, das nur noch kein Spiel hatte: die Annahme, die
+  // uebergebene Spielliste sei vollstaendig, ist nicht garantiert.
+  const mitglied = new Set(liste);
+  const fremde = [...ausSpielen].filter((id) => !mitglied.has(id));
+  if (fremde.length === 0) return liste;
+  // Reihenfolge der Mitgliederliste bewahren, wo sie deckungsgleich ist —
+  // sie traegt die Setzreihenfolge. Was nur in den Spielen vorkommt,
+  // haengt hinten an; die Sortierung macht ohnehin die Tabelle selbst.
+  const bekannt = liste.filter((id) => ausSpielen.has(id));
+  const rest = [...ausSpielen].filter((id) => !bekannt.includes(id));
+  return [...bekannt, ...rest];
+}
+
+/**
  * Bereitet Standings inklusive Engine-Berechnung auf.
  * Engine wird hier aufgerufen, NICHT im Route-Layer.
  *
- * @param {object[]} groupMatches - alle finished Matches einer Gruppe (roh)
- * @param {string[]} teamIds
+ * @param {object[]} groupMatches - alle Matches einer Gruppe (roh)
+ * @param {string[]} teamIds - Mitgliederliste; gilt nur, solange die
+ *   Gruppe noch keine Spiele hat (siehe teilnehmerDerGruppe)
  * @param {object} config
  * @param {object} engineApi - { computeStandings, applyTiebreaker }
  * @returns {object[]}
@@ -223,7 +277,8 @@ export function buildStandingsForGroup(groupMatches, teamIds, config, engineApi)
       scoreAway: m.scoreAway,
       status: m.status,
     }));
-  const rows = engineApi.computeStandings(teamIds, finishedForEngine, config);
+  const teilnehmer = teilnehmerDerGruppe(groupMatches, teamIds);
+  const rows = engineApi.computeStandings(teilnehmer, finishedForEngine, config);
   const sorted = engineApi.applyTiebreaker(rows, finishedForEngine, config);
   return prepareStandings(sorted.sortedRows ?? sorted, { qualifyTop: 0 });
 }
