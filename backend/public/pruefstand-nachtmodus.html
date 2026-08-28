@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pruefstand Nachtmodus</title>
+
+    <!-- DASSELBE Schnipsel wie in index.html — hier bewusst kopiert, damit
+         der Pruefstand den echten Startweg misst und nicht einen eigenen.
+         Zusaetzlich hoert es auf ?theme= und ?kaputt=1, um den Zustand VOR
+         dem Fix nachstellen zu koennen (leeres Attribut). -->
+    <script>
+      (function () {
+        var q = new URLSearchParams(location.search);
+        var erzwungen = q.get('theme');
+        if (erzwungen === 'light' || erzwungen === 'dark') {
+          try {
+            localStorage.setItem('theme', erzwungen);
+          } catch (e) {}
+        } else if (erzwungen === 'keiner') {
+          try {
+            localStorage.removeItem('theme');
+          } catch (e) {}
+        }
+        if (q.get('kaputt') === '1') {
+          // Der Zustand vor dem 28.08.: beim Ausschalten des Nachtmodus
+          // stand ein LEERER STRING im Attribut. Nur zum Messen da.
+          document.documentElement.setAttribute('data-theme', '');
+          return;
+        }
+        var gespeichert = null;
+        try {
+          gespeichert = localStorage.getItem('theme');
+        } catch (e) {}
+        document.documentElement.setAttribute(
+          'data-theme',
+          gespeichert === 'dark' ? 'dark' : 'light'
+        );
+      })();
+    </script>
+
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tokens.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <link rel="stylesheet" href="./style/brand.css" />
+    <style>
+      /* NUR fuer den Pruefstand — kein Bestandteil der App. Dieselbe
+         Flex-Saeule wie in pruefstand-marke.html: ohne sie hat #body-wrap
+         keine Hoehe und unter dem Blatt stuende der App-Grund. */
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Die Schachtelung ist die ECHTE aus index.html (#body-wrap > #content
+         > .gal-hdr > .gal-row1 > h2#gal-title) und aus main.js:2799 ff.
+         (#grid.tournaments-grid > section.t-list-host). Genau daran haengt
+         der Fehler: die Ueberschrift steht INNERHALB von #content, also im
+         Geltungsbereich des Token-Traegers, holt ihre Farbe aber aus
+         main.css. -->
+    <div id="body-wrap">
+      <nav id="sidebar"></nav>
+      <div id="content">
+        <div class="gal-hdr">
+          <div class="gal-row1">
+            <h2 class="gal-title" id="gal-title">Turniere</h2>
+          </div>
+        </div>
+        <div id="grid" class="tournaments-grid">
+          <section class="tournament-page-shell t-mod t-list-host">
+            <div class="t-empty-state">
+              <div class="t-empty-state-text">Noch kein Turnier angelegt.</div>
+              <div class="t-empty-state-hint">Leg eins an, um loszulegen.</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

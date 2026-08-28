@@ -99,6 +99,13 @@ model Tournament {
   // Stufe-B-Felder (Spec §11)
   isPublic        Boolean   @default(false)
   publicToken     String?   @unique
+  // Sprechender Zweitname des Zuschauer-Links (28.08.2026). Der Token
+  // bleibt die Rückfallebene und das, was beim Freigeben ohne eigenen
+  // Wunsch entsteht; der Slug ist eine ZWEITE Adresse desselben
+  // Turniers. Global eindeutig, weil `/t/<slug>` keinen Mandanten im
+  // Pfad trägt. Warum ein selbst gewählter Link erratbar sein darf und
+  // was ihn trotzdem trägt: public-slug.js.
+  publicSlug      String?   @unique
   publicEnabledAt DateTime?
   publicRevokedAt DateTime?
   startsAt        DateTime?

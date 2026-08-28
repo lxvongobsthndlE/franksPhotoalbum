@@ -7,6 +7,41 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>[kru:]nest</title>
+
+    <!-- NACHTMODUS-START — muss VOR dem ersten Stylesheet stehen.
+
+         Warum inline und nicht in main.js: main.js ist ein Modul und
+         laeuft damit erst nach dem Parsen des Dokuments. Bis dahin
+         kann der Browser bereits angestrichen haben — im falschen
+         Modus. Diese sechs Zeilen sind synchron und stehen vor jedem
+         <link rel="stylesheet">, also blitzt nichts auf.
+
+         Der Wert ist IMMER ausdruecklich (light oder dark), nie leer
+         und nie fehlend. Nur so kann der Nachtmodus-Block in
+         tokens.css — der Selektor :root:not([data-theme='light'])
+         innerhalb von @media (prefers-color-scheme: dark) — in der
+         App nicht mehr greifen. Genau das war der Fehler vom 28.08.: Handy im
+         Nachtmodus, App auf hell, Turnierbereich trotzdem schwarz.
+
+         Dieselbe Regel steht als resolveAppTheme/bootAppTheme in
+         main.js; ein Paritaets-Test haelt beide zusammen
+         (__tests__/nachtmodus-app-wahl.test.js).
+
+         live.html und aushang.html bekommen dieses Schnipsel BEWUSST
+         nicht: dort laeuft kein main.js, es gibt keine App-Wahl, und
+         der Systemfallback aus tokens.css ist dort richtig. -->
+    <script>
+      (function () {
+        var gespeichert = null;
+        try {
+          gespeichert = localStorage.getItem('theme');
+        } catch (e) {}
+        document.documentElement.setAttribute(
+          'data-theme',
+          gespeichert === 'dark' ? 'dark' : 'light'
+        );
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="32x32" href="/media/brand/icon-32x32.png" />
     <link rel="icon" type="image/png" sizes="96x96" href="/media/brand/icon-96x96.png" />
     <!-- PWA -->

@@ -2511,7 +2511,15 @@
   grid-template-areas:
     'home  home-s'
     'away  away-s';
-  align-items: center;
+  /* align-items: stretch (nicht center). Die Trennlinie ist eine
+     Eigenschaft der ZEILE, nicht der Zelle: nur wenn beide Zellen die
+     volle Zeilenhoehe fuellen, liegt ihre Rahmen-Oberkante auf derselben
+     Hoehe. Mit `center` hing die flachere Zelle in der Mitte und ihr
+     Rahmen sass entsprechend tiefer — gemessen 10px im offenen Zustand
+     (375px) und 0.5px im eingetragenen. Die Zellen zentrieren ihren
+     Inhalt selbst (beide sind Flex-Reihen mit align-items: center), der
+     Text steht also weiterhin mittig. */
+  align-items: stretch;
   /* column-gap: 0 mit Absicht. Die Trennlinie zwischen den Teams laeuft
      ueber beide Spalten; eine Luecke dazwischen wuerde sie zerschneiden,
      und die Karte saehe aus wie zwei getrennte Tabellen nebeneinander.
@@ -2520,9 +2528,25 @@
   row-gap: 0;
 }
 /* Trennlinie ZWISCHEN den beiden Teams, nicht um sie herum. Sie sagt
-   "zwei Parteien", waehrend ein Rahmen nur "ein Kasten" sagt. */
+   "zwei Parteien", waehrend ein Rahmen nur "ein Kasten" sagt.
+
+   DIE DRITTE ZEILE IST DER EIGENTLICHE FIX (2026-08-28). Die Linie
+   besteht aus zwei Stuecken: dem Rahmen der Team-Zelle (linke Spalte)
+   und dem der Score-Zelle (rechte Spalte). Das rechte Stueck fiel im
+   OFFENEN Zustand ersatzlos aus, weil `.t-match-score.empty` weiter
+   unten `border: 0` setzt — beide Selektoren wiegen (0,2,0), und der
+   spaetere gewinnt. Sichtbar war das als eine Linie, die ohne Ergebnis
+   bei 89% der Kachelbreite endet und mit Ergebnis bis an den Rand
+   laeuft (gemessen im Screenshot des Betreibers: rechtes Stueck ohne
+   Ergebnis gar nicht vorhanden, mit Ergebnis vorhanden).
+   `.t-match-rows > .t-match-score[data-area='away-score']` wiegt
+   (0,3,0) und steht damit ueber jeder Zustands-Regel der Komponente.
+   Die `:nth-child`-Zeilen bleiben als strukturelle Grundlage stehen —
+   sie tragen die Team-Zelle und wirken auch dort, wo ein Renderer
+   (noch) kein `data-area` liefert. */
 .t-match-rows > :nth-child(3),
-.t-match-rows > :nth-child(4) {
+.t-match-rows > :nth-child(4),
+.t-match-rows > .t-match-score[data-area='away-score'] {
   border-top: 1px solid var(--line-soft);
 }
 /* Vorlage `.mhard .tmr`: 9px 12px. Die Zelle traegt das Polster, nicht
@@ -2535,8 +2559,24 @@
   padding-left: var(--s3);
   padding-right: var(--s3);
 }
+/* Die Score-Zelle traegt DASSELBE senkrechte Polster wie die Team-Zelle
+   und fuellt ihre Spalte ganz aus (justify-self: stretch). Beides ist
+   Bedingung dafuer, dass die Trennlinie in jedem Zustand gleich hoch
+   liegt UND gleich lang ist. Vorher stand hier nur `padding-right`, das
+   senkrechte Polster kam aus `.t-match-rows > *` — und wurde im offenen
+   Zustand von `.t-match-score.empty { padding: 0 }` (gleiche Spezifitaet,
+   spaetere Zeile) wieder abgeraeumt. Die Zelle war dadurch flacher und
+   12px schmaler als im eingetragenen Zustand: die rechte Haelfte der
+   Linie rutschte nach unten und wurde kuerzer.
+   Das Polster steht hier als EIN Kurzschreiber, damit keine spaetere
+   Regel derselben Spezifitaet nur die Haelfte davon trifft. */
 .t-match-rows > .t-match-score {
-  padding-right: var(--s3);
+  padding: 9px var(--s3) 9px 0;
+  justify-self: stretch;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 .t-match-rows .t-match-team {
   grid-area: home;
@@ -2632,12 +2672,19 @@
    der hier stand, gehoerte zur Anzeigetafel — er zeichnete den Umriss
    des dunklen Score-Feldes nach, das es nicht mehr gibt. Ohne Feld ist
    der Umriss ein Kaestchen um einen Bindestrich. */
+/* Kein `padding: 0` und kein `border: 0` mehr. Beides war Gegenwehr
+   gegen die alte Anzeigetafel bzw. gegen `.t-match-score` aus main.css —
+   und beides traf im Spielplan die Zeile statt das Feld: `padding: 0`
+   nahm der Zelle ihr Polster (die rechte Haelfte der Trennlinie rutschte
+   nach unten), `border: 0` nahm ihr den Rahmen (die rechte Haelfte fiel
+   ganz aus). Der offene Zustand unterscheidet sich vom eingetragenen nur
+   noch in Farbe und Strichstaerke der Ziffer — genau das, was er
+   aussagen soll. Das Polster steht jetzt in
+   `.t-match-rows > .t-match-score`, die Linie in der Regel weiter oben. */
 .t-match-score.empty {
   color: var(--muted);
   background: transparent;
-  border: 0;
   font-weight: 500;
-  padding: 0;
 }
 
 /* Action-Spalte — Admin-Button ODER Member-Text. NIE leer: der Member
@@ -6922,14 +6969,60 @@ table.t-bogen-tab td.offen {
 
 /* Icon-Knopf in der App-Kopfleiste („Aktualisieren"). Quadratisch, das
    Zeichen traegt die Bedeutung — die Beschriftung steht im aria-label
-   und im Tooltip, nicht daneben. */
-.tournament-icon-btn {
-  width: 38px;
-  height: 38px;
+   und im Tooltip, nicht daneben.
+
+   WARUM `button.` DAVOR: main.css:242 setzt
+   `button.tournament-header-btn { width: auto }` — Spezifitaet (0,1,1)
+   gegen (0,1,0) hier. Die Breite von 38px hat deshalb NIE gegolten; der
+   Knopf war gemessen 20x38px, also ein hochkant stehender Kasten mit
+   10px-Radius um ein 18px-Zeichen. Genau die Falle, die in diesem Repo
+   schon mehrfach zugeschlagen hat: dieselbe Komponente in zwei Dateien.
+   Mit `button.` stehen beide auf (0,1,1) und tournament.css gewinnt
+   ueber die Quell-Reihenfolge.
+
+   KEINE KAPSEL IN RUHE: kein Rahmen, kein Grund — nur das Zeichen.
+   `.btn-ghost` bringt einen 1.5px-Rahmen mit, der hier ausdruecklich
+   abgeraeumt wird. Die Flaeche erscheint erst beim Zeigen/Antippen.
+   Die Trefferflaeche bleibt trotzdem 44x44 (WCAG 2.5.8 / Apple HIG),
+   das Zeichen darin 18px. */
+button.tournament-icon-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   padding: 0;
   display: inline-grid;
   place-items: center;
-  flex: none;
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 999px;
+  color: var(--muted);
+  /* `.btn-primary` (main.css) bringt `margin-top: 4px` mit. In einer
+     mittig ausgerichteten Flex-Reihe sitzt „Neu" dadurch 2px tiefer als
+     ein Nachbar ohne diesen Anlauf — gemessen. Derselbe Wert hier legt
+     beide Knoepfe auf dieselbe Mittelachse. */
+  margin-top: 4px;
+}
+/* Dezente Hervorhebung statt Dauer-Kapsel. `--border` traegt in beiden
+   Themen (main.css :root und [data-theme='dark']), es braucht also
+   keinen eigenen Dunkel-Block. */
+button.tournament-icon-btn:hover {
+  background: var(--border);
+  border-color: transparent;
+  color: var(--text2);
+}
+button.tournament-icon-btn:active {
+  background: var(--border2);
+}
+/* Tastaturbedienung: ohne Rahmen waere der Knopf im Fokus sonst gar
+   nicht auffindbar. `:focus-visible`, damit der Ring beim Antippen
+   nicht stehen bleibt. */
+button.tournament-icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  background: var(--border);
+  color: var(--text2);
 }
 .tournament-icon-btn svg {
   width: 18px;
@@ -7646,5 +7739,95 @@ button.t-lrow:disabled:hover {
   }
   .t-chips > .t-chip > .count {
     font-size: 10.5px;
+  }
+}
+
+/* ================================================================
+   Zuschauer-Link: eigener Name (28.08.2026)
+   ----------------------------------------------------------------
+   Neuer Block, ans Ende gehaengt und in sich geschlossen. Er aendert
+   KEINE bestehende Regel und schreibt in keinen vorhandenen
+   Dark-Block: die Farben kommen ausschliesslich aus Tokens, die in
+   beiden Themen definiert sind (--ink, --muted, --line, --sunk,
+   --danger, --warn, --warn-soft) — damit braucht der Block keine
+   zweite Fassung fuer dunkel und kann keine fremde ueberschreiben.
+
+   Der Praefix und das Feld sitzen in EINER Zeile, weil die Adresse
+   erst zusammen eine Adresse ist. Auf schmalen Geraeten bricht die
+   Zeile um, statt das Eingabefeld auf Daumenbreite zu quetschen.
+   ================================================================ */
+.t-pslug {
+  margin-top: var(--s4);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+}
+.t-pslug-titel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: var(--s2);
+}
+.t-pslug-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  margin-bottom: var(--s2);
+}
+/* Der unveraenderliche Teil der Adresse. Monospace, damit er sich vom
+   editierbaren Teil abhebt, ohne dass ein Rahmen noetig waere. */
+.t-pslug-praefix {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.t-pslug-feld {
+  flex: 1 1 12ch;
+  min-width: 0;
+  font-family: var(--f-mono);
+}
+.t-pslug-vorschau {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.t-pslug-fehler {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+/* Die Warnung, dass der alte Link stirbt. Sie steht VOR dem Knopf und
+   traegt als einzige Flaeche in diesem Block einen Ton — sie ist die
+   Aussage, die man nicht ueberlesen darf. */
+.t-pslug-warnung {
+  margin-bottom: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-btn);
+  background: var(--warn-soft);
+  color: var(--ink);
+  font-style: normal;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  /* Auf 375px bleibt fuer das Feld sonst eine Handvoll Zeichen uebrig.
+     Der Praefix bekommt dann die volle Zeile fuer sich. */
+  .t-pslug-praefix {
+    flex: 1 0 100%;
+  }
+  .t-pslug-feld {
+    flex: 1 1 100%;
   }
 }

@@ -23,6 +23,7 @@ import {
   openConfirmDialog,
   uploadTournamentLogo,
   deleteTournamentLogo,
+  WIZARD_DEFAULT_NUM_TABLES,
 } from './tournament.js';
 import {
   sortMatchesBySchedule,
@@ -7635,7 +7636,10 @@ async function openTournamentWizard() {
     advancePerGroup: 2,
     bestThirdsCount: 0,
     thirdPlaceMatch: false,
-    numTables: 1,
+    // Eine Wahrheit, nicht zwei: die Voreinstellung steht in
+    // tournament.js. Hier stand bis 28.08. eine eigene 1, und weil
+    // dieses Objekt das DEFAULT_WIZARD_STATE ueberschreibt, gewann sie.
+    numTables: WIZARD_DEFAULT_NUM_TABLES,
     tableNames: [],
     startTime: '10:00',
     matchDuration: 30,
@@ -16233,14 +16237,71 @@ async function doJoinGroup() {
 }
 
 // ── DARK MODE ─────────────────────────────────────────────
-function toggleDarkMode() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
+/* Der Nachtmodus der APP ist eine ausdrueckliche Wahl — nie die des
+   Betriebssystems.
+
+   Was kaputt war (gemeldet 2026-08-28, Screenshot „Turniere"): Auf einem
+   iPhone im System-Nachtmodus lag die App-Kopfleiste hell da, der
+   Turnierbereich darunter aber schwarz. Zwei Modi auf einem Schirm.
+
+   Ursache: `toggleDarkMode` setzte beim AUSSCHALTEN `data-theme` auf den
+   LEEREN STRING, und der Restore beim Laden setzte im Hellfall gar
+   nichts. Ein leerer String ist nicht 'light' — der Nachtmodus-Block in
+   tokens.css haengt aber an `:root:not([data-theme='light'])` innerhalb
+   von `@media (prefers-color-scheme: dark)`. Also gewann die
+   Systemabfrage, obwohl in der App Hell eingestellt war. Die App-Schale
+   selbst blieb hell, weil main.css NUR `[data-theme='dark']` kennt und
+   kein prefers-color-scheme — daher der Riss mitten im Bild.
+
+   Die Regel ab jetzt: In der App traegt `<html>` IMMER ein
+   ausdrueckliches `data-theme` — 'light' oder 'dark', nie leer, nie
+   fehlend. Damit kann `:not([data-theme='light'])` hier nie mehr
+   greifen und die Systemabfrage nie mehr gewinnen.
+
+   Die Drei-Zustaende-Logik in tokens.css bleibt UNANGETASTET: sie ist
+   fuer live.html und aushang.html da, wo kein main.js laeuft und ein
+   Zuschauer abends sonst ein grellweisses Blatt bekaeme. Dort gibt es
+   Fall 3 (kein Attribut) und dort ist der Systemfallback richtig.
+
+   Warum keine zusaetzliche Traegerklasse „App-Kontext": sie waere ein
+   zweiter Schalter neben dem Attribut und damit eine zweite Wahrheit.
+   Das Attribut sagt bereits alles, was der Selektor braucht — es war
+   nur an zwei Stellen nicht gesetzt.
+
+   Gestartet wird der Modus zweimal, und das ist Absicht:
+     1. Ein Inline-Schnipsel im <head> von index.html — synchron, vor dem
+        ersten Anstrich, damit nichts im falschen Modus aufblitzt.
+        main.js ist ein Modul und laeuft erst nach dem Parsen.
+     2. `bootAppTheme()` hier unten — es zieht Icon, theme-color-Meta und
+        den gespeicherten Wert nach.
+   Beide muessen dieselbe Antwort geben; genau das prueft der
+   Paritaets-Test in __tests__/nachtmodus-app-wahl.test.js. */
+
+/** Aus dem gespeicherten Wert wird eine der ZWEI erlaubten Antworten.
+ *  Alles, was nicht ausdruecklich 'dark' ist — 'light', null, '',
+ *  Unsinn aus einem alten Stand —, heisst hell. Es gibt keinen dritten
+ *  Rueckgabewert; „wie das System" ist in der App kein Zustand. */
+function resolveAppTheme(gespeichert) {
+  return gespeichert === 'dark' ? 'dark' : 'light';
+}
+
+/** Setzt den Modus ueberall dort, wo er sichtbar wird: Attribut am
+ *  <html>, Speicher, Mond/Sonne-Zeichen und die theme-color der
+ *  Statusleiste. Das Attribut ist IMMER ausdruecklich. */
+function applyAppTheme(theme) {
+  const gewaehlt = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', gewaehlt);
   try {
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('theme', gewaehlt);
   } catch (e) {}
   updateThemeIcon();
-  if (typeof syncThemeColor === 'function') syncThemeColor();
+  syncThemeColor();
+  return gewaehlt;
+}
+
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  applyAppTheme(isDark ? 'light' : 'dark');
 }
 function updateThemeIcon() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -16253,11 +16314,19 @@ function updateThemeIcon() {
     if (el) el.innerHTML = content;
   });
 }
-// Restore theme on load
-try {
-  if (localStorage.getItem('theme') === 'dark')
-    document.documentElement.setAttribute('data-theme', 'dark');
-} catch (e) {}
+
+/** Beim Laden: den gespeicherten Wert holen und ausdruecklich anwenden.
+ *  Frueher stand hier „nur wenn 'dark', dann Attribut setzen" — im
+ *  Hellfall blieb gar kein Attribut stehen, und genau das war die
+ *  Haelfte des Fehlers. */
+function bootAppTheme() {
+  let gespeichert = null;
+  try {
+    gespeichert = localStorage.getItem('theme');
+  } catch (e) {}
+  return applyAppTheme(resolveAppTheme(gespeichert));
+}
+bootAppTheme();
 
 // ── SORTING ──────────────────────────────────────────────
 function changeSort(val) {

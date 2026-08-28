@@ -276,6 +276,36 @@ export function validateConfigPatch(input) {
       }
       sched.parallelFields = v;
     }
+    // minRestSlots + groupLookaheadRounds (2026-08-28): Beide liest die
+    // Engine (engine/schedule.js), aber der Validator kannte sie nicht —
+    // und weil er eine Whitelist baut, fielen sie beim PATCH lautlos
+    // heraus. Ein Turnierleiter konnte die Mindestruhe also nicht
+    // abschalten, obwohl die Engine das ausdruecklich vorsieht; sein Wert
+    // kam nie in der DB an. Lautlos verlieren ist schlimmer als ablehnen.
+    if ('minRestSlots' in s) {
+      const v = s.minRestSlots;
+      if (!Number.isInteger(v) || v < 0 || v > 4) {
+        return {
+          ok: false,
+          error: 'invalid_config',
+          message: 'schedule.minRestSlots muss eine ganze Zahl zwischen 0 und 4 sein.',
+          field: 'schedule.minRestSlots',
+        };
+      }
+      sched.minRestSlots = v;
+    }
+    if ('groupLookaheadRounds' in s) {
+      const v = s.groupLookaheadRounds;
+      if (!Number.isInteger(v) || v < 0 || v > 3) {
+        return {
+          ok: false,
+          error: 'invalid_config',
+          message: 'schedule.groupLookaheadRounds muss eine ganze Zahl zwischen 0 und 3 sein.',
+          field: 'schedule.groupLookaheadRounds',
+        };
+      }
+      sched.groupLookaheadRounds = v;
+    }
     if ('startTime' in s) {
       const v = s.startTime;
       if (typeof v !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {

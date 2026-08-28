@@ -268,6 +268,37 @@ describe('PATCH /api/tournaments/:id/fields', () => {
     expect(res.json().fields[0].id.length).toBeGreaterThan(0);
   });
 
+  it('200 zieht schedule.parallelFields mit — sonst plant die Engine weiter mit einer Platte', async () => {
+    // Befund 2026-08-28: Die Plattenzahl hatte zwei Regler, die auf
+    // verschiedene Werte zeigten. Der Einstellungen-Tab schreibt
+    // `config.fields` (Anzahl + Namen), die Engine rechnet mit
+    // `config.schedule.parallelFields`. Wer hier auf vier Platten stellte,
+    // sah vier Zeilen und bekam trotzdem einen Plan mit EINEM Spiel je
+    // Anstosszeit. Der Test faellt, sobald die Kopplung wieder fehlt.
+    prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
+      if (where.id === tDraftId) {
+        return makeStub({
+          config: { schedule: { parallelFields: 1, startTime: '09:00' } },
+        });
+      }
+      return null;
+    });
+    const res = await patchFields(tDraftId, {
+      fields: [
+        { name: 'Platte 1', order: 0 },
+        { name: 'Platte 2', order: 1 },
+        { name: 'Platte 3', order: 2 },
+        { name: 'Platte 4', order: 3 },
+      ],
+    });
+    expect(res.statusCode).toBe(200);
+    const geschrieben = prisma.tournament.update.mock.calls.at(-1)[0].data.config;
+    expect(geschrieben.schedule.parallelFields).toBe(4);
+    // Die uebrigen schedule-Werte bleiben stehen (JSON-Spalten-Falle).
+    expect(geschrieben.schedule.startTime).toBe('09:00');
+    expect(geschrieben.fields).toHaveLength(4);
+  });
+
   it('200 verringert Anzahl: match.field für wegfallende IDs wird auf null gesetzt', async () => {
     // Vorher: 4 Felder gespeichert im config.
     prisma.tournament.findUnique.mockImplementation(async ({ where }) => {
