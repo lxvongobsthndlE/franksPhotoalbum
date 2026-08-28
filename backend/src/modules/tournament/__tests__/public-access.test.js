@@ -114,11 +114,34 @@ describe('requirePublicTournament', () => {
     });
   });
 
-  it('missgestalteter Token fragt die Datenbank gar nicht erst', async () => {
+  // Diese Zusage ist am 28.08.2026 kleiner geworden, und zwar
+  // unvermeidlich: Seit ein Turnier auch unter einem selbst gewählten
+  // Namen erreichbar ist, IST „kurz" eine mögliche Adresse. Ein Wert,
+  // der nicht wie ein Token aussieht, darf deshalb nicht mehr ungefragt
+  // abgewiesen werden — sonst funktionierte kein einziger sprechender
+  // Link.
+  //
+  // Was bleibt: Eingaben, aus denen sich überhaupt keine Adresse bauen
+  // lässt, kosten weiterhin keinen Index-Zugriff. Das ist der Rest der
+  // ursprünglichen Begründung („ein Bot soll nicht je Versuch einen
+  // Lookup auslösen"), und er ist der Teil, der noch trägt.
+  it('eine Eingabe ohne verwertbare Zeichen fragt die Datenbank gar nicht erst', async () => {
+    for (const muell of ['!!!', '   ', '', '///']) {
+      await expect(requirePublicTournament(prisma, muell)).rejects.toMatchObject({
+        statusCode: 404,
+      });
+    }
+    expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('ein kurzer Wert ist jetzt ein Slug-Versuch — und endet ohne Treffer in 404', async () => {
+    prisma.tournament.findUnique.mockResolvedValue(null);
     await expect(requirePublicTournament(prisma, 'kurz')).rejects.toMatchObject({
       statusCode: 404,
     });
-    expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
+    expect(prisma.tournament.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { publicSlug: 'kurz' } })
+    );
   });
 
   it('Entwurf → 404, auch mit gültigem Token (Zusage 2)', async () => {

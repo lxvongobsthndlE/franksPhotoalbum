@@ -134,21 +134,30 @@ app.get('/auth/callback', async (request, reply) => {
   return reply.redirect(`/?${qs}`);
 });
 
-// Zuschauer-Link: /t/<token> liefert die öffentliche Turnier-Ansicht.
+// Zuschauer-Link: /t/<adresse> liefert die öffentliche Turnier-Ansicht.
+//
+// `<adresse>` ist entweder der Zufalls-Token oder der selbst gewählte
+// Name des Links (28.08.2026). Hier wird nicht unterschieden und nichts
+// geprüft: Diese Route liefert ausschließlich eine statische Seite aus.
+// Ob die Adresse gültig ist, entscheidet allein
+// GET /api/tournaments/public/:ref — eine Prüfung an DIESER Stelle wäre
+// eine zweite Wahrheit über denselben Zugang und würde beim nächsten
+// Umbau auseinanderlaufen.
 //
 // Eine eigene, sehr kleine Seite — bewusst NICHT die SPA. Ein Zuschauer
 // ohne Konto soll gar nicht erst den angemeldeten Client laden: kein
 // Login-Zustand, keine mutierenden Knöpfe, kein Admin-Code im Speicher.
-// Die Daten holt sie sich über GET /api/tournaments/public/:token; der
-// Token wird hier nur durchgereicht, geprüft wird er dort.
-app.get('/t/:token', async (request, reply) => {
+app.get('/t/:ref', async (request, reply) => {
   return reply.sendFile('live.html', path.join(__dirname, '../public'));
 });
 
 // Der Aushang: ein Blatt mit großem QR-Code zum Ausdrucken und Aufhängen.
-// Braucht keine eigene Berechtigung — wer den Token hat, hat ohnehin
+// Braucht keine eigene Berechtigung — wer die Adresse hat, hat ohnehin
 // Zugang, und der Aushang zeigt nichts, was die Ansicht nicht zeigt.
-app.get('/t/:token/aushang', async (request, reply) => {
+//
+// `aushang` steht deshalb auf der Sperrliste in public-slug.js: Ein
+// Turnier, das sich selbst so nennt, ergäbe /t/aushang/aushang.
+app.get('/t/:ref/aushang', async (request, reply) => {
   return reply.sendFile('aushang.html', path.join(__dirname, '../public'));
 });
 

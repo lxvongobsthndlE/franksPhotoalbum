@@ -223,6 +223,11 @@ export const FORBIDDEN_PUBLIC_KEYS = Object.freeze([
   'linkedUserIds',
   'players',
   'publicToken',
+  // Der sprechende Zweitname (28.08.2026) steht aus demselben Grund
+  // draußen wie der Token: Der Leser hat die Adresse ohnehin in der
+  // Zeile seines Browsers. Sie zusätzlich im Rumpf zu spiegeln, macht
+  // sie nur leichter versehentlich weiterreichbar.
+  'publicSlug',
   'createdById',
   'isPublic',
   'publicEnabledAt',
