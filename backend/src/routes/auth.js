@@ -4,6 +4,8 @@ import {
   handleCallback,
   initializeOIDC,
   getEndSessionUrl,
+  getAuthentikBaseUrl,
+  getEnrollmentUrl,
 } from '../utils/oidc.js';
 import { uploadAvatar, getAvatarStream, getAvatarStat, deleteAvatar } from '../utils/storage.js';
 import { normalizeInviteToken, redeemInviteForUser } from '../utils/invites.js';
@@ -178,18 +180,27 @@ export default async function authRoutes(fastify) {
       const nonce = generateNonce();
       const inviteToken = normalizeInviteToken(request.query?.invite);
       const feedPostId = normalizeFeedPostId(request.query?.feedPost);
+      const isRegisterIntent = request.query?.intent === 'register';
 
       // Speichere state/nonce für Validation beim Callback
       stateStore.set(state, { nonce, createdAt: Date.now(), inviteToken, feedPostId });
 
       const authUrl = getAuthorizationUrl(state, nonce);
+      // Bei Registrierung erst durch den Enrollment-Flow, der danach mit
+      // demselben State/Invite in unseren Callback zurückleitet.
+      const loginUrl = isRegisterIntent ? getEnrollmentUrl(authUrl) : authUrl;
       fastify.log.info('LOGIN: Generated auth URL');
 
-      return { loginUrl: authUrl };
+      return { loginUrl };
     } catch (err) {
       fastify.log.error('LOGIN ERROR:', err);
       return reply.code(500).send({ error: 'Failed to initialize OIDC', details: err.message });
     }
+  });
+
+  // GET /api/auth/config - öffentliche, nicht-geheime Frontend-Konfiguration
+  fastify.get('/config', async () => {
+    return { authentikBase: getAuthentikBaseUrl() };
   });
 
   // GET /api/auth/callback - OIDC Callback Handler

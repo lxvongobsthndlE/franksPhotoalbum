@@ -30,6 +30,18 @@ Browser                      Backend                        Authentik
   │◄── JWT Access Token (15 min) + Set-Cookie: refreshToken ────│
 ```
 
+### Registrierung (`intent=register`)
+
+`GET /api/auth/login?intent=register` liefert statt der reinen Autorisierungs-URL eine Authentik-Enrollment-Flow-URL (`/if/flow/<OIDC_ENROLLMENT_FLOW_SLUG>/?next=<relative-authorize-url>`).
+
+Wichtig: `next` muss eine **relative** URL sein (Pfad + Query, ohne Schema/Host) — Authentik lehnt absolute URLs mit `"Invalid next URL"` ab, selbst wenn der Host identisch ist.
+
+Nach erfolgreicher Registrierung leitet Authentik über `next` automatisch zum OAuth-Autorisierungs-Endpunkt und damit zurück in unseren normalen Callback — inklusive des `state`, an den Invite-Token und Feed-Post-Kontext gebunden sind (siehe [gruppen-und-alben.md](./gruppen-und-alben.md#oidc-flow-bei-nicht-eingeloggten-nutzern)).
+
+### Frontend-Konfiguration (`/api/auth/config`)
+
+`GET /api/auth/config` liefert `{ authentikBase }`, abgeleitet aus `OIDC_ISSUER` (Origin). Das Frontend hinterlegt darüber `window.APP_CONFIG.authentikBase` beim Start, statt den Wert hart zu codieren (z. B. für den „Konto verwalten"-Link zu Authentik).
+
 ---
 
 ## Token-Konzept
@@ -109,7 +121,8 @@ Folge:
 
 | Methode | Pfad                       | Beschreibung                                  | Auth       |
 | ------- | -------------------------- | --------------------------------------------- | ---------- |
-| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter | Nein       |
+| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter (`?invite=<TOKEN>`, `?feedPost=<ID>`, `?intent=register` optional) | Nein       |
+| `GET`   | `/api/auth/config`         | Liefert `{ authentikBase }` fürs Frontend (aus `OIDC_ISSUER` abgeleitet) | Nein       |
 | `GET`   | `/api/auth/callback`       | OIDC-Callback; gibt JWT + setzt Cookie        | Nein       |
 | `POST`  | `/api/auth/refresh`        | Erneuert Access Token via Refresh-Cookie      | Cookie     |
 | `GET`   | `/api/auth/me`             | Gibt das eigene Nutzerprofil zurück           | JWT        |
