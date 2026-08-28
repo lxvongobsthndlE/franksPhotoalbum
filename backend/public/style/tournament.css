@@ -7741,3 +7741,93 @@ button.t-lrow:disabled:hover {
     font-size: 10.5px;
   }
 }
+
+/* ================================================================
+   Zuschauer-Link: eigener Name (28.08.2026)
+   ----------------------------------------------------------------
+   Neuer Block, ans Ende gehaengt und in sich geschlossen. Er aendert
+   KEINE bestehende Regel und schreibt in keinen vorhandenen
+   Dark-Block: die Farben kommen ausschliesslich aus Tokens, die in
+   beiden Themen definiert sind (--ink, --muted, --line, --sunk,
+   --danger, --warn, --warn-soft) — damit braucht der Block keine
+   zweite Fassung fuer dunkel und kann keine fremde ueberschreiben.
+
+   Der Praefix und das Feld sitzen in EINER Zeile, weil die Adresse
+   erst zusammen eine Adresse ist. Auf schmalen Geraeten bricht die
+   Zeile um, statt das Eingabefeld auf Daumenbreite zu quetschen.
+   ================================================================ */
+.t-pslug {
+  margin-top: var(--s4);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+}
+.t-pslug-titel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: var(--s2);
+}
+.t-pslug-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  margin-bottom: var(--s2);
+}
+/* Der unveraenderliche Teil der Adresse. Monospace, damit er sich vom
+   editierbaren Teil abhebt, ohne dass ein Rahmen noetig waere. */
+.t-pslug-praefix {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.t-pslug-feld {
+  flex: 1 1 12ch;
+  min-width: 0;
+  font-family: var(--f-mono);
+}
+.t-pslug-vorschau {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.t-pslug-fehler {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+/* Die Warnung, dass der alte Link stirbt. Sie steht VOR dem Knopf und
+   traegt als einzige Flaeche in diesem Block einen Ton — sie ist die
+   Aussage, die man nicht ueberlesen darf. */
+.t-pslug-warnung {
+  margin-bottom: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-btn);
+  background: var(--warn-soft);
+  color: var(--ink);
+  font-style: normal;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  /* Auf 375px bleibt fuer das Feld sonst eine Handvoll Zeichen uebrig.
+     Der Praefix bekommt dann die volle Zeile fuer sich. */
+  .t-pslug-praefix {
+    flex: 1 0 100%;
+  }
+  .t-pslug-feld {
+    flex: 1 1 100%;
+  }
+}

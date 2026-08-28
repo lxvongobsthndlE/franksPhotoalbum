@@ -51,6 +51,27 @@ export function buildQrSvg(url) {
 }
 
 /**
+ * Welche Adresse gilt gerade — der sprechende Name oder der Zufalls-Token?
+ *
+ * Es gibt genau eine Antwort darauf, und sie steht hier: Sobald ein Slug
+ * gesetzt ist, IST er die Adresse. Der Token bleibt gültig und funktioniert
+ * weiter (er ist die Rückfallebene, siehe public-slug.js) — aber gedruckt,
+ * angezeigt und in den QR-Code gerechnet wird der Name, den der Betreiber
+ * selbst gewählt hat. Alles andere wäre die Frage „welcher von beiden steht
+ * jetzt auf dem Aushang?" an drei Stellen unterschiedlich beantwortet.
+ *
+ * @param {object} tournament  Rohzeile oder DTO mit publicSlug/publicToken
+ * @returns {string|null}
+ */
+export function aktuelleAdresse(tournament) {
+  const slug = tournament?.publicSlug;
+  if (typeof slug === 'string' && slug.length > 0) return slug;
+  const token = tournament?.publicToken;
+  if (typeof token === 'string' && token.length > 0) return token;
+  return null;
+}
+
+/**
  * Baut die öffentliche Adresse eines Zuschauer-Links.
  *
  * Der Host kommt aus dem Request, nicht aus einer Konstante: Die Anwendung
@@ -59,9 +80,9 @@ export function buildQrSvg(url) {
  * keiner — er sieht richtig aus und führt ins Leere.
  *
  * @param {object} request  Fastify-Request
- * @param {string} token
+ * @param {string} adresse  Slug oder Token — der Teil hinter /t/
  */
-export function buildPublicUrl(request, token) {
+export function buildPublicUrl(request, adresse) {
   // Hinter einem Reverse Proxy trägt der Host-Header die öffentliche
   // Adresse, nicht die interne. x-forwarded-proto sagt, ob davor TLS
   // terminiert wurde.
@@ -71,5 +92,5 @@ export function buildPublicUrl(request, token) {
   const host = String(request.headers['x-forwarded-host'] ?? request.headers.host ?? '')
     .split(',')[0]
     .trim();
-  return `${proto}://${host}/t/${token}`;
+  return `${proto}://${host}/t/${encodeURIComponent(adresse)}`;
 }

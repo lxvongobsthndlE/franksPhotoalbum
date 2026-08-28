@@ -59,7 +59,8 @@ import { nextPaletteColor } from './team-colors.js';
 import { canEdit, canRevertToDraft, canStartTournament, requireConfirmForRedraw } from './locks.js';
 import { createPublicToken, requirePublicTournament } from './public-access.js';
 import { buildPublicPayload } from './public-view.js';
-import { buildQrSvg, buildPublicUrl } from './public-qr.js';
+import { buildQrSvg, buildPublicUrl, aktuelleAdresse } from './public-qr.js';
+import { pruefeSlug } from './public-slug.js';
 
 export default async function tournamentRoutes(fastify) {
   // ─────────────────────────────────────────────────────────
@@ -141,23 +142,31 @@ export default async function tournamentRoutes(fastify) {
   // ─────────────────────────────────────────────────────────
   // 1b. Zuschauer-Link (Spec §11, Stufe B)
   //
-  //   GET    /public/:token   anonym lesen
-  //   POST   /:id/public      freigeben   (Admin)
-  //   DELETE /:id/public      widerrufen  (Admin)
+  //   GET    /public/:ref        anonym lesen (Slug ODER Token)
+  //   GET    /public/:ref/qr.svg QR zur gültigen Adresse
+  //   GET    /:id/public         Stand des Links   (Admin)
+  //   POST   /:id/public         freigeben         (Admin)
+  //   PATCH  /:id/public/slug    umbenennen        (Admin)
+  //   DELETE /:id/public         widerrufen        (Admin)
   //
-  // Der Token ist die Adresse: es gibt keinen Weg, ein freigegebenes
+  // Die ADRESSE ist der Zugang: es gibt keinen Weg, ein freigegebenes
   // Turnier anonym über seine ID zu lesen. Warum das so streng ist,
-  // steht in public-access.js.
+  // steht in public-access.js; warum ein selbst gewählter Name trotzdem
+  // sein darf, in public-slug.js.
   // ─────────────────────────────────────────────────────────
 
-  // GET /api/tournaments/public/:token — die Zuschauer-Ansicht.
+  // GET /api/tournaments/public/:ref — die Zuschauer-Ansicht.
   //
   // Einzige Route des Moduls ohne jede Auth. Sie steht bewusst hier oben
   // neben GET /:id, damit beim Lesen sofort auffällt, dass es zwei Wege
   // in dieselben Daten gibt — und dass dieser hier der engere ist.
-  fastify.get('/public/:token', async (request, reply) => {
+  //
+  // `:ref` heißt nicht mehr `:token`, weil hier seit dem 28.08.2026
+  // beides ankommen kann. Welcher Weg genommen wird, entscheidet
+  // bestimmeAdressart() — an einer Stelle, nicht in jeder Route neu.
+  fastify.get('/public/:ref', async (request, reply) => {
     try {
-      const ctx = await requirePublicTournament(fastify.prisma, request.params.token);
+      const ctx = await requirePublicTournament(fastify.prisma, request.params.ref);
       const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
 
       // Tabellen gleich mitliefern. Der angemeldete Client holt sie über
@@ -184,6 +193,14 @@ export default async function tournamentRoutes(fastify) {
       // Zuschauer sollen aktuelle Stände sehen, Zwischenspeicher aber auch
       // nicht ganz umgangen werden: 15 Sekunden sind kürzer als jede
       // Halbzeit und nehmen einem geteilten Link die Lastspitze.
+      //
+      // Beim Umbenennen bleibt es dabei: Wird der Slug geändert, ist die
+      // alte Adresse sofort tot, aber ein Browser, der sie in den letzten
+      // 15 Sekunden geladen hat, zeigt seine Kopie noch zu Ende. Fünfzehn
+      // Sekunden Nachlauf auf einer Ansicht, die ohnehin nur Tabellen
+      // zeigt, sind kein Schaden — anders als beim QR-Code darunter, der
+      // die Adresse selbst TRANSPORTIERT und deshalb gar nicht mehr
+      // zwischengespeichert wird.
       reply.header('Cache-Control', 'public, max-age=15');
       return buildPublicPayload({ ...view, groups: groupsWithStandings });
     } catch (err) {
@@ -191,23 +208,64 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
-  // GET /api/tournaments/public/:token/qr.svg — QR-Code zum Aushängen.
+  // GET /api/tournaments/public/:ref/qr.svg — QR-Code zum Aushängen.
   //
-  // Öffentlich wie die Ansicht selbst: Wer den Token hat, hat ohnehin
+  // Öffentlich wie die Ansicht selbst: Wer die Adresse hat, hat ohnehin
   // Zugang — der QR verrät nichts darüber hinaus. Dieselben Ablehnungen
   // wie der Lesepfad, sonst ließe sich am QR ablesen, ob ein Link mal
   // gültig war, während die Ansicht schon 404 gibt.
-  fastify.get('/public/:token/qr.svg', async (request, reply) => {
+  //
+  // Der Code zeigt IMMER auf die aktuell gültige Adresse, auch wenn er
+  // über den Token angefordert wurde: Wer umbenannt hat, will den neuen
+  // Namen drucken. Deshalb aktuelleAdresse() statt publicToken.
+  fastify.get('/public/:ref/qr.svg', async (request, reply) => {
     try {
-      const ctx = await requirePublicTournament(fastify.prisma, request.params.token);
-      const svg = buildQrSvg(buildPublicUrl(request, ctx.tournament.publicToken));
+      const ctx = await requirePublicTournament(fastify.prisma, request.params.ref);
+      const svg = buildQrSvg(buildPublicUrl(request, aktuelleAdresse(ctx.tournament)));
       reply.header('Content-Type', 'image/svg+xml; charset=utf-8');
-      // Der QR ändert sich nur, wenn der Token wechselt — und dann ist es
-      // eine andere Adresse. Eine Stunde ist unkritisch.
-      reply.header('Cache-Control', 'public, max-age=3600');
+      // KEIN Zwischenspeicher — und das ist seit dem Umbenennen (28.08.)
+      // kein Detail mehr, sondern der Kern.
+      //
+      // Vorher stand hier `max-age=3600` mit der Begründung, der QR ändere
+      // sich nur mit dem Token, und dann sei es ohnehin eine andere
+      // Adresse. Das stimmt für den Token und ist für den Slug falsch:
+      // Die Anforderung `/public/<token>/qr.svg` behält ihre URL, während
+      // sich ihr INHALT beim Umbenennen ändert. Mit einer Stunde Cache
+      // druckt der Betreiber nach der Umbenennung einen Aushang, der auf
+      // die tote Adresse zeigt — ein QR-Code, der falsch ist und richtig
+      // aussieht, ist der schlimmste Fall dieses Features.
+      //
+      // Der Preis ist bezahlbar: ein SVG von wenigen Kilobyte, das pro
+      // Einstellungsseite und pro Ausdruck einmal geholt wird. Ein
+      // Cache-Buster am Query-String wäre die halbe Lösung gewesen — er
+      // hilft nur dort, wo wir die Adresse selbst bauen, und nicht bei
+      // einem Zwischenspeicher, der die alte URL noch kennt.
+      reply.header('Cache-Control', 'no-store');
       return svg;
     } catch (err) {
       return handleError(reply, err, 'Link nicht gültig');
+    }
+  });
+
+  // GET /api/tournaments/:id/public — Stand des Zuschauer-Links (Admin).
+  //
+  // Warum es diese Route gibt, obwohl GET /:id das Turnier ohnehin
+  // liefert: Das interne DTO trägt `isPublic` und `publicToken`, aber
+  // keinen Slug — und die Antwort auf „wie lautet der Link gerade und
+  // wie heißt er?" soll nicht davon abhängen, welche Felder ein
+  // Anzeigeobjekt zufällig mitschleppt. Hier steht sie vollständig, in
+  // der Form, die die Oberfläche wirklich braucht: fertige Adresse,
+  // fertiger Pfad, fertige QR-Quelle.
+  //
+  // Admin-only wie Freigabe und Widerruf: Der Token ist ein Zugang, und
+  // ein Zugang wird nicht an Mitglieder ausgeliefert, die ihn nicht
+  // erteilen dürfen.
+  fastify.get('/:id/public', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
+      return publicLinkAntwort(request, ctx.tournament);
+    } catch (err) {
+      return handleError(reply, err, 'Zuschauer-Link konnte nicht geladen werden');
     }
   });
 
@@ -246,15 +304,11 @@ export default async function tournamentRoutes(fastify) {
           publicEnabledAt: alreadyLive ? ctx.tournament.publicEnabledAt : new Date(),
           publicRevokedAt: null,
         },
-        select: { publicToken: true, publicEnabledAt: true },
+        select: { publicToken: true, publicSlug: true, publicEnabledAt: true },
       });
 
       return {
-        ok: true,
-        isPublic: true,
-        token: updated.publicToken,
-        path: `/t/${updated.publicToken}`,
-        enabledAt: updated.publicEnabledAt,
+        ...publicLinkAntwort(request, updated),
         // Ob der Link neu ist, entscheidet, was die Oberfläche sagt:
         // „Link erstellt" oder „Link ist bereits aktiv".
         created: !alreadyLive,
@@ -264,12 +318,111 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
+  // PATCH /api/tournaments/:id/public/slug — den Link umbenennen (Admin).
+  //
+  // Die eine Regel, die diese Route trägt:
+  //
+  //     Umbenennen macht den alten Namen TOT.
+  //
+  // Keine Weiterleitung vom alten auf den neuen Slug. Eine Weiterleitung
+  // klingt freundlich und ist die schlechtere Zusage: Sie hielte jeden
+  // gedruckten Aushang still am Leben, und der Betreiber wüsste nie, ob
+  // ein Link, den er ersetzt hat, wirklich weg ist. Genau dieselbe
+  // Begründung wie beim Widerruf — nur eine Ebene kleiner.
+  //
+  // Der Zufalls-Token bleibt davon unberührt und funktioniert weiter; er
+  // ist die Rückfallebene, nicht der Wegwerfteil.
+  //
+  //   400 slug_*            Format/Länge/reserviert — Meldung ist deutsch
+  //                         und steht im Frontend unter dem Feld.
+  //   409 slug_taken        Der Name gehört schon einem anderen Turnier.
+  //   409 link_not_public   Es gibt noch keinen Link, den man benennen
+  //                         könnte. Erst freigeben, dann taufen.
+  fastify.patch('/:id/public/slug', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
+      const t = ctx.tournament;
+
+      const istFreigegeben = t.isPublic === true && !!t.publicToken && !t.publicRevokedAt;
+      if (!istFreigegeben) {
+        return reply.code(409).send({
+          error: 'link_not_public',
+          message:
+            'Für dieses Turnier gibt es noch keinen Zuschauer-Link. ' +
+            'Erstelle ihn zuerst, dann kannst du ihn umbenennen.',
+        });
+      }
+
+      const roh = request.body?.slug;
+
+      // Leer heißt „Namen wieder abgeben": zurück auf den Zufallslink.
+      // Bewusst kein eigener Endpunkt dafür — ein zweites Verb für „setze
+      // auf NULL" ist eine Route, die man beim Lesen der ersten übersieht.
+      const abgeben = roh === null || (typeof roh === 'string' && roh.trim() === '');
+
+      let neuerSlug = null;
+      if (!abgeben) {
+        const urteil = pruefeSlug(roh);
+        if (!urteil.ok) {
+          return reply.code(400).send({ error: urteil.code, message: urteil.message });
+        }
+        neuerSlug = urteil.slug;
+      }
+
+      const vorher = t.publicSlug ?? null;
+      if (vorher === neuerSlug) {
+        // Nichts zu tun. Kein Schreibzugriff, keine erfundene Änderung —
+        // und die Oberfläche kann daran unterscheiden, ob sie „gespeichert"
+        // oder „war schon so" melden soll.
+        return { ...publicLinkAntwort(request, t), changed: false, previousSlug: vorher };
+      }
+
+      let updated;
+      try {
+        updated = await fastify.prisma.tournament.update({
+          where: { id: t.id },
+          data: { publicSlug: neuerSlug },
+          select: { publicToken: true, publicSlug: true, publicEnabledAt: true },
+        });
+      } catch (err) {
+        // P2002 = Verletzung eines Unique-Index. Ohne diesen Zweig käme
+        // ein Prisma-Stacktrace als 500 heraus — für einen Namen, den
+        // jemand anders zuerst hatte, ist das die falsche Auskunft.
+        // Der Index ist die einzige belastbare Prüfung: ein vorheriges
+        // findUnique wäre ein Wettlauf, kein Schutz.
+        if (err?.code === 'P2002') {
+          return reply.code(409).send({
+            error: 'slug_taken',
+            message:
+              `Der Name „${neuerSlug}" ist schon vergeben. ` + 'Nimm eine andere Schreibweise.',
+          });
+        }
+        throw err;
+      }
+
+      return {
+        ...publicLinkAntwort(request, updated),
+        changed: true,
+        previousSlug: vorher,
+      };
+    } catch (err) {
+      return handleError(reply, err, 'Umbenennen fehlgeschlagen');
+    }
+  });
+
   // DELETE /api/tournaments/:id/public — Zuschauer-Link widerrufen (Admin).
   //
   // Löscht den Token, statt nur isPublic umzulegen. Bliebe er stehen,
   // würde eine spätere zweite Freigabe jeden alten, längst
   // weitergereichten Link wieder scharf schalten — ein Widerruf, der sich
   // von selbst zurücknimmt, ist keiner.
+  //
+  // Seit dem 28.08.2026 fällt der Slug mit. Er ist die Adresse, die der
+  // Betreiber weitergereicht, aufgehängt und ausgedruckt hat — die
+  // WAHRSCHEINLICHER im Umlauf ist als der Zufallslink. Ihn stehen zu
+  // lassen, hieße: eine spätere Freigabe schaltet genau den Link wieder
+  // scharf, den jeder noch hat. Der Widerruf wäre dann für den
+  // wichtigeren der beiden Wege wirkungslos.
   fastify.delete('/:id/public', async (request, reply) => {
     try {
       const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
@@ -279,6 +432,7 @@ export default async function tournamentRoutes(fastify) {
         data: {
           isPublic: false,
           publicToken: null,
+          publicSlug: null,
           publicRevokedAt: new Date(),
         },
       });
@@ -2965,6 +3119,42 @@ export default async function tournamentRoutes(fastify) {
       return reply.code(500).send({ error: 'Logo konnte nicht geladen werden' });
     }
   });
+}
+
+/**
+ * Die EINE Antwortform für alles, was den Zuschauer-Link betrifft.
+ *
+ * Freigeben, Umbenennen, Nachfragen — drei Routen, drei Anlässe, aber
+ * dieselbe Frage der Oberfläche: „Wie lautet der Link jetzt?" Vor dem
+ * 28.08.2026 baute jede Route ihren Pfad selbst zusammen (`/t/${token}`),
+ * und mit dem Slug wären daraus drei Stellen geworden, an denen zu
+ * entscheiden ist, welcher der beiden Namen gerade gilt. Genau so
+ * entstehen Oberflächen, die nach dem Umbenennen zwei verschiedene Links
+ * nebeneinander anzeigen.
+ *
+ * @param {object} request     Fastify-Request (liefert Schema und Host)
+ * @param {object} tournament  Rohzeile mit publicToken/publicSlug
+ */
+function publicLinkAntwort(request, tournament) {
+  const adresse = aktuelleAdresse(tournament);
+  if (!adresse) {
+    return { ok: true, isPublic: false, token: null, slug: null, address: null, path: null };
+  }
+  const kodiert = encodeURIComponent(adresse);
+  return {
+    ok: true,
+    isPublic: true,
+    token: tournament.publicToken ?? null,
+    slug: tournament.publicSlug ?? null,
+    // Was gerade hinter /t/ steht — der Slug, falls gesetzt, sonst der Token.
+    address: adresse,
+    path: `/t/${kodiert}`,
+    url: buildPublicUrl(request, adresse),
+    // Fertige QR-Quelle, damit das Frontend sie nicht selbst zusammensetzt
+    // und dabei den Token nimmt, wo der Slug gilt.
+    qrPath: `/api/tournaments/public/${kodiert}/qr.svg`,
+    enabledAt: tournament.publicEnabledAt ?? null,
+  };
 }
 
 /**

@@ -282,6 +282,106 @@ suite('Real-DB: POST /api/tournaments/:id/matches/:matchId/result', () => {
     expect(body2.propagated).toContain(ctx.matchFinalId);
     expect(body2.propagatedMatches.map((m) => m.id)).toContain(ctx.matchFinalId);
   });
+
+  // ─────────────────────────────────────────────────────────────────
+  // Test 6: Der Zuschauer-Link-Slug ist GLOBAL eindeutig (28.08.2026).
+  //
+  // Warum dieser Fall hierher gehört und nicht zu den Mock-Tests:
+  // Die Eindeutigkeit ist kein Code, sondern ein Unique-Index. Ein
+  // Mock, der sie nachstellt, prüft die Nachstellung — nicht die
+  // Datenbank. Genau dieselbe Blindheit wie bei den Schema-Geistern
+  // aus Bug 1: Erst der echte Round-Trip macht aus einer Annahme
+  // einen Beweis.
+  //
+  // Zwei Zusagen in einem Test:
+  //   (a) Die DB lehnt den Zweitnamen ab (P2002).
+  //   (b) Die Route macht daraus einen sauberen 409, keinen 500 mit
+  //       Prisma-Stacktrace.
+  // ─────────────────────────────────────────────────────────────────
+  it('Zuschauer-Link: derselbe Slug zweimal → 409, kein Prisma-Absturz (echte DB)', async () => {
+    const ctx = await seedKoBracket(prisma);
+
+    const zweites = await prisma.tournament.create({
+      data: {
+        id: 't-2',
+        groupId: 'g-1',
+        name: 'Zweites Turnier ' + Date.now(),
+        mode: 'groups_ko',
+        status: 'group_stage',
+        createdById: ctx.adminId,
+      },
+    });
+
+    // Beide freigeben — umbenennen geht nur, wo es einen Link gibt.
+    for (const [id, token] of [
+      [ctx.tournamentId, 'A'.repeat(32)],
+      [zweites.id, 'B'.repeat(32)],
+    ]) {
+      await prisma.tournament.update({
+        where: { id },
+        data: { isPublic: true, publicToken: token, publicEnabledAt: new Date() },
+      });
+    }
+
+    const erste = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${ctx.tournamentId}/public/slug`,
+      headers: { 'x-test-user': ctx.adminId },
+      payload: { slug: 'sommerfest-2026' },
+    });
+    expect(erste.statusCode).toBe(200);
+    expect(erste.json().slug).toBe('sommerfest-2026');
+
+    // Anderer Turnier, andere Schreibweise — nach der Normalisierung
+    // derselbe Name. Genau so entsteht die Kollision im Alltag.
+    const zweite = await app.inject({
+      method: 'PATCH',
+      url: `/api/tournaments/${zweites.id}/public/slug`,
+      headers: { 'x-test-user': ctx.adminId },
+      payload: { slug: 'Sommerfest 2026' },
+    });
+    expect(zweite.statusCode).toBe(409);
+    expect(zweite.json().error).toBe('slug_taken');
+
+    // Der Name gehört weiterhin dem ersten Turnier.
+    const oeffentlich = await app.inject({
+      method: 'GET',
+      url: '/api/tournaments/public/sommerfest-2026',
+    });
+    expect(oeffentlich.statusCode).toBe(200);
+
+    const zweitesDanach = await prisma.tournament.findUnique({ where: { id: zweites.id } });
+    expect(zweitesDanach.publicSlug).toBeNull();
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // Test 7: Widerruf löscht Token UND Slug — gegen die echte Spalte.
+  // ─────────────────────────────────────────────────────────────────
+  it('Zuschauer-Link: Widerruf räumt Token und Slug ab (echte DB)', async () => {
+    const ctx = await seedKoBracket(prisma);
+    await prisma.tournament.update({
+      where: { id: ctx.tournamentId },
+      data: {
+        isPublic: true,
+        publicToken: 'A'.repeat(32),
+        publicSlug: 'sommerfest-2026',
+        publicEnabledAt: new Date(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/tournaments/${ctx.tournamentId}/public`,
+      headers: { 'x-test-user': ctx.adminId },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+
+    const danach = await prisma.tournament.findUnique({ where: { id: ctx.tournamentId } });
+    expect(danach.publicToken).toBeNull();
+    expect(danach.publicSlug).toBeNull();
+    expect(danach.isPublic).toBe(false);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────
