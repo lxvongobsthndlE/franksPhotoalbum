@@ -12,7 +12,8 @@ Authorization: Bearer <accessToken>
 
 | Methode | Pfad                       | Beschreibung                                                               | Auth       |
 | ------- | -------------------------- | -------------------------------------------------------------------------- | ---------- |
-| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter (`?invite=<TOKEN>` optional) | Nein       |
+| `GET`   | `/api/auth/login`          | Startet OIDC-Flow, leitet zu Authentik weiter (`?invite=<TOKEN>`, `?feedPost=<ID>`, `?intent=register` optional) | Nein       |
+| `GET`   | `/api/auth/config`         | Liefert `{ authentikBase }` fürs Frontend (aus `OIDC_ISSUER` abgeleitet)   | Nein       |
 | `GET`   | `/api/auth/callback`       | OIDC-Callback; gibt JWT zurück und setzt Refresh-Cookie                    | Nein       |
 | `POST`  | `/api/auth/refresh`        | Erneuert Access Token über Refresh-Cookie                                  | Cookie     |
 | `GET`   | `/api/auth/me`             | Eigenes Nutzerprofil                                                       | JWT        |

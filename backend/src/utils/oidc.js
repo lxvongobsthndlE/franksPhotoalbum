@@ -44,6 +44,30 @@ async function ensureInitialized() {
   }
 }
 
+// Authentik-Host aus dem Issuer ableiten, statt ihn ein zweites Mal zu konfigurieren
+export function getAuthentikBaseUrl() {
+  if (!process.env.OIDC_ISSUER) return null;
+  try {
+    return new URL(process.env.OIDC_ISSUER).origin;
+  } catch {
+    return null;
+  }
+}
+
+// Hängt die Autorisierungs-URL als `next` an die Enrollment-Flow-URL, damit
+// Authentik nach erfolgreicher Registrierung direkt in unseren OAuth-Callback
+// zurückleitet (State/Invite-Token bleiben so über die Registrierung hinweg erhalten).
+// Authentik akzeptiert bei `next` nur relative URLs (Pfad+Query) — eine
+// absolute URL wird als "Invalid next URL" abgelehnt, selbst bei gleichem Host.
+export function getEnrollmentUrl(authUrl) {
+  const base = getAuthentikBaseUrl();
+  if (!base) return authUrl;
+  const flowSlug = process.env.OIDC_ENROLLMENT_FLOW_SLUG || 'default-enrollment-flow';
+  const relativeAuthUrl = `${new URL(authUrl).pathname}${new URL(authUrl).search}`;
+  const params = new URLSearchParams({ next: relativeAuthUrl });
+  return `${base}/if/flow/${flowSlug}/?${params.toString()}`;
+}
+
 export function getAuthorizationUrl(state, nonce) {
   if (!discoveredConfig) throw new Error('OIDC not initialized - call initializeOIDC() first');
 
