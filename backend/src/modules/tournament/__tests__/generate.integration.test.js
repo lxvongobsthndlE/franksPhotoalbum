@@ -664,3 +664,126 @@ describe('G12: Antwort ist DTO (tournament, teams, groups, matches, stats, count
     expect(body.tournament.statusLabel).toBe('Bereit');
   });
 });
+
+// ------------------------------------------------------------------
+// G13: Der Zeitplan aus dem Generate-Body kommt an — und bleibt liegen
+//
+// Warum es diesen Block gibt (Befund 2026-08-28): Der Betreiber meldete
+// einen Spielplan mit genau EINEM Spiel je Anstosszeit, alles auf
+// "Platte 1". Eine der Ursachen war, dass die Plattenzahl NUR ueber den
+// Step-PATCH des Wizards in die config kam. Kam der nicht durch — Race,
+// unterbrochene Verbindung —, generierte der Server gegen eine leere
+// config und plante alles hintereinander. mode und numGroups haben ihre
+// Verteidigungslinie seit Bug A (17.08.), der Zeitplan hatte keine.
+//
+// Die Tests sind so gebaut, dass sie FALLEN, sobald jemand die
+// Plattenzahl irgendwo festnagelt: sie pruefen mehrere verschiedene
+// Werte, und ein fester Wert kann nicht alle erfuellen.
+// ------------------------------------------------------------------
+describe('G13: POST /generate nimmt schedule aus dem Body an', () => {
+  let app, prisma, angelegteSpiele;
+
+  beforeEach(async () => {
+    prisma = createLocalMockPrisma();
+    stubUsersAndGroup(prisma);
+    prisma.tournament.findUnique.mockResolvedValue(makeTournamentRow());
+    prisma.tournamentTeam.findMany.mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({
+        id: `team-${i}`,
+        name: `Team ${i}`,
+        seed: i + 1,
+        createdAt: new Date(2026, 0, i + 1),
+      }))
+    );
+    prisma.match.count.mockResolvedValue(0);
+    prisma.stage.deleteMany.mockResolvedValue({ count: 0 });
+    prisma.stage.create.mockImplementation(async ({ data }) => ({ id: 'stage-1', ...data }));
+    prisma.group_.create.mockImplementation(async ({ data }) => ({
+      id: `group-${data.key}`,
+      ...data,
+    }));
+    prisma.groupMembership.createMany.mockResolvedValue({ count: 0 });
+
+    angelegteSpiele = [];
+    prisma.match.createMany.mockImplementation(async ({ data }) => {
+      angelegteSpiele.push(...data);
+      return { count: data.length };
+    });
+
+    prisma.stage.findMany.mockResolvedValue([]);
+    prisma.group_.findMany.mockResolvedValue([]);
+    prisma.match.findMany.mockResolvedValue([]);
+    prisma.tournament.update.mockResolvedValue(makeTournamentRow({ status: 'generated' }));
+    app = await buildApp(prisma);
+  });
+
+  /** Wie viele Platten belegt der Plan im am staerksten belegten Zeitfenster? */
+  function maxPlattenGleichzeitig(spiele) {
+    const nach = new Map();
+    for (const m of spiele) {
+      if (m.scheduledAt == null || m.field == null) continue;
+      const z = new Date(m.scheduledAt).getTime();
+      if (!nach.has(z)) nach.set(z, new Set());
+      nach.get(z).add(m.field);
+    }
+    const groessen = [...nach.values()].map((s) => s.size);
+    return groessen.length > 0 ? Math.max(...groessen) : 0;
+  }
+
+  for (const platten of [2, 3, 4]) {
+    it(`${platten} Platten im Body -> der erzeugte Plan belegt ${platten} Platten`, async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/tournaments/${tId}/generate`,
+        payload: { schedule: { parallelFields: platten, matchDurationMinutes: 20 } },
+        headers: { 'x-test-user': u.admin.id },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(maxPlattenGleichzeitig(angelegteSpiele)).toBe(platten);
+    });
+
+    it(`${platten} Platten im Body werden in die config zurueckgeschrieben`, async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/tournaments/${tId}/generate`,
+        payload: { schedule: { parallelFields: platten } },
+        headers: { 'x-test-user': u.admin.id },
+      });
+      expect(res.statusCode).toBe(201);
+
+      // Sonst rechnete der erzeugte Plan mit N Platten, waehrend die
+      // gespeicherte config weiter von einer wuesste — und das naechste
+      // /reschedule wuerfe den Plan wieder auf eine Platte zurueck.
+      const mitConfig = prisma.tournament.update.mock.calls
+        .map((c) => c[0])
+        .filter((arg) => arg?.data?.config !== undefined);
+      expect(mitConfig.length).toBeGreaterThan(0);
+      expect(mitConfig.at(-1).data.config.schedule.parallelFields).toBe(platten);
+    });
+  }
+
+  it('ohne schedule im Body wird die config NICHT angefasst', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tId}/generate`,
+      payload: {},
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(201);
+    const mitConfig = prisma.tournament.update.mock.calls
+      .map((c) => c[0])
+      .filter((arg) => arg?.data?.config !== undefined);
+    expect(mitConfig).toEqual([]);
+  });
+
+  it('ein unsinniger Zeitplan wird abgelehnt statt still verworfen', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tournaments/${tId}/generate`,
+      payload: { schedule: { parallelFields: 0 } },
+      headers: { 'x-test-user': u.admin.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().field).toBe('schedule.parallelFields');
+  });
+});

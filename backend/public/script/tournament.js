@@ -514,6 +514,26 @@ export function buildGeneratePayload(state, opts = {}) {
   if (state.mode) {
     body.mode = state.mode;
   }
+  // Zeitplan explizit mitschicken — dieselbe Verteidigungslinie wie oben
+  // fuer mode und numGroups, und aus demselben Grund (Befund 2026-08-28).
+  //
+  // Die Engine plant mit config.schedule.parallelFields. Dort landet der
+  // Wert nur ueber den Step-PATCH (buildPatchPayload). Kommt der nicht
+  // durch — Race, Wizard-Regression, unterbrochene Verbindung —, dann
+  // generiert der Server gegen die ALTE oder leere config: der Turnierleiter
+  // stellt vier Platten ein und bekommt einen Plan fuer eine.
+  //
+  // Genau diese Fehlerklasse hat hier schon zweimal zugeschlagen
+  // (matchDuration 17.08., parallelFields 28.08.). mode und numGroups haben
+  // seither ihre Verteidigungslinie; der Zeitplan hatte keine.
+  const schedule = {};
+  if (Number.isFinite(state.numTables)) schedule.parallelFields = state.numTables;
+  if (Number.isFinite(state.matchDuration)) schedule.matchDurationMinutes = state.matchDuration;
+  if (Number.isFinite(state.pauseMinutes)) schedule.pauseAfterMatches = state.pauseMinutes;
+  if (typeof state.startTime === 'string' && state.startTime) schedule.startTime = state.startTime;
+  if (Object.keys(schedule).length > 0) {
+    body.schedule = schedule;
+  }
   if (opts.confirmTournamentName) {
     body.confirmTournamentName = opts.confirmTournamentName;
   }
@@ -1712,6 +1732,24 @@ const TIEBREAKER_ORDER = [
 
 const STEP_TITLES = ['Grunddaten', 'Teams', 'Modus', 'Qualifikation & Zeitplan', 'Zusammenfassung'];
 
+/**
+ * Voreingestellte Anzahl Platten/Tische im Wizard.
+ *
+ * Warum das eine exportierte Konstante ist und keine Zahl im Objekt
+ * (Befund 2026-08-28): Es gab ZWEI Voreinstellungen fuer denselben Wert.
+ * Hier stand 2, in main.js baute der Aufrufer sein eigenes initialState
+ * mit numTables: 1 — und weil der Aufrufer-Wert das DEFAULT_WIZARD_STATE
+ * ueberschreibt, gewann die 1. Wer den Stepper nie anfasste, erzeugte ein
+ * Turnier, das die Engine auf EINE Platte plante: fuenfzehn Spiele
+ * nacheinander, jede halbe Stunde eins. Genau das war im Screenshot vom
+ * 27.08. zu sehen — die Platten-Kopplung im Backend (routes.js, PATCH
+ * /:id/fields) reparierte den Einstellungen-Tab, aber nicht den Wizard,
+ * der das Turnier ueberhaupt erst anlegt.
+ *
+ * Eine Zahl, eine Datei. Wer sie aendern will, aendert sie hier.
+ */
+export const WIZARD_DEFAULT_NUM_TABLES = 2;
+
 const DEFAULT_WIZARD_STATE = {
   step: 1,
   // Step 1
@@ -1736,7 +1774,7 @@ const DEFAULT_WIZARD_STATE = {
   advancePerGroup: 2,
   bestThirdsCount: 0,
   thirdPlaceMatch: false,
-  numTables: 2,
+  numTables: WIZARD_DEFAULT_NUM_TABLES,
   // Tischnamen sind eigene Werte (Spec §1.2); sie heißen im Backend
   // tableLabels, im State bleiben sie aus Lesbarkeitsgründen tableNames.
   tableNames: [],

@@ -2121,6 +2121,33 @@ export default async function tournamentRoutes(fastify) {
         mode = request.body.mode;
       }
 
+      // Zeitplan-Priorität: Body-Wert > gespeicherte config.
+      //
+      // Warum das hier steht (Befund 2026-08-28): Die Engine plant mit
+      // config.schedule.parallelFields. Dorthin kam der Wert bisher NUR
+      // über den Step-PATCH des Wizards. Kam der nicht durch — Race,
+      // unterbrochene Verbindung, Wizard-Regression —, generierte der
+      // Server gegen eine leere config und plante alles auf EINE Platte,
+      // obwohl der Turnierleiter vier eingestellt hatte. Genau dieselbe
+      // Fehlerklasse hatte am 17.08. schon die Spieldauer erwischt.
+      //
+      // mode und numGroups haben ihre Verteidigungslinie seit Bug A; der
+      // Zeitplan hatte keine. Jetzt schickt buildGeneratePayload ihn mit,
+      // und wir nehmen ihn an — durch DENSELBEN Validator wie der PATCH,
+      // damit es keine zweite, laxere Prüfung derselben Werte gibt.
+      let scheduleAusBody = null;
+      if (request.body?.schedule !== undefined) {
+        const vs = validateConfigPatch({ schedule: request.body.schedule });
+        if (!vs.ok) {
+          return reply.code(400).send({
+            error: vs.error,
+            message: vs.message,
+            field: vs.field,
+          });
+        }
+        scheduleAusBody = vs.value.schedule ?? null;
+      }
+
       const gen = generateTournament({
         teams: teams.map((t) => ({ id: t.id, name: t.name, seed: t.seed ?? null })),
         config: {
@@ -2129,6 +2156,10 @@ export default async function tournamentRoutes(fastify) {
           groupSize: request.body?.groupSize ?? config.groupSize,
           mode,
           distribution: config.distribution ?? 'snake',
+          schedule: {
+            ...(config.schedule ?? {}),
+            ...(scheduleAusBody ?? {}),
+          },
         },
         baseDate,
       });
@@ -2147,9 +2178,24 @@ export default async function tournamentRoutes(fastify) {
           ? 'generated'
           : ctx.tournament.status;
 
+      // Der Zeitplan aus dem Body wird MITGESCHRIEBEN, nicht nur benutzt.
+      //
+      // Sonst entstünde eine zweite Art derselben Falle: Der erzeugte Plan
+      // rechnete mit vier Platten, die gespeicherte config wüsste weiter
+      // von einer — und das nächste /reschedule oder shift-open-matches
+      // würfe den Plan auf eine Platte zurück. Ein Wert, der den Plan
+      // bestimmt, gehört dorthin, wo der nächste Lauf ihn wiederfindet.
+      const updateDaten = { status: newStatus };
+      if (scheduleAusBody && Object.keys(scheduleAusBody).length > 0) {
+        updateDaten.config = {
+          ...config,
+          schedule: { ...(config.schedule ?? {}), ...scheduleAusBody },
+        };
+      }
+
       await fastify.prisma.tournament.update({
         where: { id: ctx.tournament.id },
-        data: { status: newStatus },
+        data: updateDaten,
       });
 
       // DTO-Antwort statt Roh-Counts.

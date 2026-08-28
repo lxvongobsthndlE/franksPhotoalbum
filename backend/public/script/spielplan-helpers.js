@@ -2533,7 +2533,12 @@ function renderActionsBlock(ctx) {
   const betrieb = [];
   if (canReschedule.allowed && (isRunning || isGenerated)) {
     const duration = t?.tournament?.config?.schedule?.matchDurationMinutes ?? 30;
-    const parallelFields = t?.tournament?.config?.schedule?.parallelFields ?? 4;
+    // Rueckfall auf 1, nicht auf 4 (Befund 2026-08-28): Die 4 war eine
+    // Anzeige-Erfindung. Ist parallelFields nie gesetzt, rechnet die
+    // Engine mit 1 (engine/schedule.js) — der Stepper zeigte dann vier
+    // Platten an, waehrend der Plan eine benutzte. Anzeige und Plan
+    // muessen dasselbe sagen, auch wenn die Wahrheit unbequem ist.
+    const parallelFields = t?.tournament?.config?.schedule?.parallelFields ?? 1;
     const pause = t?.tournament?.config?.schedule?.pauseAfterMatches ?? 0;
     betrieb.push(
       lrow({

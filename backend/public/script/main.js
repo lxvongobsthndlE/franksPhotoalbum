@@ -22,6 +22,7 @@ import {
   openConfirmDialog,
   uploadTournamentLogo,
   deleteTournamentLogo,
+  WIZARD_DEFAULT_NUM_TABLES,
 } from './tournament.js';
 import {
   sortMatchesBySchedule,
@@ -7608,7 +7609,10 @@ async function openTournamentWizard() {
     advancePerGroup: 2,
     bestThirdsCount: 0,
     thirdPlaceMatch: false,
-    numTables: 1,
+    // Eine Wahrheit, nicht zwei: die Voreinstellung steht in
+    // tournament.js. Hier stand bis 28.08. eine eigene 1, und weil
+    // dieses Objekt das DEFAULT_WIZARD_STATE ueberschreibt, gewann sie.
+    numTables: WIZARD_DEFAULT_NUM_TABLES,
     tableNames: [],
     startTime: '10:00',
     matchDuration: 30,
