@@ -71,6 +71,15 @@ export const MUTATING_DATA_ACTIONS = Object.freeze([
   // Mutation im Modul, auch wenn sie keine Spieldaten anfasst.
   'create-public-link',
   'revoke-public-link',
+  // Nachtrag 2026-08-28: Umbenennen und Zuruecksetzen des Zuschauer-Links.
+  // Sie stehen hier aus demselben Grund wie ihre beiden Nachbarn — sie
+  // aendern die Adresse, unter der Fremde das Turnier sehen, und der
+  // Server antwortet Mitgliedern mit 403. Der Anbau, der die Knoepfe
+  // ausgibt, prueft selbst auf den Admin-Widerrufsknopf; diese Zeilen
+  // sind die dritte Sperre und ziehen den Read-Only-Pruefstand (P1)
+  // ohne eigenen Test mit.
+  'save-public-slug',
+  'reset-public-slug',
   // Turnierlogo (26.08.2026): Beide Wege schreiben nach MinIO und in die
   // DB und hängen serverseitig an requireTournamentWrite.
   'upload-logo',
