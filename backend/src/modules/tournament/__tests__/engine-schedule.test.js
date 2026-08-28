@@ -327,10 +327,18 @@ describe('Runden laufen nacheinander, nicht gleichzeitig', () => {
   });
 });
 
-describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', () => {
-  // Vorher kannte der Planer nur „nicht zweimal im selben Slot". Dass
-  // trotzdem meist nichts direkt hintereinander lag, war Nebenwirkung der
-  // Blocksortierung — bei 4 und 5 Teams auf einem Feld lag es eben doch.
+describe('Wartezeiten: die Pause ist Reihenfolge, kein Leerlauf (2026-08-26, umgewichtet 2026-08-28)', () => {
+  // Bis zum 2026-08-28 stand hier `backToBack === 0` als harte Zusicherung.
+  // Sie ist gefallen, und zwar mit Ansage: Der Betreiber hat gemeldet, dass
+  // im Spielplan ein Spiel je Anstoßzeit lief, während die Platten daneben
+  // leer standen. Die Mindestruhe war hart und durfte Felder freihalten;
+  // jetzt ist sie weich. Neue Rangordnung in der Gruppenphase:
+  //   Auslastung (H1 ist die einzige Schranke) > Spieltag-Treue > Pause.
+  // Was bleibt: Die Pause entscheidet weiterhin, WELCHES der platzierbaren
+  // Spiele genommen wird — sie darf nur kein Zeitfenster mehr verlängern.
+  // Deshalb prüft dieser Block ab jetzt Doppelbelegung, Feldkonflikte und
+  // Leerlauf; die Auslastungs-Invariante selbst steht in
+  // engine-schedule-auslastung.test.js.
   const gruppenSpiele = (gruppen, teamsProGruppe) => {
     const alle = [];
     for (let g = 0; g < gruppen; g++) {
@@ -348,8 +356,14 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
     return alle;
   };
 
-  const cfg = (parallelFields) => ({
-    schedule: { matchDurationMinutes: 15, parallelFields, startTime: '10:00', slotMinutes: 15 },
+  const cfg = (parallelFields, extra = {}) => ({
+    schedule: {
+      matchDurationMinutes: 15,
+      parallelFields,
+      startTime: '10:00',
+      slotMinutes: 15,
+      ...extra,
+    },
   });
 
   const konstellationen = [
@@ -372,12 +386,27 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
   ];
 
   for (const [gruppen, teams, felder] of konstellationen) {
-    it(`${gruppen} Gruppen à ${teams} Teams auf ${felder} Feld(ern): niemand spielt direkt hintereinander`, () => {
+    it(`${gruppen} Gruppen à ${teams} Teams auf ${felder} Feld(ern): kein Team doppelt, keine Platte doppelt, kein leeres Fenster`, () => {
       const plan = generateSchedule(gruppenSpiele(gruppen, teams), cfg(felder), baseDate);
-      const k = scheduleMetrics(plan);
-      expect(k.backToBack, `betroffen: ${k.betroffeneTeams.join(', ')}`).toBe(0);
-      expect(k.abstandMin).toBeGreaterThanOrEqual(2);
+      const k = scheduleMetrics(plan, { slotMinutes: 15 });
+
+      // Kein Team zweimal im selben Zeitfenster (H1).
+      const teamsJeFenster = new Map();
+      for (const m of plan) {
+        const z = m.scheduledAt.getTime();
+        if (!teamsJeFenster.has(z)) teamsJeFenster.set(z, []);
+        for (const t of [m.teamHome, m.teamAway]) if (t != null) teamsJeFenster.get(z).push(t);
+      }
+      for (const [z, ts] of teamsJeFenster) {
+        expect(new Set(ts).size, `${new Date(z).toISOString()}: ${ts.join(', ')}`).toBe(ts.length);
+      }
+
+      // Keine zwei Spiele auf derselben Platte zur selben Zeit.
       expect(detectScheduleConflicts(plan)).toEqual([]);
+
+      // Kein Zeitfenster bleibt ungenutzt: Der Plan ist nie länger, als
+      // die volle Feldauslastung es verlangt.
+      expect(k.leerSlots, `${gruppen}G/${teams}T/${felder}F`).toBe(0);
     });
   }
 
@@ -385,6 +414,11 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
     // S = Slots je Runde = ceil(Spiele je Runde / Felder). Weil jedes Team
     // genau einmal pro Runde spielt, ist S der natürliche Abstand; jede
     // Abweichung ist Positionsdrift zwischen den Runden.
+    //
+    // Das ist der „Positionserhalt", und er überlebt die Umgewichtung vom
+    // 2026-08-28: Die erste Wahl bleibt das ERSTE Spiel der Vorsortierung,
+    // das die Mindestruhe hält. Nur wenn KEINES sie hält, entscheidet die
+    // längste Ruhe — vorher blieb in diesem Fall das Feld leer.
     //
     // Nur gerade Teamzahlen: bei ungerader pausiert je Runde ein Team
     // (BYE), sein Abstand ist dann 2S und das ist kein Mangel.
@@ -399,51 +433,62 @@ describe('Wartezeiten: Mindestruhe und gleichmäßige Abstände (2026-08-26)', (
       const spiele = gruppenSpiele(gruppen, teams);
       const spieleJeRunde = spiele.length / (teams - 1);
       const S = Math.ceil(spieleJeRunde / felder);
-      const k = scheduleMetrics(generateSchedule(spiele, cfg(felder), baseDate));
+      const k = scheduleMetrics(generateSchedule(spiele, cfg(felder), baseDate), {
+        slotMinutes: 15,
+      });
       const etikett = `${gruppen}G/${teams}T/${felder}F (S=${S})`;
       expect(k.abstandMin, etikett).toBeGreaterThanOrEqual(S - 1);
       expect(k.abstandMax, etikett).toBeLessThanOrEqual(S + 1);
     }
   });
 
-  it('der Puffer wird nur verbraucht, wo die Mindestruhe ihn braucht', () => {
-    // 4 Gruppen à 4 Teams auf 2 Feldern: 8 Spiele je Runde, 4 Slots je
-    // Runde, jedes Team hält von allein Abstand 4. Der Block darf dann
-    // KEINEN Slot länger werden als das Minimum.
+  it('die Pause verlängert den Plan nicht mehr — 4 Gruppen à 4 Teams auf 2 Feldern', () => {
+    // Der frühere Test hieß „der Puffer wird nur verbraucht, wo die
+    // Mindestruhe ihn braucht". Den Puffer gibt es nicht mehr; die Zahlen
+    // bleiben dieselben, weil hier ohnehin nie ein Feld frei blieb.
     const plan = generateSchedule(gruppenSpiele(4, 4), cfg(2), baseDate);
-    const k = scheduleMetrics(plan);
+    const k = scheduleMetrics(plan, { slotMinutes: 15 });
     expect(k.leerSlots).toBe(0);
     expect(k.slots).toBe(12); // 24 Spiele / 2 Felder
+    expect(k.backToBack).toBe(0); // hier reicht die Auslastung für Pausen
   });
 
-  it('minRestSlots: 0 schaltet die Mindestruhe ab und packt den Plan dicht', () => {
-    // Der Ausweg für Turnierleiter mit engem Zeitfenster: Wer lieber früher
-    // fertig ist als Pausen garantiert, sagt das der Config — und bekommt
-    // dann auch Spiele direkt hintereinander. Das ist eine Entscheidung,
-    // keine Panne, und deshalb steht sie in der Config und nicht im Code.
-    const spiele = gruppenSpiele(1, 4);
-    const ohneRuhe = {
-      schedule: {
-        matchDurationMinutes: 15,
-        parallelFields: 1,
-        startTime: '10:00',
+  it('minRestSlots ändert die Reihenfolge, nie die Länge', () => {
+    // Vorher war minRestSlots ein Zeit-Hebel: 0 packte den Plan dicht, 1
+    // kaufte Pausen mit zusätzlichen Zeitfenstern. Das ist weg — die Länge
+    // ergibt sich jetzt allein aus Spielen und Feldern (plus dem, was H1
+    // erzwingt). Der Wert entscheidet nur noch, WELCHES der platzierbaren
+    // Spiele ein Feld bekommt; besser werden kann es dadurch, länger nicht.
+    for (const [gruppen, teams, felder] of konstellationen) {
+      const spiele = gruppenSpiele(gruppen, teams);
+      const etikett = `${gruppen}G/${teams}T/${felder}F`;
+      const dicht = scheduleMetrics(
+        generateSchedule(spiele, cfg(felder, { minRestSlots: 0 }), baseDate),
+        { slotMinutes: 15 }
+      );
+      const locker = scheduleMetrics(generateSchedule(spiele, cfg(felder), baseDate), {
         slotMinutes: 15,
-        minRestSlots: 0,
-      },
-    };
-    const dicht = scheduleMetrics(generateSchedule(spiele, ohneRuhe, baseDate));
-    const locker = scheduleMetrics(generateSchedule(spiele, cfg(1), baseDate));
+      });
+      expect(locker.slots, etikett).toBe(dicht.slots);
+      expect(locker.leerSlots, etikett).toBe(0);
+      expect(dicht.leerSlots, etikett).toBe(0);
+      expect(locker.backToBack, etikett).toBeLessThanOrEqual(dicht.backToBack);
+    }
+  });
 
-    expect(dicht.leerSlots).toBe(0);
-    expect(dicht.slots).toBe(6); // 6 Spiele, 6 Slots, kein Leerlauf
-    expect(dicht.backToBack).toBeGreaterThan(0);
-
-    // Mit Mindestruhe kostet dieselbe Gruppe zwei Slots mehr — bei 4 Teams
-    // auf einem Feld ist Back-to-Back-Freiheit nicht gratis zu haben:
-    // jedes Team hat 3 Spiele in 6 Slots, und die einzige nachbarschaftsfreie
-    // Aufteilung verlangte, dass zwei Teams dreimal gegeneinander spielen.
-    expect(locker.backToBack).toBe(0);
-    expect(locker.slots).toBeGreaterThan(dicht.slots);
+  it('minRestSlots ist trotzdem kein toter Schalter', () => {
+    // Positivprobe zur Regel darüber: Eine Zusicherung „ändert nichts an
+    // der Länge" wäre auch dann grün, wenn der Wert gar nicht mehr gelesen
+    // würde. 1 Gruppe à 5 Teams auf einem Feld ist die Konstellation, in
+    // der man den Unterschied sieht.
+    const spiele = gruppenSpiele(1, 5);
+    const dicht = generateSchedule(spiele, cfg(1, { minRestSlots: 0 }), baseDate);
+    const locker = generateSchedule(spiele, cfg(1), baseDate);
+    const abdruck = (plan) => plan.map((x) => `${x.id}@${x.scheduledAt.getTime()}`).join('|');
+    expect(abdruck(locker)).not.toBe(abdruck(dicht));
+    expect(scheduleMetrics(locker, { slotMinutes: 15 }).backToBack).toBeLessThan(
+      scheduleMetrics(dicht, { slotMinutes: 15 }).backToBack
+    );
   });
 
   it('§10.9 bleibt gültig: der Planer ist weiterhin deterministisch', () => {
