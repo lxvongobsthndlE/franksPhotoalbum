@@ -101,6 +101,9 @@ export async function startOIDCLogin(inviteToken = null, options = {}) {
     if (typeof options?.feedPostId === 'string' && options.feedPostId.trim()) {
       params.set('feedPost', options.feedPostId.trim());
     }
+    if (options?.intent === 'register') {
+      params.set('intent', 'register');
+    }
     const query = params.toString() ? `?${params.toString()}` : '';
     const response = await fetch(`${API_BASE}/auth/login${query}`);
     const { loginUrl } = await response.json();
@@ -112,6 +115,18 @@ export async function startOIDCLogin(inviteToken = null, options = {}) {
   } catch (e) {
     console.error('Login failed:', e);
     throw e;
+  }
+}
+
+// ── OEFFENTLICHE FRONTEND-KONFIG (kein Secret) ──────────────
+export async function fetchAppConfig() {
+  try {
+    const response = await fetch(`${API_BASE}/auth/config`);
+    if (!response.ok) return {};
+    return (await response.json()) || {};
+  } catch (e) {
+    console.warn('App-Konfiguration konnte nicht geladen werden:', e);
+    return {};
   }
 }
 

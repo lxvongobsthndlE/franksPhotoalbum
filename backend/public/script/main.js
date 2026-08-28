@@ -7,6 +7,7 @@
   fetchWithAuth,
   onSessionExpired,
   forceReauth,
+  fetchAppConfig,
 } from './auth-oidc.js';
 import {
   renderWizardView,
@@ -339,6 +340,13 @@ function startLoginWithContext() {
   if (feedPostId) setPendingFeedPostTarget(feedPostId);
   return startOIDCLogin(pendingInviteToken, { feedPostId });
 }
+
+function startRegisterWithContext() {
+  const feedPostId = getPendingFeedPostLoginTarget();
+  if (feedPostId) setPendingFeedPostTarget(feedPostId);
+  return startOIDCLogin(pendingInviteToken, { feedPostId, intent: 'register' });
+}
+window.startRegistration = startRegisterWithContext;
 
 async function copyFeedPostLink(postId) {
   const safePostId = sanitizeFeedPostId(postId);
@@ -848,6 +856,12 @@ window.addEventListener('load', async () => {
   hide('loading');
   show('auth-page');
 
+  // Authentik-Basis-URL kommt vom Backend (aus OIDC_ISSUER abgeleitet),
+  // statt sie ein zweites Mal im Frontend zu hinterlegen.
+  window.APP_CONFIG = window.APP_CONFIG || {};
+  const { authentikBase } = await fetchAppConfig();
+  if (authentikBase) window.APP_CONFIG.authentikBase = authentikBase;
+
   // Check if we're returning from OIDC callback
   const params = new URLSearchParams(window.location.search);
   const inviteTokenFromUrl = (params.get('invite') || '').trim().toUpperCase();
@@ -870,6 +884,16 @@ window.addEventListener('load', async () => {
       // Start app
       await startApp();
       await handlePendingFeedPostTarget();
+
+      // Nach Invite-Redeem automatisch in die neue Gruppe wechseln,
+      // sonst bleibt startApp() bei der zuletzt gespeicherten Gruppe.
+      const invitedGroupId =
+        inviteResult?.joinedGroups?.[0]?.groupId ??
+        inviteResult?.alreadyMemberGroups?.[0]?.groupId ??
+        null;
+      if (invitedGroupId && myGroups.find((g) => g.id === invitedGroupId)) {
+        await switchGroup(invitedGroupId);
+      }
 
       if (inviteResult?.status === 'joined') {
         toast('Einladung erfolgreich eingelöst.', 'success');
@@ -955,14 +979,17 @@ async function confirmInviteJoin() {
     else if (status === 'partial') toast('Einladung teilweise eingelöst.', 'info');
     else if (status === 'already_member') toast('Du bist bereits in der Zielgruppe.', 'info');
     // Reload groups so the new group appears in the sidebar
-    const targetGroupId = inviteRedeem.result?.joinedGroups?.[0]?.groupId ?? null;
+    const targetGroupId =
+      inviteRedeem.result?.joinedGroups?.[0]?.groupId ??
+      inviteRedeem.result?.alreadyMemberGroups?.[0]?.groupId ??
+      null;
     try {
       const { groups } = await apiCall('/groups/my', 'GET');
       myGroups = groups || [];
     } catch (e) {
       console.warn('Gruppen nach Invite-Join nicht aktualisiert:', e);
     }
-    // Switch to the first joined group (or stay in current group for already_member)
+    // Switch to the joined (or already-member) group
     if (targetGroupId && myGroups.find((g) => g.id === targetGroupId)) {
       await switchGroup(targetGroupId);
     } else {

@@ -42,11 +42,6 @@
     <link rel="stylesheet" href="./style/tokens.css" />
     <link rel="stylesheet" href="./style/tournament.css" />
     <link rel="stylesheet" href="./style/brand.css" />
-    <script>
-      window.APP_CONFIG = {
-        authentikBase: 'https://auth.lx-derpi-cloud.de',
-      };
-    </script>
     <script type="module" src="./script/auth-oidc.js"></script>
     <script type="module" src="./script/main.js"></script>
     <script type="module" src="./script/tournament.js"></script>
@@ -146,14 +141,7 @@
             </button>
             <a
               href="#"
-              onclick="
-                event.preventDefault();
-                window.open(
-                  window.APP_CONFIG.authentikBase + '/if/flow/default-enrollment-flow/',
-                  '_blank',
-                  'noopener'
-                );
-              "
+              onclick="event.preventDefault(); window.startRegistration();"
               class="auth-register-btn"
             >
               Registrieren
