@@ -4578,3 +4578,486 @@ function getRoot() {
   const sel = document.querySelector('.t-mod.t-wizard');
   return sel || null;
 }
+
+// ================================================================
+// Zuschauer-Link umbenennen (28.08.2026)
+// ================================================================
+/**
+ * Der sprechende Name für den Zuschauer-Link — Eingabe, Vorschau, Warnung.
+ *
+ * Warum dieser Block HIER steht und nicht bei seinem Nachbarn:
+ * ----------------------------------------------------------
+ * Der Zuschauer-Link-Block selbst wird in `spielplan-helpers.js`
+ * gerendert und in `main.js` verdrahtet. Beide Dateien werden zur selben
+ * Zeit von anderer Hand umgebaut (Spielplan-Zeitachse, Turnierliste).
+ * Ein Feature, das dort hineinschreibt, kollidiert — und eine Kollision
+ * in `main.js` legt nicht diesen Block lahm, sondern den ganzen Client.
+ *
+ * Deshalb hängt sich der Namens-Editor von außen an den vorhandenen
+ * Block: Er wartet, bis der Einstellungen-Tab die Sektion
+ * `[data-section="public-link"]` in den Baum stellt, und ergänzt sie
+ * dann. Das ist EIN Anbau an EINER Stelle, kein Eingriff — und wenn der
+ * Nachbar seinen Block umbaut, fällt hier nichts aus, sondern der Anbau
+ * findet seine Sektion nicht mehr und bleibt still weg.
+ *
+ * Der Anbau ist bewusst so gebaut, dass er ohne den Renderer nebenan
+ * auskommt: Alles, was er anzeigt, holt er sich selbst über
+ * `GET /api/tournaments/:id/public`. Die Feldliste, die `main.js` an den
+ * Renderer durchreicht (dort eine Allowlist), muss dafür nicht angefasst
+ * werden — genau die Zeile, an der der Block am 26.08. schon einmal
+ * still falsch stand.
+ *
+ * Die Regeln, die die Oberfläche hier sichtbar machen MUSS:
+ *   1. Umbenennen macht den alten Link tot — vor dem Speichern, nicht danach.
+ *   2. Ein selbst gewählter Name ist leichter zu erraten als der
+ *      Zufallslink. Das steht offen da, nicht im Kleingedruckten.
+ *   3. Der Zufallslink bleibt gültig. Wer den engeren Weg will, hat ihn.
+ */
+
+export const PSLUG_MIN_LAENGE = 3;
+export const PSLUG_MAX_LAENGE = 48;
+
+/**
+ * Zwilling von `src/modules/tournament/public-slug.js`.
+ *
+ * Der Server bleibt die Instanz, die entscheidet — hier steht dieselbe
+ * Rechnung nur, damit die Vorschau unter dem Feld schon beim Tippen die
+ * Adresse zeigt, die am Ende herauskommt. Eine Vorschau, die etwas
+ * anderes anzeigt als das Ergebnis, ist schlimmer als keine.
+ *
+ * Gegen das Auseinanderlaufen der beiden Fassungen steht ein
+ * Gleichstands-Test (`public-slug-parity.test.js`), der beide über
+ * denselben Eingabe-Korpus schickt und Urteil, Code UND Meldung
+ * vergleicht. Wer hier etwas ändert, ändert es dort mit — sonst wird
+ * die Suite rot.
+ */
+const PSLUG_MUSTER = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PSLUG_TOKEN_LAENGE = 32;
+
+export const PSLUG_RESERVIERT = Object.freeze([
+  'aushang',
+  'qr',
+  'api',
+  'public',
+  'admin',
+  't',
+  'neu',
+  'new',
+  'auth',
+  'health',
+  'script',
+  'style',
+  'index',
+  'live',
+  'assets',
+  'static',
+  'favicon',
+  'robots',
+  'sitemap',
+]);
+
+const PSLUG_UMLAUTE = [
+  [/ä/g, 'ae'],
+  [/ö/g, 'oe'],
+  [/ü/g, 'ue'],
+  [/ß/g, 'ss'],
+];
+
+/** Macht aus einer Eingabe den Adress-Kandidaten. Siehe public-slug.js. */
+export function normalisiereSlugImBrowser(eingabe) {
+  if (typeof eingabe !== 'string') return '';
+  let s = eingabe.trim().toLowerCase();
+  for (const [muster, ersatz] of PSLUG_UMLAUTE) s = s.replace(muster, ersatz);
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/[\s_.+/\\]+/g, '-');
+  s = s.replace(/[^a-z0-9-]/g, '');
+  s = s.replace(/-{2,}/g, '-');
+  s = s.replace(/^-+|-+$/g, '');
+  return s;
+}
+
+/** Urteil über einen Wunschnamen. Wortgleich mit dem Server. */
+export function pruefeSlugImBrowser(eingabe) {
+  if (typeof eingabe !== 'string' || eingabe.trim() === '') {
+    return {
+      ok: false,
+      code: 'slug_leer',
+      message: 'Gib dem Link einen Namen — zum Beispiel „sommerfest-2026".',
+    };
+  }
+
+  const slug = normalisiereSlugImBrowser(eingabe);
+
+  if (slug === '') {
+    return {
+      ok: false,
+      code: 'slug_ohne_zeichen',
+      message:
+        'Aus dieser Eingabe lässt sich keine Adresse bauen. Erlaubt sind ' +
+        'Buchstaben, Zahlen und Bindestriche.',
+    };
+  }
+
+  if (slug.length < PSLUG_MIN_LAENGE) {
+    return {
+      ok: false,
+      code: 'slug_zu_kurz',
+      message: `Der Name braucht mindestens ${PSLUG_MIN_LAENGE} Zeichen.`,
+    };
+  }
+
+  if (slug.length > PSLUG_MAX_LAENGE) {
+    return {
+      ok: false,
+      code: 'slug_zu_lang',
+      message: `Der Name darf höchstens ${PSLUG_MAX_LAENGE} Zeichen haben.`,
+    };
+  }
+
+  if (slug.length === PSLUG_TOKEN_LAENGE) {
+    return {
+      ok: false,
+      code: 'slug_wie_token',
+      message:
+        `Ein Name mit genau ${PSLUG_TOKEN_LAENGE} Zeichen sieht aus wie der ` +
+        'Zufallslink und wäre nicht mehr von ihm zu unterscheiden. Nimm ' +
+        'einen kürzeren oder längeren Namen.',
+    };
+  }
+
+  if (PSLUG_RESERVIERT.includes(slug)) {
+    return {
+      ok: false,
+      code: 'slug_reserviert',
+      message: `„${slug}" ist für die Anwendung reserviert. Wähl einen anderen Namen.`,
+    };
+  }
+
+  if (!PSLUG_MUSTER.test(slug)) {
+    return {
+      ok: false,
+      code: 'slug_format',
+      message:
+        'Erlaubt sind Kleinbuchstaben, Zahlen und einzelne Bindestriche ' + 'zwischen den Wörtern.',
+    };
+  }
+
+  return { ok: true, slug };
+}
+
+/**
+ * Der Warntext vor dem Speichern (Regel 1).
+ *
+ * Bewusst eine eigene, reine Funktion: Was hier steht, ist die einzige
+ * Stelle, an der der Betreiber erfährt, dass sein alter Aushang gleich
+ * ins Leere zeigt. Eine Zusage dieser Tragweite gehört unter Test, nicht
+ * in ein Template-Literal mitten im DOM-Code.
+ *
+ * @param {{slug: string|null, url: string|null}} stand   was gerade gilt
+ * @param {string} eingabe                                was im Feld steht
+ */
+export function slugWarnung(stand, eingabe) {
+  const neu = normalisiereSlugImBrowser(eingabe);
+  const alt = stand?.slug ?? null;
+  if (!alt || alt === neu || neu === '') return '';
+  return (
+    `Achtung: Der bisherige Link ${stand?.url ?? `/t/${alt}`} hört mit dem ` +
+    'Speichern sofort auf zu funktionieren. Ausgedruckte Aushänge und ' +
+    'weitergegebene Links mit dem alten Namen führen danach ins Leere — ' +
+    'es gibt keine Weiterleitung. Der Zufallslink bleibt gültig.'
+  );
+}
+
+/**
+ * Das Markup des Anbaus. Statisch — jeder veränderliche Wert wird
+ * anschließend über `.value` / `.textContent` gesetzt, nie interpoliert.
+ * So kann ein Turniername mit spitzen Klammern hier nichts anrichten.
+ */
+export function baueSlugEditorMarkup() {
+  return `
+    <div class="t-pslug" data-role="public-slug-editor">
+      <span class="t-pslug-titel">Eigener Name für den Link</span>
+      <div class="t-pslug-zeile">
+        <span class="t-pslug-praefix" data-role="public-slug-praefix"></span>
+        <input class="t-input t-pslug-feld" type="text" data-role="public-slug-input"
+               inputmode="url" autocomplete="off" spellcheck="false"
+               maxlength="80" placeholder="sommerfest-2026"
+               aria-label="Eigener Name für den Zuschauer-Link">
+      </div>
+      <p class="t-pslug-vorschau" data-role="public-slug-vorschau"></p>
+      <p class="t-pslug-fehler" data-role="public-slug-fehler" role="alert" hidden></p>
+      <div class="t-pslug-warnung t-hint" data-role="public-slug-warnung" hidden></div>
+      <div class="t-settings-actions">
+        <button class="t-btn t-btn--primary" data-action="save-public-slug" type="button">Namen speichern</button>
+        <button class="t-btn t-btn--ghost" data-action="reset-public-slug" type="button">Wieder Zufallslink</button>
+      </div>
+      <div class="t-hint t-hint--info">
+        Ein selbst gewählter Name ist leichter zu erraten als der
+        Zufallslink — das ist der Preis dafür, dass du ihn diktieren und
+        drucken kannst. Wer ihn errät, sieht Tabellen, Spielplan und
+        Ergebnisse. Ändern kann darüber niemand etwas, Spielernamen
+        werden nicht veröffentlicht, und Entwürfe bleiben unsichtbar.
+        Der Zufallslink bleibt daneben gültig.
+      </div>
+    </div>
+  `;
+}
+
+// ── Verdrahtung ───────────────────────────────────────────────────
+// Ab hier DOM. Alles darüber ist rein und getestet.
+
+/** Merkt sich je Sektion, was der Server zuletzt gesagt hat. */
+const pslugStaende = new WeakMap();
+
+function pslugSektionen(wurzel) {
+  const raus = [];
+  if (!wurzel || typeof wurzel.querySelectorAll !== 'function') return raus;
+  if (typeof wurzel.matches === 'function' && wurzel.matches('[data-section="public-link"]')) {
+    raus.push(wurzel);
+  }
+  for (const el of wurzel.querySelectorAll('[data-section="public-link"]')) raus.push(el);
+  return raus;
+}
+
+// Jede Rolle bekommt ihren EIGENEN Selektor als feste Zeichenkette.
+//
+// Der naheliegende Einzeiler wäre `querySelector(`[data-role="${rolle}"]`)`
+// gewesen — eine Zeile statt vier. Er schaltet aber den Drift-Detektor
+// (selector-drift.test.js) für das gesamte `data-role`-Attribut ab: Ein
+// Selektor, der zur Laufzeit zusammengebaut wird, ist für den Parser
+// nicht beurteilbar, und die Regel geht fail-open. Vier tote Selektoren
+// im Turniermodul waren schon einmal genau so unbemerkt geblieben.
+const PSLUG_FELDER = {
+  praefix: (s) => s.querySelector('[data-role="public-slug-praefix"]'),
+  eingabe: (s) => s.querySelector('[data-role="public-slug-input"]'),
+  vorschau: (s) => s.querySelector('[data-role="public-slug-vorschau"]'),
+  fehler: (s) => s.querySelector('[data-role="public-slug-fehler"]'),
+  warnung: (s) => s.querySelector('[data-role="public-slug-warnung"]'),
+};
+
+function pslugSetzeText(el, text) {
+  if (!el) return null;
+  el.textContent = text ?? '';
+  return el;
+}
+
+function pslugZeigeFehler(sektion, text) {
+  const el = PSLUG_FELDER.fehler(sektion);
+  if (!el) return;
+  el.textContent = text ?? '';
+  el.hidden = !text;
+}
+
+/** Schreibt Link-Feld, QR-Bild und Vorschau auf den gelieferten Stand um. */
+function pslugUebernehmeStand(sektion, stand) {
+  pslugStaende.set(sektion, stand);
+
+  const feld = sektion.querySelector('[data-public-url]');
+  if (feld && stand.url) feld.value = stand.url;
+
+  // Der QR wird vom Nachbar-Renderer mit dem TOKEN adressiert. Nach einer
+  // Umbenennung ist das zwar noch eine gültige Anfrage, sie liefert aber
+  // (richtigerweise) den Code zur neuen Adresse — das Bild wechselt also
+  // seinen Inhalt bei gleicher URL. Damit der Browser das mitbekommt,
+  // zeigen wir hier auf die Adresse selbst; sie ändert sich beim
+  // Umbenennen mit, und der Cache hat keine Chance, das Alte zu halten.
+  const qr = sektion.querySelector('img[src*="qr.svg"]');
+  if (qr && stand.qrPath) qr.setAttribute('src', stand.qrPath);
+
+  const eingabe = PSLUG_FELDER.eingabe(sektion);
+  if (eingabe && document.activeElement !== eingabe) eingabe.value = stand.slug ?? '';
+
+  pslugAktualisiereVorschau(sektion);
+}
+
+/** Vorschau, Warnung und Fehlerzeile aus dem, was gerade im Feld steht. */
+function pslugAktualisiereVorschau(sektion) {
+  const eingabe = PSLUG_FELDER.eingabe(sektion);
+  if (!eingabe) return;
+  const stand = pslugStaende.get(sektion) ?? {};
+  const roh = eingabe.value;
+
+  const herkunft =
+    typeof window !== 'undefined' && window.location && window.location.origin
+      ? window.location.origin
+      : '';
+  pslugSetzeText(PSLUG_FELDER.praefix(sektion), `${herkunft}/t/`);
+
+  if (roh.trim() === '') {
+    pslugSetzeText(
+      PSLUG_FELDER.vorschau(sektion),
+      stand.slug
+        ? 'Leer lassen und speichern gibt den Namen wieder ab — dann gilt nur noch der Zufallslink.'
+        : 'Ohne eigenen Namen gilt der Zufallslink.'
+    );
+    pslugZeigeFehler(sektion, '');
+  } else {
+    const urteil = pruefeSlugImBrowser(roh);
+    pslugSetzeText(
+      PSLUG_FELDER.vorschau(sektion),
+      urteil.ok ? `Der Link lautet dann: ${herkunft}/t/${urteil.slug}` : ''
+    );
+    // Beim Tippen ist eine rote Zeile Bevormundung, solange der Name
+    // schlicht noch nicht fertig ist. „Zu kurz" wird deshalb erst beim
+    // Speichern gemeldet — alles andere sofort.
+    pslugZeigeFehler(sektion, urteil.ok || urteil.code === 'slug_zu_kurz' ? '' : urteil.message);
+  }
+
+  const warnung = PSLUG_FELDER.warnung(sektion);
+  if (warnung) {
+    const text = slugWarnung(stand, roh);
+    warnung.textContent = text;
+    warnung.hidden = !text;
+  }
+}
+
+async function pslugHole(sektion, turnierId) {
+  const res = await fetchWithAuth(`/api/tournaments/${encodeURIComponent(turnierId)}/public`, {
+    method: 'GET',
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.message || body?.error || 'Laden fehlgeschlagen');
+  pslugUebernehmeStand(sektion, body);
+  return body;
+}
+
+async function pslugSpeichere(sektion, turnierId, wunsch) {
+  pslugZeigeFehler(sektion, '');
+  const res = await fetchWithAuth(`/api/tournaments/${encodeURIComponent(turnierId)}/public/slug`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug: wunsch }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // Die Meldung kommt vom Server, nicht von hier: „vergeben" kann nur
+    // er wissen, und bei Format-Fehlern soll dieselbe Erklärung stehen,
+    // egal ob sie beim Tippen oder beim Speichern erscheint.
+    pslugZeigeFehler(sektion, body?.message || 'Der Name konnte nicht gespeichert werden.');
+    return null;
+  }
+  pslugUebernehmeStand(sektion, body);
+  pslugSetzeText(
+    PSLUG_FELDER.vorschau(sektion),
+    body.slug
+      ? `Gespeichert. Der Link lautet jetzt ${body.url}.`
+      : `Name abgegeben. Es gilt wieder der Zufallslink ${body.url}.`
+  );
+  return body;
+}
+
+function pslugTurnierId(sektion) {
+  const traeger =
+    typeof sektion.closest === 'function' ? sektion.closest('[data-tournament-id]') : null;
+  const id = traeger?.getAttribute?.('data-tournament-id');
+  return id ? String(id) : null;
+}
+
+/**
+ * Hängt den Anbau an eine frisch gerenderte Sektion.
+ *
+ * Drei Bedingungen, und alle drei sind Gates, keine Formalien:
+ *   - Es gibt ein `[data-public-url]` → der Link ist erteilt. Einen
+ *     Namen für einen Link zu vergeben, den es nicht gibt, wäre eine
+ *     Eingabe ins Leere.
+ *   - Es gibt einen Widerruf-Knopf → wir sind Admin. Der Nachbar-Block
+ *     rendert für Mitglieder gar nichts; das hier ist die zweite,
+ *     eigene Prüfung, damit der Anbau nicht davon abhängt.
+ *   - Es gibt eine Turnier-ID im Baum → sonst wüssten wir nicht, wen wir
+ *     umbenennen.
+ */
+export function pslugHydratisiere(sektion) {
+  if (!sektion || sektion.hasAttribute('data-public-slug-bereit')) return false;
+  const koerper = sektion.querySelector('.t-settings-section-body');
+  if (!koerper) return false;
+  if (!sektion.querySelector('[data-public-url]')) return false;
+  if (!sektion.querySelector('[data-action="revoke-public-link"]')) return false;
+  const turnierId = pslugTurnierId(sektion);
+  if (!turnierId) return false;
+
+  sektion.setAttribute('data-public-slug-bereit', '1');
+  koerper.insertAdjacentHTML('beforeend', baueSlugEditorMarkup());
+
+  const eingabe = PSLUG_FELDER.eingabe(sektion);
+  if (eingabe) {
+    eingabe.addEventListener('input', () => pslugAktualisiereVorschau(sektion));
+  }
+
+  pslugStaende.set(sektion, {});
+  pslugAktualisiereVorschau(sektion);
+  pslugHole(sektion, turnierId).catch(() => {
+    // Kein lauter Fehler: Der Link-Block daneben funktioniert weiter,
+    // nur der Namens-Anbau kennt seinen Stand nicht. Ein Alarm dafür
+    // wäre lauter als der Schaden.
+    pslugZeigeFehler(sektion, 'Der aktuelle Stand des Links ließ sich nicht laden.');
+  });
+  return true;
+}
+
+function pslugBehandleKlick(ereignis) {
+  const ziel =
+    ereignis.target && typeof ereignis.target.closest === 'function'
+      ? ereignis.target.closest('[data-action]')
+      : null;
+  if (!ziel) return;
+  const aktion = ziel.dataset.action;
+  if (aktion !== 'save-public-slug' && aktion !== 'reset-public-slug') return;
+
+  const sektion = ziel.closest('[data-section="public-link"]');
+  if (!sektion) return;
+  const turnierId = pslugTurnierId(sektion);
+  if (!turnierId) return;
+
+  const eingabe = PSLUG_FELDER.eingabe(sektion);
+
+  if (aktion === 'reset-public-slug') {
+    if (eingabe) eingabe.value = '';
+    pslugSpeichere(sektion, turnierId, null);
+    return;
+  }
+
+  const roh = eingabe ? eingabe.value : '';
+  if (roh.trim() === '') {
+    pslugSpeichere(sektion, turnierId, null);
+    return;
+  }
+  const urteil = pruefeSlugImBrowser(roh);
+  if (!urteil.ok) {
+    // Beim Speichern zählt auch „zu kurz" — beim Tippen nicht.
+    pslugZeigeFehler(sektion, urteil.message);
+    return;
+  }
+  pslugSpeichere(sektion, turnierId, urteil.slug);
+}
+
+/**
+ * Einmalige Registrierung. Idempotent, weil das Modul in Tests mehrfach
+ * geladen werden kann und ein zweiter Beobachter jede Sektion doppelt
+ * bestücken würde.
+ */
+function pslugStarte() {
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+  if (document.documentElement.hasAttribute('data-public-slug-aktiv')) return;
+  document.documentElement.setAttribute('data-public-slug-aktiv', '1');
+
+  document.addEventListener('click', pslugBehandleKlick);
+
+  for (const s of pslugSektionen(document)) pslugHydratisiere(s);
+
+  // Der Einstellungen-Tab wird bei jeder Mutation komplett neu gerendert
+  // (siehe restoreTournamentViewState in main.js). Ein Beobachter ist
+  // deshalb kein Luxus, sondern der einzige verlässliche Anlass: Es gibt
+  // kein Ereignis, auf das man hören könnte, und den Renderer selbst
+  // dürfen wir nicht anfassen.
+  const beobachter = new MutationObserver((eintraege) => {
+    for (const eintrag of eintraege) {
+      for (const knoten of eintrag.addedNodes) {
+        if (!knoten || knoten.nodeType !== 1) continue;
+        for (const s of pslugSektionen(knoten)) pslugHydratisiere(s);
+      }
+    }
+  });
+  beobachter.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+pslugStarte();
