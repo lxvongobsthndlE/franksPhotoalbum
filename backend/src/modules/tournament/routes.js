@@ -1817,9 +1817,26 @@ export default async function tournamentRoutes(fastify) {
       // Nach order sortieren, damit Render immer stabil ist.
       next.sort((a, b) => a.order - b.order);
 
+      // Die Plattenzahl hat zwei Regler, und sie zeigten auf zwei
+      // verschiedene Werte (Befund 2026-08-28):
+      //   - `config.fields`                 — hier, Anzahl + Namen der
+      //     Spielfelder aus dem Einstellungen-Tab.
+      //   - `config.schedule.parallelFields` — das, WOMIT die Engine
+      //     rechnet (engine/schedule.js).
+      // Wer im Einstellungen-Tab auf vier Platten stellte, sah vier
+      // Zeilen, bekam aber weiter einen Plan mit EINEM Spiel je
+      // Anstosszeit: parallelFields blieb auf dem Wizard-Wert stehen,
+      // und der ist 1, solange niemand den Stepper in Schritt 4 anfasst.
+      // Deshalb zieht die Feld-Anzahl den Engine-Wert jetzt mit — eine
+      // physische Platte ist ein Spiel, das gleichzeitig laufen kann.
+      const bestehendeConfig = ctx.tournament.config ?? {};
       const nextConfig = {
-        ...(ctx.tournament.config ?? {}),
+        ...bestehendeConfig,
         fields: next,
+        schedule: {
+          ...(bestehendeConfig.schedule ?? {}),
+          parallelFields: next.length,
+        },
       };
       await fastify.prisma.tournament.update({
         where: { id: ctx.tournament.id },

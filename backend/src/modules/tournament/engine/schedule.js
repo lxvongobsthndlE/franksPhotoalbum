@@ -167,80 +167,135 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
 
   const startTimeDt = parseStartTime(startTime, baseDate);
 
-  // Wartezeit-Steuerung (2026-08-26). Vorher kannte der Planer nur eine
-  // Regel: „ein Team spielt nicht zweimal im selben Slot". Das ist eine
-  // Aussage über Ressourcen, keine über Menschen. Wer um 10:15 spielt und
-  // um 10:30 wieder, hat keine Pause gehabt; wer um 10:15 spielt und um
-  // 12:00 wieder, steht anderthalb Stunden herum. Beides kam vor, beides
-  // war unbeabsichtigt — dass meistens trotzdem nichts direkt hintereinander
-  // lag, war Nebenwirkung der Blocksortierung, nicht Absicht.
+  // Wartezeit-Steuerung (2026-08-26), neu gewichtet am 2026-08-28.
   //
-  // Jetzt gilt zusätzlich:
-  //   H4  Mindestruhe: nach einem Spiel in Slot s frühestens wieder in
-  //       s + 1 + minRest. Mit Fallback — ein Plan, der nicht zustande
-  //       kommt, ist schlechter als einer mit einer harten Naht.
-  //   W1  Längste Pause zuerst: unter den erlaubten Spielen gewinnt das mit
-  //       dem größten min(pause_heim, pause_gast). Das MINIMUM, nicht die
-  //       Summe — sonst schleppt ein sehr ausgeruhtes Team ein gerade
-  //       fertiges mit in den nächsten Slot.
-  //   W2  Tiebreak: Summe beider Pausen.
-  //   W3  Gruppen-Rotation: bei Gleichstand die Gruppe, die am längsten
-  //       nicht dran war (A, B, C, A, B, C …).
-  //   W4  Determinismus: bracketPos, dann id — §10.9 bleibt gültig.
+  // Vorher kannte der Planer nur eine Regel: „ein Team spielt nicht
+  // zweimal im selben Slot". Das ist eine Aussage über Ressourcen, keine
+  // über Menschen. Wer um 10:15 spielt und um 10:30 wieder, hat keine
+  // Pause gehabt; wer um 10:15 spielt und um 12:00 wieder, steht
+  // anderthalb Stunden herum. Deshalb kam die Mindestruhe dazu.
+  //
+  // Sie war zuerst HART: ein Puffer-Slot je Spieltag durfte Felder leer
+  // lassen, damit ein Team Pause bekommt. Genau das ist der Fehler, den
+  // der Betreiber am 2026-08-28 gemeldet hat — im Spielplan lief zu
+  // jeder Anstoßzeit EIN Spiel, während die Platten daneben leer
+  // standen. Die neue Rangordnung in der Gruppenphase lautet:
+  //
+  //   H1  Kein Team spielt zweimal im selben Zeitfenster.        (hart)
+  //   H2  Die Gruppenphase liegt vollständig vor der K.-o.-Phase. (hart)
+  //   W0  AUSLASTUNG: Ein Feld bleibt nur leer, wenn KEIN offenes
+  //       Gruppenspiel dort platzierbar ist, ohne H1 zu brechen.
+  //       Auslastung schlägt jede weiche Regel — auch die Pause.
+  //   W1  Spieltag-Treue: bevorzugt wird der kleinste offene Spieltag
+  //       (plus `vorlauf`, siehe unten), und je Team der Spieltag, der
+  //       als nächster dran ist. Weich: wo sie ein Feld leer ließe,
+  //       tritt sie zurück.
+  //   W2  Mindestruhe: nach einem Spiel in Slot s frühestens wieder in
+  //       s + 1 + minRest. Weich: sie entscheidet nur noch, WELCHES der
+  //       platzierbaren Spiele genommen wird, nie mehr OB gespielt wird.
+  //   W3  Determinismus: Vorsortierung (Spieltag, Gruppe, bracketPos,
+  //       id) — §10.9 bleibt gültig.
   const minRest = Math.max(0, Math.min(4, sched.minRestSlots ?? 1));
+
+  // Vorlauf: wie viele Spieltage darf ein sonst halbleeres Zeitfenster
+  // vorziehen? (Fach-Entscheidung 2026-08-28.)
+  //
+  // Ein Block war bisher ein Spieltag, und ein Spieltag begann erst,
+  // wenn der vorige komplett verplant war. Hat eine Runde weniger
+  // Spiele als Felder — 8 Spiele auf 3 Platten sind 3+3+2 —, dann
+  // blieben am Ende JEDES Spieltags Platten leer. Bei 4 Gruppen à 4
+  // Teams auf 3 Platten waren das drei halbleere Zeitfenster, und die
+  // Gruppenphase zog sich über 9 statt 8 Fenster.
+  //
+  // Deshalb darf ein Zeitfenster, das aus dem laufenden Spieltag nicht
+  // mehr voll wird, Spiele des NÄCHSTEN Spieltags vorziehen — höchstens
+  // einen. Die Abwägung:
+  //   dafür   — der Betreiber will volle Platten („möglichst alle Tische
+  //             sollen zu jeder Spielzeit belegt sein"), und ein
+  //             Spieltag ist im Gruppenmodus ohnehin nur eine Rechenhilfe
+  //             für die Paarungen, kein Ereignis für die Zuschauer.
+  //   dagegen — Fairness: kein Team soll schon Spieltag 3 spielen,
+  //             während ein anderes bei Spieltag 1 steht (Kenntnis der
+  //             Tabelle, ungleiche Erholung).
+  // Ein Spieltag Vorlauf hält beides zusammen: Der Abstand zwischen dem
+  // weitesten und dem am weitesten zurückliegenden Team bleibt auf einen
+  // Spieltag begrenzt, und zusätzlich spielt jedes Team seine Spiele in
+  // Spieltag-Reihenfolge (kein Team überspringt seinen eigenen nächsten
+  // Spieltag). Unbegrenztes Mischen wäre kein Turnier mehr, sondern eine
+  // Warteschlange.
+  //
+  // Beides ist WEICH: Wo die Spieltag-Treue ein Feld leer ließe, wird sie
+  // fallengelassen (W0). Hart bleiben nur H1 und H2.
+  const vorlauf = Math.max(0, Math.min(3, sched.groupLookaheadRounds ?? 1));
 
   const teamLastSlot = new Map(); // teamId → letzter belegter Slot
   const slotTeams = new Map(); // slotIndex → Set<teamId>
   const slotFieldUsed = new Map(); // slotIndex → Set<field>
   const result = new Map();
 
+  const rundeVon = (m) => m?.roundNumber ?? 0;
+
+  function passtH1(m, belegteTeams) {
+    if (m.teamHome != null && belegteTeams.has(m.teamHome)) return false;
+    if (m.teamAway != null && belegteTeams.has(m.teamAway)) return false;
+    return true;
+  }
+
+  // Ruhe = Slots seit dem letzten Spiel des kürzer erholten Teams.
+  // Das MINIMUM beider Teams, nicht die Summe — sonst schleppt ein sehr
+  // ausgeruhtes Team ein gerade fertiges mit in den nächsten Slot.
+  function ruhe(m, slot) {
+    const rh =
+      m.teamHome != null && teamLastSlot.has(m.teamHome)
+        ? slot - teamLastSlot.get(m.teamHome)
+        : Infinity;
+    const ra =
+      m.teamAway != null && teamLastSlot.has(m.teamAway)
+        ? slot - teamLastSlot.get(m.teamAway)
+        : Infinity;
+    return Math.min(rh, ra);
+  }
+
   /**
-   * Wählt das nächste Spiel für diesen Slot — oder null.
+   * Wählt aus `kandidaten` das nächste Spiel für diesen Slot — oder null,
+   * wenn H1 alle blockiert.
    *
-   * Genommen wird das ERSTE Spiel der Vorsortierung, das die Regeln
-   * erfüllt. Dass hier nicht nach „wer hat am längsten pausiert" gesucht
-   * wird, ist das Ergebnis einer Messung und kein Versäumnis:
+   * Zwei Stufen, und ihre Reihenfolge ist der Kern:
    *
-   * Ein Block ist eine Runde, und in einer Runde spielt jedes Team genau
-   * einmal. Die Position eines Spiels innerhalb des Blocks bestimmt damit
-   * allein, wann seine beiden Teams drankommen — und weil die Vorsortierung
-   * (groupKey, bracketPos) in jeder Runde dieselbe Reihenfolge herstellt,
-   * behält jedes Team über alle Runden hinweg seine relative Position. Der
-   * Abstand zwischen zwei Spielen eines Teams ist dann konstant genau
-   * S = ceil(Spiele je Runde / Felder) — der bestmögliche Wert überhaupt.
+   *   1. Das ERSTE Spiel der Vorsortierung, das H1 erfüllt UND die
+   *      Mindestruhe hält. Dass hier nicht nach „wer hat am längsten
+   *      pausiert" gesucht wird, ist das Ergebnis einer Messung und kein
+   *      Versäumnis: In einer Runde spielt jedes Team genau einmal, und
+   *      weil die Vorsortierung (Spieltag, groupKey, bracketPos) in jeder
+   *      Runde dieselbe Reihenfolge herstellt, behält jedes Team über
+   *      alle Runden hinweg seine relative Position. Der Abstand zwischen
+   *      zwei Spielen eines Teams bleibt dadurch konstant — der
+   *      bestmögliche Wert überhaupt. Eine Auswahl nach längster Pause
+   *      klingt besser und ist es nicht: Sie mischt die Reihenfolge
+   *      zwischen den Runden und zerstört genau diesen Positionserhalt.
+   *      Gemessen am 2026-08-26 über 16 Konstellationen fiel die Spanne
+   *      dadurch von 4..4 auf 2..6 (4 Gruppen à 4 Teams, 2 Felder).
    *
-   * Eine Auswahl nach längster Pause klingt besser und ist es nicht: Sie
-   * mischt die Reihenfolge zwischen den Runden und zerstört genau diesen
-   * Positionserhalt. Gemessen am 2026-08-26 über 16 Konstellationen fiel
-   * die Spanne dadurch von 4..4 auf 2..6 (4 Gruppen à 4 Teams, 2 Felder) —
-   * jedes zweite Team wartete plötzlich doppelt so lang wie nötig, damit
-   * kein Team länger als nötig wartete.
-   *
-   * `restPflicht` schaltet H4 (Mindestruhe) scharf.
+   *   2. Hält KEINES der Spiele die Mindestruhe, wird trotzdem gespielt —
+   *      und zwar das mit der längsten Ruhe (Tiebreak: Vorsortierung).
+   *      Vorher blieb das Feld in diesem Fall leer. Das ist die Umkehrung
+   *      vom 2026-08-28: Die Pause entscheidet nur noch, WER spielt, nicht
+   *      mehr, OB gespielt wird.
    */
-  function waehle(offen, slot, restPflicht) {
+  function waehle(kandidaten, slot) {
     const belegteTeams = slotTeams.get(slot) ?? new Set();
-    for (const m of offen) {
-      // H1: kein Team zweimal im selben Slot.
-      if (m.teamHome != null && belegteTeams.has(m.teamHome)) continue;
-      if (m.teamAway != null && belegteTeams.has(m.teamAway)) continue;
-
-      if (restPflicht) {
-        // H4: nach einem Spiel in Slot s frühestens wieder in s+1+minRest.
-        const rh =
-          m.teamHome != null && teamLastSlot.has(m.teamHome)
-            ? slot - teamLastSlot.get(m.teamHome)
-            : Infinity;
-        const ra =
-          m.teamAway != null && teamLastSlot.has(m.teamAway)
-            ? slot - teamLastSlot.get(m.teamAway)
-            : Infinity;
-        if (Math.min(rh, ra) <= minRest) continue;
+    let bester = null;
+    let besteRuhe = -Infinity;
+    for (const m of kandidaten) {
+      if (!passtH1(m, belegteTeams)) continue;
+      const r = ruhe(m, slot);
+      if (r > minRest) return m; // Stufe 1: Positionserhalt
+      if (r > besteRuhe) {
+        besteRuhe = r;
+        bester = m;
       }
-
-      return m;
     }
-    return null;
+    return bester; // Stufe 2 — oder null, wenn H1 alles blockiert
   }
 
   function platziere(m, slot, feld) {
@@ -263,55 +318,88 @@ export function generateSchedule(matches, config, baseDate = new Date('2026-09-0
     }
   }
 
-  let slotIndex = 0;
+  // Gruppenphase und K.-o.-Phase werden VERSCHIEDEN geplant — das ist die
+  // zweite Hälfte des Fixes:
+  //
+  //   Gruppenphase — EIN Durchgang über alle Spieltage. Der Spieltag ist
+  //     nur noch eine Vorliebe (W1), keine Wand mehr. Dadurch kann ein
+  //     Zeitfenster, das der laufende Spieltag nicht mehr füllt, aus dem
+  //     nächsten auffüllen.
+  //   K.-o.-Phase — Block für Block, streng nacheinander: R64 → R32 →
+  //     R16 → VF → HF → Spiel um Platz 3 → Finale. Zwei verschiedene
+  //     Runden dürfen NIE im selben Zeitfenster liegen — die Halbfinal-
+  //     Teilnehmer stehen erst fest, wenn das Viertelfinale gespielt ist.
+  //     Mehrere Spiele DERSELBEN Runde laufen weiter parallel; das ist
+  //     gewollt.
+  const gruppenSpiele = blocks.filter((b) => b.idx < KO_BLOCK_OFFSET).flatMap((b) => b.matches);
+  const koBloecke = blocks.filter((b) => b.idx >= KO_BLOCK_OFFSET);
 
-  for (const block of blocks) {
-    // Kopie, aus der platzierte Spiele entfernt werden. Reihenfolge ist die
-    // deterministische Vorsortierung — sie ist zugleich der W4-Tiebreak.
-    const offen = block.matches.slice();
-    let slot = slotIndex;
+  let slot = 0;
 
-    // Kürzestmögliche Länge dieses Blocks bei voller Feldauslastung. Sie ist
-    // der Maßstab dafür, wann H4 gelockert werden DARF: Ein leer gelassenes
-    // Feld ist gratis, solange der Block dadurch nicht länger wird als dieses
-    // Minimum — dann verschafft es einem Team echte Pause, ohne das Turnier
-    // für alle anderen zu strecken. Wird der Block dagegen länger, zahlt das
-    // ganze Feld für die Pause eines Einzelnen; dann hat H4 zurückzutreten.
-    // Ein Slot Puffer: Er wird NUR verbraucht, wenn H4 sonst bräche. Wo die
-    // Mindestruhe ohnehin hält, bleibt der Block minimal kurz. Der Tausch ist
-    // bewusst asymmetrisch — ein Zeitfenster mehr je Spieltag kostet alle
-    // etwas Geduld, ein Team ohne Pause kostet dieses Team das Spiel.
-    const slotBudget = Math.max(1, Math.ceil(offen.length / parallelFields)) + 1;
+  if (gruppenSpiele.length > 0) {
+    const offen = gruppenSpiele.slice();
+    // Sicherung gegen eine nicht terminierende Suche: In einem leeren Slot
+    // ist immer mindestens ein Spiel platzierbar (H1 kann nichts
+    // blockieren, solange kein Team belegt ist), also reicht die
+    // Spielanzahl als obere Schranke.
+    let wachhund = 0;
+    while (offen.length > 0 && wachhund <= gruppenSpiele.length) {
+      wachhund += 1;
 
-    // Sicherung gegen eine nicht terminierende Suche: mit gelockertem H4 ist
-    // in einem leeren Slot immer mindestens ein Spiel platzierbar, also
-    // reicht die Spielanzahl als obere Schranke.
-    let runden = 0;
-    const maxRunden = offen.length + 1;
-
-    while (offen.length > 0 && runden < maxRunden) {
-      const sIdx = runden;
-      runden += 1;
+      // Einmal je Slot: kleinster offener Spieltag, und je Team der
+      // Spieltag, der bei ihm als nächster ansteht.
+      let minRunde = Infinity;
+      const naechsteRunde = new Map();
+      for (const m of offen) {
+        const r = rundeVon(m);
+        if (r < minRunde) minRunde = r;
+        for (const t of [m.teamHome, m.teamAway]) {
+          if (t == null) continue;
+          const bisher = naechsteRunde.get(t);
+          if (bisher === undefined || r < bisher) naechsteRunde.set(t, r);
+        }
+      }
+      const grenze = minRunde + vorlauf;
+      // W1: höchstens `vorlauf` Spieltage voraus, und kein Team
+      // überspringt seinen eigenen nächsten Spieltag.
+      const bevorzugt = offen.filter(
+        (m) =>
+          rundeVon(m) <= grenze &&
+          (m.teamHome == null || naechsteRunde.get(m.teamHome) === rundeVon(m)) &&
+          (m.teamAway == null || naechsteRunde.get(m.teamAway) === rundeVon(m))
+      );
 
       for (let feld = 1; feld <= parallelFields && offen.length > 0; feld++) {
-        let m = waehle(offen, slot, true);
-        if (!m) {
-          // Passt der Rest noch in die verbleibenden Pflicht-Slots?
-          const restKapazitaet = Math.max(0, slotBudget - sIdx - 1) * parallelFields;
-          if (offen.length > restKapazitaet) {
-            m = waehle(offen, slot, false);
-          }
-        }
+        // W0: erst die bevorzugten Spiele — und bevor ein Feld leer
+        // bleibt, ALLE offenen. Leer bleibt ein Feld nur, wenn H1 wirklich
+        // jedes offene Spiel blockiert.
+        const m = waehle(bevorzugt, slot) ?? waehle(offen, slot);
         if (!m) break;
         platziere(m, slot, feld);
         offen.splice(offen.indexOf(m), 1);
+        const bi = bevorzugt.indexOf(m);
+        if (bi >= 0) bevorzugt.splice(bi, 1);
       }
 
       slot += 1;
     }
+  }
 
-    // Block-Invariante §5.3: der nächste Block beginnt garantiert später.
-    slotIndex = slot;
+  for (const block of koBloecke) {
+    const offen = block.matches.slice();
+    let wachhund = 0;
+    while (offen.length > 0 && wachhund <= block.matches.length) {
+      wachhund += 1;
+      for (let feld = 1; feld <= parallelFields && offen.length > 0; feld++) {
+        const m = waehle(offen, slot);
+        if (!m) break;
+        platziere(m, slot, feld);
+        offen.splice(offen.indexOf(m), 1);
+      }
+      slot += 1;
+    }
+    // Block-Invariante §5.3: die nächste K.-o.-Runde beginnt garantiert
+    // später — `slot` steht bereits hinter dem letzten belegten Fenster.
   }
 
   // Reihenfolge wieder in Originalreihenfolge zurück.
