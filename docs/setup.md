@@ -154,13 +154,16 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker Compose)
 
 ### OIDC
 
-| Variable                 | Beschreibung                  | Beispiel                                           |
-| ------------------------ | ----------------------------- | -------------------------------------------------- |
-| `OIDC_ISSUER`            | Issuer-URL des OIDC-Providers | `https://auth.example.de/application/o/fotoalbum/` |
-| `OIDC_CLIENT_ID`         | Client-ID in Authentik        | `franks-fotoalbum`                                 |
-| `OIDC_CLIENT_SECRET`     | Client-Secret aus Authentik   | –                                                  |
-| `OIDC_REDIRECT_URI_PROD` | Callback-URL (Produktion)     | `https://photoalbum.example.de/auth/callback`      |
-| `OIDC_REDIRECT_URI_DEV`  | Callback-URL (Entwicklung)    | `http://localhost:3000/auth/callback`              |
+| Variable                    | Beschreibung                                | Beispiel                                           |
+| ---------------------------- | -------------------------------------------- | --------------------------------------------------- |
+| `OIDC_ISSUER`                | Issuer-URL des OIDC-Providers               | `https://auth.example.de/application/o/fotoalbum/` |
+| `OIDC_CLIENT_ID`             | Client-ID in Authentik                      | `franks-fotoalbum`                                 |
+| `OIDC_CLIENT_SECRET`         | Client-Secret aus Authentik                 | –                                                  |
+| `OIDC_REDIRECT_URI_PROD`     | Callback-URL (Produktion)                   | `https://photoalbum.example.de/auth/callback`      |
+| `OIDC_REDIRECT_URI_DEV`      | Callback-URL (Entwicklung)                  | `http://localhost:3000/auth/callback`              |
+| `OIDC_ENROLLMENT_FLOW_SLUG`  | Flow-Slug für die Registrierung (optional)  | `default-enrollment-flow` (Standard)               |
+
+Die Authentik-Basis-URL (`authentikBase`) wird nicht separat konfiguriert, sondern serverseitig aus `OIDC_ISSUER` abgeleitet und dem Frontend über `GET /api/auth/config` bereitgestellt.
 
 ### MinIO
 

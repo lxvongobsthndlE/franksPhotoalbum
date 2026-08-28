@@ -99,6 +99,8 @@ Wird ein Invite-Link ohne aktive Session geöffnet, wird der Invite-Kontext serv
 
 Dadurch ist keine clientseitige Persistenz (z. B. localStorage) für den Invite-Token notwendig.
 
+Das gilt sowohl für Login als auch für Registrierung (`?intent=register`, siehe [authentifizierung.md](./authentifizierung.md)): Nach dem jeweiligen Authentik-Flow wird automatisch die eingeladene Gruppe aktiv geschaltet, statt in der zuletzt aktiven Gruppe zu landen.
+
 ---
 
 ## Owner & Deputies

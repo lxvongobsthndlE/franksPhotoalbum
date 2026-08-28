@@ -1,6 +1,6 @@
 services:
   app:
-    container_name: photoalbum-app
+    container_name: krunest-app
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -16,6 +16,7 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       OIDC_REDIRECT_URI_PROD: ${OIDC_REDIRECT_URI_PROD}
+      OIDC_ENROLLMENT_FLOW_SLUG: ${OIDC_ENROLLMENT_FLOW_SLUG}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT}
       MINIO_PORT: ${MINIO_PORT}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
@@ -41,7 +42,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: photoalbum-postgres
+    container_name: krunest-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-photoalbum}
@@ -60,7 +61,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: photoalbum-minio
+    container_name: krunest-minio
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
