@@ -19,7 +19,9 @@ vi.mock('../utils/oidc.js', () => ({
   initializeOIDC: vi.fn(),
   getEndSessionUrl: vi.fn(() => 'https://oidc.example/logout'),
   getAuthentikBaseUrl: vi.fn(() => 'https://oidc.example'),
-  getEnrollmentUrl: vi.fn((authUrl) => `https://oidc.example/if/flow/default-enrollment-flow/?next=${authUrl}`),
+  getEnrollmentUrl: vi.fn(
+    (authUrl) => `https://oidc.example/if/flow/default-enrollment-flow/?next=${authUrl}`
+  ),
 }));
 
 vi.mock('../utils/storage.js', () => ({
