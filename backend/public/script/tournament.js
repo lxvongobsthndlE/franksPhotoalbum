@@ -2192,6 +2192,10 @@ export function renderWizardView(opts = {}) {
   // aufgerufen). Siehe renderWizardFooter: dort wird { ...root._opts,
   // initialState: state } an renderWizardView weitergegeben.
   root._opts = opts;
+  // SCHRITT-WECHSEL: hier ist der Sprung nach oben richtig — ein
+  // neuer Schritt will von oben gelesen werden. Deshalb bewusst
+  // OHNE replaceWizardShell(). Der Quelltext-Scan in
+  // wizard-scroll-focus.test.js prüft genau diesen Kommentar.
   root._rerender = () => {
     const fresh = renderWizardView({ ...opts, initialState: state });
     root.parentNode?.replaceChild(fresh, root);
@@ -2450,8 +2454,9 @@ function renderStep1Grunddaten(wrap, state, opts) {
   function refreshShell() {
     const root = getRoot();
     if (!root) return;
-    const fresh = renderWizardView({ ...root._opts, initialState: state });
-    root.parentNode?.replaceChild(fresh, root);
+    // Scrollstand + Fokus überleben den Austausch — siehe den Block
+    // über replaceWizardShell().
+    replaceWizardShell(root, state);
   }
 }
 
@@ -2880,8 +2885,9 @@ function renderStep2Teams(wrap, state, opts) {
   function refreshShell() {
     const root = getRoot();
     if (!root) return;
-    const fresh = renderWizardView({ ...root._opts, initialState: state });
-    root.parentNode?.replaceChild(fresh, root);
+    // Scrollstand + Fokus überleben den Austausch — siehe den Block
+    // über replaceWizardShell().
+    replaceWizardShell(root, state);
   }
 
   // Re-Expose der Liste, damit renderTeamRows sie füllen kann.
@@ -2913,7 +2919,9 @@ function updateDuplicateWarn(teams, warn) {
 function renderTeamRows(list, state, opts) {
   list.innerHTML = '';
   for (let i = 0; i < state.teams.length; i++) {
-    appendRow(list, i);
+    // state/opts werden DURCHGEREICHT, nicht aus dem DOM geholt —
+    // Begründung in appendRow().
+    appendRow(list, i, state, opts);
   }
   // Pointer-basiertes DnD einmal pro Render installieren.
   attachTeamDnD(list, state, opts);
@@ -3020,12 +3028,29 @@ function attachTeamDnD(list, state, opts) {
   });
 }
 
-function appendRow(list, index) {
-  // index is the position in the parent DOM. We read state from the
-  // parent scope via the dataset-name attribute pattern.
-  const wrap = list.closest('.t-mod');
-  const state = wrap?._state;
-  const opts = wrap?._opts;
+function appendRow(list, index, stateArg, optsArg) {
+  // WARUM state/opts als Parameter kommen müssen und nicht aus dem
+  // DOM: `list.closest('.t-mod')` findet die Schale nur, wenn die
+  // Liste schon an ihr hängt. Beim vollen Render ist sie das NICHT —
+  // renderWizardView baut den Schritt fertig, bevor es ihn anhängt,
+  // und setzt `root._state` erst ganz am Schluss. Jede Zeile brach
+  // deshalb sofort wieder ab: die Teamliste in Schritt 2 war nach
+  // jedem vollen Render LEER (gemessen 29.08. in Edge: 13 Teams im
+  // State, 0 Zeilen im DOM; sichtbar wurden sie erst durch den
+  // zweiten renderTeamRows-Lauf im Klick auf „+ Team hinzufügen",
+  // und der nächste Pfeilklick liess sie wieder verschwinden).
+  //
+  // Das ist zugleich die gröbste Ursache des gemeldeten Sprungs: mit
+  // der Liste fällt die halbe Seitenhöhe weg, und der Scroller klemmt
+  // seinen scrollTop auf das neue Maximum (gemessen: 602 → 40 px).
+  // Gegen eine Seite, die wirklich kürzer wird, kommt kein
+  // Scroll-Retten an — die Zeilen mussten bleiben.
+  //
+  // Der DOM-Weg bleibt als Rueckfall stehen, damit ein Aufrufer ohne
+  // Argumente sich weiter verhält wie bisher.
+  const wrap = list.closest ? list.closest('.t-mod') : null;
+  const state = stateArg || wrap?._state;
+  const opts = optsArg || wrap?._opts;
   if (!state || !opts) return;
   const t = state.teams[index];
   if (!t) return;
@@ -3150,13 +3175,17 @@ async function removeTeam(index) {
 }
 
 function refreshAfterMutation() {
-  const root = document.querySelector('.t-mod.t-wizard');
+  // Team verschieben oder entfernen ist kein Schritt-Wechsel, sondern
+  // eine Einstellung mitten in einer langen Liste — also gilt hier
+  // dieselbe Rettung wie in refreshShell(). Vorher stand hier eine
+  // zweite, blanke Kopie des Austauschs; bei 16–24 Teams sprang die
+  // Ansicht nach jedem Pfeilklick weg, und der gerade gedrückte Pfeil
+  // musste jedes Mal neu gesucht werden.
+  const root = getRoot();
   if (!root) return;
   const state = root._state;
-  const opts = root._opts;
-  if (!state || !opts) return;
-  const fresh = renderWizardView({ ...opts, initialState: state });
-  root.parentNode?.replaceChild(fresh, root);
+  if (!state || !root._opts) return;
+  replaceWizardShell(root, state);
 }
 
 /**
@@ -3480,8 +3509,9 @@ function renderStep3Modus(wrap, state, opts) {
   function refreshShell() {
     const root = getRoot();
     if (!root) return;
-    const fresh = renderWizardView({ ...root._opts, initialState: state });
-    root.parentNode?.replaceChild(fresh, root);
+    // Scrollstand + Fokus überleben den Austausch — siehe den Block
+    // über replaceWizardShell().
+    replaceWizardShell(root, state);
   }
 }
 
@@ -3881,8 +3911,9 @@ function renderStep4Qualifikation(wrap, state, opts) {
   function refreshShell() {
     const root = getRoot();
     if (!root) return;
-    const fresh = renderWizardView({ ...root._opts, initialState: state });
-    root.parentNode?.replaceChild(fresh, root);
+    // Scrollstand + Fokus überleben den Austausch — siehe den Block
+    // über replaceWizardShell().
+    replaceWizardShell(root, state);
   }
 }
 
@@ -4291,6 +4322,10 @@ function appendSummaryRow(list, label, value, backToStep, state, opts) {
   link.addEventListener('click', () => {
     state.step = backToStep;
     notifyChange(state, opts);
+    // SCHRITT-WECHSEL: hier ist der Sprung nach oben richtig — ein
+    // neuer Schritt will von oben gelesen werden. Deshalb bewusst
+    // OHNE replaceWizardShell(). Der Quelltext-Scan in
+    // wizard-scroll-focus.test.js prüft genau diesen Kommentar.
     const root = getRoot();
     if (root) {
       const fresh = renderWizardView({ ...root._opts, initialState: state });
@@ -4436,6 +4471,10 @@ function renderWizardFooter(state, opts) {
     if (state.step > 1) {
       state.step--;
       notifyChange(state, opts);
+      // SCHRITT-WECHSEL: hier ist der Sprung nach oben richtig — ein
+      // neuer Schritt will von oben gelesen werden. Deshalb bewusst
+      // OHNE replaceWizardShell(). Der Quelltext-Scan in
+      // wizard-scroll-focus.test.js prüft genau diesen Kommentar.
       const root = getRoot();
       if (root) {
         const fresh = renderWizardView({ ...root._opts, initialState: state });
@@ -4498,6 +4537,10 @@ function renderWizardFooter(state, opts) {
 
       state.step++;
       notifyChange(state, opts);
+      // SCHRITT-WECHSEL: hier ist der Sprung nach oben richtig — ein
+      // neuer Schritt will von oben gelesen werden. Deshalb bewusst
+      // OHNE replaceWizardShell(). Der Quelltext-Scan in
+      // wizard-scroll-focus.test.js prüft genau diesen Kommentar.
       const root = getRoot();
       if (root) {
         const fresh = renderWizardView({ ...root._opts, initialState: state });
@@ -4615,6 +4658,262 @@ function getRoot() {
   // Das aktuelle .t-mod-Wizard-Element.
   const sel = document.querySelector('.t-mod.t-wizard');
   return sel || null;
+}
+
+// ================================================================
+// Voll-Rerender der Wizard-Schale, ohne dass die Ansicht springt
+// (29.08.2026)
+// ================================================================
+// WARUM überhaupt ein Voll-Rerender: eine Einstellung im Wizard
+// ändert nie nur ihr eigenes Feld. „Beste Dritte +1" schreibt die
+// Stepper-Zahl, die disabled-Grenzen BEIDER Stepper-Knöpfe, die
+// Qualifikanten-Zeile darunter, den Konstellations-Banner (der dabei
+// erscheinen UND verschwinden kann), den „Weiter"-Knopf samt
+// Hinweistext und die Vorschau-Karte daneben. Der Wizard hat keine
+// Diff-Schicht; ein gezieltes Teil-Update für jeden dieser Pfade
+// wäre ein zweites Rendermodell neben dem bestehenden — und die
+// nächste Einstellung, die jemand hinzufügt, fällt garantiert durch
+// das Raster. Der Austausch der ganzen Schale bleibt deshalb.
+//
+// WAS VORHER FALSCH WAR: refreshShell() stand viermal wortgleich im
+// File und rief blank `parent.replaceChild(fresh, root)`. Damit
+// tauschte es auch den Ansichtszustand mit, der dem Nutzer gehört
+// und nicht dem Renderer:
+//   1. FOKUS — der gerade gedrückte Knopf ist im frischen Baum ein
+//      anderes DOM-Objekt, der Fokus fällt auf <body>. Gemessen am
+//      29.08. in Edge headless: activeElement === 'BODY' nach jedem
+//      Stepper-Klick. Wer zweimal „+" will, muss jedes Mal neu zielen,
+//      und per Tastatur beginnt die Tab-Reihenfolge wieder ganz oben.
+//   2. SCROLLSTAND — jeder Scroll-Container über dem Wizard (in der
+//      App ist das #content) klemmt seinen scrollTop auf den neuen
+//      Maximalwert, sobald der frische Baum auch nur kurz kürzer ist
+//      als der alte. Bei kurzem Inhalt ist dieser Maximalwert 0 — das
+//      ist das „springt nach oben" aus der Nutzermeldung.
+// Beides wird jetzt UM den Austausch herum gerettet, an genau einer
+// Stelle statt an vieren.
+//
+// Nicht angefasst sind die Schritt-Wechsel (Footer „Zurück"/„Weiter"
+// und die Fortschrittsanzeige): dort ist das Springen nach oben
+// richtig, weil ein neuer Schritt von oben gelesen werden will.
+
+/**
+ * Ansichtszustand rund um die Wizard-Schale einfrieren.
+ *
+ * Erfasst wird der Scrollstand JEDES Vorfahren (der echte Scroller
+ * ist je nach Breite #content oder die Seite selbst — wir raten ihn
+ * nicht, wir sichern die ganze Kette) und der Fokus, sofern er
+ * innerhalb der Schale liegt.
+ *
+ * Der Fokus wird als Index-Pfad beschrieben, nicht als Selektor:
+ * `buildField()` vergibt bei jedem Render eine frische Zufalls-id
+ * (`f-x8k2n1a`), ein id-Vergleich würde also nie treffen.
+ */
+export function captureWizardViewport(root) {
+  const doc = root && root.ownerDocument;
+  if (!root || !doc) return null;
+
+  const scrollers = [];
+  for (let el = root.parentNode; el && el.nodeType === 1; el = el.parentNode) {
+    scrollers.push({ el, top: el.scrollTop || 0, left: el.scrollLeft || 0 });
+  }
+
+  return { scrollers, focus: describeFocusedControl(root, doc) };
+}
+
+/**
+ * Fokussiertes Bedienelement als Index-Pfad + Steckbrief beschreiben.
+ * Gibt null zurück, wenn der Fokus ausserhalb der Schale liegt — dann
+ * darf ihn der Rerender auch nicht anfassen.
+ */
+function describeFocusedControl(root, doc) {
+  const active = doc.activeElement;
+  if (!active || active === root) return null;
+
+  const path = [];
+  let el = active;
+  while (el && el !== root) {
+    const parent = el.parentNode;
+    const kids = parent && parent.children;
+    if (!kids) return null; // Fokus hängt nicht unter der Schale
+    path.unshift(Array.prototype.indexOf.call(kids, el));
+    el = parent;
+  }
+  if (el !== root) return null;
+
+  // Listenzeilen (Teams in Schritt 2, Kriterien in Schritt 3) haben
+  // keine Position, auf die man sich verlassen kann: genau die
+  // Aktionen, die dort ein Rerender auslösen, VERSCHIEBEN oder
+  // LÖSCHEN die Zeile. Ein reiner Index-Pfad sässe danach auf dem
+  // Pfeil einer fremden Zeile — der nächste Klick verschöbe das
+  // falsche Team. Deshalb merkt sich der Steckbrief hier zusätzlich,
+  // WORAN die Zeile zu erkennen ist, und wir suchen sie im frischen
+  // Baum wieder statt an ihrer alten Stelle nachzusehen.
+  const row = nearestRow(active, root);
+
+  const isTextLike = typeof active.selectionStart === 'number';
+  return {
+    path,
+    rowKey: row ? rowFingerprint(row) : null,
+    rowPath: row ? pathBetween(row, active) : null,
+    tag: active.tagName,
+    type: active.type || '',
+    // Steckbrief gegen Strukturwechsel: taucht beim Rerender ein
+    // Banner über dem Feld auf, zeigt derselbe Pfad auf ein FREMDES
+    // Element. Lieber keinen Fokus setzen als den falschen.
+    text: (active.textContent || '').trim().slice(0, 40),
+    selectionStart: isTextLike ? active.selectionStart : null,
+    selectionEnd: isTextLike ? active.selectionEnd : null,
+  };
+}
+
+/** Nächste Listenzeile über dem Element, innerhalb der Schale. */
+function nearestRow(el, root) {
+  for (let n = el.parentNode; n && n !== root; n = n.parentNode) {
+    if (n.tagName === 'LI') return n;
+  }
+  return null;
+}
+
+/**
+ * Erkennungsmerkmal einer Listenzeile.
+ *
+ * Die Feldinhalte MÜSSEN mit hinein: eine Team-Zeile trägt ihren Namen
+ * in `input.value`, ihr Text ist „↑↓Löschen" — und der ist bei allen
+ * Zeilen gleich. Über den Text allein wäre jede Zeile jede andere.
+ */
+function rowFingerprint(row) {
+  const werte = [];
+  const sammle = (el) => {
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') werte.push(String(el.value ?? ''));
+    for (const kind of el.children || []) sammle(kind);
+  };
+  sammle(row);
+  return `${row.tagName}|${werte.join('\u0001')}|${(row.textContent || '').trim()}`;
+}
+
+/** Alle Listenzeilen unter einem Knoten einsammeln. */
+function collectRows(node, out = []) {
+  for (const kind of node.children || []) {
+    if (kind.tagName === 'LI') out.push(kind);
+    collectRows(kind, out);
+  }
+  return out;
+}
+
+/** Index-Pfad von `von` (exklusive) hinunter zu `bis` (inklusive). */
+function pathBetween(von, bis) {
+  const pfad = [];
+  for (let el = bis; el && el !== von; el = el.parentNode) {
+    const kids = el.parentNode && el.parentNode.children;
+    if (!kids) return null;
+    pfad.unshift(Array.prototype.indexOf.call(kids, el));
+  }
+  return pfad;
+}
+
+/** Einem Index-Pfad folgen; null, sobald ein Schritt ins Leere geht. */
+function walkPath(start, pfad) {
+  let el = start;
+  for (const idx of pfad || []) {
+    const kids = el.children;
+    if (!kids || !kids[idx]) return null;
+    el = kids[idx];
+  }
+  return el;
+}
+
+/**
+ * Gegenstück zu captureWizardViewport: Scrollstand und Fokus auf die
+ * frische Schale zurückspielen. Gibt das wieder fokussierte Element
+ * zurück (oder null) — das ist der Haken, an dem der Test hängt.
+ */
+export function restoreWizardViewport(freshRoot, snapshot) {
+  if (!snapshot) return null;
+
+  applyScrollers(snapshot.scrollers);
+
+  // Zweiter Anlauf im nächsten Frame: Schriften und Bilder legen die
+  // Höhe erst nach dem Layout fest, und ein zwischenzeitlich zu
+  // kurzer Inhalt hat den scrollTop dann schon geklemmt.
+  const raf =
+    freshRoot &&
+    freshRoot.ownerDocument &&
+    freshRoot.ownerDocument.defaultView &&
+    freshRoot.ownerDocument.defaultView.requestAnimationFrame;
+  if (typeof raf === 'function') {
+    raf(() => applyScrollers(snapshot.scrollers));
+  }
+
+  const target = findFocusTarget(freshRoot, snapshot.focus);
+  if (!target) return null;
+  try {
+    // preventScroll: das Zurückholen des Fokus darf nicht selbst
+    // scrollen — sonst tauschen wir einen Sprung gegen den nächsten.
+    target.focus({ preventScroll: true });
+  } catch {
+    target.focus();
+  }
+  if (snapshot.focus.selectionStart != null && typeof target.setSelectionRange === 'function') {
+    try {
+      target.setSelectionRange(snapshot.focus.selectionStart, snapshot.focus.selectionEnd);
+    } catch {
+      // Bei type=number/time wirft setSelectionRange — kein Grund,
+      // deshalb den Fokus wieder herzugeben.
+    }
+  }
+  return target;
+}
+
+function applyScrollers(scrollers) {
+  for (const s of scrollers || []) {
+    if (s.top && s.el.scrollTop !== s.top) s.el.scrollTop = s.top;
+    if (s.left && s.el.scrollLeft !== s.left) s.el.scrollLeft = s.left;
+  }
+}
+
+/** Das gleichwertige Bedienelement im frischen Baum suchen. */
+function findFocusTarget(freshRoot, focus) {
+  if (!focus || !freshRoot) return null;
+
+  let el;
+  if (focus.rowKey) {
+    const treffer = collectRows(freshRoot).filter((r) => rowFingerprint(r) === focus.rowKey);
+    // Kein Treffer heißt: die Zeile ist weg (Team entfernt). Mehrere
+    // Treffer heißt: zwei Zeilen sind nicht unterscheidbar (die App
+    // erlaubt doppelte Teamnamen mit Warnung). In BEIDEN Fällen ist
+    // „kein Fokus" die richtige Antwort — ein geratener Treffer wäre
+    // der Knopf einer fremden Zeile, und der nächste Klick träfe das
+    // falsche Team. Der positionsbasierte Pfad ist hier ausdrücklich
+    // KEIN Ausweichweg.
+    if (treffer.length !== 1) return null;
+    el = walkPath(treffer[0], focus.rowPath);
+  } else {
+    el = walkPath(freshRoot, focus.path);
+  }
+  if (!el) return null;
+
+  if (el.tagName !== focus.tag) return null;
+  if ((el.type || '') !== focus.type) return null;
+  if ((el.textContent || '').trim().slice(0, 40) !== focus.text) return null;
+  // Ein Stepper-Knopf kann durch die eigene Eingabe an seine Grenze
+  // gelaufen und jetzt disabled sein — den zu fokussieren ist stumm.
+  if (el.disabled) return null;
+  return el;
+}
+
+/**
+ * Die Wizard-Schale gegen eine frisch gerenderte tauschen, ohne dass
+ * Scrollstand und Fokus verloren gehen. Einziger Weg für alle
+ * refreshShell()-Aufrufe (Herleitung im Block darüber).
+ */
+function replaceWizardShell(root, state) {
+  const parent = root && root.parentNode;
+  if (!parent) return null;
+  const snapshot = captureWizardViewport(root);
+  const fresh = renderWizardView({ ...root._opts, initialState: state });
+  parent.replaceChild(fresh, root);
+  restoreWizardViewport(fresh, snapshot);
+  return fresh;
 }
 
 // ================================================================

@@ -420,7 +420,28 @@ export function renderMatchCardCompact(m) {
  */
 export function renderMatchList(matches, isAdmin) {
   if (!Array.isArray(matches) || matches.length === 0) {
-    return '<p class="t-hint">Keine Spiele in dieser Auswahl.</p>';
+    // 2026-08-29 (User): „sieht nicht schoen aus. lieber eine schoenere
+    // Schrift und nicht so linksbuendig."
+    //
+    // Vorher stand hier ein nacktes <p class="t-hint"> — kursiver
+    // Fliesstext, linksbuendig an der Blattkante, in derselben Machart
+    // wie eine Fussnote. Es sah nicht nach „hier ist nichts" aus,
+    // sondern nach einem vergessenen Kommentar.
+    //
+    // Das Modul hat fuer diesen Fall laengst ein Muster: `.t-empty-state`
+    // (tournament.css, Turnierliste ohne Turnier — main.js:2818,
+    // tournament.js:1581). Es wird hier benutzt statt ein zweites
+    // erfunden; der Modifier `--filter` nimmt nur die Mindesthoehe
+    // zurueck, weil dieser Leerzustand INNERHALB einer gefuellten
+    // Ansicht steht und nicht die ganze Seite ist.
+    //
+    // Zweite Zeile in du-Form: der Grund ist hier fast immer der Filter,
+    // nicht der leere Spielplan — wer das nicht sagt, laesst den Nutzer
+    // ein Datenproblem vermuten, wo eine Auswahl steht.
+    return `<div class="t-empty-state t-empty-state--filter">
+      <p class="t-empty-state-text">Keine Spiele in dieser Auswahl</p>
+      <p class="t-empty-state-hint">In diesem Filter liegt gerade nichts. Wähle einen anderen Filter, dann siehst du wieder Spiele.</p>
+    </div>`;
   }
 
   // Markenuebernahme Etappe 5 (2026-08-26): der Spielplan ist keine
@@ -986,15 +1007,39 @@ function renderStandingsFoot(g, advance) {
  * andere Sportart". Die Sortierung der Drittplatzierten BERUHTE weiter
  * auf den pro-Spiel-normalisierten Werten (Spec §10.4 verlangt das),
  * aber die ANZEIGE folgt jetzt der normalen Gruppentabelle: Pl. · Team
- * · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. — plus ein Haken
- * bei den qualifizierten Top-N.
+ * · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. — plus eine
+ * Markierung bei den qualifizierten Top-N (seit 2026-08-29 das Rangband
+ * statt eines Hakens, siehe unten).
  *
  * P6 (2026-08-24, User-Liste): Hinweis ist IMMER sichtbar
  * („Gewertet wird nach Punkten pro Spiel."). Vorher conditional bei
  * mixedGroupSizes — User fand das verwirrend.
  *
- * Top-N aus config.bestThirds bekommen `is-qualified` (grüner Hin-
- * tergrund + Haken). Der Rest bekommt `is-out`.
+ * Top-N aus config.bestThirds bekommen `is-qualified`, der Rest
+ * `is-out`.
+ *
+ * 2026-08-29 (User): „Beste dritte tabelle ist zu weit links, soll auf
+ * gleicher Höhe sein wie Gruppen und die Tabelle soll auch gleich
+ * aussehen und nicht mit dem Häkchen."
+ *
+ * Gemessen im Prüfstand (Edge, ?view=gruppen), vorher:
+ *   „Gruppe A"      x = 444   (steht in .t-standings-head, Polster --s5)
+ *   „Beste Dritte"  x = 424   (hing nackt im .t-card-body, Polster 0)
+ * Beide Karten liegen im selben Mount (main.js:4074/:4159) und tragen
+ * dasselbe negative margin-inline; die Tabellenzellen fluchteten längst,
+ * die Überschrift nicht. Also bekommt diese Karte denselben Kopf-
+ * Baukasten wie eine Gruppenkarte, statt eine zweite Machart zu pflegen:
+ *
+ *   .t-standings-head   Titel links, Mono-Notiz rechts
+ *   .t-thirds-table     Zeilen mit Rangband wie .t-standings-table
+ *   .t-standings-foot   Fußzeile mit der Wertungsregel
+ *
+ * Die Aussage „diese steigen auf" bleibt vollständig erhalten, sie
+ * wechselt nur das Zeichen: statt eines grünen Hakens hinter der
+ * Platzziffer trägt die Zeile jetzt dasselbe 3-px-Band links, mit dem
+ * die Gruppentabellen dieselbe Sache sagen (CSS-Block „QUALIFIKATION").
+ * Der Haken war die einzige Stelle im Modul, an der diese Aussage anders
+ * aussah — und ein Symbol, das ausser hier nirgends vorkommt.
  *
  * @param {{qualifyCount:number,rows:Array}|null} bestThirds
  * @returns {string} HTML
@@ -1005,10 +1050,6 @@ export function renderBestThirdsTable(bestThirds) {
   }
   const { qualifyCount, rows } = bestThirds;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
-
-  // P6 (2026-08-24): Hinweis wurde vorher conditional eingeblendet
-  // (mixedGroupSizes). User-Forderung: unconditional. mixedGroupSizes
-  // wird nicht mehr berechnet.
 
   const body = rows
     .map((r, i) => {
@@ -1031,16 +1072,31 @@ export function renderBestThirdsTable(bestThirds) {
     })
     .join('');
 
+  // Die Legende zum Rangband steht neben dem Titel, dort wo die Gruppen-
+  // karte ihren Spielstand fuehrt (.t-standings-sub). Sie erklaert die
+  // gruenen Baender darunter — deshalb traegt sie denselben Strich
+  // (.t-foot-mark), den die Gruppenkarte in der Fusszeile fuehrt.
+  // Das ist die Aussage, die vorher der Haken machte.
+  const legende = `<span class="t-standings-sub"><span class="t-foot-mark" aria-hidden="true"></span>Top ${qualifyCount} qualifizieren sich</span>`;
+
   // P6 (2026-08-24, User-Liste): Hinweis IMMER anzeigen, nicht nur bei
   // mixedGroupSizes. Vorher tauchte der Hinweis nur bei unterschiedlich
-  // großen Gruppen auf — der User fand das verwirrend. Jetzt konstanter
-  // Einzeiler, der die Normierung generell erklärt.
-  const hint = `<p class="t-hint t-hint--compact">Gewertet wird nach Punkten pro Spiel.</p>`;
+  // großen Gruppen auf — der User fand das verwirrend.
+  //
+  // 2026-08-29: der Satz steht jetzt in der Fusszeile statt als
+  // `.t-hint--compact` mit Info-Kringel ueber der Tabelle. Zwei Gruende:
+  // die Gruppenkarte fuehrt ihre Regel ebenfalls unten (renderStandingsFoot),
+  // und der Kringel war das zweite Sonderzeichen, das es nur in dieser
+  // einen Karte gab. KEIN .t-foot-mark davor — der Strich ist die Legende
+  // des Bandes und wuerde hier eine Farbe erklaeren, um die es nicht geht.
+  const fussnote = `<div class="t-standings-foot t-thirds-foot"><span>Gewertet wird nach Punkten pro Spiel.</span></div>`;
 
   return `<div class="t-card t-thirds-card">
     <div class="t-card-body">
-      <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
-      ${hint}
+      <div class="t-standings-head">
+        <h3 class="t-thirds-title">Beste Dritte</h3>
+        ${legende}
+      </div>
       <table class="t-thirds-table">
         ${renderColgroup(getThirdsColWidths())}
         <thead>
@@ -1059,6 +1115,7 @@ export function renderBestThirdsTable(bestThirds) {
         </thead>
         <tbody>${body}</tbody>
       </table>
+      ${fussnote}
     </div>
   </div>`;
 }
@@ -2196,8 +2253,19 @@ export function renderEinstellungen(t, opts = {}) {
             sub: 'Setzt jeden Spielstand zurück. Der Spielplan bleibt.',
             action: 'reset-results',
             art: 'danger',
-            disabled: !isFinished,
-            titel: isFinished ? '' : 'Erst möglich, wenn das Turnier abgeschlossen ist.',
+            // GATE KORRIGIERT 2026-08-29: hier stand `!isFinished` — der Knopf
+            // war also genau so lange gesperrt, wie man ihn braucht. Wer beim
+            // Testlauf ein Ergebnis einträgt und es zurücknehmen will, stand vor
+            // einem ausgegrauten Knopf und hätte das Turnier abschließen müssen,
+            // nur um es zurückzusetzen. Die Route kennt diese Bedingung gar nicht:
+            // sie lehnt allein ab, wenn es NICHTS zurückzusetzen gibt
+            // (400 no_results_to_reset), und verlangt den Turniernamen als
+            // Bestätigung. Das Frontend spiegelt jetzt dieselbe Wahrheit.
+            disabled: finishedCount === 0,
+            titel:
+              finishedCount > 0
+                ? ''
+                : 'Erst möglich, wenn mindestens ein Ergebnis eingetragen ist.',
           }),
           lrow({
             label: 'Turnier löschen',

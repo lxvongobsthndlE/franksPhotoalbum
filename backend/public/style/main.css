@@ -5932,24 +5932,25 @@ button.tournament-header-btn {
    qualifyPerGroup 1 oder 3 falsch. Wer sie hier wieder einfuehrt, baut
    diese Annahme zurueck.
 
-   Der Haken der DRITTEN-Tabelle bleibt (naechster Block): dort ist er
-   kein Rang-Marker, sondern sagt, wer von den Drittplatzierten die
-   Top-N-Huerde genommen hat — eine andere Aussage, eigene Pruefliste. */
-/* Dritte-Wertung: der Haken wanderte aus einer eigenen <td class="t-thirds-mark">
-   in die Rank-Zelle, damit die Tabelle dieselbe Spalten-Aufteilung
-   wie die Gruppen-Tabelle hat (Bug 14: konsistente Spaltenanzahl). */
-.t-thirds-row.is-qualified .t-thirds-rank::after {
-  content: ' ✓';
-  margin-left: 4px;
-  font-weight: 700;
-  color: #2e7d32;
-}
+   Der Haken der DRITTEN-Tabelle ist am 2026-08-29 nachgezogen worden
+   (Jonas: „die Tabelle soll auch gleich aussehen und nicht mit dem
+   Haekchen"). Hier stand bis dahin
+   `.t-thirds-row.is-qualified .t-thirds-rank::after { content: " ✓" }`
+   samt der Begruendung, er sage etwas anderes als der Marker der
+   Gruppentabelle. Das stimmte fachlich, half dem Leser aber nicht: er
+   sah zwei Tabellen mit derselben Spaltenaufteilung, von denen eine
+   ein Sonderzeichen fuehrte. Die Aussage „Top N sind durch" traegt
+   jetzt dasselbe Band und dieselbe Flaeche wie oben, gesetzt in
+   tournament.css (Abschnitt „BAND STATT HAKEN"). Die Regel ist hier
+   ERSATZLOS weg statt per Gegenregel ueberstimmt: eine tote Regel mit
+   einem Kommentar, der die Gegenwahrheit behauptet, war in diesem
+   Modul schon mehrfach die Quelle der naechsten Kollision. */
 
 /* v3: Beste-Dritte-Tabelle (Bug 9, 2026-08-18). Spec §6.3.1 + §13.7.
    Eigene Karte UNTER den Gruppen-Karten, zeigt pro-Spiel-normalisierte
    Werte (Pkt/Sp, Diff/Sp) — die absoluten Werte sind zwischen Gruppen
    unterschiedlicher Größe nicht vergleichbar. Top-N (config.bestThirds)
-   bekommen grünen Haken, der Rest ist ausgegraut. Bug #13 (2026-08-18):
+   werden markiert (seit 2026-08-29 per Band, siehe oben). Bug #13 (2026-08-18):
    Renderer nutzt jetzt dieselben Spalten wie die normale Gruppentabelle
    (Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.) plus
    eine Quali-Markierung rechts. */

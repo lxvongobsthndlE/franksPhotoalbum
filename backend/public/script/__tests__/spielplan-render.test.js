@@ -451,6 +451,48 @@ describe('renderMatchList', () => {
     expect(renderMatchList(undefined, true)).toContain('Keine Spiele in dieser Auswahl');
   });
 
+  // ───────────────────────────────────────────────────────────────
+  // Leerzustand — 2026-08-29 (User: „sieht nicht schoen aus. lieber
+  // eine schoenere schrift und nicht so linksbuendig.")
+  //
+  // Vorher war der Platzhalter ein `<p class="t-hint">`: kursiver
+  // Fliesstext, linksbuendig an der Blattkante, in derselben Machart
+  // wie eine Fussnote. Die Tests unten binden drei Dinge fest, die
+  // sonst beim naechsten Umbau still zurueckfallen:
+  //   1. es ist das ETABLIERTE Muster des Moduls (.t-empty-state),
+  //      kein zweites, eigenes;
+  //   2. es gibt eine zweite, erklaerende Zeile (der Grund ist der
+  //      Filter, nicht ein leerer Spielplan — ohne diesen Satz
+  //      vermutet der Nutzer ein Datenproblem);
+  //   3. der alte `t-hint`-Platzhalter ist wirklich weg.
+  // ───────────────────────────────────────────────────────────────
+  it('Leerzustand nutzt das Modul-Muster .t-empty-state, nicht mehr .t-hint', () => {
+    const html = renderMatchList([], true);
+    expect(html).toContain('class="t-empty-state t-empty-state--filter"');
+    expect(html).toContain('class="t-empty-state-text"');
+    // Der alte Platzhalter war <p class="t-hint">…</p> — genau der darf
+    // nicht zurueckkommen. (`t-hint` als Teilstring taucht in
+    // `t-empty-state-hint` NICHT auf, der Test ist also trennscharf.)
+    expect(html).not.toContain('class="t-hint"');
+  });
+
+  it('Leerzustand hat eine zweite Zeile in du-Form, die den Filter erklaert', () => {
+    const html = renderMatchList([], false);
+    expect(html).toContain('class="t-empty-state-hint"');
+    expect(html).toMatch(/<p class="t-empty-state-hint">[^<]*Filter[^<]*<\/p>/);
+    // Du-Form (Hausregel): keine Sie-Anrede im Leerzustand.
+    expect(html).not.toMatch(/\bSie\b/);
+    // Keine Emojis / Zeichen fremder Schriftsysteme in UI-Strings.
+    expect(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(html)).toBe(false);
+  });
+
+  it('Leerzustand ist fuer Admin und Mitglied identisch (kein Aktions-Angebot)', () => {
+    // Der Leerzustand der Turnierliste zeigt Admins zusaetzlich „Leg eins
+    // an" (main.js:2822). Hier gibt es nichts anzulegen — die Auswahl ist
+    // leer, nicht das Turnier. Gleiches Markup fuer beide Rollen.
+    expect(renderMatchList([], true)).toBe(renderMatchList([], false));
+  });
+
   it('n Matches → n Match-Karten (Admin: Button enthält auch data-match-id)', () => {
     const matches = [makeMatch({ id: 'm1' }), makeMatch({ id: 'm2' }), makeMatch({ id: 'm3' })];
     const html = renderMatchList(matches, true);
@@ -628,7 +670,18 @@ describe('renderBestThirdsTable — Hint-Text (P6)', () => {
   it('mixedGroupSizes zeigt IMMER den kompakten Hinweis "Gewertet wird nach Punkten pro Spiel."', () => {
     const html = renderBestThirdsTable({ qualifyCount: 1, rows: mixedRows });
     expect(html).toContain('Gewertet wird nach Punkten pro Spiel.');
-    expect(html).toContain('t-hint--compact');
+    // 2026-08-29: Der Satz steht jetzt in der Fusszeile der Karte statt in
+    // einem eigenen `.t-hint--compact` mit Info-Kringel darueber. Der
+    // Kringel war das zweite Sonderzeichen, das es nur in dieser einen
+    // Karte gab (das erste war der Quali-Haken) — die Karte soll aussehen
+    // wie eine Gruppenkarte, und die fuehrt ihre Regel unten.
+    // Was hier geprueft wird, ist der ORT, nicht die Klasse: der Satz muss
+    // in der Fusszeile stehen. Ein Test auf die blosse Klasse haette die
+    // Verschiebung nicht bemerkt.
+    expect(html).not.toContain('t-hint--compact');
+    expect(html).toMatch(
+      /<div class="t-standings-foot t-thirds-foot">[\s\S]*Gewertet wird nach Punkten pro Spiel\.[\s\S]*<\/div>/
+    );
     // KEIN Spec-Verweis mehr
     expect(html).not.toContain('Spec §10.4');
     expect(html).not.toContain('Rangfolge nach Punkten');

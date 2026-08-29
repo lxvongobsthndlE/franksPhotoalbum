@@ -2222,6 +2222,47 @@
   margin-top: var(--s2);
 }
 
+/* Leerzustand INNERHALB einer gefuellten Ansicht (2026-08-29).
+   User zum Spielplan: „'keine spiele in dieser auswahl' sieht nicht
+   schoen aus. lieber eine schoenere schrift und nicht so linksbuendig."
+
+   Vorher war das ein `<p class="t-hint">`: kursiver Fliesstext,
+   linksbuendig an der Blattkante, in derselben Machart wie eine
+   Fussnote unter einer Tabelle. Es las sich wie ein vergessener
+   Kommentar, nicht wie eine Ansicht.
+
+   Es wird KEIN zweites Muster erfunden: `.t-empty-state` gibt es
+   bereits (Turnierliste ohne Turnier). Dieser Modifier passt es nur an
+   den Ort an — die 240px Mindesthoehe sind fuer eine leere SEITE
+   gedacht; mitten in einer Ansicht mit Kopfzeile und Filterleiste
+   daruber reisst das ein Loch. Und die Ueberschrift bekommt den
+   Display-Schnitt, den im Modul alles traegt, was eine Aussage macht
+   (Gruppentitel, Teamnamen) — genau die „schoenere Schrift".
+
+   Der Text bleibt an der Blattkante zentriert, nicht am Textblock:
+   `.t-empty-state` ist Flex mit `align-items: center`, das Polster
+   kommt von `padding`. Deshalb steht hier keine eigene Einrueckung. */
+.t-empty-state--filter {
+  min-height: 0;
+  padding: var(--s6) var(--s5);
+  gap: var(--s1);
+}
+.t-empty-state--filter .t-empty-state-text {
+  margin: 0;
+  font-family: var(--f-disp);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  color: var(--ink);
+}
+.t-empty-state--filter .t-empty-state-hint {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 /* Kontextmenü-Icon (⋯) — nur sichtbar wenn als Admin gerendert */
 .t-list-card-menu-btn {
   width: 32px;
@@ -6754,6 +6795,172 @@ table.t-bogen-tab td.offen {
 }
 .t-standings-prog > i.is-done {
   background: var(--qual);
+}
+
+/* ----------------------------------------------------------------
+   BESTE DRITTE — angeglichen an die Gruppentabelle (2026-08-29)
+   ----------------------------------------------------------------
+   User: „Beste dritte tabelle ist zu weit links, soll auf gleicher
+   Höhe sein wie Gruppen und die Tabelle soll auch gleich aussehen und
+   nicht mit dem Häkchen."
+
+   GEMESSEN, nicht geraten (Prüfstand ?view=gruppen, Edge):
+     vorher   „Gruppe A" x = 444 · „Beste Dritte" x = 424   (1280px)
+              „Gruppe A" x =  34 · „Beste Dritte" x =  14   ( 375px)
+   Die Tabellenzellen fluchteten längst (beide tragen
+   `padding-left: var(--s5)` auf der ersten Spalte, Block „Tabelle ohne
+   Huelle" weiter oben). Nur die Überschrift hing nackt im
+   `.t-card-body` mit Polster 0, während der Gruppentitel in
+   `.t-standings-head` sitzt. Der Renderer setzt diesen Kopf jetzt auch
+   hier — deshalb steht in diesem Block KEINE eigene Einrückung: der
+   Versatz ist am Markup behoben, nicht per Gegen-Polster überklebt.
+
+   ARBEITSTEILUNG MIT main.css — der Grund, warum dieser Block so
+   ausführlich ist: die Dritten-Tabelle bekam ihre Palette bis heute
+   ausschliesslich aus main.css (Zeilen ~5665–5990), also aus der Zeit
+   VOR der Markenübernahme. Sie trug deshalb hartcodierte Werte
+   (#2e7d32 als Zeilenton, ' ✓' als Haken) und andere Masse als die
+   Gruppentabelle, die hier laengst angeglichen wurde. Jede Regel unten
+   zieht genau EINE dieser Abweichungen nach. tournament.css laedt
+   spaeter und gewinnt bei gleicher Spezifitaet; wo main.css spezifischer
+   ist, steht hier bewusst ein Selektor mehr — nachgezaehlt, nicht
+   gehofft.
+   ---------------------------------------------------------------- */
+
+/* 1. MASSE. tournament.css hatte Zellpolster und Kopfzeilen-Schnitt nur
+      fuer `.t-standings-table` nachgezogen; die Dritten-Tabelle blieb bei
+      den main.css-Werten (6px 8px, th 11px). Zwei Tabellen untereinander
+      mit verschieden hohen Zeilen sehen aus wie zwei Bauteile. */
+.t-thirds-table th,
+.t-thirds-table td {
+  padding: 8px 6px;
+}
+.t-thirds-table th {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding-bottom: 6px;
+}
+.t-thirds-table .t-thirds-team {
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-thirds-table .t-thirds-num.is-points {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* 2. RANGSPALTE LINKS. main.css setzt `.t-thirds-table .t-thirds-rank`
+      (0,0,2,0) auf `text-align: right` — fuer die Standings-Tabelle ist
+      das hier oben schon mit einem Doppelselektor gekontert, die Dritten
+      standen noch aussen vor. Die Rangziffer muss links stehen, sonst
+      klebt sie an der Teamspalte und das Band unten sitzt neben einer
+      Luecke. */
+.t-thirds-table .t-thirds-rank {
+  text-align: left;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* 3. QUALIFIKATION: BAND STATT HAKEN.
+      Der Haken (`content: ' ✓'`, main.css:5941) faellt weg — er war das
+      einzige Symbol dieser Art im ganzen Modul, und er sagte dasselbe wie
+      das Band, das die Gruppentabellen fuehren. Die AUSSAGE bleibt
+      vollstaendig: dieselbe getoente Flaeche (--qual-soft) und dasselbe
+      3-px-Band (--qual) an der Blattkante wie bei
+      `.t-standings-row.is-qualified`.
+
+      Die Quelle in main.css ist am selben Tag ERSATZLOS entfernt worden
+      (dort im Block „Qualifikations-Marker der GRUPPENTABELLE"). Diese
+      Regel ist damit keine Ueberstimmung mehr, sondern eine Sperre: sie
+      haelt den Haken auch dann draussen, wenn ihn jemand im anderen
+      Stylesheet wieder einfuehrt. Sie ist (0,0,4,0) und gewinnt damit
+      unabhaengig von der Ladereihenfolge; ein `content: none` auf
+      gleicher Stufe haette nur so lange gehalten, wie die Reihenfolge
+      der beiden Stylesheets stimmt — und genau daran ist in diesem
+      Modul schon achtmal etwas still gestorben. */
+.t-thirds-table .t-thirds-row.is-qualified .t-thirds-rank::after {
+  content: none;
+}
+/* main.css:5983 setzt den Ton auf der ZEILE mit einem hartcodierten
+   rgba(46,125,50,0.06). Der Ton gehoert auf die ZELLE (sonst deckt der
+   Zellhintergrund ihn im Dunkelmodus ab, siehe Druck-Block weiter oben,
+   der genau deshalb `td` adressiert) und er gehoert an das Token. */
+.t-thirds-row.is-qualified {
+  background: none;
+}
+.t-thirds-row.is-qualified td {
+  background: var(--qual-soft);
+}
+.t-thirds-row.is-qualified .t-thirds-rank {
+  position: relative;
+  font-weight: 600;
+  color: var(--ink);
+}
+.t-thirds-row.is-qualified .t-thirds-rank::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--qual);
+}
+/* 4. KEINE AUSGEGRAUTEN ZEILEN. main.css:5986 dimmt `.t-thirds-row.is-out`
+      auf `opacity: .55`. In der Gruppentabelle stehen die nicht
+      qualifizierten Zeilen normal da — die Unterscheidung traegt das Band,
+      nicht der Kontrast. Das Dimmen war ausserdem die einzige Stelle im
+      Modul, an der echte Werte schlechter lesbar gemacht werden. */
+.t-thirds-row.is-out {
+  opacity: 1;
+}
+
+/* 5. LEGENDE NEBEN DEM TITEL. Der Strich vor „Top N qualifizieren sich"
+      ist derselbe wie in der Fusszeile der Gruppenkarte — nur gruen statt
+      orange, weil er hier das gruene Band erklaert. `.t-foot-mark` bekommt
+      seine Masse bisher nur unter `.t-standings-foot`; im Kopf gilt sie
+      nicht, also hier noch einmal. */
+/* Der Kopf traegt hier zwei Angaben statt Titel plus kurzer Zahl. Unter
+   rund 370px Modulbreite passt „Top N qualifizieren sich" nicht mehr
+   neben „Beste Dritte" — gemessen bei 360px Viewport brach dann der
+   TITEL um (40px hoch statt der 20px einer Gruppenkarte), weil
+   `.t-standings-sub` `flex: none` traegt und nicht nachgibt.
+   Statt den Text zu kuerzen darf die Legende auf eine eigene Zeile
+   rutschen: sie bleibt vollstaendig lesbar, und der Titel bleibt
+   einzeilig wie in jeder Gruppenkarte daneben. */
+.t-thirds-card .t-standings-head {
+  flex-wrap: wrap;
+}
+.t-thirds-card .t-thirds-title {
+  white-space: nowrap;
+}
+.t-standings-sub .t-foot-mark {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--qual);
+  margin-right: 7px;
+  vertical-align: 3px;
+}
+
+/* 6. FUSSZEILE OHNE STREIFEN. Die Gruppenkarte fuellt rechts einen
+      Fortschrittsstreifen; die Dritten-Wertung hat nichts Vergleichbares
+      zu zeigen, hier steht nur die Wertungsregel links. `white-space:
+      nowrap` aus der Basisregel muss weg — der Satz ist laenger als die
+      Karte auf dem Handy und wuerde sonst per Ellipse abgeschnitten. */
+.t-thirds-foot {
+  white-space: normal;
+}
+.t-thirds-foot > span {
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* ----------------------------------------------------------------
