@@ -117,15 +117,12 @@ function leseRegeln(css) {
 }
 
 const regeln = leseRegeln(tournamentCss);
-const druckRegeln = regeln.filter((r) =>
-  r.kontext.some((k) => /^@media[^{]*\bprint\b/.test(k))
-);
+const druckRegeln = regeln.filter((r) => r.kontext.some((k) => /^@media[^{]*\bprint\b/.test(k)));
 
 /** Die eine Regel, die den Token-Satz des Moduls auf Papier zuruecksetzt. */
 const tokenReset = druckRegeln.find(
   (r) =>
-    r.selektoren.includes('.t-mod') &&
-    Object.keys(r.deklarationen).some((d) => d.startsWith('--'))
+    r.selektoren.includes('.t-mod') && Object.keys(r.deklarationen).some((d) => d.startsWith('--'))
 );
 
 /** Farbtoken = in tokens.css mit einem Farbwert deklariert. */
@@ -225,9 +222,10 @@ describe('Drucklayout: die Entfaerbung trifft die Klassen des Renderers', () => 
     // nachdem der Renderer sie am 26.08. aufgegeben hatte — eine Regel,
     // die nichts mehr trifft, sieht aus wie Schutz und ist keiner.
     const verwaist = [...genannteKlassen].filter((k) => !rendererKlassen.has(k));
-    expect(verwaist, `Im Druck entfaerbt, vom Renderer nie gesetzt: ${verwaist.join(', ')}`).toEqual(
-      []
-    );
+    expect(
+      verwaist,
+      `Im Druck entfaerbt, vom Renderer nie gesetzt: ${verwaist.join(', ')}`
+    ).toEqual([]);
   });
 });
 
@@ -369,10 +367,9 @@ describe('Wizard: der Body scrollt auf Desktop', () => {
         r.selektoren.includes('.t-wizard-host > .t-mod > .t-wizard-body') &&
         /auto|scroll/.test(r.deklarationen['overflow-y'] ?? '')
     );
-    expect(
-      treffer.length,
-      'Der Wizard-Body scrollt nicht — der Weiter-Knopf bleibt geklippt'
-    ).toBe(1);
+    expect(treffer.length, 'Der Wizard-Body scrollt nicht — der Weiter-Knopf bleibt geklippt').toBe(
+      1
+    );
     // Nur dort, wo die Hoehenklammer ueberhaupt greift.
     expect(treffer[0].kontext.some((k) => /min-width:\s*768px/.test(k))).toBe(true);
   });
@@ -402,7 +399,11 @@ describe('Zwischenbreiten: die Rangspalte im Neuner-Satz', () => {
   // Geprueft wird das gerenderte <colgroup>, nicht die Konstante: was
   // zaehlt, ist die Breite, die im DOM ankommt.
   const fixture = [
-    { groupKey: 'A', groupName: 'Gruppe A', standings: [{ teamId: 't1', name: 'Blaue Hummeln', points: 6 }] },
+    {
+      groupKey: 'A',
+      groupName: 'Gruppe A',
+      standings: [{ teamId: 't1', name: 'Blaue Hummeln', points: 6 }],
+    },
   ];
 
   /**
