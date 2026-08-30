@@ -98,9 +98,14 @@ describe('renderBestThirdsTable', () => {
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     // 10 Spalten: Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.
     expect(cols.length).toBe(10);
-    expect(cols[0]).toMatch(/width:6%/);
+    // 6% -> 8% und Gruppe 8% -> 10% (2026-08-29). Zwischen dem
+    // Compact-Umschalter (600px) und etwa 670px Modulbreite lieferten die
+    // alten Werte zu wenig: gemessen bei .t-mod = 612px ergaben 6% genau
+    // 37px fuer eine Ueberschrift "Pl.", die 40px braucht, und 8% ergaben
+    // 49px fuer "Gruppe", das 53px braucht.
+    expect(cols[0]).toMatch(/width:8%/);
     expect(cols[1]).toMatch(/width:auto/);
-    expect(cols[2]).toMatch(/width:8%/); // Gruppe
+    expect(cols[2]).toMatch(/width:10%/); // Gruppe
   });
 
   it('zeigt absolute Werte (Pkt, Sp, S, U, N, Becher), NICHT pro-Spiel-normalisiert', () => {

@@ -92,7 +92,9 @@ describe('renderStandingsGroups — Bug 8 Regression', () => {
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     expect(cols.length).toBe(9);
     // Team-Spalte bekommt den großen Rest (auto), Pl. eine kleine Fix-Breite.
-    expect(cols[0]).toMatch(/width:6%/);
+    // 6% -> 8% (2026-08-29): 6% waren fuer eine breite Tabelle gerechnet
+    // und klippten im Band direkt ueber dem Compact-Umschalter.
+    expect(cols[0]).toMatch(/width:8%/);
     expect(cols[1]).toMatch(/width:auto/);
   });
 
@@ -259,12 +261,14 @@ describe('renderStandingsGroups — Compact-Mode-Switch (P5-Truncation)', () => 
     },
   ];
 
-  it('Desktop-Mode: 9 Colgroup-Spalten (6% + auto + 8% + 7% + 7% + 7% + 12% + 9% + 9%)', () => {
+  it('Desktop-Mode: 9 Colgroup-Spalten (8% + auto + 8% + 7% + 7% + 7% + 12% + 9% + 9%)', () => {
     setCompactMode(false);
     const html = renderStandingsGroups(sample, 'Becher');
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     expect(cols).toHaveLength(9);
-    expect(html).toContain('width:6%');
+    // Pl. von 6% auf 8% (2026-08-29), gemessen im Browser — siehe
+    // druck-und-mobil.test.js, Abschnitt "Zwischenbreiten".
+    expect(html).toContain('width:8%');
     expect(html).toContain('width:8%');
     expect(html).toContain('width:7%');
     expect(html).toContain('width:12%');

@@ -46,6 +46,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { renderStandingsGroups, setCompactMode } from '../spielplan-helpers.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -385,5 +386,62 @@ describe('Wizard: der Body scrollt auf Desktop', () => {
         /hidden/.test(r.deklarationen.overflow ?? '')
     );
     expect(klammer.length).toBe(1);
+  });
+});
+
+describe('Zwischenbreiten: die Rangspalte im Neuner-Satz', () => {
+  // GEMESSEN im Browser (msedge, public/pruefstand-marke.html): der
+  // Compact-Umschalter greift bei .t-mod <= 600px. Direkt darueber gilt
+  // wieder der Neuner-Satz — und dort waren 6% zu wenig: bei .t-mod =
+  // 612px ergaben sie 37px, die Ueberschrift Pl. braucht 40px. Die
+  // Zelle traegt overflow:visible und text-overflow:clip, es gibt also
+  // nicht einmal ein Auslassungszeichen; der Text lief in die
+  // Team-Spalte. Reproduzierbar bei 640px und 660px Ansichtsbreite,
+  // 660px ist ein Bruchpunkt des Bestands.
+  //
+  // Geprueft wird das gerenderte <colgroup>, nicht die Konstante: was
+  // zaehlt, ist die Breite, die im DOM ankommt.
+  const fixture = [
+    { groupKey: 'A', groupName: 'Gruppe A', standings: [{ teamId: 't1', name: 'Blaue Hummeln', points: 6 }] },
+  ];
+
+  /**
+   * Liest die Spaltenbreiten aus dem gerenderten colgroup.
+   *
+   * @param {string} html Markup des Renderers
+   * @returns {number[]} Breiten in Prozent, 'auto' als 0
+   */
+  const spaltenBreiten = (html) =>
+    [...html.matchAll(/<col style="width:([^"]+)">/g)].map((m) =>
+      m[1] === 'auto' ? 0 : parseFloat(m[1])
+    );
+
+  it('gibt der Rangspalte im Desktop-Satz mindestens 8%', () => {
+    setCompactMode(false);
+    const breiten = spaltenBreiten(renderStandingsGroups(fixture, 'Becher', 2));
+    expect(breiten.length, 'Neuner-Satz erwartet').toBe(9);
+    // 8% von 601px (der schmalsten Breite, bei der dieser Satz gilt)
+    // sind 48px und liegen ueber dem gemessenen Bedarf von 40px.
+    expect(breiten[0]).toBeGreaterThanOrEqual(8);
+  });
+
+  it('laesst der Team-Spalte weiter den Rest', () => {
+    // Die Zugabe kommt aus der auto-Spalte, nicht aus einem Festwert —
+    // sonst verschiebt sich die Zuordnung Spalte->Breite, an der diese
+    // Liste schon einmal zerbrochen ist.
+    setCompactMode(false);
+    const breiten = spaltenBreiten(renderStandingsGroups(fixture, 'Becher', 2));
+    expect(breiten[1], 'Team-Spalte muss auto bleiben').toBe(0);
+    const feste = breiten.reduce((a, b) => a + b, 0);
+    expect(feste, 'Festwerte duerfen der auto-Spalte nicht alles nehmen').toBeLessThanOrEqual(75);
+  });
+
+  it('ruehrt den Mobil-Satz nicht an', () => {
+    // Der Fuenfer-Satz ist eigens gemessen (P5, 2026-08-25) und gilt
+    // unterhalb von 600px — dort war nie etwas geklippt.
+    setCompactMode(true);
+    const breiten = spaltenBreiten(renderStandingsGroups(fixture, 'Becher', 2));
+    expect(breiten).toEqual([14, 42, 14, 15, 15]);
+    setCompactMode(false);
   });
 });
