@@ -1,0 +1,53 @@
+{
+  "A_393": {
+    "toast-container.top": 16,
+    "toast-container.right": 16,
+    "toast-container rect.top": 16,
+    "modal-bg.padding-top": 8,
+    "modal-bg.padding-bottom": 8,
+    "modal-hdr rect.top": 17,
+    "modal.max-height": 836,
+    "#invite-banner.padding-top": 11,
+    "#setup-banner.padding-top": 11,
+    "dlg-bg.padding-top": 20,
+    "dlg-bg.padding-bottom": 20,
+    "notif-panel.top": 57,
+    "bulk-bar.bottom": 14,
+    "ss-bar.bottom": 28,
+    "sb-footer.padding-bottom": 10
+  },
+  "B_393": {
+    "toast-container.top": 75,
+    "toast-container.right": 16,
+    "toast-container rect.top": 75,
+    "modal-bg.padding-top": 8,
+    "modal-bg.padding-bottom": 8,
+    "modal-hdr rect.top": 17,
+    "modal.max-height": 836,
+    "#invite-banner.padding-top": 70,
+    "#setup-banner.padding-top": 70,
+    "dlg-bg.padding-top": 79,
+    "dlg-bg.padding-bottom": 54,
+    "notif-panel.top": 116,
+    "bulk-bar.bottom": 14,
+    "ss-bar.bottom": 62,
+    "sb-footer.padding-bottom": 44
+  },
+  "K_901": {
+    "toast-container.top": 75,
+    "toast-container.right": 16,
+    "toast-container rect.top": 75,
+    "modal-bg.padding-top": 79,
+    "modal-bg.padding-bottom": 54,
+    "modal-hdr rect.top": 80,
+    "modal.max-height": 719,
+    "#invite-banner.padding-top": 70,
+    "#setup-banner.padding-top": 70,
+    "dlg-bg.padding-top": 79,
+    "dlg-bg.padding-bottom": 54,
+    "notif-panel.top": 116,
+    "bulk-bar.bottom": 58,
+    "ss-bar.bottom": 62,
+    "sb-footer.padding-bottom": 44
+  }
+}
