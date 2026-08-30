@@ -226,6 +226,27 @@
     height: calc(100vh - 60px); /* Platz für App-Header */
     overflow: hidden;
   }
+  /* ---- Und ein Kind, das scrollt (2026-08-29) -------------------
+     Die Klammer darueber deckelt die Hoehe und schneidet ab, ohne dass
+     irgendjemand darunter scrollt — gemessen mit Playwright: bei
+     Schritt 2 mit 18 Teams braucht der Wizard 1529 px, verfuegbar sind
+     840 px bei 900 px Fensterhoehe; der Weiter-Knopf lag bei y=1545.
+     Kein Nachfolger hatte `overflow-y: auto` (Messung: leere Liste),
+     und `#content` bekam keine Bildlaufleiste, weil `.t-mod` seine
+     Hoehe ja deckelt. Der Knopf war damit auf JEDEM Desktop-Fenster
+     unerreichbar, auch auf 1440x1080 — nicht erst ab einer bestimmten
+     Hoehe, wie der Backlog-Punkt vermutete. Unter 768 px gab es das
+     nie, dort greift die Klammer nicht.
+
+     Gescrollt wird der Body, nicht das Modul: die Fortschrittsanzeige
+     ist die Kopfzeile des Wizards und soll stehen bleiben, waehrend
+     das Formular laeuft. `.t-wizard-body` ist dafuer bereits gebaut
+     (`flex: 1; min-height: 0`) — ihm fehlte nur die Zeile, die aus
+     einem Flex-Kind einen Scroller macht. Deshalb hier eine Zeile
+     statt eines Umbaus. */
+  .t-wizard-host > .t-mod > .t-wizard-body {
+    overflow-y: auto;
+  }
 }
 
 /* Detail-View-Host: dasselbe Muster wie t-wizard-host — wenn ein
@@ -5709,31 +5730,88 @@ textarea.t-input {
      Token-Satz des Moduls auf Schwarz-auf-Weiss zurueck — an EINER
      Stelle, statt an jeder Regel eine Druckfarbe nachzuziehen.
      Der Selektor traegt [data-theme=dark] mit, weil der Dunkel-Block
-     oben (0,2,0) sonst gewinnt. */
+     oben (0,2,0) sonst gewinnt.
+
+     WARUM HIER !important STEHT (2026-08-29, nachgemessen).
+     Der Satz darueber stimmte, als er geschrieben wurde, und war
+     danach still falsch. Der Dunkel-Block heisst inzwischen
+     (tokens.css:347):
+
+       [data-theme='dark'] :is(.t-mod, .t-brand,
+                               #content:has(> .t-detail-host),
+                               #content:has(.t-list-host))
+
+     `:is()` uebernimmt die Spezifitaet seines STAERKSTEN Arms, und
+     einer davon traegt eine ID. Der Selektor steht damit bei (1,2,0),
+     die Zeile hier bei (0,2,0) — der ganze Druck-Reset war im
+     Nachtmodus wirkungslos. Gemessen am Geraet unter `media: print`
+     mit gesetztem data-theme=dark: `--ink` kam als #f1f0ed heraus,
+     also der Dunkelwert, und die Aufstiegsbaender druckten in
+     #f0794d. Genau der Fehler, den der Absatz oben als behoben
+     beschreibt, nur an einem Selektor, der seither umgebaut wurde.
+
+     Ein Spezifitaets-Wettrennen waere die falsche Antwort: die naechste
+     Erweiterung jener :is()-Liste gewinnt es wieder, und zwar
+     unbemerkt, weil ein zu schwacher Reset nichts meldet. `!important`
+     schlaegt jede nicht-wichtige Deklaration unabhaengig von der
+     Spezifitaet — und die Aussage dahinter ist keine Notloesung,
+     sondern die Hausregel dieses Blocks: Papier hat genau EIN Thema,
+     und im Druck gibt es nichts, was einen Druckwert ueberstimmen
+     duerfte. Der Detektor dagegen steht in druck-tokens.test.js. */
   .t-mod,
   [data-theme='dark'] .t-mod {
-    --paper: #ffffff;
-    --surface: #ffffff;
-    --surface-alt: #ffffff;
-    --ink: #000000;
-    --ink-soft: #3a3a3a;
-    --line: #999999;
-    --accent: #000000;
-    --accent-soft: #ffffff;
-    --accent-ink: #000000;
-    --accent-soft-ink: #000000;
-    --board: #ffffff;
-    --board-ink: #000000;
-    --board-dim: #555555;
-    --open: #000000;
-    --qualified: #000000;
-    --done: #000000;
-    --out: #555555;
-    --live: #000000;
-    --danger: #000000;
-    --danger-ink: #000000;
-    --warn: #000000;
-    --warn-soft: #ffffff;
+    --paper: #ffffff !important;
+    --surface: #ffffff !important;
+    --surface-alt: #ffffff !important;
+    --ink: #000000 !important;
+    --ink-soft: #3a3a3a !important;
+    --line: #999999 !important;
+    --accent: #000000 !important;
+    --accent-soft: #ffffff !important;
+    --accent-soft-ink: #000000 !important;
+    --open: #000000 !important;
+    --qualified: #000000 !important;
+    --done: #000000 !important;
+    --out: #555555 !important;
+    --live: #000000 !important;
+    --danger: #000000 !important;
+    --warn: #000000 !important;
+    --warn-soft: #ffffff !important;
+
+    /* NACHTRAG 2026-08-29 — der Satz oben ist der von Etappe 8 und hat
+       die Markenuebernahme nicht mitbekommen. Gemessen: vierzehn heute
+       benutzte Farbtoken standen nicht darin, darunter --muted, --ink-2,
+       --panel, --sunk, --raised und --ground. Im Nachtmodus sind das
+       saemtliche Grau- und Flaechenwerte — also genau der Fehler, den der
+       Kommentar oben als behoben beschreibt, nur an anderen Namen. Der
+       Detektor dagegen steht in druck-tokens.test.js.
+
+       Vier Werte sind hier ausserdem entfallen (--board, --board-ink,
+       --board-dim, --danger-ink): die Anzeigetafel ist am 26.08. aus dem
+       Modul geflogen, ihre Druckfarbe war seither eine Karteileiche.
+
+       Die Flaechen werden ALLE weiss, nicht abgestuft grau: eine
+       Tonleiter aus sechs Grauwerten, die am Bildschirm Tiefe erzeugt,
+       wird auf Papier zu sechs kaum unterscheidbaren Schleiern — sie
+       kosten Toner und tragen nichts. Auf Papier tragen Kanten. */
+    --ground: #ffffff !important;
+    --panel: #ffffff !important;
+    --raised: #ffffff !important;
+    --sunk: #ffffff !important;
+    --line-soft: #bbbbbb !important;
+    --ink-2: #222222 !important;
+    --muted: #3a3a3a !important;
+    /* Aufstieg und Titel: Farbe traegt auf Papier nicht (Entscheid 2
+       weiter unten). Die getoente Zeile wird weiss, das 3-px-Band an der
+       Blattkante bleibt als Signal — aber in Tinte statt in Orange bzw.
+       Gruen, sonst waere es im Graudruck derselbe Ton wie die Zeile. */
+    --flare: #000000 !important;
+    --flare-soft: #ffffff !important;
+    --qual: #000000 !important;
+    --qual-soft: #ffffff !important;
+    --live-soft: #ffffff !important;
+    --on-flare: #ffffff !important;
+    --on-danger: #ffffff !important;
   }
 
   /* ---- Modul-Rahmen: alle Scroll- und Hoehenklammern loesen -------
@@ -5913,15 +5991,29 @@ textarea.t-input {
   /* Der Zeilenhintergrund steht auf der ZELLE, nicht auf der Zeile —
      wer nur `tr` neutralisiert, bekommt auf Papier trotzdem ein graues
      Band (im ersten Druck-Screenshot genau so passiert). Deshalb `td`.
-     Klassennamen mit A3 nachgezogen (2026-08-25): aus is-first/is-second
-     wurden is-qualified/is-pending/is-cutoff. Die Trennlinie von
-     is-cutoff bleibt bewusst stehen — sie ist eine Linie, kein
-     Farbband, und traegt auf Papier die Qualifikationsgrenze. */
+     Klassennamen ZWEIMAL nachgezogen: A3 machte aus is-first/is-second
+     die Namen is-qualified/is-pending/is-cutoff (2026-08-25), die
+     Markenuebernahme einen Tag spaeter daraus is-lead/is-qualified
+     (spielplan-helpers.js:884). Diese Regel blieb bei der zweiten
+     Umbenennung stehen und entfaerbte seither zwei Klassen, die der
+     Renderer nicht mehr ausgibt — der orange Fuehrungsstreifen von
+     is-lead ging ungebremst aufs Papier. Sechste Kollision derselben
+     Art in diesem Modul; der Detektor dagegen ist druck-tokens.test.js,
+     der die Klassen des Renderers gegen diesen Block haelt.
+
+     Der Zeilenhintergrund steht auf der ZELLE, nicht auf der Zeile —
+     wer nur `tr` neutralisiert, bekommt auf Papier trotzdem ein graues
+     Band. Deshalb `td`.
+
+     Das 3-px-Band auf der Rangzelle wird NICHT abgeraeumt: es ist das
+     Signal, das ohne Farbe traegt ("Band da" gegen "Band nicht da"),
+     und es steht ueber --flare/--qual schon auf Schwarz. */
+  .t-standings-row.is-lead,
   .t-standings-row.is-qualified,
-  .t-standings-row.is-pending,
+  .t-standings-row.is-lead td,
   .t-standings-row.is-qualified td,
-  .t-standings-row.is-pending td,
-  .t-thirds-row.is-qualified {
+  .t-thirds-row.is-qualified,
+  .t-thirds-row.is-qualified td {
     background: none !important;
   }
 
@@ -6357,6 +6449,47 @@ textarea.t-input {
   flex-direction: column;
   gap: var(--s5);
 }
+/* ---- Die Vorschau am Handy (2026-08-29) ------------------------
+   Gemessen bei 375 px: der Bogen war 307 px breit, sein Inhalt
+   brauchte 563 px — und `.t-mod-main` traegt `overflow-x: clip`.
+   Der Bogen wurde also ABGESCHNITTEN, nicht scrollbar: die rechten
+   Tabellenspalten (Ergebnis, Punkte) waren am Telefon schlicht nicht
+   erreichbar, und niemand konnte pruefen, was der Drucker ausgibt.
+
+   Bewusst SCROLLEN statt umbrechen. Ein Bogen ist ein A4-Blatt; wer
+   ihn am Handy schmal umbrechen laesst, sieht eine Anordnung, die
+   der Drucker nie ausgibt — die Vorschau wuerde luegen, und genau
+   dafuer ist sie da ("Was man sieht, kommt aus dem Drucker",
+   spielplan-helpers.js:1486). 560 px ist die gemessene Mindestbreite
+   des Bogeninhalts, nicht geschaetzt.
+
+   Der Scroller sitzt auf `.t-druck` und nicht auf `.t-bogen`: die
+   Blattkante soll mitwandern, sonst scrollt Papier in einem Rahmen,
+   der stehen bleibt. Im Druck ist beides gegenstandslos — dort setzt
+   der Druckblock `.t-druck` ohnehin auf `display: block`.
+
+   `screen and` ist nicht Zierrat: ohne das Wort greift die Regel auch
+   im Druck. Gemessen mit emulateMedia bei 375 px Viewport stand der
+   Bogen dann mit min-width 560 px in einem 335 px breiten Rahmen mit
+   overflow-x — auf Papier gibt es kein Scrollen, das haette rechts
+   abgeschnitten gedruckt. Der Scroll-Rahmen ist eine Bedienhilfe des
+   Bildschirms und hat im Druck nichts zu suchen. */
+@media screen and (max-width: 660px) {
+  .t-druck {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Der Schatten des Blattes braucht Luft, sonst schneidet ihn der
+       Scroll-Rahmen an der Oberkante ab. */
+    padding: 4px 0;
+  }
+  .t-bogen {
+    min-width: 560px;
+    /* Das seitliche Polster faellt kleiner aus: 24 px auf einem
+       Blatt, das ohnehin gescrollt wird, sind 48 px Scrollweg ohne
+       Inhalt. */
+    padding: 20px 16px;
+  }
+}
 .t-bogen {
   background: #fff;
   color: #111;
@@ -6403,6 +6536,30 @@ textarea.t-input {
   align-items: flex-end;
   gap: 12px;
   min-width: 0;
+}
+/* Der Textblock zwischen Logo und Metaspalte (2026-08-29).
+   `min-width: 0` steht oben am Elternteil, aber die Kette bricht eine
+   Ebene tiefer: das <div> um Marke und Titel ist selbst ein Flex-Kind
+   mit der Vorgabe `min-width: auto` und schrumpft deshalb nicht unter
+   seine laengste Zeile. Gemessen bei 375 px: der Titel endete bei
+   x=281, die Metaspalte begann bei x=240 — 41 px Text auf Text.
+   Ein Elternteil mit min-width: 0 hilft nichts, wenn das Kind es nicht
+   auch hat. */
+.t-bogen-kopf-links > div {
+  min-width: 0;
+}
+/* Der Turniername bricht lieber um, als in die Metaspalte zu laufen.
+   Kein `ellipsis`: auf einem Bogen ist der Name die Ueberschrift, und
+   eine abgeschnittene Ueberschrift auf Papier ist schlimmer als eine
+   zweizeilige. */
+.t-bogen-titel {
+  overflow-wrap: anywhere;
+}
+/* Die Metaspalte gibt nicht nach: Datum, Ort und Spielzahl sind kurz
+   und stehen rechtsbuendig als Block. Ohne `flex-shrink: 0` gibt sie
+   als erste nach und ihre Zeilen brechen an falschen Stellen. */
+.t-bogen-meta {
+  flex: 0 0 auto;
 }
 /* 54px = 19 mm auf A4. Der Ring in hellem Grau bleibt: ein sehr helles
    Logo haette auf weissem Papier sonst ueberhaupt keine Kante.
@@ -6763,6 +6920,63 @@ table.t-bogen-tab td.offen {
   .t-bogen {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  /* ---- WER GEWINNT, WENN BEIDE DRUCKBLOECKE GELTEN ---------------
+     (Fehlerbefund 2026-08-29, gemessen mit page.emulateMedia print.)
+
+     Dieser Block hat den aelteren nie abgeloest, sondern stand daneben.
+     Der aeltere schaltet `.t-view { display: none !important }` und
+     holt spielplan/gruppen/baum wieder herein — der Drucken-Tab ist
+     dort NICHT genannt. Die Boegen liegen aber genau darin
+     (main.js:3679). Ergebnis am Geraet: `.t-bogen` war unter
+     `media: print` NULLMAL sichtbar, gedruckt wurde der entfaerbte
+     Bildschirm, und der Modulkopf fiel durch die Regel unten auch noch
+     weg. Der Ausdruck hatte also weder Bogen noch Kopf — genau die
+     Meldung "vom Handy falsch formatiert".
+
+     Statt einen der beiden Bloecke zu loeschen, bekommen sie eine
+     Rangfolge, denn beide Faelle sind echt:
+       - Boegen im DOM  -> sie sind der Ausdruck (Entscheid 26.08.).
+       - keine Boegen   -> der aeltere Block traegt weiter, sonst
+                           druckt der Knopf ploetzlich leeres Papier.
+     Der Schalter ist `:has(.t-druck .t-bogen)`. Faellt `:has()` aus,
+     verfallen nur diese Regeln und es bleibt beim alten Verhalten —
+     nicht bei einem leeren Blatt.
+
+     Spezifitaet nachgerechnet, weil in diesem Repo schon vier bedingte
+     Regeln still verloren gingen: der aeltere Block setzt
+     `.t-view[data-view='spielplan']` = (0,2,0) mit !important. Hier
+     steht `.t-mod:has(.t-druck .t-bogen) .t-view` = (0,3,0), ebenfalls
+     !important. Hoehere Spezifitaet gewinnt, und die Datei ist ohnehin
+     dieselbe und spaeter. */
+  .t-mod:has(.t-druck .t-bogen) .t-view,
+  .t-mod:has(.t-druck .t-bogen) .t-view[data-view='spielplan'],
+  .t-mod:has(.t-druck .t-bogen) .t-view[data-view='gruppen'],
+  .t-mod:has(.t-druck .t-bogen) .t-view[data-view='baum'] {
+    display: none !important;
+  }
+  .t-mod:has(.t-druck .t-bogen) .t-view[data-view='drucken'] {
+    display: block !important;
+    break-before: auto;
+  }
+  /* Die Erklaerkarte mit dem Drucken-Knopf ist Bedienung, kein Inhalt.
+     Der Knopf faellt schon durch die `.t-btn`-Zeile des aelteren
+     Blocks, die beiden Absaetze darueber nicht — sie haetten sonst eine
+     halbe Seite vor dem ersten Bogen gefuellt. */
+  .t-druck-hinweis {
+    display: none !important;
+  }
+
+  /* Der Bogen ersetzt die Ansicht: alles andere im Modul bleibt drin.
+     NUR wenn es Boegen gibt — im Rueckfall traegt der Modulkopf den
+     Turniernamen, und ohne ihn hat das Blatt keine Ueberschrift. */
+  .t-mod:has(.t-druck .t-bogen) > .t-mod-header,
+  .t-mod > .t-mod-tabs,
+  .t-mod .t-mod-nav,
+  .t-mod .t-mod-aside,
+  .t-mod .t-mod-more-sheet {
+    display: none !important;
   }
 }
 

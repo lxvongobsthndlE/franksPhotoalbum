@@ -578,7 +578,21 @@ export function renderAsideTables(matches, limit = 6) {
  * Fix-Werte zu 56% + auto-Team 44% → ausreichend für „12:10" + „+12" + „18".
  * Siehe getStandingsColWidths()/getThirdsColWidths() + Compact-Mode-Switch.
  */
-const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+/* Pl. von 6% auf 8% (2026-08-29, im Browser gemessen).
+   Die 6% waren fuer eine breite Tabelle gerechnet und stimmen dort auch.
+   Zwischen dem Compact-Umschalter (.t-mod <= 600px) und etwa 670px
+   Modulbreite liefern sie aber zu wenig: gemessen bei .t-mod = 612px
+   ergaben 6% genau 37px, die Ueberschrift "Pl." braucht 40px. Die Zelle
+   traegt `overflow: visible` und `text-overflow: clip` — es gibt also
+   nicht einmal ein Auslassungszeichen, der Text laeuft schlicht in die
+   Team-Spalte. Bei 660px Ansichtsbreite (einem der Bruchpunkte des
+   Bestands) war das reproduzierbar.
+   8% ergeben bei 601px Modulbreite 48px und liegen damit auch am
+   unteren Rand des Bandes ueber dem Bedarf. Die 2 Punkte kommen aus der
+   Team-Spalte, weil die `auto` ist — die uebrigen Festwerte bleiben
+   unberuehrt, und damit auch die Zuordnung Spalte->Breite, an der die
+   Liste schon einmal zerbrochen ist. */
+const STANDINGS_COL_WIDTHS = ['8%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 /* User-Punkt 2 (2026-08-25) Folge 2: Pl-Spalte von 8% auf 14%.
    8% = ~24 px bei 374 px Tabellenbreite → "1." passte mit Cell-Padding
    nicht, Header und Body wurden zu "P…" / "1…" getruncated.
@@ -597,7 +611,14 @@ const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%',
    und hier nicht, verschiebt alle folgenden Breiten um eins — genau so
    ist die Zuordnung schon einmal zerbrochen. */
 const STANDINGS_COL_WIDTHS_MOBILE = ['14%', '42%', '14%', '15%', '15%'];
-const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+/* Dieselbe Rechnung wie oben fuer Pl. (6% -> 8%), dazu die
+   Gruppen-Spalte von 8% auf 10%: die Ueberschrift "Gruppe" braucht
+   gemessen 53px, 8% lieferten bei 612px Modulbreite 49px. Diese Zelle
+   hat ein Auslassungszeichen, sie klippte also nicht in die Nachbarin,
+   zeigte aber "Grupp…" — ein abgekuerztes Wort, das nichts spart. Der
+   Kurzname "Gr." greift erst im Compact-Modus, also unterhalb dieses
+   Bandes. Beide Zugaben kommen aus der auto-Spalte. */
+const THIRDS_COL_WIDTHS = ['8%', 'auto', '10%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 /* Beste-Dritte-Mobile — korrigiert 2026-08-25.
  *
  * WAS FALSCH WAR: die Liste hatte SIEBEN Eintraege

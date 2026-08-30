@@ -3831,16 +3831,31 @@ function renderTournamentInstanceDetailV3(t) {
         }
       });
     });
+    // Vor dem Drucken muessen die Boegen im DOM stehen (2026-08-29).
+    //
+    // Der Knopf gibt es dreimal: in der Kopfzeile, im Kontextmenue (am
+    // Telefon der einzige Weg) und im Drucken-Tab selbst. Nur der
+    // dritte hatte die Boegen sicher vor sich — sie werden lazy
+    // gerendert, wenn der Drucken-Tab geoeffnet wird
+    // (handleTournamentTabSideEffects). Wer vom Spielplan aus druckte,
+    // hatte einen LEEREN drucken-mount, und weil `@media print` nur
+    // ausgibt, was im DOM steht, kam der entfaerbte Bildschirm aufs
+    // Papier statt der Boegen. Das war der Handy-Fall der Meldung: dort
+    // fuehrt der Weg ueber das Kontextmenue, also nie ueber den Tab.
+    //
+    // Deshalb hier vor JEDEM Druck frisch rendern (Befund 30.08.,
+    // Memory „zwei-druckbloecke-ohne-rangfolge") — nur bei leerem Mount
+    // nachzuladen haette veraltete Boegen gedruckt. Der Tab wird NICHT
+    // gewechselt: der Druckende soll nach dem Schliessen des
+    // Druckdialogs dort stehen, wo er war — ein Sprung in eine andere
+    // Ansicht waere eine Navigation, die niemand angefordert hat.
+    //
+    // `window.print()` blockiert, deshalb erst nach dem await. Schlaegt
+    // das Laden fehl, wird trotzdem gedruckt: ladeDruckboegen faengt
+    // seine Fehler selbst ab und der aeltere Druckblock traegt dann den
+    // Rueckfall (siehe :has(.t-druck .t-bogen) in tournament.css).
     detail.querySelectorAll('[data-action="print"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        // Die Boegen sind das, was gedruckt wird — aber sie entstehen
-        // lazy im Drucken-Tab. Zwei der drei Drucken-Knoepfe (Kopfzeile,
-        // Kontextmenue) fuehren NIE ueber diesen Tab; ohne diesen Mount
-        // war ihr Ausdruck der entfaerbte Bildschirm, weil ein leerer
-        // Mount nichts aufs Papier bringt (Befund 30.08., Memory
-        // „zwei-druckbloecke-ohne-rangfolge"). Immer frisch rendern,
-        // damit der Stand stimmt; ladeDruckboegen faengt Fehler selbst —
-        // schlaegt es fehl, bleibt der Bildschirm-Druck als Rueckfall.
         const mount = detail.querySelector('[data-tab-body="drucken-mount"]');
         if (mount && activeTournamentInstance?.id) {
           await ladeDruckboegen(activeTournamentInstance, mount);
