@@ -6686,6 +6686,30 @@ table.t-bogen-tab td.offen {
   color: #999;
   letter-spacing: 0.06em;
 }
+/* Schreiblinie fuer unbesetzte Teams: der Bogen wird VOR dem Turnier
+   gedruckt und mit dem Kuli gefuellt. Die Linie traegt die Handschrift,
+   der Platzhaltertext darunter sagt klein, WER auf die Linie gehoert
+   ("Sieger HF1") — Formular-Konvention, damit die Handschrift den
+   Hinweis nicht ueberschreibt. */
+.t-bogen-schreib {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: bottom;
+}
+.t-bogen-schreib .lin {
+  min-width: 110px;
+  height: 14px;
+  border-bottom: 1px solid #111;
+}
+.t-bogen-schreib .ph {
+  font-family: var(--f-mono);
+  font-size: 6.5px;
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: #999;
+  padding-top: 1px;
+}
 .t-bogen-legende {
   display: flex;
   gap: 14px;
@@ -6767,6 +6791,18 @@ table.t-bogen-tab td.offen {
 }
 .t-bogen-baum .flare-t {
   fill: #bf4413;
+}
+/* Schreiblinie im Baum (Team- und Score-Eintrag) + kleiner
+   Platzhalterhinweis darunter — Gegenstueck zu .t-bogen-schreib. */
+.t-bogen-baum .wl {
+  stroke: #111;
+  stroke-width: 0.8;
+}
+.t-bogen-baum .ph {
+  font-family: var(--f-mono);
+  font-size: 6.5px;
+  letter-spacing: 0.04em;
+  fill: #999;
 }
 
 /* ---- Was beim Drucken passiert ----
@@ -6870,6 +6906,16 @@ table.t-bogen-tab td.offen {
   }
   table.t-bogen-tab td {
     padding: 1.8mm 1.2mm;
+  }
+  /* Schreiblinien in Papiermass: 5 mm Schreibraum je Linie im
+     Spielplan (Kulischrift braucht ~6 mm inkl. Unterlaengenpuffer),
+     Hinweistext knapp ueber 5pt — lesbar, aber eindeutig kein Eintrag. */
+  .t-bogen-schreib .lin {
+    min-width: 34mm;
+    height: 5mm;
+  }
+  .t-bogen-schreib .ph {
+    font-size: 5.5pt;
   }
   .t-bogen-legende,
   .t-bogen-fuss {

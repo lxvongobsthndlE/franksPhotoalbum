@@ -1564,6 +1564,23 @@ function druckFuss(t, seite, vonSeiten) {
 }
 
 /**
+ * Ein Team-Slot auf einem Bogen: fest oder noch unbesetzt?
+ *
+ * Die Boegen werden VOR dem Turnier gedruckt und mit dem Kuli gefuellt.
+ * Ein unbesetzter Slot ist alles, was zu diesem Zeitpunkt keinen echten
+ * Teamnamen traegt: `kind === 'placeholder'` (K.-o.-Slots wie
+ * "Sieger HF1"), `null` (Slot ohne Team und ohne Platzhalter) und der
+ * '—'-Fallback aus buildSlot. Der `hinweis` ist der sprechende
+ * Platzhaltername — er sagt, WER auf die Schreiblinie gehoert, und
+ * bleibt deshalb klein erhalten statt zu verschwinden.
+ */
+function druckSlotInfo(slot) {
+  const name = typeof slot?.name === 'string' && slot.name !== '—' ? slot.name.trim() : '';
+  const unbesetzt = !slot || slot.kind === 'placeholder' || !name;
+  return { unbesetzt, name: unbesetzt ? '' : name, hinweis: unbesetzt ? name : '' };
+}
+
+/**
  * Bogen 1 — Spielplan, nach Uhrzeit gegliedert.
  *
  * Eine Zeile je Partie statt einer Karte: achtzehn Spiele passen so auf
@@ -1590,14 +1607,24 @@ function renderDruckSpielplan(t) {
     .map((b) => {
       const zeilen = b.spiele
         .map((m) => {
-          const heim = m?.home?.name || '—';
-          const gast = m?.away?.name || '—';
+          // Unbesetzte Teams drucken eine Schreiblinie statt eines
+          // Gedankenstrichs — auf "—" kann niemand einen Sieger schreiben.
+          const teamZelle = (slot) => {
+            const s = druckSlotInfo(slot);
+            if (!s.unbesetzt) return esc(s.name);
+            // Der Hinweis-Span steht auch leer da (&nbsp;), damit die
+            // Linie eines Slots OHNE Platzhaltertext auf derselben
+            // Hoehe liegt wie die des Partners mit Text.
+            return `<span class="t-bogen-schreib"><i class="lin"></i><span class="ph">${
+              s.hinweis ? esc(s.hinweis) : '&nbsp;'
+            }</span></span>`;
+          };
           const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
           const ergebnis = hat ? `${m.scoreHome} : ${m.scoreAway}` : '___ : ___';
           return `<tr>
         <td class="l">${esc(m?.scheduledTime || '–')}</td>
         <td class="l">${m?.field != null ? esc(String(m.field)) : '–'}</td>
-        <td class="l nm">${esc(heim)} — ${esc(gast)}</td>
+        <td class="l nm">${teamZelle(m?.home)} — ${teamZelle(m?.away)}</td>
         <td class="l">${esc(m?.label || '')}</td>
         <td class="r${hat ? '' : ' offen'}">${esc(ergebnis)}</td>
       </tr>`;
@@ -1708,8 +1735,14 @@ function renderDruckBaum(t) {
   const { winnerBracket } = groupMatchesByRound(spiele);
   if (!winnerBracket.length) return '';
 
+  // KH war 34 — zu flach zum Handschreiben: bei drei Runden kommt eine
+  // 17er-Halbzeile als ~5,4 mm aufs Blatt, unter dem ~6-mm-Minimum fuer
+  // Kulischrift. Mit KH=56 traegt jede Halbzeile eine Schreiblinie mit
+  // ~6 mm Schreibraum (drei Runden) bis ~8 mm (zwei Runden); erst ab
+  // vier Runden wird es prinzipbedingt enger (16 Zeilen auf A4 quer).
+  // Die restliche Geometrie rechnet komplett aus KH/ABST mit.
   const KB = 190,
-    KH = 34,
+    KH = 56,
     SPALTE = 232,
     RAND_X = 8,
     RAND_Y = 26;
@@ -1731,19 +1764,39 @@ function renderDruckBaum(t) {
       const cy = mittey(ri, mi);
       const y = cy - KH / 2;
       const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
-      const heim = m?.home?.name || '—';
-      const gast = m?.away?.name || '—';
-      const hs = hat ? String(m.scoreHome) : '___';
-      const as = hat ? String(m.scoreAway) : '___';
       const heimSieger = hat && m.scoreHome > m.scoreAway;
       const offen = !hat;
+      // Basislinien der beiden Halbzeilen (obere/untere Haelfte des
+      // Kastens). Feste Namen stehen ALS TEXT auf der Basislinie;
+      // unbesetzte Slots drucken dort eine SCHREIBLINIE, und der
+      // sprechende Platzhalter ("Sieger HF1") rueckt klein darunter —
+      // er sagt, wer auf die Linie gehoert.
+      const basisHeim = cy - 10;
+      const basisGast = cy + 18;
+      const teamZeile = (slot, basis, klasse) => {
+        const s = druckSlotInfo(slot);
+        if (!s.unbesetzt) {
+          return `<text x="${x + 7}" y="${basis}" class="${klasse}">${esc(s.name)}</text>`;
+        }
+        const linie = `<line x1="${x + 7}" y1="${basis}" x2="${x + KB - 40}" y2="${basis}" class="wl"/>`;
+        const hinweis = s.hinweis
+          ? `<text x="${x + 7}" y="${basis + 7}" class="ph">${esc(s.hinweis)}</text>`
+          : '';
+        return linie + hinweis;
+      };
+      // Offene Partien: Schreiblinie statt "___"-Text — konsistent mit
+      // den Team-Schreiblinien, und breit genug fuer zwei Ziffern.
+      const scoreZeile = (wert, basis) =>
+        hat
+          ? `<text x="${x + KB - 7}" y="${basis}" text-anchor="end" class="sc">${esc(String(wert))}</text>`
+          : `<line x1="${x + KB - 32}" y1="${basis}" x2="${x + KB - 7}" y2="${basis}" class="wl"/>`;
       teile.push(`<g>
         <rect x="${x}" y="${y}" width="${KB}" height="${KH}" rx="2" class="${offen ? 'bxo' : 'bx'}"/>
         <line x1="${x}" y1="${cy}" x2="${x + KB}" y2="${cy}" class="cn"/>
-        <text x="${x + 7}" y="${cy - 4}" class="${heimSieger || offen ? 'tn' : 'tp'}">${esc(heim)}</text>
-        <text x="${x + KB - 7}" y="${cy - 4}" text-anchor="end" class="sc">${esc(hs)}</text>
-        <text x="${x + 7}" y="${cy + 13}" class="${!heimSieger || offen ? 'tn' : 'tp'}">${esc(gast)}</text>
-        <text x="${x + KB - 7}" y="${cy + 13}" text-anchor="end" class="sc">${esc(as)}</text>
+        ${teamZeile(m?.home, basisHeim, heimSieger || offen ? 'tn' : 'tp')}
+        ${scoreZeile(m?.scoreHome, basisHeim)}
+        ${teamZeile(m?.away, basisGast, !heimSieger || offen ? 'tn' : 'tp')}
+        ${scoreZeile(m?.scoreAway, basisGast)}
       </g>`);
       // Verbinder zur naechsten Runde
       if (ri < winnerBracket.length - 1) {
@@ -1763,9 +1816,9 @@ function renderDruckBaum(t) {
   teile.push(
     `<rect x="${letzteX + KB + 34}" y="${titelY - KH / 2}" width="130" height="${KH}" rx="2" class="flare" fill="none"/>`
   );
-  teile.push(`<text x="${letzteX + KB + 42}" y="${titelY - 4}" class="rl flare-t">SIEGER</text>`);
+  teile.push(`<text x="${letzteX + KB + 42}" y="${titelY - 8}" class="rl flare-t">SIEGER</text>`);
   teile.push(
-    `<line x1="${letzteX + KB + 42}" y1="${titelY + 10}" x2="${letzteX + KB + 156}" y2="${titelY + 10}" class="flare"/>`
+    `<line x1="${letzteX + KB + 42}" y1="${titelY + 16}" x2="${letzteX + KB + 156}" y2="${titelY + 16}" class="flare"/>`
   );
 
   return `<article class="t-bogen t-bogen--quer">
