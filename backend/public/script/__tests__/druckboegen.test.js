@@ -39,13 +39,19 @@ const ko = (o) => ({
   bracketPos: o.pos,
 });
 
+/* Das Fixture traegt die Turnierfelder TOP-LEVEL — so liefert
+   openTournamentInstance sie wirklich (id/name/logoUrl/startsAt/...).
+   Bis zum 30.08. baute es stattdessen `{ tournament: {...} }`, eine
+   Form, die es im echten Aufruf nie gab: druckKopf las genau dieses
+   Geisterfeld, jeder Bogen hiess „Turnier" und trug nie ein Logo —
+   und die Tests blieben gruen, weil Fixture und Bug dieselbe falsche
+   Annahme teilten. Ein Fixture ist eine Behauptung ueber den Aufrufer. */
 const turnier = (extra = {}) => ({
-  tournament: {
-    id: 't1',
-    name: 'Frühjahrsturnier',
-    startsAt: '2026-04-18T10:00:00.000Z',
-    location: 'Halle 2',
-  },
+  id: 't1',
+  name: 'Frühjahrsturnier',
+  logoUrl: '/api/tournaments/t1/logo',
+  startsAt: '2026-04-18T10:00:00.000Z',
+  location: 'Halle 2',
   groups: [
     {
       groupKey: 'A',
@@ -145,9 +151,25 @@ describe('renderDruckboegen', () => {
   });
 
   it('ohne alles bleibt ein ehrlicher Hinweis statt eines leeren Blattes', () => {
-    const html = renderDruckboegen({ tournament: { name: 'X' }, groups: [], matches: [] }, 2);
+    const html = renderDruckboegen({ name: 'X', groups: [], matches: [] }, 2);
     expect(html).toContain('Noch nichts zu drucken');
     expect(html).not.toContain('t-bogen');
+  });
+
+  it('der Kopf trägt Turniernamen, Datum und Ort — nicht den Fallback „Turnier“', () => {
+    const html = renderDruckboegen(turnier(), 2);
+    expect(html).toContain('Frühjahrsturnier');
+    expect(html).not.toContain('>Turnier</h3>');
+    expect(html).toContain('Halle 2');
+    expect(html).toContain('18.4.2026');
+  });
+
+  it('das Turnierlogo steht im Kopf — und ohne logoUrl kein Platzhalter', () => {
+    const mit = renderDruckboegen(turnier(), 2);
+    expect(mit).toContain('class="t-bogen-logo"');
+    expect(mit).toContain('src="/api/tournaments/t1/logo"');
+    const ohne = renderDruckboegen(turnier({ logoUrl: null }), 2);
+    expect(ohne).not.toContain('t-bogen-logo');
   });
 
   it('verliert keine Partie beim Gruppieren nach Uhrzeit', () => {

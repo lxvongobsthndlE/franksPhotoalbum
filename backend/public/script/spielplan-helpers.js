@@ -1507,9 +1507,15 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
  * Ohne Logo rueckt der Name an den Rand — dieselbe Regel wie am Schirm,
  * kein Platzhalter. Auf Papier faellt eine reservierte Leerstelle noch
  * staerker auf als am Bildschirm.
+ *
+ * `t` IST das Turnier-DTO (name/logoUrl/startsAt/location liegen
+ * top-level, siehe openTournamentInstance). Hier stand bis zum 30.08.
+ * `t?.tournament ?? {}` — ein Feld, das es im echten Aufruf nie gab.
+ * Folge: jeder Bogen hiess „Turnier" und trug NIE ein Logo, und die
+ * Tests blieben gruen, weil ihr Fixture dieselbe falsche Form baute.
  */
 function druckKopf(bogen, t, rechts) {
-  const tour = t?.tournament ?? {};
+  const tour = t ?? {};
   const logoUrl = typeof tour.logoUrl === 'string' && tour.logoUrl ? tour.logoUrl : null;
   const logoHtml = logoUrl
     ? `<img class="t-bogen-logo" src="${esc(logoUrl)}" alt="" aria-hidden="true">`
@@ -1532,7 +1538,7 @@ function druckFuss(t, seite, vonSeiten) {
   const tag = new Date().toLocaleDateString('de-DE');
   return `<div class="t-bogen-fuss">
     <span>Stand ${esc(tag)} ${esc(jetzt)} · Seite ${seite} von ${vonSeiten}</span>
-    <span>${esc(t?.tournament?.name || '')}</span>
+    <span>${esc(t?.name || '')}</span>
   </div>`;
 }
 
@@ -1584,7 +1590,7 @@ function renderDruckSpielplan(t) {
     })
     .join('');
 
-  const tour = t?.tournament ?? {};
+  const tour = t ?? {};
   const rechts = [
     tour.startsAt ? new Date(tour.startsAt).toLocaleDateString('de-DE') : '',
     tour.location || '',

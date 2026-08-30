@@ -3832,7 +3832,21 @@ function renderTournamentInstanceDetailV3(t) {
       });
     });
     detail.querySelectorAll('[data-action="print"]').forEach((btn) => {
-      btn.addEventListener('click', () => window.print());
+      btn.addEventListener('click', async () => {
+        // Die Boegen sind das, was gedruckt wird — aber sie entstehen
+        // lazy im Drucken-Tab. Zwei der drei Drucken-Knoepfe (Kopfzeile,
+        // Kontextmenue) fuehren NIE ueber diesen Tab; ohne diesen Mount
+        // war ihr Ausdruck der entfaerbte Bildschirm, weil ein leerer
+        // Mount nichts aufs Papier bringt (Befund 30.08., Memory
+        // „zwei-druckbloecke-ohne-rangfolge"). Immer frisch rendern,
+        // damit der Stand stimmt; ladeDruckboegen faengt Fehler selbst —
+        // schlaegt es fehl, bleibt der Bildschirm-Druck als Rueckfall.
+        const mount = detail.querySelector('[data-tab-body="drucken-mount"]');
+        if (mount && activeTournamentInstance?.id) {
+          await ladeDruckboegen(activeTournamentInstance, mount);
+        }
+        window.print();
+      });
     });
 
     // „Neues Turnier" aus dem geoeffneten Turnier heraus (2026-08-26,
