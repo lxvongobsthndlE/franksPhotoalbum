@@ -249,9 +249,19 @@ const standings = [
   },
 ];
 const bestThirds = [
-  { ...st('Die Unbeugsamen', 1, 0, 0, 1, 2, 2, 1), groupKey: 'C', pointsPerGame: 1 },
-  { ...st('Halbdistanz', 3, 1, 0, 2, 5, 7, 3), groupKey: 'B', pointsPerGame: 1 },
-  { ...st('Tafelrunde', 3, 0, 2, 1, 7, 8, 2), groupKey: 'A', pointsPerGame: 0.67 },
+  {
+    ...st('Die Unbeugsamen', 1, 0, 0, 1, 2, 2, 1),
+    groupKey: 'C',
+    pointsPerGame: 1,
+    qualifies: true,
+  },
+  { ...st('Halbdistanz', 3, 1, 0, 2, 5, 7, 3), groupKey: 'B', pointsPerGame: 1, qualifies: true },
+  {
+    ...st('Tafelrunde', 3, 0, 2, 1, 7, 8, 2),
+    groupKey: 'A',
+    pointsPerGame: 0.67,
+    qualifies: false,
+  },
 ];
 const groups = standings.map((g, i) => ({
   id: 'g' + i,
@@ -371,10 +381,20 @@ const AKTION = {
 };
 
 function gruppenHtml() {
+  // Der Pruefstand muss GENAU das bauen, was main.js baut, sonst misst er
+  // eine Ansicht, die es so nicht gibt. Zwei Abweichungen waren drin:
+  //   1. renderBestThirdsTable() bekam ein ARRAY. Der Renderer erwartet
+  //      { qualifyCount, rows } und liefert bei allem anderen einen leeren
+  //      String — die Beste-Dritte-Tabelle fehlte auf dem Pruefstand also
+  //      komplett, waehrend sie in der App stand.
+  //   2. Dazwischen lag ein `t-section-label`, das main.js nicht setzt
+  //      (main.js:4074 / :4159 haengen groupsHtml + bestThirdsHtml direkt
+  //      aneinander). Ein Zwischenelement mit eigenem Polster verschiebt
+  //      die gemessene Einrueckung — also genau die Groesse, um die es
+  //      bei der Flucht der beiden Karten geht.
   return (
     renderStandingsGroups(standings, 'Becher', 2) +
-    '<div class="t-section-label">Beste Dritte · 2 Plätze frei</div>' +
-    renderBestThirdsTable(bestThirds)
+    renderBestThirdsTable({ qualifyCount: 2, rows: bestThirds })
   );
 }
 

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pruefstand iOS Safe Area</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <style>
+      /* NUR fuer den Pruefstand — kein Bestandteil der App.
+         Die Seite instanziiert die fixierten Elemente STATISCH (ohne Login,
+         ohne main.js), damit `--sat`/`--sab` per Playwright injiziert und die
+         Kanten per getBoundingClientRect gemessen werden koennen. Am Desktop
+         liefert env(safe-area-inset-*) immer 0px — die Variablen-Injektion in
+         :root ist deshalb der einzige Beweisweg (Memory
+         css-pruefstand-statt-rechnen).
+
+         WICHTIG: hier wird NICHTS an den App-Regeln nachgebaut oder
+         ueberschrieben. Eigene Regeln stehen nur unter `.ps-*`. */
+      body {
+        margin: 0;
+        min-height: 200vh; /* damit die fixierten Elemente etwas zum Ueberdecken haben */
+      }
+      .ps-fill {
+        padding: 120px 20px 40px;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      }
+      .ps-fill p {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+        max-width: 520px;
+      }
+      /* Statusleisten-Referenz: halbtransparenter Balken 0–59px (Dynamic
+         Island des iPhone 15). Rein visuell — er setzt KEINE Variablen,
+         damit sich Lauf A und Lauf B ausschliesslich durch die Injektion
+         unterscheiden. */
+      .ps-island {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 59px;
+        background: rgba(200, 88, 88, 0.35);
+        border-bottom: 1px dashed rgba(200, 88, 88, 0.9);
+        z-index: 99999;
+        pointer-events: none;
+        display: none;
+        font:
+          600 11px/59px 'IBM Plex Mono',
+          monospace;
+        color: #4a1010;
+        text-align: right;
+        padding-right: 8px;
+        box-sizing: border-box;
+      }
+      body.ps-island-on .ps-island {
+        display: block;
+      }
+      /* `?nur=modal` blendet die uebrigen Instanzen aus. Grund: #invite-banner
+         hat z-index 9998, .modal-bg nur 200 — auf der Sammelseite verdeckt das
+         Banner die Titelzeile des Modals, und die Sichtpruefung "Titel liegt
+         unter dem 59px-Balken" waere nicht ablesbar. Es wird nichts an den
+         App-Regeln geaendert, nur display:none auf den Nachbarn. */
+      body.ps-nur-modal #invite-banner,
+      body.ps-nur-modal .toast-container,
+      body.ps-nur-modal .bulk-bar {
+        display: none;
+      }
+      /* Nur fuer die COMPUTED-STYLE-Messung: die uebrigen im Fix genannten
+         Elemente. Der Container ist display:none, damit sie das Bild nicht
+         zumuellen — getComputedStyle loest die calc()-Laengen trotzdem auf. */
+      .ps-extras {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ps-island">59px Dynamic Island</div>
+
+    <!-- (c) INVITE BANNER — main.css:404 #invite-banner, padding-top: calc(11px + var(--sat)) -->
+    <div id="invite-banner">
+      <span id="invite-banner-msg">Du wurdest zur Gruppe „Familie Sommer" eingeladen.</span>
+      <button id="invite-banner-btn">Beitreten</button>
+      <a id="invite-banner-dismiss">✕</a>
+    </div>
+
+    <!-- (a) TOAST — main.css:325 .toast-container, top: calc(16px + var(--sat)) -->
+    <div class="toast-container" id="toast-container">
+      <div class="toast toast-info">3 Fotos hochgeladen</div>
+    </div>
+
+    <!-- (b) UPLOAD MODAL — main.css:3369 .modal-bg (padding), main.css:3393 .modal (max-height).
+         Markup wortgleich aus index.html:699 uebernommen, Body gekuerzt aber lang genug,
+         dass die max-height greift. -->
+    <div class="modal-bg" id="up-modal">
+      <div class="modal">
+        <div class="modal-hdr">
+          <h3>Medien hochladen</h3>
+          <button class="modal-x">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="dz-wrap">
+            <div class="dz" id="dz">
+              <div class="dz-ico">📸</div>
+              <p class="dz-ttl">Fotos hier ablegen</p>
+              <p class="dz-sub">oder klicken · Fotos (JPG, PNG, WebP) &amp; Videos (MP4, MOV)</p>
+            </div>
+            <p style="font-size: 11px; color: var(--muted); margin: 6px 0 0; text-align: center">
+              Videos: max. 60 Sek. &middot; MP4 / MOV &middot; max. 200 MB
+            </p>
+          </div>
+          <div style="margin-top: 14px; font-size: 13px; color: var(--muted); line-height: 1.8">
+            Fuellzeile 1 — der Body muss hoch genug sein, damit die max-height greift.<br />
+            Fuellzeile 2<br />
+            Fuellzeile 3<br />
+            Fuellzeile 4<br />
+            Fuellzeile 5<br />
+            Fuellzeile 6<br />
+            Fuellzeile 7<br />
+            Fuellzeile 8<br />
+            Fuellzeile 9<br />
+            Fuellzeile 10<br />
+            Fuellzeile 11<br />
+            Fuellzeile 12<br />
+            Fuellzeile 13<br />
+            Fuellzeile 14<br />
+            Fuellzeile 15<br />
+            Fuellzeile 16<br />
+            Fuellzeile 17<br />
+            Fuellzeile 18<br />
+            Fuellzeile 19<br />
+            Fuellzeile 20
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- optional, weil billig: (d) BULK BAR — main.css:2571, bottom: calc(24px + var(--sab)) -->
+    <div class="bulk-bar" id="bulk-bar">
+      <span class="bulk-count">3 ausgewaehlt</span>
+      <button class="btn">Verschieben</button>
+      <button class="btn">Loeschen</button>
+    </div>
+
+    <!-- nicht sichtbar: nur fuer getComputedStyle (siehe .ps-extras) -->
+    <div class="ps-extras">
+      <div id="setup-banner"><span>Richte deine Gruppe ein.</span></div>
+      <div class="dlg-bg" id="ps-dlg-bg">
+        <div class="dlg"><h3>Wirklich loeschen?</h3></div>
+      </div>
+      <div id="notif-panel" class="notif-panel">
+        <div class="notif-panel-hdr"><span>Benachrichtigungen</span></div>
+      </div>
+      <div class="ss-bar" id="ps-ss-bar"><span>2 ausgewaehlt</span></div>
+      <div class="sb-footer" id="ps-sb-footer"><button class="btn">Abmelden</button></div>
+    </div>
+
+    <div class="ps-fill">
+      <p>
+        Pruefstand fuer die iOS-Safe-Area-Fixes. Ohne Injektion (Lauf A) sind alle vier
+        <code>--sa*</code>-Variablen 0px, die Elemente stehen also auf ihren Grundwerten. Mit
+        Injektion (Lauf B) rechnet jede <code>calc()</code>-Zeile die Insets dazu. Der rote Balken
+        oben (<code>?island=1</code>) zeigt nur, wo die Dynamic Island des iPhone 15 laege — er
+        setzt selbst keine Variablen.
+      </p>
+    </div>
+
+    <script>
+      if (new URLSearchParams(location.search).get('island') === '1') {
+        document.body.classList.add('ps-island-on');
+      }
+      if (new URLSearchParams(location.search).get('nur') === 'modal') {
+        document.body.classList.add('ps-nur-modal');
+      }
+    </script>
+  </body>
+</html>

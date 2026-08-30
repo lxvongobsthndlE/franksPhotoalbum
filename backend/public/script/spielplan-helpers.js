@@ -420,7 +420,28 @@ export function renderMatchCardCompact(m) {
  */
 export function renderMatchList(matches, isAdmin) {
   if (!Array.isArray(matches) || matches.length === 0) {
-    return '<p class="t-hint">Keine Spiele in dieser Auswahl.</p>';
+    // 2026-08-29 (User): „sieht nicht schoen aus. lieber eine schoenere
+    // Schrift und nicht so linksbuendig."
+    //
+    // Vorher stand hier ein nacktes <p class="t-hint"> — kursiver
+    // Fliesstext, linksbuendig an der Blattkante, in derselben Machart
+    // wie eine Fussnote. Es sah nicht nach „hier ist nichts" aus,
+    // sondern nach einem vergessenen Kommentar.
+    //
+    // Das Modul hat fuer diesen Fall laengst ein Muster: `.t-empty-state`
+    // (tournament.css, Turnierliste ohne Turnier — main.js:2818,
+    // tournament.js:1581). Es wird hier benutzt statt ein zweites
+    // erfunden; der Modifier `--filter` nimmt nur die Mindesthoehe
+    // zurueck, weil dieser Leerzustand INNERHALB einer gefuellten
+    // Ansicht steht und nicht die ganze Seite ist.
+    //
+    // Zweite Zeile in du-Form: der Grund ist hier fast immer der Filter,
+    // nicht der leere Spielplan — wer das nicht sagt, laesst den Nutzer
+    // ein Datenproblem vermuten, wo eine Auswahl steht.
+    return `<div class="t-empty-state t-empty-state--filter">
+      <p class="t-empty-state-text">Keine Spiele in dieser Auswahl</p>
+      <p class="t-empty-state-hint">In diesem Filter liegt gerade nichts. Wähle einen anderen Filter, dann siehst du wieder Spiele.</p>
+    </div>`;
   }
 
   // Markenuebernahme Etappe 5 (2026-08-26): der Spielplan ist keine
@@ -557,7 +578,21 @@ export function renderAsideTables(matches, limit = 6) {
  * Fix-Werte zu 56% + auto-Team 44% → ausreichend für „12:10" + „+12" + „18".
  * Siehe getStandingsColWidths()/getThirdsColWidths() + Compact-Mode-Switch.
  */
-const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+/* Pl. von 6% auf 8% (2026-08-29, im Browser gemessen).
+   Die 6% waren fuer eine breite Tabelle gerechnet und stimmen dort auch.
+   Zwischen dem Compact-Umschalter (.t-mod <= 600px) und etwa 670px
+   Modulbreite liefern sie aber zu wenig: gemessen bei .t-mod = 612px
+   ergaben 6% genau 37px, die Ueberschrift "Pl." braucht 40px. Die Zelle
+   traegt `overflow: visible` und `text-overflow: clip` — es gibt also
+   nicht einmal ein Auslassungszeichen, der Text laeuft schlicht in die
+   Team-Spalte. Bei 660px Ansichtsbreite (einem der Bruchpunkte des
+   Bestands) war das reproduzierbar.
+   8% ergeben bei 601px Modulbreite 48px und liegen damit auch am
+   unteren Rand des Bandes ueber dem Bedarf. Die 2 Punkte kommen aus der
+   Team-Spalte, weil die `auto` ist — die uebrigen Festwerte bleiben
+   unberuehrt, und damit auch die Zuordnung Spalte->Breite, an der die
+   Liste schon einmal zerbrochen ist. */
+const STANDINGS_COL_WIDTHS = ['8%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 /* User-Punkt 2 (2026-08-25) Folge 2: Pl-Spalte von 8% auf 14%.
    8% = ~24 px bei 374 px Tabellenbreite → "1." passte mit Cell-Padding
    nicht, Header und Body wurden zu "P…" / "1…" getruncated.
@@ -576,7 +611,14 @@ const STANDINGS_COL_WIDTHS = ['6%', 'auto', '8%', '7%', '7%', '7%', '12%', '9%',
    und hier nicht, verschiebt alle folgenden Breiten um eins — genau so
    ist die Zuordnung schon einmal zerbrochen. */
 const STANDINGS_COL_WIDTHS_MOBILE = ['14%', '42%', '14%', '15%', '15%'];
-const THIRDS_COL_WIDTHS = ['6%', 'auto', '8%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
+/* Dieselbe Rechnung wie oben fuer Pl. (6% -> 8%), dazu die
+   Gruppen-Spalte von 8% auf 10%: die Ueberschrift "Gruppe" braucht
+   gemessen 53px, 8% lieferten bei 612px Modulbreite 49px. Diese Zelle
+   hat ein Auslassungszeichen, sie klippte also nicht in die Nachbarin,
+   zeigte aber "Grupp…" — ein abgekuerztes Wort, das nichts spart. Der
+   Kurzname "Gr." greift erst im Compact-Modus, also unterhalb dieses
+   Bandes. Beide Zugaben kommen aus der auto-Spalte. */
+const THIRDS_COL_WIDTHS = ['8%', 'auto', '10%', '8%', '7%', '7%', '7%', '12%', '9%', '9%'];
 /* Beste-Dritte-Mobile — korrigiert 2026-08-25.
  *
  * WAS FALSCH WAR: die Liste hatte SIEBEN Eintraege
@@ -986,15 +1028,39 @@ function renderStandingsFoot(g, advance) {
  * andere Sportart". Die Sortierung der Drittplatzierten BERUHTE weiter
  * auf den pro-Spiel-normalisierten Werten (Spec §10.4 verlangt das),
  * aber die ANZEIGE folgt jetzt der normalen Gruppentabelle: Pl. · Team
- * · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. — plus ein Haken
- * bei den qualifizierten Top-N.
+ * · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt. — plus eine
+ * Markierung bei den qualifizierten Top-N (seit 2026-08-29 das Rangband
+ * statt eines Hakens, siehe unten).
  *
  * P6 (2026-08-24, User-Liste): Hinweis ist IMMER sichtbar
  * („Gewertet wird nach Punkten pro Spiel."). Vorher conditional bei
  * mixedGroupSizes — User fand das verwirrend.
  *
- * Top-N aus config.bestThirds bekommen `is-qualified` (grüner Hin-
- * tergrund + Haken). Der Rest bekommt `is-out`.
+ * Top-N aus config.bestThirds bekommen `is-qualified`, der Rest
+ * `is-out`.
+ *
+ * 2026-08-29 (User): „Beste dritte tabelle ist zu weit links, soll auf
+ * gleicher Höhe sein wie Gruppen und die Tabelle soll auch gleich
+ * aussehen und nicht mit dem Häkchen."
+ *
+ * Gemessen im Prüfstand (Edge, ?view=gruppen), vorher:
+ *   „Gruppe A"      x = 444   (steht in .t-standings-head, Polster --s5)
+ *   „Beste Dritte"  x = 424   (hing nackt im .t-card-body, Polster 0)
+ * Beide Karten liegen im selben Mount (main.js:4074/:4159) und tragen
+ * dasselbe negative margin-inline; die Tabellenzellen fluchteten längst,
+ * die Überschrift nicht. Also bekommt diese Karte denselben Kopf-
+ * Baukasten wie eine Gruppenkarte, statt eine zweite Machart zu pflegen:
+ *
+ *   .t-standings-head   Titel links, Mono-Notiz rechts
+ *   .t-thirds-table     Zeilen mit Rangband wie .t-standings-table
+ *   .t-standings-foot   Fußzeile mit der Wertungsregel
+ *
+ * Die Aussage „diese steigen auf" bleibt vollständig erhalten, sie
+ * wechselt nur das Zeichen: statt eines grünen Hakens hinter der
+ * Platzziffer trägt die Zeile jetzt dasselbe 3-px-Band links, mit dem
+ * die Gruppentabellen dieselbe Sache sagen (CSS-Block „QUALIFIKATION").
+ * Der Haken war die einzige Stelle im Modul, an der diese Aussage anders
+ * aussah — und ein Symbol, das ausser hier nirgends vorkommt.
  *
  * @param {{qualifyCount:number,rows:Array}|null} bestThirds
  * @returns {string} HTML
@@ -1005,10 +1071,6 @@ export function renderBestThirdsTable(bestThirds) {
   }
   const { qualifyCount, rows } = bestThirds;
   const fmtDiff = (n) => (n > 0 ? `+${n}` : `${n}`);
-
-  // P6 (2026-08-24): Hinweis wurde vorher conditional eingeblendet
-  // (mixedGroupSizes). User-Forderung: unconditional. mixedGroupSizes
-  // wird nicht mehr berechnet.
 
   const body = rows
     .map((r, i) => {
@@ -1031,16 +1093,31 @@ export function renderBestThirdsTable(bestThirds) {
     })
     .join('');
 
+  // Die Legende zum Rangband steht neben dem Titel, dort wo die Gruppen-
+  // karte ihren Spielstand fuehrt (.t-standings-sub). Sie erklaert die
+  // gruenen Baender darunter — deshalb traegt sie denselben Strich
+  // (.t-foot-mark), den die Gruppenkarte in der Fusszeile fuehrt.
+  // Das ist die Aussage, die vorher der Haken machte.
+  const legende = `<span class="t-standings-sub"><span class="t-foot-mark" aria-hidden="true"></span>Top ${qualifyCount} qualifizieren sich</span>`;
+
   // P6 (2026-08-24, User-Liste): Hinweis IMMER anzeigen, nicht nur bei
   // mixedGroupSizes. Vorher tauchte der Hinweis nur bei unterschiedlich
-  // großen Gruppen auf — der User fand das verwirrend. Jetzt konstanter
-  // Einzeiler, der die Normierung generell erklärt.
-  const hint = `<p class="t-hint t-hint--compact">Gewertet wird nach Punkten pro Spiel.</p>`;
+  // großen Gruppen auf — der User fand das verwirrend.
+  //
+  // 2026-08-29: der Satz steht jetzt in der Fusszeile statt als
+  // `.t-hint--compact` mit Info-Kringel ueber der Tabelle. Zwei Gruende:
+  // die Gruppenkarte fuehrt ihre Regel ebenfalls unten (renderStandingsFoot),
+  // und der Kringel war das zweite Sonderzeichen, das es nur in dieser
+  // einen Karte gab. KEIN .t-foot-mark davor — der Strich ist die Legende
+  // des Bandes und wuerde hier eine Farbe erklaeren, um die es nicht geht.
+  const fussnote = `<div class="t-standings-foot t-thirds-foot"><span>Gewertet wird nach Punkten pro Spiel.</span></div>`;
 
   return `<div class="t-card t-thirds-card">
     <div class="t-card-body">
-      <h3 class="t-thirds-title">Beste Dritte <span class="t-thirds-meta-inline">(Top ${qualifyCount} qualifizieren sich)</span></h3>
-      ${hint}
+      <div class="t-standings-head">
+        <h3 class="t-thirds-title">Beste Dritte</h3>
+        ${legende}
+      </div>
       <table class="t-thirds-table">
         ${renderColgroup(getThirdsColWidths())}
         <thead>
@@ -1059,6 +1136,7 @@ export function renderBestThirdsTable(bestThirds) {
         </thead>
         <tbody>${body}</tbody>
       </table>
+      ${fussnote}
     </div>
   </div>`;
 }
@@ -1450,9 +1528,15 @@ function renderStatusKarte({ t, status, isStarted, isFinished, matches, fields }
  * Ohne Logo rueckt der Name an den Rand — dieselbe Regel wie am Schirm,
  * kein Platzhalter. Auf Papier faellt eine reservierte Leerstelle noch
  * staerker auf als am Bildschirm.
+ *
+ * `t` IST das Turnier-DTO (name/logoUrl/startsAt/location liegen
+ * top-level, siehe openTournamentInstance). Hier stand bis zum 30.08.
+ * `t?.tournament ?? {}` — ein Feld, das es im echten Aufruf nie gab.
+ * Folge: jeder Bogen hiess „Turnier" und trug NIE ein Logo, und die
+ * Tests blieben gruen, weil ihr Fixture dieselbe falsche Form baute.
  */
 function druckKopf(bogen, t, rechts) {
-  const tour = t?.tournament ?? {};
+  const tour = t ?? {};
   const logoUrl = typeof tour.logoUrl === 'string' && tour.logoUrl ? tour.logoUrl : null;
   const logoHtml = logoUrl
     ? `<img class="t-bogen-logo" src="${esc(logoUrl)}" alt="" aria-hidden="true">`
@@ -1475,8 +1559,25 @@ function druckFuss(t, seite, vonSeiten) {
   const tag = new Date().toLocaleDateString('de-DE');
   return `<div class="t-bogen-fuss">
     <span>Stand ${esc(tag)} ${esc(jetzt)} · Seite ${seite} von ${vonSeiten}</span>
-    <span>${esc(t?.tournament?.name || '')}</span>
+    <span>${esc(t?.name || '')}</span>
   </div>`;
+}
+
+/**
+ * Ein Team-Slot auf einem Bogen: fest oder noch unbesetzt?
+ *
+ * Die Boegen werden VOR dem Turnier gedruckt und mit dem Kuli gefuellt.
+ * Ein unbesetzter Slot ist alles, was zu diesem Zeitpunkt keinen echten
+ * Teamnamen traegt: `kind === 'placeholder'` (K.-o.-Slots wie
+ * "Sieger HF1"), `null` (Slot ohne Team und ohne Platzhalter) und der
+ * '—'-Fallback aus buildSlot. Der `hinweis` ist der sprechende
+ * Platzhaltername — er sagt, WER auf die Schreiblinie gehoert, und
+ * bleibt deshalb klein erhalten statt zu verschwinden.
+ */
+function druckSlotInfo(slot) {
+  const name = typeof slot?.name === 'string' && slot.name !== '—' ? slot.name.trim() : '';
+  const unbesetzt = !slot || slot.kind === 'placeholder' || !name;
+  return { unbesetzt, name: unbesetzt ? '' : name, hinweis: unbesetzt ? name : '' };
 }
 
 /**
@@ -1506,14 +1607,24 @@ function renderDruckSpielplan(t) {
     .map((b) => {
       const zeilen = b.spiele
         .map((m) => {
-          const heim = m?.home?.name || '—';
-          const gast = m?.away?.name || '—';
+          // Unbesetzte Teams drucken eine Schreiblinie statt eines
+          // Gedankenstrichs — auf "—" kann niemand einen Sieger schreiben.
+          const teamZelle = (slot) => {
+            const s = druckSlotInfo(slot);
+            if (!s.unbesetzt) return esc(s.name);
+            // Der Hinweis-Span steht auch leer da (&nbsp;), damit die
+            // Linie eines Slots OHNE Platzhaltertext auf derselben
+            // Hoehe liegt wie die des Partners mit Text.
+            return `<span class="t-bogen-schreib"><i class="lin"></i><span class="ph">${
+              s.hinweis ? esc(s.hinweis) : '&nbsp;'
+            }</span></span>`;
+          };
           const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
           const ergebnis = hat ? `${m.scoreHome} : ${m.scoreAway}` : '___ : ___';
           return `<tr>
         <td class="l">${esc(m?.scheduledTime || '–')}</td>
         <td class="l">${m?.field != null ? esc(String(m.field)) : '–'}</td>
-        <td class="l nm">${esc(heim)} — ${esc(gast)}</td>
+        <td class="l nm">${teamZelle(m?.home)} — ${teamZelle(m?.away)}</td>
         <td class="l">${esc(m?.label || '')}</td>
         <td class="r${hat ? '' : ' offen'}">${esc(ergebnis)}</td>
       </tr>`;
@@ -1527,7 +1638,7 @@ function renderDruckSpielplan(t) {
     })
     .join('');
 
-  const tour = t?.tournament ?? {};
+  const tour = t ?? {};
   const rechts = [
     tour.startsAt ? new Date(tour.startsAt).toLocaleDateString('de-DE') : '',
     tour.location || '',
@@ -1624,8 +1735,14 @@ function renderDruckBaum(t) {
   const { winnerBracket } = groupMatchesByRound(spiele);
   if (!winnerBracket.length) return '';
 
+  // KH war 34 — zu flach zum Handschreiben: bei drei Runden kommt eine
+  // 17er-Halbzeile als ~5,4 mm aufs Blatt, unter dem ~6-mm-Minimum fuer
+  // Kulischrift. Mit KH=56 traegt jede Halbzeile eine Schreiblinie mit
+  // ~6 mm Schreibraum (drei Runden) bis ~8 mm (zwei Runden); erst ab
+  // vier Runden wird es prinzipbedingt enger (16 Zeilen auf A4 quer).
+  // Die restliche Geometrie rechnet komplett aus KH/ABST mit.
   const KB = 190,
-    KH = 34,
+    KH = 56,
     SPALTE = 232,
     RAND_X = 8,
     RAND_Y = 26;
@@ -1647,19 +1764,39 @@ function renderDruckBaum(t) {
       const cy = mittey(ri, mi);
       const y = cy - KH / 2;
       const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
-      const heim = m?.home?.name || '—';
-      const gast = m?.away?.name || '—';
-      const hs = hat ? String(m.scoreHome) : '___';
-      const as = hat ? String(m.scoreAway) : '___';
       const heimSieger = hat && m.scoreHome > m.scoreAway;
       const offen = !hat;
+      // Basislinien der beiden Halbzeilen (obere/untere Haelfte des
+      // Kastens). Feste Namen stehen ALS TEXT auf der Basislinie;
+      // unbesetzte Slots drucken dort eine SCHREIBLINIE, und der
+      // sprechende Platzhalter ("Sieger HF1") rueckt klein darunter —
+      // er sagt, wer auf die Linie gehoert.
+      const basisHeim = cy - 10;
+      const basisGast = cy + 18;
+      const teamZeile = (slot, basis, klasse) => {
+        const s = druckSlotInfo(slot);
+        if (!s.unbesetzt) {
+          return `<text x="${x + 7}" y="${basis}" class="${klasse}">${esc(s.name)}</text>`;
+        }
+        const linie = `<line x1="${x + 7}" y1="${basis}" x2="${x + KB - 40}" y2="${basis}" class="wl"/>`;
+        const hinweis = s.hinweis
+          ? `<text x="${x + 7}" y="${basis + 7}" class="ph">${esc(s.hinweis)}</text>`
+          : '';
+        return linie + hinweis;
+      };
+      // Offene Partien: Schreiblinie statt "___"-Text — konsistent mit
+      // den Team-Schreiblinien, und breit genug fuer zwei Ziffern.
+      const scoreZeile = (wert, basis) =>
+        hat
+          ? `<text x="${x + KB - 7}" y="${basis}" text-anchor="end" class="sc">${esc(String(wert))}</text>`
+          : `<line x1="${x + KB - 32}" y1="${basis}" x2="${x + KB - 7}" y2="${basis}" class="wl"/>`;
       teile.push(`<g>
         <rect x="${x}" y="${y}" width="${KB}" height="${KH}" rx="2" class="${offen ? 'bxo' : 'bx'}"/>
         <line x1="${x}" y1="${cy}" x2="${x + KB}" y2="${cy}" class="cn"/>
-        <text x="${x + 7}" y="${cy - 4}" class="${heimSieger || offen ? 'tn' : 'tp'}">${esc(heim)}</text>
-        <text x="${x + KB - 7}" y="${cy - 4}" text-anchor="end" class="sc">${esc(hs)}</text>
-        <text x="${x + 7}" y="${cy + 13}" class="${!heimSieger || offen ? 'tn' : 'tp'}">${esc(gast)}</text>
-        <text x="${x + KB - 7}" y="${cy + 13}" text-anchor="end" class="sc">${esc(as)}</text>
+        ${teamZeile(m?.home, basisHeim, heimSieger || offen ? 'tn' : 'tp')}
+        ${scoreZeile(m?.scoreHome, basisHeim)}
+        ${teamZeile(m?.away, basisGast, !heimSieger || offen ? 'tn' : 'tp')}
+        ${scoreZeile(m?.scoreAway, basisGast)}
       </g>`);
       // Verbinder zur naechsten Runde
       if (ri < winnerBracket.length - 1) {
@@ -1679,9 +1816,9 @@ function renderDruckBaum(t) {
   teile.push(
     `<rect x="${letzteX + KB + 34}" y="${titelY - KH / 2}" width="130" height="${KH}" rx="2" class="flare" fill="none"/>`
   );
-  teile.push(`<text x="${letzteX + KB + 42}" y="${titelY - 4}" class="rl flare-t">SIEGER</text>`);
+  teile.push(`<text x="${letzteX + KB + 42}" y="${titelY - 8}" class="rl flare-t">SIEGER</text>`);
   teile.push(
-    `<line x1="${letzteX + KB + 42}" y1="${titelY + 10}" x2="${letzteX + KB + 156}" y2="${titelY + 10}" class="flare"/>`
+    `<line x1="${letzteX + KB + 42}" y1="${titelY + 16}" x2="${letzteX + KB + 156}" y2="${titelY + 16}" class="flare"/>`
   );
 
   return `<article class="t-bogen t-bogen--quer">
@@ -2196,8 +2333,19 @@ export function renderEinstellungen(t, opts = {}) {
             sub: 'Setzt jeden Spielstand zurück. Der Spielplan bleibt.',
             action: 'reset-results',
             art: 'danger',
-            disabled: !isFinished,
-            titel: isFinished ? '' : 'Erst möglich, wenn das Turnier abgeschlossen ist.',
+            // GATE KORRIGIERT 2026-08-29: hier stand `!isFinished` — der Knopf
+            // war also genau so lange gesperrt, wie man ihn braucht. Wer beim
+            // Testlauf ein Ergebnis einträgt und es zurücknehmen will, stand vor
+            // einem ausgegrauten Knopf und hätte das Turnier abschließen müssen,
+            // nur um es zurückzusetzen. Die Route kennt diese Bedingung gar nicht:
+            // sie lehnt allein ab, wenn es NICHTS zurückzusetzen gibt
+            // (400 no_results_to_reset), und verlangt den Turniernamen als
+            // Bestätigung. Das Frontend spiegelt jetzt dieselbe Wahrheit.
+            disabled: finishedCount === 0,
+            titel:
+              finishedCount > 0
+                ? ''
+                : 'Erst möglich, wenn mindestens ein Ergebnis eingetragen ist.',
           }),
           lrow({
             label: 'Turnier löschen',

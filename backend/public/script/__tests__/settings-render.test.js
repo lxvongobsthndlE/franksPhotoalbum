@@ -99,6 +99,37 @@ describe('renderEinstellungen', () => {
     expect(html).toContain('Turnier löschen');
   });
 
+  // Reset-Gate (2026-08-29, Jonas): „ich wollte ein turnier testen und habe ein
+  // ergebnis eingetragen, kann es aber nicht mehr rückgängig machen.“
+  //
+  // Der Knopf hängte an `!isFinished` — also war er genau so lange
+  // gesperrt, wie man ihn braucht. Maßgeblich ist, was die Route kann:
+  // sie lehnt nur ab, wenn es NICHTS zurückzusetzen gibt. Diese beiden
+  // Fälle halten das fest — einer allein würde grün bleiben, wenn das
+  // Gate später wieder auf den Turnierstatus umgehängt wird.
+  const resetBtn = (html) => html.match(/<button[^>]*data-action="reset-results"[^>]*>/)?.[0] ?? '';
+
+  it('Ergebnisse-Reset ist gesperrt, solange es nichts zurückzusetzen gibt', () => {
+    const html = renderEinstellungen(tDraft, { isAdmin: true, finishedCount: 0 });
+    expect(resetBtn(html)).toContain(' disabled');
+    expect(html).toContain('mindestens ein Ergebnis eingetragen');
+  });
+
+  it('Ergebnisse-Reset ist im LAUFENDEN Turnier bedienbar, nicht erst nach Abschluss', () => {
+    const tLaeuft = {
+      ...tDraft,
+      tournament: {
+        ...tDraft.tournament,
+        status: 'running',
+        startedAt: '2026-08-29T09:00:00.000Z',
+      },
+    };
+    const html = renderEinstellungen(tLaeuft, { isAdmin: true, finishedCount: 1 });
+    const btn = resetBtn(html);
+    expect(btn, 'Knopf fehlt ganz').not.toBe('');
+    expect(btn).not.toContain(' disabled');
+  });
+
   it('Member: keine Gefahrenzone, kein Speichern, kein Drag', () => {
     const html = renderEinstellungen(tDraft, { isAdmin: false, finishedCount: 0 });
     // ANKER GEWECHSELT 2026-08-26: hier stand `not.toContain('t-danger-zone')`.

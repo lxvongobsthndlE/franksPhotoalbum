@@ -39,13 +39,19 @@ const ko = (o) => ({
   bracketPos: o.pos,
 });
 
+/* Das Fixture traegt die Turnierfelder TOP-LEVEL — so liefert
+   openTournamentInstance sie wirklich (id/name/logoUrl/startsAt/...).
+   Bis zum 30.08. baute es stattdessen `{ tournament: {...} }`, eine
+   Form, die es im echten Aufruf nie gab: druckKopf las genau dieses
+   Geisterfeld, jeder Bogen hiess „Turnier" und trug nie ein Logo —
+   und die Tests blieben gruen, weil Fixture und Bug dieselbe falsche
+   Annahme teilten. Ein Fixture ist eine Behauptung ueber den Aufrufer. */
 const turnier = (extra = {}) => ({
-  tournament: {
-    id: 't1',
-    name: 'Frühjahrsturnier',
-    startsAt: '2026-04-18T10:00:00.000Z',
-    location: 'Halle 2',
-  },
+  id: 't1',
+  name: 'Frühjahrsturnier',
+  logoUrl: '/api/tournaments/t1/logo',
+  startsAt: '2026-04-18T10:00:00.000Z',
+  location: 'Halle 2',
   groups: [
     {
       groupKey: 'A',
@@ -145,9 +151,25 @@ describe('renderDruckboegen', () => {
   });
 
   it('ohne alles bleibt ein ehrlicher Hinweis statt eines leeren Blattes', () => {
-    const html = renderDruckboegen({ tournament: { name: 'X' }, groups: [], matches: [] }, 2);
+    const html = renderDruckboegen({ name: 'X', groups: [], matches: [] }, 2);
     expect(html).toContain('Noch nichts zu drucken');
     expect(html).not.toContain('t-bogen');
+  });
+
+  it('der Kopf trägt Turniernamen, Datum und Ort — nicht den Fallback „Turnier“', () => {
+    const html = renderDruckboegen(turnier(), 2);
+    expect(html).toContain('Frühjahrsturnier');
+    expect(html).not.toContain('>Turnier</h3>');
+    expect(html).toContain('Halle 2');
+    expect(html).toContain('18.4.2026');
+  });
+
+  it('das Turnierlogo steht im Kopf — und ohne logoUrl kein Platzhalter', () => {
+    const mit = renderDruckboegen(turnier(), 2);
+    expect(mit).toContain('class="t-bogen-logo"');
+    expect(mit).toContain('src="/api/tournaments/t1/logo"');
+    const ohne = renderDruckboegen(turnier({ logoUrl: null }), 2);
+    expect(ohne).not.toContain('t-bogen-logo');
   });
 
   it('verliert keine Partie beim Gruppieren nach Uhrzeit', () => {
@@ -241,5 +263,104 @@ describe('renderDruckboegen', () => {
       ko({ id: 'f1', runde: 'F', label: 'Finale', pos: 1, h: 'Sieger HF1', a: 'Sieger HF2' })
     );
     expect(renderDruckboegen(t, 2)).toContain('Sieger HF1');
+  });
+});
+
+/* Die Boegen werden VOR dem Turnier gedruckt und mit dem Kuli gefuellt.
+   Ein unbesetzter Slot (kind 'placeholder', so baut ihn buildSlot in
+   access/match.js wirklich — oder null bei Slot ohne alles) muss deshalb
+   eine SCHREIBLINIE drucken, nicht nur Text: auf "Sieger HF1" oder "—"
+   kann niemand einen Sieger schreiben. Der sprechende Platzhalter bleibt
+   klein erhalten — er sagt, wer auf die Linie gehoert. */
+describe('renderDruckboegen — handbeschriftbar vor dem Turnier', () => {
+  const phSlot = (name) => ({
+    kind: 'placeholder',
+    teamId: null,
+    name,
+    color: null,
+    logoUrl: null,
+  });
+
+  const mitFinale = (home, away) => {
+    const t = turnier();
+    const f = ko({ id: 'f1', runde: 'F', label: 'Finale', pos: 1, zeit: '17:00', platte: 1 });
+    f.home = home;
+    f.away = away;
+    t.matches.push(f);
+    return t;
+  };
+
+  it('unbesetzte Teamzeilen im Baum tragen eine Schreiblinie, der Platzhalter bleibt klein', () => {
+    const html = renderDruckboegen(mitFinale(phSlot('Sieger HF1'), phSlot('Sieger HF2')), 2);
+    const baum = html.slice(html.indexOf('<svg'));
+    expect(baum).toContain('class="wl"');
+    expect(baum).toContain('class="ph">Sieger HF1</text>');
+    expect(baum).toContain('class="ph">Sieger HF2</text>');
+    // kein Platzhalter mehr in Namensgroesse
+    expect(baum).not.toMatch(/class="t[np]">Sieger HF/);
+  });
+
+  it('ein leerer Slot (null) bekommt die Linie ohne Hinweistext', () => {
+    const html = renderDruckboegen(mitFinale(null, phSlot('Sieger HF2')), 2);
+    const baum = html.slice(html.indexOf('<svg'));
+    const kasten = baum.match(/<g>[\s\S]*?<\/g>/)[0];
+    // beide Halbzeilen + beide Score-Felder als Linie = 4 Schreiblinien
+    expect((kasten.match(/class="wl"/g) || []).length).toBe(4);
+    expect((kasten.match(/class="ph"/g) || []).length).toBe(1);
+  });
+
+  it('offene Partien im Baum drucken Score-Schreiblinien statt "___"-Text', () => {
+    const t = turnier();
+    t.matches.push(ko({ id: 'h1', runde: 'SF', label: 'Halbfinale', pos: 1, h: 'A', a: 'B' }));
+    const html = renderDruckboegen(t, 2);
+    const baum = html.slice(html.indexOf('<svg'));
+    expect(baum).not.toContain('___');
+    expect((baum.match(/class="wl"/g) || []).length).toBe(2);
+    // die festen Teamnamen bleiben normale Textzeilen
+    expect(baum).toContain('class="tn">A</text>');
+    expect(baum).toContain('class="tn">B</text>');
+  });
+
+  it('gespielte Partien im Baum drucken weiter Zahlen, keine Linien', () => {
+    const t = turnier();
+    t.matches.push(
+      ko({
+        id: 'h1',
+        runde: 'SF',
+        label: 'Halbfinale',
+        pos: 1,
+        fin: true,
+        h: 'A',
+        a: 'B',
+        hs: 3,
+        as: 1,
+      })
+    );
+    const html = renderDruckboegen(t, 2);
+    const baum = html.slice(html.indexOf('<svg'));
+    expect(baum).toContain('class="sc">3</text>');
+    expect(baum).toContain('class="sc">1</text>');
+    expect(baum).not.toContain('class="wl"');
+  });
+
+  it('im Spielplan bekommt ein unbesetztes Team eine Schreiblinie samt Platzhaltertext', () => {
+    const html = renderDruckboegen(mitFinale(phSlot('Sieger HF1'), phSlot('Sieger HF2')), 2);
+    const spielplan = html.slice(0, html.indexOf('Gruppentabellen'));
+    expect(spielplan).toContain('t-bogen-schreib');
+    expect(spielplan).toContain('class="ph">Sieger HF1</span>');
+    // der Gedankenstrich-Fallback ist fuer unbesetzte Teams raus
+    expect(spielplan).not.toContain('— — —');
+  });
+
+  it('jede offene Spielplan-Zeile traegt "___ : ___" — mit und ohne Uhrzeit', () => {
+    const t = turnier();
+    t.matches = [
+      spiel({ id: 'o1', zeit: '14:00', platte: 1, gruppe: 'Gruppe A', h: 'A', a: 'B' }),
+      spiel({ id: 'o2', platte: 1, gruppe: 'Gruppe A', h: 'C', a: 'D' }),
+    ];
+    const html = renderDruckboegen(t, 2);
+    const spielplan = html.slice(0, html.indexOf('Gruppentabellen'));
+    expect((spielplan.match(/___ : ___/g) || []).length).toBe(2);
+    expect(spielplan).toContain('Ohne Termin');
   });
 });

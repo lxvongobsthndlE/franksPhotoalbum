@@ -13,6 +13,7 @@
  * liegenden Gruppen unterschiedlich groß sind.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, afterEach } from 'vitest';
 import { renderBestThirdsTable, setCompactMode } from '../spielplan-helpers.js';
 
@@ -97,9 +98,14 @@ describe('renderBestThirdsTable', () => {
     const cols = html.match(/<col style="width:[^"]+">/g) || [];
     // 10 Spalten: Pl. · Team · Gruppe · Sp. · S · U · N · Becher · Diff · Pkt.
     expect(cols.length).toBe(10);
-    expect(cols[0]).toMatch(/width:6%/);
+    // 6% -> 8% und Gruppe 8% -> 10% (2026-08-29). Zwischen dem
+    // Compact-Umschalter (600px) und etwa 670px Modulbreite lieferten die
+    // alten Werte zu wenig: gemessen bei .t-mod = 612px ergaben 6% genau
+    // 37px fuer eine Ueberschrift "Pl.", die 40px braucht, und 8% ergaben
+    // 49px fuer "Gruppe", das 53px braucht.
+    expect(cols[0]).toMatch(/width:8%/);
     expect(cols[1]).toMatch(/width:auto/);
-    expect(cols[2]).toMatch(/width:8%/); // Gruppe
+    expect(cols[2]).toMatch(/width:10%/); // Gruppe
   });
 
   it('zeigt absolute Werte (Pkt, Sp, S, U, N, Becher), NICHT pro-Spiel-normalisiert', () => {
@@ -135,10 +141,11 @@ describe('renderBestThirdsTable', () => {
     expect(qualifiedMatches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('zeigt Haken für qualifizierte Reihen (Bug 14: Haken in der Rank-Zelle, nicht eigener Spalte)', () => {
+  it('markiert qualifizierte Reihen per Klasse an der Zeile (kein eigenes Mark-<td>)', () => {
     const html = renderBestThirdsTable(sample);
-    // Genau 2 Reihen bekommen die is-qualified-Klasse — der Haken
-    // wird per ::after an die Rank-Zelle gehängt, nicht als <td>.
+    // Genau 2 Reihen bekommen die is-qualified-Klasse. Die Markierung
+    // haengt an der ZEILE, nicht an einer eigenen Spalte (Bug 14) und
+    // nicht mehr an einem Haken-Pseudoelement (2026-08-29, siehe unten).
     const qualifiedRows = html.match(/<tr class="t-thirds-row is-qualified">/g) || [];
     expect(qualifiedRows.length).toBe(2);
     const outRows = html.match(/<tr class="t-thirds-row is-out">/g) || [];
@@ -410,5 +417,128 @@ describe('renderBestThirdsTable — Colgroup-Spaltenzahl', () => {
     // die Regex nichts findet, nicht stillschweigend 0 === 0 bestaetigen.
     expect(visible).toHaveLength(5);
     expect(cols).toHaveLength(visible.length);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ANGLEICHUNG AN DIE GRUPPENTABELLE — 2026-08-29
+//
+// User: „Beste dritte tabelle ist zu weit links, soll auf gleicher Höhe
+// sein wie Gruppen und die Tabelle soll auch gleich aussehen und nicht
+// mit dem Häkchen."
+//
+// Drei Forderungen, drei Prüfungen. Zwei davon sind Markup-Tests, die
+// dritte MUSS ein Quelltext-Scan über das Stylesheet sein: der Haken war
+// nie im HTML, er stand als `content: ' ✓'` in einem ::after in main.css
+// (Zeile ~5941). Ein Renderer-Test kann ihn deshalb weder sehen noch
+// beweisen, dass er weg ist — er würde grün bleiben, während der Haken
+// weiter auf dem Schirm steht. Genau diese Sorte grüner Test hat in
+// diesem Modul schon zweimal einen Befund verdeckt.
+// ─────────────────────────────────────────────────────────────────
+
+describe('renderBestThirdsTable — Machart wie eine Gruppenkarte (2026-08-29)', () => {
+  const sample = {
+    qualifyCount: 2,
+    rows: [
+      {
+        teamId: 'A3',
+        name: 'Alpha',
+        groupKey: 'A',
+        played: 3,
+        won: 2,
+        drawn: 1,
+        lost: 0,
+        goalsFor: 10,
+        goalsAgainst: 4,
+        goalDiff: 6,
+        points: 7,
+        qualifies: true,
+      },
+      {
+        teamId: 'B3',
+        name: 'Bravo',
+        groupKey: 'B',
+        played: 3,
+        won: 1,
+        drawn: 1,
+        lost: 1,
+        goalsFor: 5,
+        goalsAgainst: 5,
+        goalDiff: 0,
+        points: 4,
+        qualifies: false,
+      },
+    ],
+  };
+
+  it('Titel steht in .t-standings-head — dieselbe Kopfzeile wie die Gruppenkarte', () => {
+    // DIE URSACHE DES VERSATZES, als Test festgehalten:
+    // Der Gruppentitel sitzt in `.t-standings-head`, und dieser Kopf trägt
+    // `padding: var(--s5) …` (tournament.css, Block „Tabelle ohne Huelle").
+    // „Beste Dritte" hing dagegen nackt im `.t-card-body`, dessen Polster
+    // auf 0 steht — gemessen im Prüfstand: Gruppentitel x = 444,
+    // „Beste Dritte" x = 424, auf 375px x = 34 gegen x = 14.
+    // Die Tabellenzellen fluchteten längst (Polster auf der ersten Spalte),
+    // nur die Überschrift nicht. Wer den Kopf hier wieder entfernt, holt
+    // die 20px zurück.
+    const html = renderBestThirdsTable(sample);
+    expect(html).toMatch(
+      /<div class="t-standings-head">\s*<h3 class="t-thirds-title">Beste Dritte<\/h3>/
+    );
+    // Die Legende steht daneben, dort wo die Gruppenkarte ihren Spielstand
+    // führt — mit demselben Strich-Element, das die Gruppen-Fusszeile nutzt.
+    expect(html).toMatch(
+      /<span class="t-standings-sub"><span class="t-foot-mark" aria-hidden="true"><\/span>Top 2 qualifizieren sich<\/span>/
+    );
+  });
+
+  it('Fusszeile ist eine .t-standings-foot, kein Sonderelement', () => {
+    const html = renderBestThirdsTable(sample);
+    expect(html).toContain('<div class="t-standings-foot t-thirds-foot">');
+    // Kein .t-foot-mark in der Fusszeile: der Strich ist die Legende des
+    // Rangbandes und steht oben. Unten würde er eine Farbe erklären, um
+    // die es in dem Satz gar nicht geht.
+    const foot = html.match(/<div class="t-standings-foot t-thirds-foot">[\s\S]*?<\/div>/)[0];
+    expect(foot).not.toContain('t-foot-mark');
+    expect(foot).toContain('Gewertet wird nach Punkten pro Spiel.');
+  });
+
+  it('Der Haken ist im Stylesheet abgeschaltet — und die Aussage bleibt', () => {
+    const cssPfad = new URL('../../style/tournament.css', import.meta.url);
+    const css = readFileSync(cssPfad, 'utf8');
+
+    // 1. Der Haken ist neutralisiert. Der Selektor MUSS spezifischer sein
+    //    als der in main.css (`.t-thirds-row.is-qualified .t-thirds-rank::after`,
+    //    (0,0,3,0)) — sonst hängt die Abschaltung allein an der
+    //    Ladereihenfolge der beiden Stylesheets, und genau daran ist in
+    //    diesem Modul schon mehrfach still etwas gestorben.
+    expect(css).toMatch(
+      /\.t-thirds-table \.t-thirds-row\.is-qualified \.t-thirds-rank::after \{\s*content: none;/
+    );
+
+    // 2. Die Aussage „diese steigen auf" bleibt sichtbar — als dasselbe
+    //    3-px-Band, mit dem die Gruppentabelle sie macht. Ohne diese Regel
+    //    wäre der Haken nur gelöscht und die Fachaussage mit ihm.
+    expect(css).toMatch(
+      /\.t-thirds-row\.is-qualified \.t-thirds-rank::before \{[\s\S]{0,220}background: var\(--qual\);/
+    );
+    // Und die Fläche kommt aus demselben Token wie bei den Gruppen, nicht
+    // mehr aus dem hartcodierten rgba(46, 125, 50, .06) in main.css.
+    expect(css).toMatch(/\.t-thirds-row\.is-qualified td \{\s*background: var\(--qual-soft\);/);
+
+    // 3. Nicht qualifizierte Zeilen werden nicht mehr ausgegraut
+    //    (main.css: opacity .55). In der Gruppentabelle stehen sie normal
+    //    da; die Unterscheidung trägt das Band, nicht der Kontrast.
+    expect(css).toMatch(/\.t-thirds-row\.is-out \{\s*opacity: 1;/);
+  });
+
+  it('Der Leerzustand-Modifier des Spielplans ist im Stylesheet definiert', () => {
+    // Aufgabe A derselben Runde: der Renderer gibt
+    // `.t-empty-state t-empty-state--filter` aus. Ohne den Modifier im
+    // Stylesheet bliebe die 240px-Mindesthöhe des Seiten-Leerzustands
+    // stehen und risse mitten in der Ansicht ein Loch.
+    const css = readFileSync(new URL('../../style/tournament.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/\.t-empty-state--filter \{/);
+    expect(css).toMatch(/\.t-empty-state--filter \.t-empty-state-text \{/);
   });
 });
