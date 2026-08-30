@@ -43,6 +43,14 @@
   --shadow2: 0 4px 24px rgba(40, 25, 15, 0.1), 0 1px 4px rgba(40, 25, 15, 0.05);
   --r: 12px;
   --r2: 18px;
+  /* iOS Safe Area (PWA standalone). Liefert nur dann Werte != 0, wenn das
+     viewport-Meta `viewport-fit=cover` traegt (index.html tut das). Auf
+     Geraeten ohne Notch/Home-Indikator sind alle vier 0px — jede Rechnung
+     `calc(<basis> + var(--sax))` ist dort identisch mit dem alten Wert. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
 [data-theme='dark'] {
   --bg: #141210;
@@ -315,8 +323,8 @@ button.tournament-header-btn {
 /* ── TOAST ── */
 .toast-container {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  top: calc(16px + var(--sat));
+  right: calc(16px + var(--sar));
   z-index: 10000;
   display: flex;
   flex-direction: column;
@@ -367,6 +375,7 @@ button.tournament-header-btn {
   background: #1c1814;
   color: #f7f5f2;
   padding: 11px 22px;
+  padding-top: calc(11px + var(--sat));
   font-size: 13px;
   text-align: center;
 }
@@ -394,6 +403,7 @@ button.tournament-header-btn {
   color: var(--accent);
   border-bottom: 1px solid #dcc0a0;
   padding: 11px 20px;
+  padding-top: calc(11px + var(--sat));
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -1003,8 +1013,10 @@ button.tournament-header-btn {
 /* ── NOTIFICATION PANEL ── */
 .notif-panel {
   position: fixed;
-  top: 57px;
-  right: 16px;
+  /* Der Header waechst oben um --sat (padding-top, Zeile ~919) — das Panel
+     haengt unter seiner Kante und muss denselben Versatz mitgehen. */
+  top: calc(57px + var(--sat));
+  right: calc(16px + var(--sar));
   width: 360px;
   max-height: 480px;
   background: var(--card);
@@ -1202,6 +1214,8 @@ button.tournament-header-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: calc(20px + var(--sat)) calc(20px + var(--sar)) calc(20px + var(--sab))
+    calc(20px + var(--sal));
 }
 .broadcast-modal-box {
   background: var(--card);
@@ -1211,6 +1225,11 @@ button.tournament-header-btn {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Erst die max-height macht das Overlay-Padding wirksam: ein Kind, das
+     hoeher ist als der Innenraum, zentriert Flex ueber die Raender hinaus.
+     Erste Zeile ist der Fallback fuer Browser ohne dvh. */
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - var(--sat) - var(--sab) - 40px);
 }
 .broadcast-modal-box .modal-hdr {
   padding: 18px 20px;
@@ -2551,7 +2570,7 @@ button.tournament-header-btn {
 }
 .bulk-bar {
   position: fixed;
-  bottom: 24px;
+  bottom: calc(24px + var(--sab));
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface);
@@ -3346,7 +3365,10 @@ button.tournament-header-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  /* Oben zaehlt die Dynamic Island mit: 20px Grundabstand + Inset, damit
+     die Titelzeile des Modals nie unter der Statusleiste beginnt. */
+  padding: calc(20px + var(--sat)) calc(20px + var(--sar)) calc(20px + var(--sab))
+    calc(20px + var(--sal));
   animation: fadeIn 0.18s ease;
   backdrop-filter: blur(4px);
 }
@@ -3364,7 +3386,11 @@ button.tournament-header-btn {
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  /* Zwei Zeilen: die erste ist der Fallback fuer Browser ohne dvh. 100dvh
+     statt 100vh, damit Safaris ein-/ausfahrende Leisten nichts abschneiden;
+     die Insets kommen dazu, weil das Overlay-Padding sie schon belegt. */
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - var(--sat) - var(--sab) - 40px);
 }
 .modal-hdr {
   padding: 24px 28px 0;
@@ -3597,6 +3623,7 @@ button.tournament-header-btn {
   max-width: 1100px;
   margin: auto;
   max-height: 100vh;
+  max-height: 100dvh;
   animation: fadeUp 0.22s ease;
 }
 .lb-img-side {
@@ -4048,7 +4075,10 @@ button.tournament-header-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  /* Gilt auch fuer die per JS gebauten Dialoge (main.js setzt cssText OHNE
+     padding auf Elemente mit class="dlg-bg" — das Padding kommt von hier). */
+  padding: calc(20px + var(--sat)) calc(20px + var(--sar)) calc(20px + var(--sab))
+    calc(20px + var(--sal));
   backdrop-filter: blur(4px);
 }
 .dlg {
@@ -4185,6 +4215,7 @@ button.tournament-header-btn {
   bottom: 0;
   background: #fafbfc;
   padding: 0 14px 10px;
+  padding-bottom: calc(10px + var(--sab));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4422,6 +4453,7 @@ button.tournament-header-btn {
     width: 100%;
     max-width: 100vw;
     min-height: 100vh;
+    min-height: 100dvh;
   }
   .lb-img-side {
     padding: calc(12px + env(safe-area-inset-top)) 6px 8px;
@@ -4465,6 +4497,7 @@ button.tournament-header-btn {
   }
   .lb-input-row {
     padding: 12px 14px;
+    padding-bottom: calc(12px + var(--sab));
     position: sticky;
     bottom: 0;
     background: var(--surface);
@@ -4477,7 +4510,7 @@ button.tournament-header-btn {
     height: 38px;
   }
   .ss-bar {
-    bottom: 16px;
+    bottom: calc(16px + var(--sab));
   }
 
   /* AUTH */
@@ -4591,7 +4624,7 @@ button.tournament-header-btn {
 /* ── SLIDESHOW ── */
 .ss-bar {
   position: fixed;
-  bottom: 28px;
+  bottom: calc(28px + var(--sab));
   left: 50%;
   transform: translateX(-50%);
   background: rgba(26, 20, 16, 0.82);
@@ -4640,7 +4673,9 @@ button.tournament-header-btn {
   cursor: zoom-out;
 }
 .lb-bg.lb-fullview .lb-x {
-  top: 16px;
+  /* Ohne --sat kassierte dieser Override den safe-area-Wert der Basisregel
+     (.lb-x, top: calc(16px + env(...))) wieder ein — X unter der Notch. */
+  top: calc(16px + var(--sat));
   right: 16px;
   display: flex;
 }
@@ -4649,7 +4684,7 @@ button.tournament-header-btn {
 }
 .lb-fullview-hint {
   position: fixed;
-  bottom: 28px;
+  bottom: calc(28px + var(--sab));
   left: 50%;
   transform: translateX(-50%);
   background: rgba(26, 20, 16, 0.7);
@@ -5502,6 +5537,7 @@ button.tournament-header-btn {
   flex-direction: column;
   gap: 14px;
   max-height: min(720px, calc(100vh - 40px));
+  max-height: min(720px, calc(100dvh - var(--sat) - var(--sab) - 40px));
   overflow: hidden;
 }
 @media (min-width: 900px) {

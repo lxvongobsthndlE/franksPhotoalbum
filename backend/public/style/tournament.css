@@ -3981,7 +3981,10 @@ textarea.t-input {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 16px;
+  /* env() direkt statt var(--sat): tournament.css muss auch dort tragen,
+     wo die :root-Variablen aus main.css nicht geladen sind. */
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
 }
 .t-confirm-dialog {
   background: var(--panel);
@@ -5019,6 +5022,8 @@ textarea.t-input {
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
 }
 .t-pick-team-modal-card {
   background: var(--surface);
@@ -5029,6 +5034,10 @@ textarea.t-input {
   flex-direction: column;
   gap: var(--s3, 12px);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+  /* Lange Teamlisten: Karte deckelt sich am Innenraum des Backdrops und
+     scrollt selbst, statt unter Statusleiste/Home-Indikator zu laufen. */
+  max-height: 100%;
+  overflow-y: auto;
 }
 .t-pick-team-modal-card h3 {
   margin: 0;
@@ -5365,6 +5374,8 @@ textarea.t-input {
   height: auto;
   overflow: visible;
   padding: var(--s4);
+  padding-top: calc(var(--s4) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
 }
 
 /* Hier stand ein kompletter Nachbau der Knopf-Optik unter
@@ -5409,7 +5420,12 @@ textarea.t-input {
   box-shadow: var(--lift-hi);
   display: flex;
   flex-direction: column;
+  /* 90vh liess auf 844px-Displays nur ~42px Luft — weniger als die Dynamic
+     Island hoch ist. Zweite Zeile ueberschreibt, wo dvh verstanden wird. */
   max-height: 90vh;
+  max-height: calc(
+    100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+  );
 }
 
 .t-dialog-head {
@@ -6355,7 +6371,7 @@ textarea.t-input {
      Untergrenze, damit ein kurzer Bogen trotzdem wie ein Blatt aussieht. */
   min-height: 1075px;
   margin: 0 auto;
-  padding: 26px 24px;
+  padding: 30px 32px;
   border-radius: 2px;
   box-shadow:
     0 2px 4px rgba(11, 11, 12, 0.1),
@@ -6376,7 +6392,11 @@ textarea.t-input {
   justify-content: space-between;
   gap: 14px;
   border-bottom: 2px solid #111;
-  padding-bottom: 7px;
+  /* Doppellinie unter dem Kopf — die klassische Aushang-Signatur:
+     2px Balken plus 1px Haarlinie 3px darunter (Spread -3 laesst vom
+     4px-Schatten genau 1px stehen). Kein zweites Element noetig. */
+  box-shadow: 0 4px 0 -3px #111;
+  padding-bottom: 9px;
 }
 .t-bogen-kopf-links {
   display: flex;
@@ -6408,13 +6428,17 @@ textarea.t-input {
   font-size: 8.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #555;
+  /* Flare als einziger Farbtupfer des Blattes. Er TRAEGT nichts (auf
+     einem S/W-Laser wird er Mittelgrau, das ist einkalkuliert) — er
+     unterschreibt nur. Information bleibt Schwarz auf Weiss. */
+  color: #bf4413;
 }
 .t-bogen-titel {
-  margin: 1px 0 0;
+  margin: 2px 0 0;
   font-family: var(--f-disp);
   font-weight: 800;
-  font-size: 20px;
+  font-size: 25px;
+  line-height: 1.05;
   letter-spacing: -0.02em;
   color: #111;
 }
@@ -6595,11 +6619,67 @@ table.t-bogen-tab td.offen {
    achtzehn Karten fuellten so drei Seiten, wo eine Tabelle eine
    braucht.
 
+   RANGFOLGE (nachgetragen 2026-08-30): Der Satz oben war drei Tage
+   lang eine Behauptung. Dieser Block stand nur NEBEN dem Bildschirm-
+   Drucklayout weiter oben — das die drei Ansichten einblendet, aber
+   den Drucken-Tab (eine .t-view) verborgen laesst. Gemessen mit
+   emulateMedia({media:'print'}): .t-bogen war NULLMAL sichtbar,
+   gedruckt wurde der entfaerbte Bildschirm ohne Kopfzeile. Die
+   Rangfolge muss jemand hinschreiben, und sie steht jetzt hier:
+
+     GIBT es Boegen im DOM  ->  NUR die Boegen kommen aufs Papier.
+     GIBT es keine (Mount leer, Renderer gescheitert)  ->  das
+     Bildschirm-Drucklayout oben ist der ausdrueckliche RUECKFALL —
+     ein entfaerbter Bildschirm ist besser als ein leeres Blatt.
+
+   Traeger ist :has(.t-druck .t-bogen): faellt :has() aus (alte
+   Engine), werden genau diese Regeln verworfen und der Rueckfall
+   druckt — dieselbe Degradation wie beim Lazy-Mount-Schutz oben.
+
    Jeder Bogen beginnt eine neue Seite. Innerhalb eines Bogens duerfen
    Tabellenzeilen und Gruppenbloecke nicht auseinandergerissen werden;
    eine Gruppentabelle, die ueber den Seitenrand faellt, ist auf Papier
    unbrauchbar. */
 @media print {
+  /* Der K.-o.-Baum ist das einzige Blatt im Querformat: eine Klammer
+     mit 3+ Runden braucht die Breite, nicht die Hoehe. Benannte Seite
+     statt globalem size-Wechsel — die anderen Boegen bleiben hoch.
+     Engines ohne benannte Seiten (aeltere Safari) drucken den Baum
+     hochkant kleiner skaliert: lesbar, nur nicht optimal. */
+  @page bogen-quer {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+  .t-bogen--quer {
+    page: bogen-quer;
+  }
+
+  /* Rangfolge, Teil 1: alle Ansichten weg — auch die drei, die das
+     Bildschirm-Drucklayout oben per (0,2,0)-!important einblendet.
+     :has() traegt die Spezifitaet seines Arguments, diese Selektoren
+     liegen daher bei (0,4,0)+ und gewinnen. */
+  .t-mod:has(.t-druck .t-bogen) .t-view {
+    display: none !important;
+  }
+  /* Teil 2: die eine Ansicht mit den Boegen zurueckholen. */
+  .t-mod:has(.t-druck .t-bogen) .t-view[data-view='drucken'] {
+    display: block !important;
+    break-before: auto;
+  }
+  /* Teil 3: was am Bildschirm ueber den Boegen steht (Erklaertext mit
+     „Jetzt drucken"), ist auf dem Papier Selbstgespraech. */
+  .t-mod:has(.t-druck .t-bogen) .t-druck-hinweis {
+    display: none !important;
+  }
+  /* Teil 4: Modulkopf nur dann opfern, wenn die Boegen ihn ersetzen —
+     jeder Bogen traegt seinen eigenen Kopf mit Logo und Stand. Der
+     Rueckfall behaelt den Modulkopf als einzige Ueberschrift.
+     (Bis 30.08. stand dieser Hide UNBEDINGT hier: das Rueckfall-Blatt
+     hatte deshalb weder Bogen noch Ueberschrift.) */
+  .t-mod:has(.t-druck .t-bogen) > .t-mod-header {
+    display: none !important;
+  }
+
   .t-druck {
     display: block;
     gap: 0;
@@ -6627,13 +6707,62 @@ table.t-bogen-tab td.offen {
   .t-bogen-baum svg {
     max-height: 96vh;
   }
-  /* Der Bogen ersetzt die Ansicht: alles andere im Modul bleibt drin. */
-  .t-mod > .t-mod-header,
-  .t-mod > .t-mod-tabs,
-  .t-mod .t-mod-nav,
-  .t-mod .t-mod-aside,
-  .t-mod .t-mod-more-sheet {
-    display: none !important;
+
+  /* ---- Masse fuers Papier, nicht fuer den Schirm -----------------
+     Die px-Werte der Vorschau sind auf 760px Kartenbreite gerechnet;
+     auf 182mm Satzspiegel (A4 minus 14mm Raender) kommen sie als
+     ~7.5pt an — Aushang-Schrift, die man mit dem Finger verfolgen
+     muss. Druck rechnet in pt/mm: Tabellen 9pt, Teamnamen 10pt,
+     Titel 20pt, Logo 19mm (die Grenze, unter der ein Buerolaser
+     feine Wappenstriche zusammenfallen laesst — siehe druckKopf). */
+  .t-bogen-titel {
+    font-size: 20pt;
+  }
+  .t-bogen-logo {
+    width: 19mm;
+    height: 19mm;
+  }
+  .t-bogen-kopf {
+    padding-bottom: 3mm;
+    gap: 6mm;
+  }
+  .t-bogen-koerper {
+    gap: 3.5mm;
+  }
+  .t-bogen-raster {
+    gap: 4mm 8mm;
+  }
+  .t-bogen-marke,
+  .t-bogen-meta,
+  .t-bogen-abschnitt {
+    font-size: 7.5pt;
+  }
+  table.t-bogen-tab {
+    font-size: 9pt;
+  }
+  table.t-bogen-tab .nm {
+    font-size: 10pt;
+  }
+  table.t-bogen-tab th {
+    font-size: 7pt;
+    padding: 1.6mm 1.2mm;
+  }
+  table.t-bogen-tab td {
+    padding: 1.8mm 1.2mm;
+  }
+  .t-bogen-legende,
+  .t-bogen-fuss {
+    font-size: 7pt;
+  }
+  .t-bogen-fuss {
+    padding-top: 2.5mm;
+    margin-top: 5mm;
+  }
+  /* Flaechen und das Logo-Grau sollen wirklich aufs Papier: ohne
+     exact rechnet der Treiber die zarten Rangtoene oft zu Weiss. */
+  .t-bogen {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }
 
