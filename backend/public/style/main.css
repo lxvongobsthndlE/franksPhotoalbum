@@ -4422,7 +4422,7 @@ button.tournament-header-btn {
     font-size: 11px;
   }
   .bulk-bar {
-    bottom: 14px;
+    bottom: calc(14px + var(--sab));
     padding: 12px 16px;
     gap: 8px;
     border-radius: 14px;
@@ -4525,11 +4525,17 @@ button.tournament-header-btn {
   .modal {
     margin: 8px;
     border-radius: 16px;
+    /* Safe-Area auch HIER: dieser Block schlug die Basisregeln (gleiche
+       Spezifitaet, spaetere Quelle) und machte den Inset-Fix unterhalb
+       900px wirkungslos — gemessen am Pruefstand (Backlog 9f3b1c47,
+       Titelzeile bei top=17 statt >=67). Erste Zeile = dvh-Fallback. */
     max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px - var(--sat) - var(--sab));
   }
   .modal-bg {
     align-items: flex-start;
-    padding: 8px;
+    padding: calc(8px + var(--sat)) calc(8px + var(--sar)) calc(8px + var(--sab))
+      calc(8px + var(--sal));
     overflow-y: auto;
   }
   .changelog-form-grid {
