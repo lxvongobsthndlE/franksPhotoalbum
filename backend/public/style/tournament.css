@@ -6776,22 +6776,12 @@ table.t-bogen-tab td.offen {
    achtzehn Karten fuellten so drei Seiten, wo eine Tabelle eine
    braucht.
 
-   RANGFOLGE (nachgetragen 2026-08-30): Der Satz oben war drei Tage
-   lang eine Behauptung. Dieser Block stand nur NEBEN dem Bildschirm-
-   Drucklayout weiter oben — das die drei Ansichten einblendet, aber
-   den Drucken-Tab (eine .t-view) verborgen laesst. Gemessen mit
-   emulateMedia({media:'print'}): .t-bogen war NULLMAL sichtbar,
-   gedruckt wurde der entfaerbte Bildschirm ohne Kopfzeile. Die
-   Rangfolge muss jemand hinschreiben, und sie steht jetzt hier:
-
-     GIBT es Boegen im DOM  ->  NUR die Boegen kommen aufs Papier.
-     GIBT es keine (Mount leer, Renderer gescheitert)  ->  das
-     Bildschirm-Drucklayout oben ist der ausdrueckliche RUECKFALL —
-     ein entfaerbter Bildschirm ist besser als ein leeres Blatt.
-
-   Traeger ist :has(.t-druck .t-bogen): faellt :has() aus (alte
-   Engine), werden genau diese Regeln verworfen und der Rueckfall
-   druckt — dieselbe Degradation wie beim Lazy-Mount-Schutz oben.
+   Dass die Boegen wirklich VOR dem Bildschirm-Drucklayout gewinnen,
+   regelt der WER-GEWINNT-Block am Ende dieses @media-print-Blocks —
+   die Rangfolge steht dort EINMAL, mit Spezifitaets-Rechnung und
+   Rueckfall-Begruendung. Am 30.08. haben zwei Sessions dieselben
+   Regeln unabhaengig gebaut (Merge 5b28884); der zweite Satz ist
+   wieder raus, bevor er zur naechsten Doppelstruktur wird.
 
    Jeder Bogen beginnt eine neue Seite. Innerhalb eines Bogens duerfen
    Tabellenzeilen und Gruppenbloecke nicht auseinandergerissen werden;
@@ -6809,32 +6799,6 @@ table.t-bogen-tab td.offen {
   }
   .t-bogen--quer {
     page: bogen-quer;
-  }
-
-  /* Rangfolge, Teil 1: alle Ansichten weg — auch die drei, die das
-     Bildschirm-Drucklayout oben per (0,2,0)-!important einblendet.
-     :has() traegt die Spezifitaet seines Arguments, diese Selektoren
-     liegen daher bei (0,4,0)+ und gewinnen. */
-  .t-mod:has(.t-druck .t-bogen) .t-view {
-    display: none !important;
-  }
-  /* Teil 2: die eine Ansicht mit den Boegen zurueckholen. */
-  .t-mod:has(.t-druck .t-bogen) .t-view[data-view='drucken'] {
-    display: block !important;
-    break-before: auto;
-  }
-  /* Teil 3: was am Bildschirm ueber den Boegen steht (Erklaertext mit
-     „Jetzt drucken"), ist auf dem Papier Selbstgespraech. */
-  .t-mod:has(.t-druck .t-bogen) .t-druck-hinweis {
-    display: none !important;
-  }
-  /* Teil 4: Modulkopf nur dann opfern, wenn die Boegen ihn ersetzen —
-     jeder Bogen traegt seinen eigenen Kopf mit Logo und Stand. Der
-     Rueckfall behaelt den Modulkopf als einzige Ueberschrift.
-     (Bis 30.08. stand dieser Hide UNBEDINGT hier: das Rueckfall-Blatt
-     hatte deshalb weder Bogen noch Ueberschrift.) */
-  .t-mod:has(.t-druck .t-bogen) > .t-mod-header {
-    display: none !important;
   }
 
   .t-druck {
@@ -6969,8 +6933,11 @@ table.t-bogen-tab td.offen {
   }
 
   /* Der Bogen ersetzt die Ansicht: alles andere im Modul bleibt drin.
-     NUR wenn es Boegen gibt — im Rueckfall traegt der Modulkopf den
-     Turniernamen, und ohne ihn hat das Blatt keine Ueberschrift. */
+     NUR wenn es Boegen gibt — jeder Bogen traegt seinen EIGENEN Kopf
+     mit Logo und Stand, der Modulkopf waere ein zweiter daruber. Im
+     Rueckfall dagegen ist der Modulkopf die einzige Ueberschrift des
+     Blattes; ihn unbedingt auszublenden war genau der Fehler, der bis
+     zum 30.08. ein Blatt ohne Bogen UND ohne Kopf druckte. */
   .t-mod:has(.t-druck .t-bogen) > .t-mod-header,
   .t-mod > .t-mod-tabs,
   .t-mod .t-mod-nav,
