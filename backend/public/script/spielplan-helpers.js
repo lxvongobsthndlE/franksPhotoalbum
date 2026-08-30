@@ -1612,9 +1612,12 @@ function renderDruckSpielplan(t) {
           const teamZelle = (slot) => {
             const s = druckSlotInfo(slot);
             if (!s.unbesetzt) return esc(s.name);
-            return `<span class="t-bogen-schreib"><i class="lin"></i>${
-              s.hinweis ? `<span class="ph">${esc(s.hinweis)}</span>` : ''
-            }</span>`;
+            // Der Hinweis-Span steht auch leer da (&nbsp;), damit die
+            // Linie eines Slots OHNE Platzhaltertext auf derselben
+            // Hoehe liegt wie die des Partners mit Text.
+            return `<span class="t-bogen-schreib"><i class="lin"></i><span class="ph">${
+              s.hinweis ? esc(s.hinweis) : '&nbsp;'
+            }</span></span>`;
           };
           const hat = typeof m?.scoreHome === 'number' && typeof m?.scoreAway === 'number';
           const ergebnis = hat ? `${m.scoreHome} : ${m.scoreAway}` : '___ : ___';
