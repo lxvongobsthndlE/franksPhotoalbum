@@ -57,20 +57,31 @@ Browser ist System-Edge (`channel: 'msedge'`), es wird nichts installiert.
 ## Messung 2026-08-31 — Upload-Modal
 
 Vier Geraete, jeweils schlimmster Fall (Feed-Teilen an, Upload-Knopf sichtbar).
-`in Safe Area` = Karte liegt vollstaendig zwischen oberem und unterem Inset.
+`Luft unten` = Abstand der Kartenunterkante zum unteren Inset.
 
-| Geraet | Inset o./u. | Stand | Hoehe | Unterkante | Safe-Ende | X (b×h) | Overlay scrollt | Verdikt |
-| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |
-| iPhone 15 | 59 / 34 | live (`92791e3`) | 743 | 832 | 818 | 24×28 | ja | **ROT** |
-| iPhone 15 | 59 / 34 | Fix | 668 | 757 | 818 | 40×40 | nein | gruen |
-| iPhone SE | 20 / 0 | live | 631 | 681 | 667 | 24×28 | ja | **ROT** |
-| iPhone SE | 20 / 0 | Fix | 615 | 665 | 667 | 40×40 | nein | gruen |
-| Pixel 8 | 24 / 24 | live | 762 | 816 | 891 | 24×28 | nein | **ROT** (nur X) |
-| Pixel 8 | 24 / 24 | Fix | 668 | 722 | 891 | 40×40 | nein | gruen |
-| iPhone 15 quer | 0 / 21 | live | 356 | 386 | 372 | 24×28 | ja | **ROT** |
-| iPhone 15 quer | 0 / 21 | Fix | 340 | 370 | 372 | 40×40 | nein | gruen |
+| Geraet | Inset o./u. | Stand | Hoehe | Unterkante | Safe-Ende | Luft unten | X (b×h) | Overlay scrollt | Verdikt |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
+| iPhone 15 | 59 / 34 | live (`92791e3`) | 743 | 818 | 818 | **0** | 24×28 | **ja** | ROT |
+| iPhone 15 | 59 / 34 | Fix | 668 | 743 | 818 | 75 | 40×40 | nein | gruen |
+| iPhone SE | 20 / 0 | live | 631 | 667 | 667 | **0** | 24×28 | **ja** | ROT |
+| iPhone SE | 20 / 0 | Fix | 615 | 651 | 667 | 16 | 40×40 | nein | gruen |
+| Pixel 8 | 24 / 24 | live | 762 | 802 | 891 | 89 | 24×28 | nein | ROT (nur X) |
+| Pixel 8 | 24 / 24 | Fix | 668 | 708 | 891 | 183 | 40×40 | nein | gruen |
+| iPhone 15 quer | 0 / 21 | live | 356 | 372 | 372 | **0** | 24×28 | **ja** | ROT |
+| iPhone 15 quer | 0 / 21 | Fix | 340 | 356 | 372 | 16 | 40×40 | nein | gruen |
 
-Auf drei von vier Geraeten ragt die Karte im Live-Stand **ueber das untere Inset
-hinaus** (iPhone 15 um 14px, SE um 14px, quer um 14px) — immer um genau die 16px,
-die die `max-height` zu wenig abzieht, abzueglich Rundung. Bilder:
-`live-iphone15.png` gegen `fix-iphone15.png`.
+Der Live-Befund ist NICHT „die Karte ragt heraus" — sie endet exakt auf der
+Kante, mit null Abstand. Der Fehler ist das **scrollbare Overlay**: die Karte ist
+16px hoeher als ihr Rahmen, also laesst sich der ganze Block um 16px hochschieben
+und die Titelzeile samt X wandert unter die Statusleiste. Nach dem Fix passt die
+Karte in ihren Rahmen, das Overlay hat nichts mehr zu scrollen, und je nach
+Geraet bleiben 16 bis 183px Luft. Bilder: `live-iphone15.png` gegen `fix-iphone15.png`.
+
+## Eine Falle, die diesen Test schon einmal verfaelscht hat
+
+`.modal` traegt `animation: fadeUp` mit `from { transform: translateY(14px) }`.
+Wer das Modal oeffnet und im selben `page.evaluate` misst, erwischt die Animation
+bei t=0 und liest **jede Kante 14px zu tief** — die erste Fassung dieses Tests hat
+daraus faelschlich „die Karte ragt 14px ueber das Inset hinaus" gemacht. Das
+Skript oeffnet deshalb jetzt getrennt, wartet 500ms und protokolliert `transform`
+als Kontrolle mit. Steht dort nicht `none`, ist die Messung wertlos.

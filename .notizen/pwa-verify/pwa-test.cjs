@@ -45,20 +45,26 @@ const GERAETE = [
     await cdp.send('Emulation.setEmulatedMedia',
       { features: [{ name: 'display-mode', value: 'standalone' }] });
 
-    const m = await page.evaluate(({ top, bottom, h }) => {
-      // Modal oeffnen wie die App es tut (openModal setzt .hidden ab).
-      // Angemeldete Schale herstellen: die App zeigt #app erst mit .show,
-      // vorher liegt der Login-Schirm davor. Ohne das ist das Modal 0 hoch.
+    // Modal oeffnen und die Einblend-Animation ABLAUFEN LASSEN. `.modal`
+    // traegt `animation: fadeUp` mit `from { transform: translateY(14px) }`.
+    // Wer im selben Zug oeffnet und misst, erwischt die Animation bei t=0 und
+    // liest jede Kante 14px zu tief. Genau das ist mir am 31.08. passiert.
+    await page.evaluate(() => {
       document.getElementById('app').classList.add('show');
       const auth = document.getElementById('auth-page');
       if (auth) auth.classList.add('hidden');
-      const bg = document.getElementById('up-modal');
-      bg.classList.remove('hidden');
+      document.getElementById('up-modal').classList.remove('hidden');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    });
+    await page.waitForTimeout(500);
+
+    const m = await page.evaluate(({ top, bottom, h }) => {
+      // Modal oeffnen wie die App es tut (openModal setzt .hidden ab).
       // Schlimmster Fall: Feed-Teilen an, Upload-Knopf sichtbar.
+      const bg = document.getElementById('up-modal');
       document.getElementById('upload-share-feed').checked = true;
       document.getElementById('upload-share-feed-fields').classList.remove('hidden');
       document.getElementById('do-upload-btn').style.display = 'flex';
-      document.documentElement.setAttribute('data-theme', 'dark');
 
       // ALLES innerhalb von #up-modal suchen: die Seite traegt mehrere
       // .modal-Instanzen (Changelog, Broadcast, ...), und document.querySelector
@@ -71,6 +77,9 @@ const GERAETE = [
       body.scrollTop = body.scrollHeight;
       const xNach = bg.querySelector('.modal-x').getBoundingClientRect();
       return {
+        // Kontrolle, dass die Animation wirklich durch ist — sonst sind alle
+        // Kanten 14px zu tief.
+        transform: getComputedStyle(bg.querySelector('.modal')).transform,
         standalone: matchMedia('(display-mode: standalone)').matches,
         // Der Kettenbeweis: kommt das Inset wirklich im Padding an?
         padTop: cs.paddingTop, padBottom: cs.paddingBottom,
