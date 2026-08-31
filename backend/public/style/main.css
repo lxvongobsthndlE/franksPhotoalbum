@@ -4528,15 +4528,57 @@ button.tournament-header-btn {
     /* Safe-Area auch HIER: dieser Block schlug die Basisregeln (gleiche
        Spezifitaet, spaetere Quelle) und machte den Inset-Fix unterhalb
        900px wirkungslos — gemessen am Pruefstand (Backlog 9f3b1c47,
-       Titelzeile bei top=17 statt >=67). Erste Zeile = dvh-Fallback. */
-    max-height: calc(100vh - 16px);
-    max-height: calc(100dvh - 16px - var(--sat) - var(--sab));
+       Titelzeile bei top=17 statt >=67). Erste Zeile = dvh-Fallback.
+
+       32px, nicht 16px: die Hoehenrechnung muss BEIDE Klammern abziehen,
+       das Overlay-Padding (2x8) UND den eigenen Rand (margin: 8px oben und
+       unten). Mit 16px war die Karte 16px zu hoch fuer ihren Rahmen, das
+       Overlay wurde scrollbar (scrollHeight 868 bei 852 Viewport) und die
+       Titelzeile liess sich unter die Dynamic Island schieben — genau das
+       Bild, das der Safe-Area-Fix eigentlich verhindert. */
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px - var(--sat) - var(--sab));
   }
   .modal-bg {
     align-items: flex-start;
     padding: calc(8px + var(--sat)) calc(8px + var(--sar)) calc(8px + var(--sab))
       calc(8px + var(--sal));
     overflow-y: auto;
+  }
+  /* Die Kopfzeile darf nie schrumpfen und nie weggescrollt werden — sie
+     traegt das Schliessen-X. Gescrollt wird ausschliesslich .modal-body. */
+  .modal-hdr {
+    flex: 0 0 auto;
+    padding: 14px 18px 0;
+  }
+  .modal-hdr h3 {
+    font-size: 19px;
+  }
+  /* 40x40 statt 24x28: das X war auf dem Handy kleiner als jede
+     Daumenkuppe. Negative Raender halten die optische Kante, damit der
+     groessere Treffbereich die Zeile nicht auseinanderzieht. */
+  .modal-x {
+    width: 40px;
+    height: 40px;
+    margin: -6px -8px -6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .modal-body {
+    padding: 14px 18px 20px;
+    min-height: 0;
+  }
+  /* Die Ablegeflaeche war mit 48px Innenabstand der groesste Einzelposten
+     der Modalhoehe. Auf dem Handy zieht sie den Rest des Formulars aus dem
+     Bild, ohne dass "hier ablegen" dort ueberhaupt eine Geste waere. */
+  .dz {
+    padding: 24px 18px;
+  }
+  .dz-ico {
+    font-size: 30px;
+    margin-bottom: 6px;
   }
   .changelog-form-grid {
     grid-template-columns: 1fr;
