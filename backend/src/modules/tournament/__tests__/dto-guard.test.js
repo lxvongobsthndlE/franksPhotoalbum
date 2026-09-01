@@ -73,6 +73,7 @@ const TECHNICAL_FIELDS_BY_NAME = {
   stageType: 'stage',
   isPublic: 'boolean',
   kind: 'match_slot', // 'team' | 'placeholder' — beides UI-Sprache, aber technisch
+  phase: 'tournament_phase', // 'draft' | 'ready' | 'live' | 'finished' | 'other' — Label steht in phaseLabel
 };
 function isTechnicalFieldName(name) {
   return Object.prototype.hasOwnProperty.call(TECHNICAL_FIELDS_BY_NAME, name);

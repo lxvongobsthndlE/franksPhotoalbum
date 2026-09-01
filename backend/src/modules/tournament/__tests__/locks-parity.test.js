@@ -214,6 +214,7 @@ describe('locks: UMD-Pattern — window.tournamentLocks exportiert dieselbe Logi
     // identisch sind.
     const names = [
       'canEdit',
+      'tournamentPhase',
       'canRevertToDraft',
       'canStartTournament',
       'lockStateFor',

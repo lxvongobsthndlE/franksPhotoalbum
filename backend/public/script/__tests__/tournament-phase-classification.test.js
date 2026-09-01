@@ -26,6 +26,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   tournamentStatusPhase,
+  tournamentInstancePhase,
+  countLiveTournaments,
   tournamentPhaseLabel,
   tournamentStatusLabel,
   tournamentModeLabel,
@@ -115,5 +117,48 @@ describe('tournamentModeLabel — deutsche Bezeichnungen (Issue 6 Folgefehler)',
     expect(tournamentModeLabel(null)).toBe('Sonstiges');
     expect(tournamentModeLabel(undefined)).toBe('Sonstiges');
     expect(tournamentModeLabel('')).toBe('Sonstiges');
+  });
+});
+
+describe('tournamentInstancePhase — DTO-Feld vor Status (01.09.2026)', () => {
+  it('nimmt das Server-Feld phase, wenn es gesetzt ist', () => {
+    expect(tournamentInstancePhase({ status: 'generated', phase: 'live' })).toBe('live');
+    expect(tournamentInstancePhase({ status: 'group_stage', phase: 'ready' })).toBe('ready');
+  });
+
+  it('gestartet ohne DTO-Feld: startedAt schlägt den Status (Fallback = locks.js)', () => {
+    // Genau der Fall, der die Liste bis zum 01.09. auf „Bereit" hielt:
+    // POST /:id/start setzt nur startedAt, status bleibt 'generated'.
+    expect(
+      tournamentInstancePhase({ status: 'generated', startedAt: '2026-09-01T10:00:00Z' })
+    ).toBe('live');
+    expect(tournamentInstancePhase({ status: 'generated', startedAt: null })).toBe('ready');
+    expect(tournamentInstancePhase({ status: 'finished', startedAt: '2026-09-01T10:00:00Z' })).toBe(
+      'finished'
+    );
+  });
+
+  it('unbekanntes DTO-Feld zählt nicht als Phase', () => {
+    expect(tournamentInstancePhase({ status: 'draft', phase: 'quatsch' })).toBe('draft');
+    expect(tournamentInstancePhase(null)).toBe('other');
+  });
+});
+
+describe('countLiveTournaments — Quelle der Live-Pille', () => {
+  it('zählt nur laufende Turniere, egal ob per phase oder per startedAt', () => {
+    const list = [
+      { status: 'generated', phase: 'live' },
+      { status: 'generated', startedAt: '2026-09-01T10:00:00Z' },
+      { status: 'generated', startedAt: null },
+      { status: 'finished', startedAt: '2026-09-01T10:00:00Z' },
+      { status: 'draft' },
+    ];
+    expect(countLiveTournaments(list)).toBe(2);
+  });
+
+  it('leer oder kein Array → 0', () => {
+    expect(countLiveTournaments([])).toBe(0);
+    expect(countLiveTournaments(null)).toBe(0);
+    expect(countLiveTournaments(undefined)).toBe(0);
   });
 });

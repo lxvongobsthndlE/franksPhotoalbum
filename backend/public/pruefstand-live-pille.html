@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pruefstand Live-Pille</title>
+    <script>
+      // Nachtmodus wie in der App: Attribut am Wurzelelement, nicht
+      // prefers-color-scheme — main.css schaltet ueber [data-theme='dark'].
+      if (new URLSearchParams(location.search).get('theme') === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    </script>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tokens.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <link rel="stylesheet" href="./style/brand.css" />
+    <style>
+      /* NUR fuer den Pruefstand — kein Bestandteil der App. Eigene Regeln
+         stehen ausschliesslich unter `.ps-*`; App-Regeln werden nicht
+         nachgebaut oder ueberschrieben.
+
+         Zweck (2026-09-01): Zwei Dinge lassen sich nicht ausrechnen
+         (Memory css-pruefstand-statt-rechnen):
+           1. Traegt die Live-Pille neben „Turniere" in der Seitenleiste —
+              schneidet sie den Namen ab, ragt sie aus dem Knopf, und
+              stimmt der Kontrast des 10px-Textes auf der gruenen Toenung?
+           2. Bekommt ein GESTARTETES Turnier (status 'generated' +
+              startedAt) in der Liste die Laeuft-Pille und den Teal-Streifen?
+              Vorher kam beides aus dem Status → graue Bereit-Pille.
+
+         Die Seitenleisten-Knoepfe sind aus main.js renderSidebar()
+         woertlich uebernommen (Memory mockup-nach-quelltext: Rahmen-
+         Elemente im Code bestaetigen, nicht malen). Die Listen-Karten
+         kommen aus dem echten Renderer mit den echten Stylesheets. */
+      body {
+        margin: 0;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background: var(--bg, #faf8f5);
+      }
+      .ps-fall {
+        padding: 16px 20px 28px;
+      }
+      .ps-titel {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted, #8b8178);
+        margin: 20px 0 8px;
+      }
+      /* Der Sidebar-Host bekommt die Hoehe seines Inhalts; in der App ist
+         er ein Flex-Kind der Shell, hier steht er allein. */
+      .ps-sidebar-host {
+        display: flex;
+      }
+      .ps-sidebar-host #sidebar {
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ps-fall">
+      <div class="ps-titel">1 · Seitenleiste mit Live-Pille (Turniere) und Alpha-Pille (Feed)</div>
+      <div class="ps-sidebar-host">
+        <nav id="sidebar">
+          <span class="sb-label">Home</span>
+          <button class="fb fb-parent" aria-expanded="false">
+            <span class="fi"
+              ><svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg
+            ></span>
+            <span class="fn">Feed</span>
+            <span class="fb-alpha-pill" aria-hidden="true">Alpha</span>
+            <span class="fb-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="fb fb-parent" aria-expanded="false">
+            <span class="fi"
+              ><svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" /></svg
+            ></span>
+            <span class="fn">Fotos</span>
+            <span class="fb-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="fb module-active" data-ps="turniere-aktiv">
+            <span class="fi"
+              ><svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                <path d="M4 22h16" />
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg
+            ></span>
+            <span class="fn">Turniere</span>
+            <span class="fb-live-pill">Live</span>
+          </button>
+          <button class="fb" data-ps="turniere-inaktiv">
+            <span class="fi"
+              ><svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                <path d="M4 22h16" />
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg
+            ></span>
+            <span class="fn">Turniere</span>
+            <span class="fb-live-pill">Live</span>
+          </button>
+          <div class="sb-div"></div>
+        </nav>
+      </div>
+
+      <div class="ps-titel">
+        2 · Turnierliste: gestartet (status generated + startedAt), bereit, beendet
+      </div>
+      <div id="grid" class="tournaments-grid"></div>
+    </div>
+
+    <script type="module">
+      import { renderTournamentListCard } from './script/tournament-render.js';
+      import {
+        tournamentInstancePhase,
+        tournamentPhaseLabel,
+        tournamentModeLabel,
+        TOURNAMENT_PHASE_ORDER,
+      } from './script/tournament.js';
+
+      // Drei Turniere, wie prepareTournamentList sie liefert — bewusst
+      // OHNE das Server-Feld `phase`, damit der Fallback (locks.js) mit
+      // gemessen wird. Das erste ist der Fall aus dem Fehlerbild: Status
+      // 'generated', aber startedAt gesetzt.
+      const instanzen = [
+        {
+          id: 'a',
+          name: 'Sommerturnier 2026',
+          status: 'generated',
+          startedAt: '2026-09-01T10:00:00.000Z',
+          mode: 'groups_ko',
+          logoUrl: null,
+          startsAt: '2026-09-01T10:00:00.000Z',
+          location: 'Gönningen',
+          teamCount: 12,
+          groupCount: 3,
+          matchCount: 26,
+          finishedCount: 7,
+        },
+        {
+          id: 'b',
+          name: 'Herbstcup',
+          status: 'generated',
+          startedAt: null,
+          mode: 'ko_only',
+          logoUrl: null,
+          startsAt: '2026-10-03T12:00:00.000Z',
+          location: '',
+          teamCount: 8,
+          groupCount: 0,
+          matchCount: 7,
+          finishedCount: 0,
+        },
+        {
+          id: 'c',
+          name: 'Winterrunde 2025',
+          status: 'finished',
+          startedAt: '2025-12-07T10:00:00.000Z',
+          mode: 'groups_ko',
+          logoUrl: null,
+          startsAt: '2025-12-07T10:00:00.000Z',
+          location: '',
+          teamCount: 16,
+          groupCount: 4,
+          matchCount: 24,
+          finishedCount: 24,
+        },
+      ];
+
+      // Gruppierung wie main.js renderTournamentInstancesPage.
+      const gruppen = {};
+      for (const p of TOURNAMENT_PHASE_ORDER) gruppen[p] = [];
+      for (const instance of instanzen) gruppen[tournamentInstancePhase(instance)].push(instance);
+
+      const html = Object.entries(gruppen)
+        .filter(([, list]) => list.length > 0)
+        .map(
+          ([phase, list]) => `<section class="t-list-group" data-phase-group="${phase}">
+            <div class="t-list-group-label">${tournamentPhaseLabel(phase)} · ${list.length}</div>
+            <div class="tournament-instance-grid">${list
+              .map((instance) =>
+                renderTournamentListCard({
+                  instance,
+                  phase,
+                  isAdmin: true,
+                  phaseLabel: tournamentPhaseLabel(phase),
+                  modeLabel: tournamentModeLabel(instance.mode),
+                  icons: { more: '⋯', trash: '' },
+                })
+              )
+              .join('')}</div>
+          </section>`
+        )
+        .join('');
+      document.getElementById('grid').innerHTML =
+        `<section class="tournament-page-shell t-mod t-list-host">${html}</section>`;
+
+      window.__pruefstandBereit = true;
+    </script>
+  </body>
+</html>

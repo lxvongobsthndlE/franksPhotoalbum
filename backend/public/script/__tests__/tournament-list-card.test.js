@@ -106,14 +106,26 @@ describe('A4: Struktur der Turnierkarte', () => {
     expect(html).toContain('t-list-card-status--ready');
   });
 
-  it('Badge-Farbe folgt dem Status, nicht der Phase', () => {
-    expect(render({ status: 'draft' })).toContain('t-list-card-status--draft');
-    expect(render({ status: 'generated' })).toContain('t-list-card-status--ready');
-    expect(render({ status: 'group_stage' })).toContain('t-list-card-status--running');
-    expect(render({ status: 'ko_stage' })).toContain('t-list-card-status--running');
-    expect(render({ status: 'finished' })).toContain('t-list-card-status--finished');
-    // Unbekannter Status fällt auf draft zurück statt ohne Klasse zu rendern.
-    expect(render({ status: 'irgendwas' })).toContain('t-list-card-status--draft');
+  it('Badge-Farbe folgt der Phase, nicht dem Status', () => {
+    const byPhase = (phase) => render({}, { phase });
+    expect(byPhase('draft')).toContain('t-list-card-status--draft');
+    expect(byPhase('ready')).toContain('t-list-card-status--ready');
+    expect(byPhase('live')).toContain('t-list-card-status--running');
+    expect(byPhase('finished')).toContain('t-list-card-status--finished');
+    // Unbekannte Phase fällt auf draft zurück statt ohne Klasse zu rendern.
+    expect(byPhase('other')).toContain('t-list-card-status--draft');
+  });
+
+  it('gestartetes Turnier: Status bleibt generated, Karte trägt trotzdem „läuft"', () => {
+    // POST /:id/start setzt nur startedAt — der Status ist kein Beweis.
+    // Vor dem 01.09.2026 stand hier die graue Bereit-Pille ohne Streifen.
+    const html = render(
+      { status: 'generated', startedAt: '2026-09-01T10:00:00.000Z' },
+      { phase: 'live', phaseLabel: 'Läuft' }
+    );
+    expect(html).toContain('t-list-card-status--running');
+    expect(html).not.toContain('t-list-card-status--ready');
+    expect(html).toContain('>Läuft<');
   });
 
   it('zeigt Datum und Ort statt des wiederholten Status', () => {

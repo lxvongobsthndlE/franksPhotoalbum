@@ -74,6 +74,26 @@ export function tournamentCardStatusLabel(status) {
   return tournamentStatusLabel(status);
 }
 
+/**
+ * Phasen-Label für Listen-Karte und Seitenleiste (ab 2026-09-01).
+ *
+ * Ersetzt tournamentCardStatusLabel als Quelle für `cardStatusLabel`: der
+ * Status allein kennt „läuft" nicht mehr, seit der Start nur startedAt
+ * setzt. Die Phase kommt aus locks.js (tournamentPhase) — hier steht nur
+ * der Text dazu.
+ */
+export const TOURNAMENT_PHASE = Object.freeze({
+  draft: 'Entwurf',
+  ready: 'Bereit',
+  live: 'Läuft',
+  finished: 'Beendet',
+  other: 'Sonstige',
+});
+
+export function tournamentPhaseLabel(phase) {
+  return TOURNAMENT_PHASE[phase] ?? TOURNAMENT_PHASE.other;
+}
+
 export function tournamentModeLabel(mode) {
   if (mode == null) return '';
   return TOURNAMENT_MODE[mode] ?? String(mode);

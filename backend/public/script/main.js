@@ -15,7 +15,8 @@ import {
   buildGeneratePayload,
   ensureDraftPromise,
   syncTeamsToBackend,
-  tournamentStatusPhase,
+  tournamentInstancePhase,
+  countLiveTournaments,
   tournamentPhaseLabel,
   tournamentStatusLabel,
   tournamentModeLabel,
@@ -151,6 +152,11 @@ let feedSkip = 0;
 let feedHasMore = false;
 let tournamentInstances = [];
 let currentTournamentListIsAdmin = false;
+// Live-Pille am Sidebar-Eintrag „Turniere" (2026-09-01): wie viele Turniere
+// der aktuellen Gruppe gerade laufen. Die Gruppe steht dabei, weil die
+// Seitenleiste beim Gruppenwechsel VOR dem Nachladen rendert — eine Zahl
+// aus der alten Gruppe darf dann nicht als Pille erscheinen.
+let tournamentLivePill = { groupId: null, count: 0 };
 let activeTournamentInstance = null;
 let curTournamentView = 'instances';
 let allAlbums = [];
@@ -1164,6 +1170,8 @@ async function startApp() {
   renderGroupSwitcher();
   // Sidebar asynchron rendern (blockiert App-Start nicht)
   setTimeout(() => renderSidebar(), 100);
+  // Live-Pille braucht die Turnierliste, auch wenn das Modul zu bleibt.
+  refreshTournamentLivePill();
   loadAppVersion();
 
   // Inhalt laden
@@ -1342,6 +1350,7 @@ function renderSidebar() {
     <button class="fb ${activeHomeModule === 'tournaments' ? 'module-active' : ''}" onclick="switchToTournamentInstances()">
       <span class="fi">${ICON_MODULE_TOURNAMENT}</span>
       <span class="fn">Turniere</span>
+      ${sidebarLiveTournamentCount() > 0 ? '<span class="fb-live-pill">Live</span>' : ''}
     </button>
     <div class="sb-div"></div>
     ${
@@ -2549,6 +2558,45 @@ async function loadTournamentDashboard(reset = false) {
     </section>`;
 }
 
+/**
+ * Live-Pille: Stand aus einer Turnierliste übernehmen und die Seitenleiste
+ * nur dann neu zeichnen, wenn sich die Pille wirklich ändert — die Liste
+ * lädt bei jeder Modul-Öffnung, die Seitenleiste soll dabei nicht flackern.
+ */
+function noteTournamentsForLivePill(groupId, instances) {
+  const count = countLiveTournaments(instances);
+  const changed = tournamentLivePill.groupId !== groupId || tournamentLivePill.count !== count;
+  tournamentLivePill = { groupId, count };
+  if (changed) renderSidebar();
+}
+
+function sidebarLiveTournamentCount() {
+  return tournamentLivePill.groupId === curGroupId ? tournamentLivePill.count : 0;
+}
+
+/**
+ * Live-Pille nachziehen, ohne das Turniermodul zu öffnen: beim App-Start,
+ * beim Gruppenwechsel und nach Start/Zurücksetzen/Abschluss eines Turniers.
+ * Dieselbe Liste wie im Modul — ein eigener Zähl-Endpunkt wäre eine zweite
+ * Wahrheit über „läuft".
+ */
+async function refreshTournamentLivePill() {
+  const groupId = curGroupId;
+  if (!groupId) {
+    noteTournamentsForLivePill(null, []);
+    return;
+  }
+  try {
+    const data = await apiCall(`/tournaments/group/${encodeURIComponent(groupId)}`, 'GET');
+    // Gruppe inzwischen gewechselt → die Antwort gehört nicht mehr zur Anzeige.
+    if (groupId !== curGroupId) return;
+    noteTournamentsForLivePill(groupId, Array.isArray(data?.tournaments) ? data.tournaments : []);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[live-pill] Turnierliste nicht ladbar', e);
+  }
+}
+
 async function loadTournamentInstances(reset = false) {
   if (curModule !== 'tournaments') return;
   if (!sidebarUiState.tournamentsExpanded) {
@@ -2579,6 +2627,7 @@ async function loadTournamentInstances(reset = false) {
 
   if (!curGroupId) {
     tournamentInstances = [];
+    noteTournamentsForLivePill(null, []);
     renderTournamentInstancesPage();
     return;
   }
@@ -2595,6 +2644,7 @@ async function loadTournamentInstances(reset = false) {
       'GET'
     );
     tournamentInstances = Array.isArray(instanceData?.tournaments) ? instanceData.tournaments : [];
+    noteTournamentsForLivePill(curGroupId, tournamentInstances);
     // P1 (2026-08-24, User-Liste): server-derived isAdmin pro Turnier
     // cachen — renderTournamentInstancesPage braucht es für die Müll-Buttons.
     currentTournamentListIsAdmin = instanceData?.isAdmin === true;
@@ -2769,7 +2819,9 @@ function renderTournamentInstancesPage() {
   for (const phase of TOURNAMENT_PHASE_ORDER) groupedInstances[phase] = [];
 
   for (const instance of tournamentInstances) {
-    const phase = tournamentStatusPhase(instance.status);
+    // Aus dem DTO-Feld `phase` (status + startedAt), nicht aus dem
+    // Status allein — sonst steht ein gestartetes Turnier unter „Bereit".
+    const phase = tournamentInstancePhase(instance);
     groupedInstances[phase].push(instance);
   }
 
@@ -5351,6 +5403,8 @@ async function startTournament(tournamentId) {
   }
   if (saved) {
     await refreshTournamentAfterMutation(tournamentId);
+    // Phase hat gewechselt → Live-Pille in der Seitenleiste nachziehen.
+    refreshTournamentLivePill();
   }
 }
 
@@ -5445,6 +5499,8 @@ async function revertToDraft(tournamentId, confirmName) {
   }
   if (saved) {
     await refreshTournamentAfterMutation(tournamentId);
+    // Phase hat gewechselt → Live-Pille in der Seitenleiste nachziehen.
+    refreshTournamentLivePill();
   }
 }
 
@@ -5678,6 +5734,8 @@ async function finishTournament(tournamentId) {
   }
   if (saved) {
     await refreshTournamentAfterMutation(tournamentId);
+    // Phase hat gewechselt → Live-Pille in der Seitenleiste nachziehen.
+    refreshTournamentLivePill();
   }
 }
 
@@ -14652,6 +14710,8 @@ async function switchGroup(groupId) {
   feedSkip = 0;
   feedHasMore = false;
   await loadAlbums();
+  // Nicht abgewartet: die Seitenleiste zeichnet sich neu, sobald die Liste da ist.
+  refreshTournamentLivePill();
   applyLastModuleState(curGroupId);
   saveLastModuleState(curGroupId);
   renderSidebar();

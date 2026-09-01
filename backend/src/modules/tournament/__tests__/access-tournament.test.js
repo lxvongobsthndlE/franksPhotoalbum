@@ -167,4 +167,35 @@ describe('prepareTournamentList', () => {
     expect(list).toHaveLength(2);
     expect(list[1].statusLabel).toBe('Beendet');
   });
+
+  it('gestartetes Turnier: phase live und Karte „Läuft" — der Status sagt weiter „Bereit"', () => {
+    // POST /:id/start setzt nur startedAt, status bleibt 'generated'.
+    // Vor dem 01.09.2026 kam cardStatusLabel aus dem Status → „Bereit".
+    const [ready, live, done] = prepareTournamentList([
+      { ...baseRaw, id: 't1', status: 'generated', startedAt: null },
+      { ...baseRaw, id: 't2', status: 'generated', startedAt: new Date('2026-09-01T10:00:00Z') },
+      { ...baseRaw, id: 't3', status: 'finished', startedAt: new Date('2026-09-01T10:00:00Z') },
+    ]);
+    expect(ready.phase).toBe('ready');
+    expect(ready.phaseLabel).toBe('Bereit');
+    expect(ready.cardStatusLabel).toBe('Bereit');
+
+    expect(live.statusLabel).toBe('Bereit'); // Status unverändert — bewusst
+    expect(live.phase).toBe('live');
+    expect(live.phaseLabel).toBe('Läuft');
+    expect(live.cardStatusLabel).toBe('Läuft');
+
+    expect(done.phase).toBe('finished'); // beendet schlägt gestartet
+    expect(done.cardStatusLabel).toBe('Beendet');
+  });
+
+  it('Entwurf und unbekannter Status: draft bzw. other, nie stillschweigend „Bereit"', () => {
+    const [draft, weird] = prepareTournamentList([
+      { ...baseRaw, id: 't1', status: 'draft', startedAt: null },
+      { ...baseRaw, id: 't2', status: 'irgendwas', startedAt: null },
+    ]);
+    expect(draft.phase).toBe('draft');
+    expect(weird.phase).toBe('other');
+    expect(weird.cardStatusLabel).toBe('Sonstige');
+  });
 });

@@ -198,11 +198,39 @@ export function lockStateFor(t, finishedCount) {
   };
 }
 
+/**
+ * Phase des Turniers — die EINE Ableitung aus (status, startedAt).
+ *
+ * Warum nicht `status` allein: POST /:id/start setzt NUR `startedAt`, der
+ * Status bleibt 'generated' (Etappe B.8: die Lock-Tabelle oben liest
+ * startedAt, nicht den Status). Wer die Phase aus dem Status liest, sieht
+ * ein laufendes Turnier als „Bereit" — so stand es bis zum 01.09.2026 in
+ * der Turnierliste, und die Seitenleiste konnte „läuft" gar nicht wissen.
+ *
+ * Rangfolge wie in canEdit: beendet schlägt gestartet, gestartet schlägt
+ * jeden Status. Unbekannt/leer → 'other', nicht 'draft' (Spec §13.5:
+ * keine stillen Annahmen).
+ *
+ * @param {{status?: string, startedAt?: Date|string|null}|null} t
+ * @returns {'draft'|'ready'|'live'|'finished'|'other'}
+ */
+export function tournamentPhase(t) {
+  if (!t || typeof t !== 'object') return 'other';
+  if (t.status === 'finished' || t.status === 'cancelled') return 'finished';
+  if (t.startedAt !== null && t.startedAt !== undefined) return 'live';
+  // Altbestand: Status-Werte, die einmal „läuft" bedeuteten, ohne startedAt.
+  if (t.status === 'group_stage' || t.status === 'ko_stage') return 'live';
+  if (t.status === 'generated') return 'ready';
+  if (t.status === 'draft') return 'draft';
+  return 'other';
+}
+
 // UMD-Lite: Im Browser-Kontext an window hängen, damit sowohl die
 // ESM- als auch die Browser-Nutzung dieselbe Logik trifft.
 if (typeof window !== 'undefined') {
   window.tournamentLocks = {
     canEdit,
+    tournamentPhase,
     canStartTournament,
     canRevertToDraft,
     requireConfirmForRedraw,
