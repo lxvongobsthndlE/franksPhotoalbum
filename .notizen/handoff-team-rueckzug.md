@@ -112,3 +112,19 @@ Fix (Commit auf diesem Branch):
 Nicht gemacht: Browser-Abnahme am laufenden Server (kein DB/MinIO-Stack in dieser
 Session). Der Beweis „Knopf steht im echten Teams-Tab" ist damit ein Modultest der
 Kette, kein Screenshot der App.
+
+## Nachtrag 2026-09-01 (abends): im Browser bestätigt — und Anweisung für die nächste Session
+
+Jonas hat den Knopf „Zurückziehen" auf localhost:3000 gesehen (Server aus diesem
+Worktree, Stand `6f6e33c`). PR #48 (`feat/tourney-rueckzug` → `main`) ist offen, CI grün,
+**noch nicht gemergt**.
+
+**Für die Session, die als Nächstes eine weitere Funktion baut (Auftrag Jonas):**
+- Aufsetzen auf `feat/tourney-rueckzug` bei `6f6e33c` (enthält Rückzug + Sichtbarkeits-Fix),
+  eigener Worktree (§5b) — dieser hier hält den laufenden Dev-Server auf Port 3000.
+- Am Ende **beides pushen**: die neue Funktion in denselben Branch `feat/tourney-rueckzug`
+  pushen, sodass PR #48 beide Änderungen trägt. Kein zweiter PR, kein Merge ohne GO.
+- CI verlangt bei Änderungen unter `backend/(src|public/script|prisma|scripts)/` einen
+  Versionsbump: `npm version prerelease --no-git-tag-version --preid beta` in `backend/`
+  (Stand jetzt: 1.0.0-beta.24 → wird beta.25), package-lock mit committen.
+- Prettier meldet lokal jede CRLF-Datei; echte Fehler nur mit `--end-of-line auto` prüfen.
