@@ -1915,16 +1915,27 @@ export function serializeTeamsList(teams) {
  *
  * Wenn `opts.isAdmin === false`: DnD-Handle + Edit-Hint weg, Liste ist read-only.
  * Wenn `opts.reorderable === false`: DnD disabled (z.B. Status !== 'draft').
+ * Wenn `opts.canWithdraw === true`: je Zeile ein Rueckzugs-Knopf
+ * (`data-action="withdraw-team"`). Ist er gesperrt und der Aufrufer nennt
+ * einen Grund, steht der Grund als Hinweiszeile ueber der Liste — sichtbar,
+ * bevor jemand klickt, und nur fuer Admins.
  *
  * @param {Array} teams — rohe TeamDTO[] (wird intern serialisiert)
  * @param {Object} [opts]
  * @param {boolean} [opts.isAdmin=false]
  * @param {boolean} [opts.reorderable=false]
+ * @param {boolean} [opts.canWithdraw=false]
+ * @param {string|null} [opts.withdrawLockReason=null]
  * @returns {string} HTML-String
  */
 export function renderTeamsList(teams, opts = {}) {
   const items = serializeTeamsList(teams);
-  const { isAdmin = false, reorderable = false } = opts;
+  const {
+    isAdmin = false,
+    reorderable = false,
+    canWithdraw = false,
+    withdrawLockReason = null,
+  } = opts;
   const canEdit = isAdmin && reorderable;
 
   if (items.length === 0) {
@@ -1948,11 +1959,23 @@ export function renderTeamsList(teams, opts = {}) {
       const handle = canEdit
         ? '<span class="t-team-drag-handle" aria-label="Verschieben" title="Ziehen zum Sortieren">☰</span>'
         : '<span class="t-team-drag-handle is-readonly" aria-hidden="true"></span>';
+      // Rueckzug (2026-09-01): Der Knopf steht NUR in der Zeile, wenn der
+      // Aufrufer ihn erlaubt — die Sperre kommt aus locks.js, nicht von hier.
+      // Bewusst NICHT `t-btn--ghost`: der Ghost-Knopf ist rahmen- und
+      // flaechenlos und wird erst im Hover sichtbar. Auf dem Handy gibt es
+      // keinen Hover — im Screenshot-Verify (2026-09-01, 375px) las sich
+      // „ZURUECKZIEHEN" dort als Abschnittsbeschriftung, nicht als
+      // Bedienelement. Die gefuellte Grundform ist leise genug fuer eine
+      // Liste und trotzdem als Knopf erkennbar.
+      const withdrawBtn = canWithdraw
+        ? `<button type="button" class="t-btn t-btn--sm t-team-withdraw" data-action="withdraw-team" data-team-id="${esc(t.id)}" title="Team zurückziehen" aria-label="${esc(t.name)} zurückziehen">Zurückziehen</button>`
+        : '';
       const row = `<li class="t-team-row${canEdit ? ' is-draggable' : ''}" data-team-id="${esc(t.id)}" data-team-name="${esc(t.name)}" data-seed="${idx}">
       ${handle}
       <span class="t-team-marker" style="${colorStyle}" aria-hidden="true">${esc(initial)}</span>
       <span class="t-team-name" data-role="team-name">${esc(t.name)}</span>
       <span class="t-team-seed">${esc(seedLabel)}</span>
+      ${withdrawBtn}
       ${editHint}
     </li>`;
       return row;
@@ -1966,7 +1989,23 @@ export function renderTeamsList(teams, opts = {}) {
         ? '<p class="t-hint t-hint--info">Nur Admins können die Reihenfolge ändern.</p>'
         : '<p class="t-hint t-team-edit-hint">Klicken zum Umbenennen, ziehen zum Sortieren.</p>';
 
-  return `${hint}<ul class="t-teams-list${canEdit ? ' is-draggable' : ''}" data-role="teams-list">${rows}</ul>`;
+  // Hausregel: Ist ein Bedienelement gesperrt, steht die Begruendung
+  // DANEBEN — nicht erst nach dem Klick. Members sehen den Rueckzug gar
+  // nicht, also auch keinen Grund dafuer; fuer sie bleibt die Zeile leer.
+  const withdrawHint =
+    !canWithdraw && isAdmin && withdrawLockReason
+      ? `<p class="t-hint t-hint--info" data-role="withdraw-lock-reason">Kein Rückzug möglich: ${esc(withdrawLockReason)}</p>`
+      : '';
+
+  // `has-withdraw` traegt die Spaltenzahl, nicht die Optik: `.t-team-row`
+  // ist ein Grid mit VIER deklarierten Spalten (Griff, Marker, Name,
+  // Setzplatz). Der Rueckzugs-Knopf waere das fuenfte Kind und landete in
+  // einer impliziten Spalte, die niemand durchgerechnet hat. Die Klasse
+  // sitzt an der Liste statt an der Zeile, weil `canWithdraw` fuer die
+  // ganze Liste gilt — so bleibt die Zeile ohne Knopf bei vier Spalten
+  // und bekommt keine leere fuenfte samt Abstand.
+  const listClasses = `t-teams-list${canEdit ? ' is-draggable' : ''}${canWithdraw ? ' has-withdraw' : ''}`;
+  return `${hint}${withdrawHint}<ul class="${listClasses}" data-role="teams-list">${rows}</ul>`;
 }
 
 // Browser-Global-Hook: Falls spielplan-helpers.js per <script>

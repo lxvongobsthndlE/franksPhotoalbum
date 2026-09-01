@@ -323,3 +323,82 @@ describe('K.-o.-Phase: nacheinander, aber innerhalb einer Runde parallel', () =>
     expect(ersteKo).toBeGreaterThan(letzteGruppe);
   });
 });
+
+/**
+ * Gruppenspiele für UNGLEICH große Gruppen — die Form, die nach einem
+ * Team-Rückzug entsteht.
+ *
+ * `gruppenSpiele` oben nimmt eine Größe für alle Gruppen an. Genau das
+ * trifft den Rückzugsfall nicht: aus 4/4/4/4 wird 4/4/4/3, und die
+ * interessante Frage ist, ob der Planer die drei vollen Gruppen weiter
+ * dicht packt, obwohl die vierte in jedem Spieltag ein Spiel weniger
+ * liefert.
+ */
+function gemischteGruppenSpiele(groessen) {
+  const alle = [];
+  groessen.forEach((n, g) => {
+    const key = String.fromCharCode(65 + g);
+    const ids = Array.from({ length: n }, (_, i) => `${key}${i + 1}`);
+    for (const rm of buildRoundRobinMatches(ids)) {
+      alle.push({ ...rm, id: `${key}-${rm.bracketPos}`, stageType: 'group', groupKey: key });
+    }
+  });
+  return alle;
+}
+
+/**
+ * Der Zustand NACH einem Rückzug (Fachentscheid 2026-09-01).
+ *
+ * Ein Team sagt kurz vor Turnierbeginn ab; seine Spiele werden gelöscht,
+ * die übrigen Paarungen bleiben, der Plan wird neu gepackt. Jonas dazu:
+ * „dann muss ja auch der spielplan verschoben werden, sodass alle felder
+ * wie schon zuvor geklärt zu jeder zeit besetzt sind in der gruppenphase."
+ *
+ * Deshalb steht hier KEINE Belegungsliste, sondern dieselbe Invariante wie
+ * oben — sie ist von Gruppengrößen unabhängig und fällt genau dann, wenn
+ * der Planer wegen der schiefen Gruppe eine Platte verschenkt. Eine
+ * Erwartung wie „Fenster 1 hat 3 Spiele" wäre wieder der Testtyp, der im
+ * Round-Robin-Fall (26.08.) grün blieb, während die Sache selbst falsch war.
+ */
+describe('nach einem Team-Rückzug: schiefe Gruppen packen genauso dicht', () => {
+  const faelle = [
+    { groessen: [4, 4, 4, 3], felder: 3, etikett: '16 Teams minus eins → 4/4/4/3 auf 3 Platten' },
+    { groessen: [4, 4, 3], felder: 2, etikett: '12 Teams minus eins → 4/4/3 auf 2 Platten' },
+    { groessen: [5, 4], felder: 3, etikett: '10 Teams minus eins → 5/4 auf 3 Platten' },
+    { groessen: [3, 3], felder: 2, etikett: '8 Teams minus zwei → 3/3 auf 2 Platten' },
+  ];
+
+  for (const { groessen, felder, etikett } of faelle) {
+    it(`${etikett}: kein Feld bleibt frei, das H1 nicht blockiert`, () => {
+      const plan = generateSchedule(gemischteGruppenSpiele(groessen), cfg(felder), baseDate);
+      expect(auslastungsVerstoesse(plan, felder)).toEqual([]);
+    });
+
+    it(`${etikett}: das Raster hat keine Löcher`, () => {
+      const plan = generateSchedule(gemischteGruppenSpiele(groessen), cfg(felder), baseDate);
+      expect(luecken(plan, 30)).toEqual([]);
+    });
+
+    it(`${etikett}: kein Team spielt zweimal im selben Zeitfenster`, () => {
+      const plan = generateSchedule(gemischteGruppenSpiele(groessen), cfg(felder), baseDate);
+      for (const f of fensterAus(plan)) {
+        const namen = [];
+        for (const m of f.spiele) {
+          if (m.teamHome != null) namen.push(m.teamHome);
+          if (m.teamAway != null) namen.push(m.teamAway);
+        }
+        expect(namen.length).toBe(new Set(namen).size);
+      }
+    });
+  }
+
+  it('die verbleibenden Paarungen sind vollständig — der Rückzug löscht nur, was das Team betraf', () => {
+    // 4er-Gruppe A verliert A4: übrig bleiben genau die drei Paarungen
+    // unter A1..A3, jede genau einmal.
+    const voll = gemischteGruppenSpiele([4]);
+    const nachRueckzug = voll.filter((m) => m.teamHome !== 'A4' && m.teamAway !== 'A4');
+    expect(nachRueckzug).toHaveLength(3);
+    const paare = nachRueckzug.map((m) => [m.teamHome, m.teamAway].sort().join('-')).sort();
+    expect(paare).toEqual(['A1-A2', 'A1-A3', 'A2-A3']);
+  });
+});

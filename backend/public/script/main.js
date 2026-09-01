@@ -4506,6 +4506,68 @@ function wireBracketTabs(root) {
 }
 
 /**
+ * Rueckzugs-Gate fuer den Teams-Tab (2026-09-01).
+ *
+ * Ein Team darf nur VOR dem Start ganz verschwinden. Ob das erlaubt ist,
+ * steht in locks.js (`canEditTeams`) — das ist die einzige Wahrheit dazu
+ * und wird hier gelesen, nicht nachgebaut. Dazu kommt der Modus-Riegel:
+ * bei `ko_only`/`double_elim` sitzt das Team direkt im Baum, dort bliebe
+ * nach dem Loeschen ein Loch (die Route lehnt mit 409 ab).
+ *
+ * Der Grund wandert mit, damit er NEBEN dem fehlenden Knopf stehen kann
+ * statt erst nach dem Klick.
+ *
+ * @param {Object} t  Turnier-View-Kontext
+ * @returns {{canWithdraw: boolean, withdrawLockReason: string|null}}
+ */
+function teamsWithdrawOptions(t) {
+  if (!t || t.isAdmin !== true) return { canWithdraw: false, withdrawLockReason: null };
+
+  const mode = t.mode || t.config?.mode || null;
+  if (mode === 'ko_only' || mode === 'double_elim') {
+    return {
+      canWithdraw: false,
+      withdrawLockReason:
+        'Bei reinen K.-o.-Turnieren sitzt das Team direkt im Baum — dafür müsste der Spielplan neu erzeugt werden.',
+    };
+  }
+
+  const finishedCount = Array.isArray(t.matches)
+    ? t.matches.filter((m) => m && m.isFinished === true).length
+    : 0;
+  const lockState =
+    typeof window !== 'undefined' && window.tournamentLocks?.lockStateFor
+      ? window.tournamentLocks.lockStateFor(
+          { status: t.status, startedAt: t.startedAt ?? null },
+          finishedCount
+        )
+      : null;
+  const teamsLock = lockState ? lockState.canEditTeams : null;
+  // Fehlt die Lock-Tabelle, wird nicht geraten: kein Knopf, kein Grund.
+  if (!teamsLock) return { canWithdraw: false, withdrawLockReason: null };
+  if (!teamsLock.allowed) {
+    return {
+      canWithdraw: false,
+      withdrawLockReason: teamsLock.reason || 'Die Teamliste ist gesperrt.',
+    };
+  }
+  // `startedAt` allein reicht nicht (Befund 2026-09-01): die Ergebnis-Route
+  // hat kein Start-Gate, ein Veranstalter kann also Ergebnisse eintragen,
+  // bevor er „Turnier starten" drueckt. Die Route blockt das mit
+  // `withdraw_results_present` — der Knopf darf dann gar nicht erst
+  // dastehen, sonst kommt die Begruendung wieder erst nach dem Klick.
+  if (finishedCount > 0) {
+    return {
+      canWithdraw: false,
+      withdrawLockReason:
+        `Es liegen bereits ${finishedCount} Ergebnis${finishedCount === 1 ? '' : 'se'} vor. ` +
+        'Wer nach dem ersten Spiel aussteigt, verliert seine Partien 0:3 — von Hand eintragen.',
+    };
+  }
+  return { canWithdraw: true, withdrawLockReason: null };
+}
+
+/**
  * Teams-Tab rendern (Etappe B.5).
  *
  * Spec §1.2/§13.2: Admin-only für Edit (Rename + DnD-Reihenfolge).
@@ -4536,9 +4598,10 @@ async function loadTeamsTab(t) {
     return;
   }
   const teams = Array.isArray(t.teams) ? t.teams : [];
-  mount.innerHTML = renderer(teams, { isAdmin, reorderable });
+  const { canWithdraw, withdrawLockReason } = teamsWithdrawOptions(t);
+  mount.innerHTML = renderer(teams, { isAdmin, reorderable, canWithdraw, withdrawLockReason });
 
-  wireTeamsList(mount, t, { isAdmin, reorderable });
+  wireTeamsList(mount, t, { isAdmin, reorderable, canWithdraw });
 }
 
 /**
@@ -4547,10 +4610,24 @@ async function loadTeamsTab(t) {
  * das Input nicht als Drag-Quelle gewertet, sodass Rename und DnD
  * sich nicht in die Quere kommen.
  */
-function wireTeamsList(mount, t, { isAdmin, reorderable }) {
+function wireTeamsList(mount, t, { isAdmin, reorderable, canWithdraw = false }) {
   if (!mount) return;
   const list = mount.querySelector('[data-role="teams-list"]');
   if (!list) return;
+
+  if (canWithdraw) {
+    // Eigener Listener statt eines Zweigs im Rename-Handler: der greift
+    // ueber [data-role="team-name"] und sieht den Knopf ohnehin nicht.
+    // stopPropagation ist gegen die Handler WEITER OBEN gerichtet — ein
+    // Klick in die Zeile darf nicht zusaetzlich die Zeile auswaehlen.
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="withdraw-team"]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      withdrawTeam(t, btn).catch(() => {});
+    });
+  }
 
   if (isAdmin) {
     // Inline-Rename: Klick auf den Namen öffnet ein <input>. Speichern
@@ -4566,6 +4643,72 @@ function wireTeamsList(mount, t, { isAdmin, reorderable }) {
 
   if (reorderable) {
     attachTeamsDnD(list, t);
+  }
+}
+
+/**
+ * Rueckzug eines Teams (2026-09-01).
+ *
+ * Das Team verschwindet vollstaendig — aus der Gruppe, aus dem Spielplan,
+ * aus allen Zaehlern. Die Rueckfrage nennt deshalb zwei Dinge, die der
+ * Nutzer sonst erst hinterher sieht: wie viele Spiele geloescht werden und
+ * dass der Rest danach nachrueckt.
+ *
+ * Der Serverstand ist die Wahrheit: bei Erfolg wird der GANZE Detail-View
+ * neu geladen, nicht nur die Liste — Kopfzaehler, Gruppen, Spielplan und
+ * Baum haengen alle an denselben Daten.
+ */
+async function withdrawTeam(t, btn) {
+  const teamId = btn?.dataset?.teamId || '';
+  if (!teamId || !t?.id) return;
+  const row = btn.closest('.t-team-row');
+  const name = row?.dataset?.teamName || 'Das Team';
+
+  const matches = Array.isArray(t.matches) ? t.matches : [];
+  const betroffen = matches.filter(
+    (m) => m && (m.home?.teamId === teamId || m.away?.teamId === teamId)
+  ).length;
+
+  const ok = await openConfirmDialog({
+    title: 'Team zurückziehen',
+    message:
+      `„${name}“ wird vollständig aus dem Turnier entfernt — aus der Gruppe, aus dem ` +
+      `Spielplan und aus allen Zählern. ` +
+      (betroffen === 1
+        ? '1 angesetztes Spiel wird gelöscht'
+        : `${betroffen} angesetzte Spiele werden gelöscht`) +
+      `; der restliche Spielplan rückt danach auf Zeiten und Platten nach. ` +
+      `Das lässt sich nicht zurückholen.`,
+    confirmLabel: 'Zurückziehen',
+    danger: true,
+  });
+  if (ok?.cancelled) return;
+
+  btn.disabled = true;
+  try {
+    const res = await apiCall(
+      `/tournaments/${encodeURIComponent(t.id)}/teams/${encodeURIComponent(teamId)}/withdraw`,
+      'POST'
+    );
+    const geloescht = res?.withdrawn?.deletedMatches ?? betroffen;
+    const neu = res?.rescheduledCount ?? 0;
+    toast(
+      `${res?.withdrawn?.name || name} zurückgezogen — ` +
+        `${geloescht} Spiel${geloescht === 1 ? '' : 'e'} gelöscht, ` +
+        `${neu} neu angesetzt.`,
+      'success'
+    );
+    await loadActiveTournamentView(true);
+  } catch (e) {
+    btn.disabled = false;
+    toast((e && e.serverMessage) || 'Der Rückzug hat nicht geklappt.', 'error');
+    // Gleicher Weg wie beim Reorder-Fehler darunter: den echten Stand
+    // nachladen, damit die Liste nicht behauptet, es sei nichts passiert.
+    const teamsMount = document.querySelector('[data-tab-body="teams-mount"]');
+    if (teamsMount) {
+      teamsMount.dataset.loaded = '';
+      loadTeamsTab(t).catch(() => {});
+    }
   }
 }
 
@@ -5901,12 +6044,20 @@ function attachTeamsDnD(list, t) {
       const renderer = window.spielplanHelpers && window.spielplanHelpers.renderTeamsList;
       if (!renderer) return;
       // Re-Render mit den Server-Daten — ist die Single Source of Truth.
+      // Die Rueckzugs-Optionen muessen mit: ohne sie faellt der Knopf nach
+      // dem ersten Ziehen still aus der Liste.
+      const withdrawOpts = teamsWithdrawOptions(t);
       mount.innerHTML = renderer(updated || order.map((id) => ({ id })), {
         isAdmin: true,
         reorderable: true,
+        ...withdrawOpts,
       });
       // DnD nach Re-Render neu binden.
-      wireTeamsList(mount, t, { isAdmin: true, reorderable: true });
+      wireTeamsList(mount, t, {
+        isAdmin: true,
+        reorderable: true,
+        canWithdraw: withdrawOpts.canWithdraw,
+      });
       toast('Reihenfolge gespeichert.', 'success');
     } catch (e) {
       // 409 gesperrt oder Validierung — wir holen den aktuellen Stand.
