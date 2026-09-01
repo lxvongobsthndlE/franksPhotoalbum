@@ -38,6 +38,12 @@ import {
   ensureTModResizeObserver,
 } from './spielplan-helpers.js';
 import { renderRulesParagraphs } from './rules-helpers.js';
+// Lock-Tabelle (Etappe B.8) als Seiteneffekt-Import: die Datei haengt sich an
+// `window.tournamentLocks`, und daran lesen die Renderer-Gates (Rueckzug im
+// Teams-Tab, Aktionen im Einstellungen-Tab). Bis 2026-09-01 lag sie unter
+// backend/src und wurde nie ausgeliefert — jedes dieser Gates lief im
+// Browser auf seinen Fallback und blendete das Bedienelement still aus.
+import './locks.js';
 import {
   renderModulKopf,
   renderSpielplanSectionHead,

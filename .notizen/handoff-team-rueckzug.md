@@ -87,3 +87,28 @@ Bilder: `C:/Users/Rezo/AppData/Local/Temp/screen-a-shots/rueckzug-*.png`.
 - GO für Merge nach `main` (steht noch aus, Branch ist ungepusht).
 - Die Entscheidung zum `ko_only`-Backlog-Punkt.
 - Browser-Abnahme am echten Turnier, sobald der Screenshot-Verify durch ist.
+
+## Nachtrag 2026-09-01 (zweite Session): der Knopf war nie erreichbar
+
+Befund beim Review gegen echten Code: `window.tournamentLocks` wurde nur in
+`backend/src/modules/tournament/locks.js` gesetzt — und `backend/src` wird nicht
+ausgeliefert (Static-Root ist `backend/public`, `app.js:171`). Kein Script-Tag,
+kein Import in `main.js` zeigte darauf. `teamsWithdrawOptions()` gab damit im
+Browser IMMER „kein Knopf, kein Grund" zurück; genauso fiel der Einstellungen-Tab
+auf seinen Fallback (`canRevert = { allowed: false }` → „Zurück zu Entwurf" nie
+sichtbar). 2143 grüne Tests und 6/6 Screenshot-Läufe haben das nicht gesehen,
+weil beide dem Renderer `canWithdraw: true` direkt gereicht haben — geprüft
+wurde „malt er den Knopf richtig", nie „bekommt er das Ja jemals".
+
+Fix (Commit auf diesem Branch):
+- `locks.js` liegt jetzt in `backend/public/script/`; `src/modules/tournament/locks.js`
+  ist ein Re-Export (eine Wahrheit, keine Kopie mit Paritätsversprechen).
+- `main.js` importiert `./locks.js` als Seiteneffekt.
+- Test `public/script/__tests__/locks-im-browser.test.js` prüft die KETTE
+  (Import in main.js → window.tournamentLocks gesetzt → Rückzugs-Gate sagt Ja →
+  Server-Pfad ist dieselbe Datei). Negativprobe gemacht: ohne den Import fällt er.
+- 2146/2146 grün, eslint sauber.
+
+Nicht gemacht: Browser-Abnahme am laufenden Server (kein DB/MinIO-Stack in dieser
+Session). Der Beweis „Knopf steht im echten Teams-Tab" ist damit ein Modultest der
+Kette, kein Screenshot der App.
