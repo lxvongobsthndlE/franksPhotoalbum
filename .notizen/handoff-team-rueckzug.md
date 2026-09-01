@@ -41,37 +41,26 @@ Zwei Abgrenzungen von ihm, beide bindend:
 - **Belegt ohne Planer-Änderung:** die W0-Regel vom 28.08. packt 4/4/4/3, 4/4/3, 5/4
   und 3/3 bereits dicht — kein Feld bleibt frei, das H1 nicht blockiert.
 
-## Genau hier weitermachen
-
-Der Screenshot-Verify läuft über einen eigenen Prüfstand (kein DB/Login nötig):
+## Screenshot-Verify — erledigt (Nachtrag 2026-09-01)
 
 ```
 cd C:/tmp/fpa-wt/rueckzug/backend && node scripts/pruefstand-rueckzug-shot.mjs
 ```
-Er startet einen Statik-Server, fährt msedge über Playwright aus dem npx-Cache und
-misst bei 375/430/900 px in hell und dunkel. Bilder landen in
-`C:/Users/Rezo/AppData/Local/Temp/screen-a-shots/rueckzug-*.png`.
+Statik-Server + msedge über Playwright, misst 375/430/900 px in hell und dunkel.
+Bilder: `C:/Users/Rezo/AppData/Local/Temp/screen-a-shots/rueckzug-*.png`.
+**Stand: 6/6 Läufe sauber.** Die beiden offenen Punkte sind aufgelöst:
 
-**Zwei offene Punkte, beide reine Layoutfragen — die Funktion steht:**
-
-1. **Mobile-Namensspalte.** Mit Knopf schrumpft sie von 231 auf 153 px (375 px Viewport).
-   Der Kontrolllauf (Fall F, dieselben Namen ohne Knopf) zeigt: gekürzt wurde bei
-   44-Zeichen-Namen **auch vorher schon**, der Knopf verschärft es um 78 px.
-   *Der Fix ist geschrieben, aber NICHT drin* — ein `python`-Ersetzungslauf brach an
-   der Assertion ab, weil der Ankertext im CSS inzwischen abwich. Gewollt ist: unter
-   430 px steht der Knopf **unter** dem Namen statt daneben —
-   `grid-template-columns: auto 28px 1fr` + `row-gap: 6px` + auf `.t-team-withdraw`
-   `grid-column: 3; justify-self: start;`. Der `@media (max-width: 430px)`-Block liegt
-   in `tournament.css` direkt unter der `has-withdraw`-Regel.
-2. **Überbreite +6 px.** Jede `.t-team-row` ragt 6 px über den Viewport, bei **jeder**
-   Breite — auch bei 900 px, wo nichts eng ist. Deshalb vermutlich ein Artefakt des
-   Prüfstand-Hosts (dort sitzt die Liste direkt in `.t-mod.ps-fall`, in der App in
-   `.t-mod-main` mit eigenem Padding), nicht der Komponente. **Nicht verifiziert.**
-   Der letzte Messlauf sollte genau das trennen — er zählt jetzt
-   `zeilenUeber / zeilenGesamt / davon mit Knopf` und gibt die Vorfahrenkette mit
-   Breiten aus. Das Skript ist geändert und committet, der Lauf selbst fehlt noch.
-   **Erst messen, dann anfassen.** Wenn auch Zeilen **ohne** Knopf überstehen, ist es
-   der Prüfstand und nicht unser Code.
+1. **Überbreite +6 px war der Messaufbau, kein Codefehler.** Sie traf 16 von 16
+   Zeilen, davon nur 5 mit Knopf. Ursache: `.t-team-row` holt sich per
+   `margin-inline: calc(-1 * var(--s5))` bewusst die volle Blattbreite
+   (`tournament.css` ~7943, dort begründet). Der Prüfstand-Host gab 14 px statt
+   20 — korrigiert.
+2. **Mobile-Namensspalte gelöst.** Unter 430 px steht der Knopf jetzt unter dem
+   Namen. Weil in `has-withdraw` ohnehin der Setzplatz weicht, hat der Name mit
+   Knopf **265 px** — mehr als die 221 px im Kontrolllauf ohne ihn.
+3. **Dritter Befund, den nur das Bild zeigte:** `.t-btn--ghost` ist rahmen- und
+   flächenlos und erscheint erst im Hover — auf dem Handy las sich
+   „ZURÜCKZIEHEN" als Abschnittsbeschriftung. Jetzt gefüllte Grundform.
 
 ## Fallen, die schon Zeit gekostet haben
 
