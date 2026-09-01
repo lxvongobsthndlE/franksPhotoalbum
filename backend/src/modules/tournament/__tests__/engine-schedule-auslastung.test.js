@@ -324,7 +324,6 @@ describe('K.-o.-Phase: nacheinander, aber innerhalb einer Runde parallel', () =>
   });
 });
 
-
 /**
  * Gruppenspiele für UNGLEICH große Gruppen — die Form, die nach einem
  * Team-Rückzug entsteht.

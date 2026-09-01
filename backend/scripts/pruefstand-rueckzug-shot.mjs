@@ -159,7 +159,9 @@ for (const [etikett, breite] of [
         const ziel = zeile.querySelector('[data-action="withdraw-team"]')
           ? raus.kurzMitKnopf
           : raus.kurzOhneKnopf;
-        ziel.push(`${name.textContent.trim().slice(0, 22)}… ${Math.round(name.getBoundingClientRect().width)}px`);
+        ziel.push(
+          `${name.textContent.trim().slice(0, 22)}… ${Math.round(name.getBoundingClientRect().width)}px`
+        );
       }
       // Der eigentliche Massstab. Dass ein 44-Zeichen-Vereinsname bei
       // 375px gekuerzt wird, ist richtiges Verhalten und war vor dem
