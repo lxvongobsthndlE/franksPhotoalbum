@@ -443,7 +443,7 @@ if (view === 'liste') {
       id: 'c',
       name: 'Winterrunde 2025',
       status: 'finished',
-      phase: 'done',
+      phase: 'finished',
       phaseLabel: 'Beendet',
       modeLabel: 'Gruppen + K.-o.',
       startsAt: '2025-12-07T10:00:00.000Z',

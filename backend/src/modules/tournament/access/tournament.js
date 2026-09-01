@@ -9,8 +9,9 @@
  *   startsAt, endsAt, createdById, createdAt, updatedAt
  */
 
-import { tournamentStatusLabel, tournamentModeLabel, tournamentCardStatusLabel } from './status.js';
+import { tournamentStatusLabel, tournamentModeLabel, tournamentPhaseLabel } from './status.js';
 import { formatDateShort, formatWeekdayDate } from './time.js';
+import { tournamentPhase } from '../locks.js';
 
 /**
  * singleDay-Logik (Spec §7):
@@ -63,6 +64,11 @@ export function prepareTournamentView(rawTournament, opts = {}) {
   const computedSingleDay =
     singleDay ?? detectSingleDay(rawTournament.startsAt, rawTournament.endsAt);
 
+  // Phase = (status, startedAt) in EINER Ableitung (locks.js). `status`
+  // allein sagt nach „Turnier starten" weiter 'generated' — die Liste
+  // zeigte deshalb „Bereit" für ein laufendes Turnier (01.09.2026).
+  const phase = tournamentPhase(rawTournament);
+
   return {
     id: rawTournament.id,
     groupId: rawTournament.groupId,
@@ -75,6 +81,8 @@ export function prepareTournamentView(rawTournament, opts = {}) {
 
     status: rawTournament.status ?? 'draft',
     statusLabel: tournamentStatusLabel(rawTournament.status),
+    phase,
+    phaseLabel: tournamentPhaseLabel(phase),
 
     isPublic: rawTournament.isPublic === true,
     publicToken: rawTournament.publicToken ?? null,
@@ -127,7 +135,8 @@ export function prepareTournamentList(rawTournaments, opts = {}) {
     const itemOpts =
       opts.statsById instanceof Map ? { ...opts, stats: opts.statsById.get(t.id) ?? null } : opts;
     const v = prepareTournamentView(t, itemOpts);
-    v.cardStatusLabel = tournamentCardStatusLabel(t.status);
+    // Aus der Phase, nicht aus dem Status: siehe prepareTournamentView.
+    v.cardStatusLabel = tournamentPhaseLabel(v.phase);
     return v;
   });
 }

@@ -1,5 +1,6 @@
 // Turnier-Bestätigungs-Vergleich (§13.10) — geteilt mit Server/Mock.
 import { normalizeConfirmName } from './normalize-confirm-name.js';
+import { tournamentPhase } from './locks.js';
 
 // Dialoge, die an document.body hängen, erben die Turnier-Tokens
 // nicht — sie brauchen die Klassen aus dialog-host.js (A5).
@@ -2013,6 +2014,34 @@ export function tournamentStatusPhase(status) {
  */
 export function tournamentPhaseLabel(phase) {
   return TOURNAMENT_PHASE_LABELS[phase] ?? 'Sonstige';
+}
+
+/**
+ * Phase einer Turnier-Instanz aus dem Listen-DTO (ab 2026-09-01).
+ *
+ * Bevorzugt das Server-Feld `phase` — die Ableitung aus status + startedAt
+ * liegt in locks.js, an EINER Stelle. Fehlt das Feld (alte Antwort,
+ * Prüfstand-Fixture), rechnet dieselbe Funktion lokal.
+ *
+ * `tournamentStatusPhase(status)` reicht dafür NICHT: nach „Turnier
+ * starten" bleibt der Status 'generated', nur startedAt ist gesetzt —
+ * die Liste sortierte ein laufendes Turnier unter „Bereit".
+ */
+export function tournamentInstancePhase(instance) {
+  if (
+    instance &&
+    typeof instance.phase === 'string' &&
+    Object.prototype.hasOwnProperty.call(TOURNAMENT_PHASE_LABELS, instance.phase)
+  ) {
+    return instance.phase;
+  }
+  return tournamentPhase(instance);
+}
+
+/** Wie viele Turniere einer Liste gerade laufen — Quelle der Live-Pille. */
+export function countLiveTournaments(instances) {
+  if (!Array.isArray(instances)) return 0;
+  return instances.filter((instance) => tournamentInstancePhase(instance) === 'live').length;
 }
 
 /**

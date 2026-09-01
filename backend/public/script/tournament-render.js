@@ -190,16 +190,18 @@ export function renderTournamentListCard({
     ? `<span class="t-list-card-logo"><img src="${esc(instance.logoUrl)}" alt=""></span>`
     : '';
 
-  // Die Badge-Farbe folgt dem Status, nicht der Phase: "draft" und
-  // "generated" liegen im selben Phasen-Bucket, sehen aber verschieden aus.
+  // Die Badge-Farbe folgt der PHASE, nicht dem Status (01.09.2026): nach
+  // „Turnier starten" bleibt der Status 'generated', nur startedAt ist
+  // gesetzt — mit dem Status als Schlüssel trug ein laufendes Turnier die
+  // graue Bereit-Pille und keinen Teal-Streifen. Die Phase kommt aus
+  // derselben Ableitung wie der Badge-Text (locks.js, tournamentPhase).
   const statusClass =
     {
       draft: 't-list-card-status--draft',
-      generated: 't-list-card-status--ready',
-      group_stage: 't-list-card-status--running',
-      ko_stage: 't-list-card-status--running',
+      ready: 't-list-card-status--ready',
+      live: 't-list-card-status--running',
       finished: 't-list-card-status--finished',
-    }[instance?.status] || 't-list-card-status--draft';
+    }[phase] || 't-list-card-status--draft';
 
   // Datum und Ort statt des wiederholten Status.
   const subLine = [formatTournamentCardDate(instance?.startsAt), instance?.location || '']

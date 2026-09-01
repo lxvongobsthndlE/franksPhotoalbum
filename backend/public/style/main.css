@@ -1419,6 +1419,57 @@ button.tournament-header-btn {
   line-height: 1;
   flex-shrink: 0;
 }
+/* Live-Pille am Eintrag „Turniere" (2026-09-01): erscheint nur, wenn in
+   der aktuellen Gruppe ein Turnier gestartet ist. Gleiche Form wie die
+   Alpha-Pille, aber Grün statt Akzent — Akzent heißt hier „ausgewählt",
+   und ein laufendes Turnier ist ein Zustand, keine Auswahl. Der Punkt
+   davor pulst; wer Bewegung abschaltet, sieht ihn still. */
+.fb-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 7px 0 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  /* --green (#3d9e6e) allein trägt auf hellem Grund nur ~3,3:1 — für
+     10px-Text zu wenig. Nachgedunkelt: 68 % maßen 4,48:1 (knapp drunter),
+     58 % messen 5,26:1 — Prüfstand pruefstand-live-pille, nicht gerechnet. */
+  color: color-mix(in srgb, var(--green) 58%, #14261c);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.fb-live-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: fb-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fb-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fb-live-pill::before {
+    animation: none;
+  }
+}
+[data-theme='dark'] .fb-live-pill {
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+}
 .fb-parent {
   font-weight: 600;
 }
