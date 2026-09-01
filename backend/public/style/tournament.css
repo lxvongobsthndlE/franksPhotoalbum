@@ -4581,6 +4581,31 @@ textarea.t-input {
   touch-action: pan-y; /* vertikalen Scroll erlauben, horizontales DnD blockieren */
   user-select: none;
 }
+/* Rueckzugs-Knopf (2026-09-01): fuenfte Spalte, aber nur wo es ihn gibt.
+   `.t-team-row` oben deklariert vier Spalten — ein fuenftes Kind landet
+   sonst in einer impliziten Auto-Spalte, deren Breite niemand geprueft
+   hat. Die Klasse sitzt an der Liste (`renderTeamsList` setzt sie mit
+   `canWithdraw`), damit Listen ohne Knopf keine leere Spalte samt `gap`
+   mitschleppen.
+
+   Der Knopf traegt `t-btn t-btn--ghost t-btn--sm` und faellt damit unter
+   die Ausnahmeliste des Resets in Zeile 419 (`:not([class*='t-btn'])`) —
+   die `.t-btn`-Regeln greifen, ohne dass hier eine Farbe wiederholt wird.
+   Genau diese Wiederholung war die frueher belegte Falle. */
+.t-teams-list.has-withdraw .t-team-row {
+  grid-template-columns: auto 28px 1fr auto auto;
+}
+/* Unter 430px ist der Setzplatz die entbehrlichste Spalte: der Knopf
+   braucht seinen Text, der Name darf nicht abgeschnitten werden. */
+@media (max-width: 430px) {
+  .t-teams-list.has-withdraw .t-team-row {
+    grid-template-columns: auto 28px 1fr auto;
+    column-gap: var(--s2, 8px);
+  }
+  .t-teams-list.has-withdraw .t-team-seed {
+    display: none;
+  }
+}
 .t-team-row + .t-team-row {
   border-top-color: var(--line-soft);
 }

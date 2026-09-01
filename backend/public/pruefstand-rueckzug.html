@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pruefstand Team-Rueckzug</title>
+    <link rel="stylesheet" href="./style/main.css" />
+    <link rel="stylesheet" href="./style/tokens.css" />
+    <link rel="stylesheet" href="./style/tournament.css" />
+    <link rel="stylesheet" href="./style/brand.css" />
+    <style>
+      /* NUR fuer den Pruefstand — kein Bestandteil der App. Es wird NICHTS
+         an den App-Regeln nachgebaut oder ueberschrieben; eigene Regeln
+         stehen ausschliesslich unter `.ps-*`.
+
+         Zweck: Der Rueckzugs-Knopf ist das FUENFTE Kind einer Grid-Zeile,
+         die vier Spalten deklariert. Ob die neue fuenfte Spalte traegt,
+         laesst sich nicht ausrechnen — Ueberschriften- und Knopfbedarf
+         sind in px fix (Memory css-pruefstand-statt-rechnen). Also wird
+         die ECHTE Renderer-Ausgabe mit den ECHTEN Stylesheets gemessen.
+
+         Der Host traegt `t-mod`, weil die Turnier-Tokens daran haengen —
+         eine Liste ausserhalb davon rendert tokenlos (Memory
+         tournament-v3-a4-listenkarte). */
+      body {
+        margin: 0;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background: var(--bg, #faf8f5);
+      }
+      .ps-fall {
+        padding: 16px 14px 28px;
+      }
+      .ps-titel {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted, #8b8178);
+        margin: 20px 0 8px;
+      }
+      /* outline statt border: ein Rahmen des Pruefstands darf die
+         gemessene Breite nicht verfaelschen. */
+      .ps-rahmen {
+        outline: 1px dashed rgba(160, 120, 90, 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="t-mod ps-fall">
+      <p class="ps-titel">A — Rueckzug erlaubt (Admin, vor dem Start)</p>
+      <div class="ps-rahmen" id="fall-a"></div>
+
+      <p class="ps-titel">B — gesperrt: Turnier laeuft</p>
+      <div class="ps-rahmen" id="fall-b"></div>
+
+      <p class="ps-titel">C — gesperrt: Ergebnisse liegen vor</p>
+      <div class="ps-rahmen" id="fall-c"></div>
+
+      <p class="ps-titel">D — Mitglied (weder Knopf noch Grund)</p>
+      <div class="ps-rahmen" id="fall-d"></div>
+
+      <p class="ps-titel">E — lange Namen MIT Knopf</p>
+      <div class="ps-rahmen" id="fall-e"></div>
+
+      <p class="ps-titel">F — Kontrolllauf: dieselben Namen OHNE Knopf</p>
+      <div class="ps-rahmen" id="fall-f"></div>
+    </div>
+
+    <script type="module">
+      import { renderTeamsList } from './script/spielplan-helpers.js';
+
+      const teams = [
+        { id: 't-a', name: 'Die Unbesiegbaren', color: '#c2410c', seed: 0 },
+        { id: 't-b', name: 'FC Hinterhof', color: '#0f766e', seed: 1 },
+        { id: 't-c', name: 'Kellerkinder', color: null, seed: 2 },
+      ];
+      const lang = [
+        {
+          id: 'l-a',
+          name: 'SV Bergstedt-Duvenstedt Traditionsmannschaft',
+          color: '#7c3aed',
+          seed: 0,
+        },
+        { id: 'l-b', name: 'Rot-Weiss Oberrodenbach-Niederdorf II', color: '#b91c1c', seed: 1 },
+      ];
+
+      const setze = (id, teamsArg, opts) => {
+        document.getElementById(id).innerHTML = renderTeamsList(teamsArg, opts);
+      };
+
+      setze('fall-a', teams, { isAdmin: true, reorderable: true, canWithdraw: true });
+      setze('fall-b', teams, {
+        isAdmin: true,
+        reorderable: false,
+        canWithdraw: false,
+        withdrawLockReason: 'Sperrt, solange das Turnier läuft. Nur Umbenennen ist noch möglich.',
+      });
+      setze('fall-c', teams, {
+        isAdmin: true,
+        reorderable: false,
+        canWithdraw: false,
+        withdrawLockReason:
+          'Es liegen bereits 3 Ergebnisse vor. Wer nach dem ersten Spiel aussteigt, verliert seine Partien 0:3 — von Hand eintragen.',
+      });
+      setze('fall-d', teams, { isAdmin: false, reorderable: false, canWithdraw: false });
+      setze('fall-e', lang, { isAdmin: true, reorderable: true, canWithdraw: true });
+      // Kontrolllauf: identische Namen, identische Breite, nur ohne Knopf.
+      // Ohne ihn waere nicht zu unterscheiden, ob der Knopf die Kuerzung
+      // verursacht oder ob lange Namen hier immer schon gekuerzt wurden.
+      setze('fall-f', lang, { isAdmin: true, reorderable: true, canWithdraw: false });
+
+      window.__pruefstandBereit = true;
+    </script>
+  </body>
+</html>

@@ -801,6 +801,203 @@ export default async function tournamentRoutes(fastify) {
     }
   });
 
+  // POST /api/tournaments/:id/teams/:teamId/withdraw — Team zieht zurück.
+  //
+  // Fachlicher Entscheid (2026-09-01): Sagt ein Team kurz VOR dem Turnier
+  // ab, soll es vollständig verschwinden — aus der Gruppe, aus dem
+  // Spielplan, aus allen Zählern. Bewusst KEIN 3:0-Wertungsspiel: ein
+  // gewertetes Geisterspiel verzerrt die Punkte-pro-Spiel-Werte, mit
+  // denen die Beste-Dritte-Tabelle Gruppen unterschiedlicher Größe
+  // vergleichbar macht.
+  //
+  // Warum das an DELETE /:id/teams/:teamId nicht dranhängt: das Löschen
+  // dort nimmt nur den Datensatz und lässt Spiele und Zeitplan stehen —
+  // im Entwurf, wo es noch keine Spiele gibt, ist das richtig. Sobald
+  // ein Spielplan existiert, braucht es zusätzlich das Aufräumen der
+  // Paarungen und das Neu-Packen der Anstoßzeiten. Das ist eine andere
+  // Absicht, also eine eigene Route.
+  //
+  // Nur vor dem Start. Wer mitten im Turnier aussteigt, verliert seine
+  // Spiele 0:3 (normale Sportregel, wird von Hand eingetragen) — deshalb
+  // gibt es hier KEINE Lock-Ausnahme: die bestehende Sperre aus locks.js
+  // ist genau die richtige Grenze.
+  //
+  // Die Gruppen werden NICHT neu ausgelost. Aus der 4er-Gruppe wird eine
+  // 3er-Gruppe; die verbleibenden Spiele behalten ihre Paarungen. Neu
+  // vergeben werden nur Anstoßzeit und Platte, damit keine Platte
+  // unnötig leer steht.
+  //
+  // Body: keiner. Kein `confirmTournamentName` — hier wird nicht
+  // abgewogen, sondern abgelehnt (Gate 1b), sobald Ergebnisse da sind.
+  // Die Rückfrage vor dem harmlosen Fall stellt das Frontend.
+  //
+  // Antwort: gleiches Shape wie /reschedule, plus `withdrawn`, damit das
+  // Frontend seinen State in einem Zug ersetzen kann.
+  fastify.post('/:id/teams/:teamId/withdraw', async (request, reply) => {
+    try {
+      const ctx = await requireTournamentWrite(request, fastify.prisma, request.params.id);
+
+      // Gate 1 — Lock. Deckt „läuft" (startedAt !== null) und „beendet"
+      // ab, ohne eine neue Regel zu erfinden.
+      const finishedCount = await fastify.prisma.match.count({
+        where: { tournamentId: ctx.tournament.id, status: 'finished' },
+      });
+      const teamsLock = canEdit(ctx.tournament, finishedCount, 'teams');
+      if (!teamsLock.allowed) {
+        return reply.code(409).send({
+          error: 'withdraw_locked',
+          message: teamsLock.reason,
+          status: ctx.tournament.status,
+        });
+      }
+
+      // Gate 1b — Ergebnisse. `startedAt` allein ist NICHT der Beweis,
+      // dass noch nichts gespielt wurde: POST /:id/matches/:matchId/result
+      // hat kein Start-Gate (geprüft am 2026-09-01), ein Veranstalter kann
+      // also Ergebnisse eintragen, bevor er „Turnier starten" drückt.
+      // Ohne diese Prüfung würde der Rückzug beendete Spiele still
+      // löschen — genau der Datenverlust, den niemand bemerkt, weil die
+      // Tabelle danach plausibel aussieht.
+      //
+      // Zweite Wirkung, gleiche Ursache: `POST /:id/fill-ko` verlangt ALLE
+      // Gruppenspiele beendet. Solange finishedCount 0 ist, kann im
+      // K.-o.-Baum also nur ein Platzhalter stehen — womit auch das
+      // Argument von Gate 2 für `groups_ko` trägt, statt auf einer
+      // Annahme zu ruhen.
+      //
+      // Fachlich ist das keine neue Regel, sondern dieselbe: wer schon
+      // gespielt hat, ist im Turnier. Ab da gilt 0:3, von Hand.
+      if (finishedCount > 0) {
+        return reply.code(409).send({
+          error: 'withdraw_results_present',
+          finishedMatches: finishedCount,
+          message:
+            `Es liegen bereits ${finishedCount} Ergebnis${finishedCount === 1 ? '' : 'se'} vor — ` +
+            'ein Rückzug würde sie löschen. Wer nach dem ersten Spiel aussteigt, ' +
+            'verliert seine Partien 0:3; trage das bitte von Hand ein.',
+        });
+      }
+
+      // Gate 2 — Modus. Im reinen K.-o.-Baum stünde nach dem Löschen ein
+      // Loch: der Sieger des Vorrunden-Spiels hat keinen Gegner mehr.
+      // Einen Baum mit Freilos neu zu knüpfen ist eine eigene Etappe,
+      // deshalb blockt die Route hier lieber mit klarer Ansage, statt
+      // stillschweigend einen kaputten Baum zu hinterlassen.
+      const mode = ctx.tournament.mode;
+      if (mode === 'ko_only' || mode === 'double_elim') {
+        return reply.code(409).send({
+          error: 'withdraw_not_supported_for_mode',
+          mode,
+          message:
+            'Bei reinen K.-o.-Turnieren sitzt das Team direkt im Baum — ' +
+            'hier muss der Spielplan neu generiert werden.',
+        });
+      }
+
+      // Gate 3 — Team gehört zu DIESEM Turnier. findFirst mit
+      // tournamentId, nicht findUnique auf der ID: sonst könnte ein
+      // Admin ein Team aus einem fremden Turnier abräumen.
+      const team = await fastify.prisma.tournamentTeam.findFirst({
+        where: { id: request.params.teamId, tournamentId: ctx.tournament.id },
+      });
+      if (!team) return reply.code(404).send({ error: 'Team nicht gefunden' });
+
+      // Gate 4 — Restbestand. Mit einem Team ist kein Spiel mehr möglich;
+      // das wäre kein Turnier mehr, sondern ein leerer Spielplan.
+      const teamCount = await fastify.prisma.tournamentTeam.count({
+        where: { tournamentId: ctx.tournament.id },
+      });
+      if (teamCount - 1 < 2) {
+        return reply.code(400).send({
+          error: 'too_few_teams',
+          message: 'Nach dem Rückzug blieben weniger als zwei Teams übrig.',
+        });
+      }
+
+      const config = mergeConfig(ctx.tournament.config ?? {});
+
+      // Löschen + Neu-Packen in EINER Transaktion: ein Abbruch nach dem
+      // Match-Delete würde sonst ein Turnier mit Loch im Spielplan
+      // hinterlassen.
+      const wirkung = await fastify.prisma.$transaction(async (tx) => {
+        // 1) Alle Spiele des Teams löschen.
+        //    Bewusst OHNE status-Filter: vor dem Start gibt es keine
+        //    beendeten Spiele, und ein zusätzlicher status-Filter neben
+        //    dem OR würde später still das Falsche tun (er ließe
+        //    ausgerechnet die gespielten Partien stehen).
+        const geloescht = await tx.match.deleteMany({
+          where: {
+            tournamentId: ctx.tournament.id,
+            OR: [{ teamHome: team.id }, { teamAway: team.id }],
+          },
+        });
+
+        // 2) Das Team selbst. Die GroupMembership fällt per Cascade weg
+        //    (schema.prisma: GroupMembership.team onDelete: Cascade) —
+        //    das ist bereits so und wird hier NICHT nachgebaut.
+        await tx.tournamentTeam.delete({ where: { id: team.id } });
+
+        // 3) Neu packen. Die Paarungen bleiben, wie sie sind; nur
+        //    scheduledAt und field werden neu vergeben, damit die
+        //    entstandenen Lücken nicht als leere Platten stehen bleiben.
+        const rest = await tx.match.findMany({
+          where: { tournamentId: ctx.tournament.id },
+          include: { stage: true },
+          orderBy: [{ stageId: 'asc' }, { bracketPos: 'asc' }],
+        });
+
+        let rescheduled = 0;
+        if (rest.length > 0) {
+          // Bezugspunkt wie in /reschedule: die früheste noch vorhandene
+          // Anstoßzeit. Sonst würde ein bereits eingeplanter Versatz
+          // (z. B. Turnierbeginn um 10:10 statt 10:00) durch den Rückzug
+          // still verloren gehen.
+          const fruehester = fruehesterAnstoss(rest);
+          const baseDate = fruehester ?? (config.baseDate ? new Date(config.baseDate) : new Date());
+
+          const geplant = generateSchedule(baueEngineEingabe(rest), config, baseDate);
+          const updates = new Map();
+          for (const s of geplant) {
+            if (s && s.scheduledAt) {
+              updates.set(s.id, { scheduledAt: s.scheduledAt, field: s.field });
+            }
+          }
+          for (const m of rest) {
+            const u = updates.get(m.id);
+            if (!u) continue;
+            await tx.match.update({
+              where: { id: m.id },
+              data: { scheduledAt: u.scheduledAt, field: u.field ?? null },
+            });
+            rescheduled += 1;
+          }
+        }
+
+        return { deletedMatches: geloescht.count, rescheduledCount: rescheduled };
+      });
+
+      // Frischer View: die Zähler („15 Teams / 38 Spiele") sind überall
+      // abgeleitet und ziehen damit von selbst nach.
+      const view = await buildTournamentViewContext(fastify.prisma, ctx.tournament.id);
+      return reply.send({
+        tournament: view.tournament,
+        teams: view.teams,
+        stages: view.stages,
+        groups: view.groups,
+        matches: view.matches,
+        stats: view.stats,
+        withdrawn: {
+          teamId: team.id,
+          name: team.name,
+          deletedMatches: wirkung.deletedMatches,
+        },
+        rescheduledCount: wirkung.rescheduledCount,
+      });
+    } catch (err) {
+      return handleError(reply, err, 'Rückzug fehlgeschlagen');
+    }
+  });
+
   // PATCH /api/tournaments/:id/teams/:teamId — Name + Farbe
   //
   // Spec §5: "Ein Team umbenennen berührt den Spielplan nicht — nur die
@@ -2302,40 +2499,9 @@ export default async function tournamentRoutes(fastify) {
         }
       }
 
-      // Engine-Input-Shape bauen.
-      // generateSchedule braucht: id, teamHome, teamAway, stageType, round,
-      //   roundNumber, bracketPos.
-      // Wir haben in der DB: stageId, groupId, round (als String mit
-      // KO-Label ODER Spieltag-Zahl), bracketPos, teamHome, teamAway.
-      // Für KO-Matches: round ist „QF"/„SF"/„F"/„3RD" — direkt nutzbar.
-      // Für Gruppen-Matches: round ist die Spieltag-Zahl als String.
-      //   Wir parsen die Zahl UND setzen stageType='group'.
-      const isGroupStage = (type) => type === 'group' || type === 'intermediate_group';
-
-      const engineInput = rawMatches.map((m) => {
-        const stageType = isGroupStage(m.stage?.type) ? 'group' : 'ko';
-        if (stageType === 'ko') {
-          return {
-            id: m.id,
-            teamHome: m.teamHome,
-            teamAway: m.teamAway,
-            stageType: 'ko',
-            round: m.round,
-            bracketPos: m.bracketPos,
-          };
-        }
-        // group
-        const roundNumber = Number.parseInt(m.round ?? '1', 10);
-        return {
-          id: m.id,
-          teamHome: m.teamHome,
-          teamAway: m.teamAway,
-          stageType: 'group',
-          groupKey: m.groupId, // nur fürs Logging, nicht für Sortierung
-          roundNumber: Number.isFinite(roundNumber) ? roundNumber : 1,
-          bracketPos: m.bracketPos,
-        };
-      });
+      // Engine-Input-Shape bauen — dieselbe Abbildung, die auch der
+      // Team-Rückzug benutzt (baueEngineEingabe, unten im File).
+      const engineInput = baueEngineEingabe(rawMatches);
 
       const baseDateStr = request.body?.baseDate ?? config.baseDate ?? null;
       let baseDate = baseDateStr ? new Date(baseDateStr) : new Date();
@@ -2349,14 +2515,9 @@ export default async function tournamentRoutes(fastify) {
       // UND es bereits scheduledAt-Werte gibt, nehmen wir die früheste
       // bestehende scheduledAt als Bezugspunkt.
       if (!baseDateStr) {
-        const earliest = rawMatches
-          .filter((m) => m.scheduledAt != null)
-          .reduce((acc, m) => {
-            const t = new Date(m.scheduledAt).getTime();
-            return acc === null || t < acc ? t : acc;
-          }, null);
+        const earliest = fruehesterAnstoss(rawMatches);
         if (earliest !== null) {
-          baseDate = new Date(earliest);
+          baseDate = earliest;
         }
       }
 
@@ -3201,6 +3362,73 @@ function publicLinkAntwort(request, tournament) {
     qrPath: `/api/tournaments/public/${kodiert}/qr.svg`,
     enabledAt: tournament.publicEnabledAt ?? null,
   };
+}
+
+/**
+ * Engine-Eingabe aus DB-Matches bauen (Abbildung DB → generateSchedule).
+ *
+ * generateSchedule braucht: id, teamHome, teamAway, stageType, round,
+ * roundNumber, bracketPos. In der DB steht: stageId, groupId, round (als
+ * String — bei K.-o. das Label „QF"/„SF"/„F"/„3RD", in der Gruppenphase
+ * die Spieltag-Zahl), bracketPos, teamHome, teamAway.
+ *
+ * Die `round`-Spalte ist also doppeldeutig, und genau diese Auflösung ist
+ * der Grund, warum die Abbildung EINMAL im File steht: /reschedule und
+ * /teams/:teamId/withdraw schicken beide denselben Spielsatz durch die
+ * Engine. Zwei Kopien hiervon wären zwei Gelegenheiten, die
+ * Doppeldeutigkeit unterschiedlich aufzulösen.
+ *
+ * @param {Array} rawMatches  Match-Zeilen MIT `include: { stage: true }`
+ * @returns {Array} Engine-Input-Shape
+ */
+function baueEngineEingabe(rawMatches) {
+  const istGruppenStage = (type) => type === 'group' || type === 'intermediate_group';
+
+  return rawMatches.map((m) => {
+    const stageType = istGruppenStage(m.stage?.type) ? 'group' : 'ko';
+    if (stageType === 'ko') {
+      return {
+        id: m.id,
+        teamHome: m.teamHome,
+        teamAway: m.teamAway,
+        stageType: 'ko',
+        round: m.round,
+        bracketPos: m.bracketPos,
+      };
+    }
+    const roundNumber = Number.parseInt(m.round ?? '1', 10);
+    return {
+      id: m.id,
+      teamHome: m.teamHome,
+      teamAway: m.teamAway,
+      stageType: 'group',
+      groupKey: m.groupId, // nur fürs Logging, nicht für Sortierung
+      roundNumber: Number.isFinite(roundNumber) ? roundNumber : 1,
+      bracketPos: m.bracketPos,
+    };
+  });
+}
+
+/**
+ * Früheste vorhandene Anstoßzeit eines Spielsatzes — der Bezugspunkt für
+ * ein Neu-Packen.
+ *
+ * Warum nicht einfach `new Date()`: Wer vorher `shift-open-matches`
+ * benutzt hat (Turnier fängt 10 Minuten später an), hat einen Versatz im
+ * Plan stehen. Rechnet ein Neu-Packen ab „jetzt", ist dieser Versatz
+ * still weg. Der früheste bestehende Anstoß hält ihn fest.
+ *
+ * @param {Array} matches  Match-Zeilen mit `scheduledAt`
+ * @returns {Date|null} null, wenn kein einziges Spiel terminiert ist
+ */
+function fruehesterAnstoss(matches) {
+  const fruehester = matches
+    .filter((m) => m.scheduledAt != null)
+    .reduce((acc, m) => {
+      const t = new Date(m.scheduledAt).getTime();
+      return acc === null || t < acc ? t : acc;
+    }, null);
+  return fruehester === null ? null : new Date(fruehester);
 }
 
 /**
