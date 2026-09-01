@@ -4595,15 +4595,27 @@ textarea.t-input {
 .t-teams-list.has-withdraw .t-team-row {
   grid-template-columns: auto 28px 1fr auto auto;
 }
-/* Unter 430px ist der Setzplatz die entbehrlichste Spalte: der Knopf
-   braucht seinen Text, der Name darf nicht abgeschnitten werden. */
+/* Unter 430px steht der Knopf UNTER dem Namen, nicht daneben.
+   Gemessen, nicht geschaetzt (Pruefstand 2026-09-01): nebeneinander faellt
+   die Namensspalte bei 375px von 233px auf 155px. Gekuerzt wurden sehr
+   lange Vereinsnamen zwar auch vorher schon — der Kontrolllauf ohne Knopf
+   zeigt das —, aber 78px herzugeben, damit ein Knopf danebensteht, ist der
+   falsche Tausch: den Namen liest man in jeder Zeile, den Knopf braucht
+   man einmal im Leben eines Turniers.
+   Der Setzplatz faellt hier ohnehin weg; er steht im Seeding-Block. */
 @media (max-width: 430px) {
   .t-teams-list.has-withdraw .t-team-row {
-    grid-template-columns: auto 28px 1fr auto;
+    grid-template-columns: auto 28px 1fr;
     column-gap: var(--s2, 8px);
+    row-gap: 6px;
   }
   .t-teams-list.has-withdraw .t-team-seed {
     display: none;
+  }
+  /* Zweite Reihe, unter dem Namen — nicht unter dem Griff. */
+  .t-teams-list.has-withdraw .t-team-withdraw {
+    grid-column: 3;
+    justify-self: start;
   }
 }
 .t-team-row + .t-team-row {

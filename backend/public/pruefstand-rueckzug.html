@@ -27,8 +27,14 @@
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         background: var(--bg, #faf8f5);
       }
+      /* 20px seitlich, NICHT 14: `.t-team-row` holt sich per
+         `margin-inline: calc(-1 * var(--s5))` bewusst die volle
+         Blattbreite und gibt das Polster innen zurueck (tournament.css
+         ~7943). Ein Host mit weniger Polster laesst die Zeile ueberstehen
+         — das sah im ersten Messlauf nach einem Layoutfehler aus und war
+         der Messaufbau. */
       .ps-fall {
-        padding: 16px 14px 28px;
+        padding: 16px 20px 28px;
       }
       .ps-titel {
         font-size: 12px;

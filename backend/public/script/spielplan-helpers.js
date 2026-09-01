@@ -1961,8 +1961,14 @@ export function renderTeamsList(teams, opts = {}) {
         : '<span class="t-team-drag-handle is-readonly" aria-hidden="true"></span>';
       // Rueckzug (2026-09-01): Der Knopf steht NUR in der Zeile, wenn der
       // Aufrufer ihn erlaubt — die Sperre kommt aus locks.js, nicht von hier.
+      // Bewusst NICHT `t-btn--ghost`: der Ghost-Knopf ist rahmen- und
+      // flaechenlos und wird erst im Hover sichtbar. Auf dem Handy gibt es
+      // keinen Hover — im Screenshot-Verify (2026-09-01, 375px) las sich
+      // „ZURUECKZIEHEN" dort als Abschnittsbeschriftung, nicht als
+      // Bedienelement. Die gefuellte Grundform ist leise genug fuer eine
+      // Liste und trotzdem als Knopf erkennbar.
       const withdrawBtn = canWithdraw
-        ? `<button type="button" class="t-btn t-btn--ghost t-btn--sm t-team-withdraw" data-action="withdraw-team" data-team-id="${esc(t.id)}" title="Team zurückziehen" aria-label="${esc(t.name)} zurückziehen">Zurückziehen</button>`
+        ? `<button type="button" class="t-btn t-btn--sm t-team-withdraw" data-action="withdraw-team" data-team-id="${esc(t.id)}" title="Team zurückziehen" aria-label="${esc(t.name)} zurückziehen">Zurückziehen</button>`
         : '';
       const row = `<li class="t-team-row${canEdit ? ' is-draggable' : ''}" data-team-id="${esc(t.id)}" data-team-name="${esc(t.name)}" data-seed="${idx}">
       ${handle}

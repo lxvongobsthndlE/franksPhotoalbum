@@ -66,6 +66,19 @@ for (const [etikett, breite] of [
     const fehler = [];
     page.on('pageerror', (e) => fehler.push(String(e)));
     page.on('console', (m) => m.type() === 'error' && fehler.push(m.text()));
+    page.on('requestfailed', (r) => fehler.push(`request failed: ${r.url()}`));
+    page.on(
+      'response',
+      (r) =>
+        r.status() >= 400 &&
+        !r.url().endsWith('/favicon.ico') &&
+        fehler.push(`${r.status()} ${r.url()}`)
+    );
+    // Die Testseite hat kein Favicon; der Browser fragt trotzdem danach.
+    page.on('console', (m) => {
+      const i = fehler.indexOf(m.text());
+      if (m.text().includes('404') && i !== -1) fehler.splice(i, 1);
+    });
     await page.goto(url, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => window.__pruefstandBereit === true, { timeout: 10_000 });
 
@@ -85,7 +98,13 @@ for (const [etikett, breite] of [
         raus.knoepfe += 1;
         const kr = knopf.getBoundingClientRect();
         const nr = name.getBoundingClientRect();
-        if (kr.left < nr.right - 1) raus.ueberlappt.push(name.textContent.trim());
+        // Ueberlappung nur pruefen, wenn beide in DERSELBEN Sichtzeile
+        // stehen. Unter 430px rutscht der Knopf bewusst unter den Namen —
+        // dort ist `knopf.left < name.right` die gewollte Ausrichtung und
+        // kein Fehler. Ohne diese Bedingung meldete der Pruefstand die
+        // Absicht als Befund.
+        const gleicheZeile = kr.top < nr.bottom - 1 && nr.top < kr.bottom - 1;
+        if (gleicheZeile && kr.left < nr.right - 1) raus.ueberlappt.push(name.textContent.trim());
         if (kr.right > zr.right + 1 || kr.left < zr.left - 1 || kr.width < 44 || kr.height < 28) {
           raus.ausserhalb.push(
             `${name.textContent.trim()}: ${Math.round(kr.width)}x${Math.round(kr.height)} px`
@@ -142,6 +161,32 @@ for (const [etikett, breite] of [
           : raus.kurzOhneKnopf;
         ziel.push(`${name.textContent.trim().slice(0, 22)}… ${Math.round(name.getBoundingClientRect().width)}px`);
       }
+      // Der eigentliche Massstab. Dass ein 44-Zeichen-Vereinsname bei
+      // 375px gekuerzt wird, ist richtiges Verhalten und war vor dem
+      // Knopf genauso — Fall F beweist es. Die Frage ist allein, ob der
+      // Knopf die Namensspalte SCHMALER macht als ohne ihn. Ein Test, der
+      // stattdessen „nichts darf je gekuerzt werden" fordert, ist bei
+      // langen Namen nie erfuellbar und faellt deshalb irgendwann weg.
+      const spalte = (mitKnopf) => {
+        for (const zeile of document.querySelectorAll('.t-team-row')) {
+          const name = zeile.querySelector('[data-role="team-name"]');
+          const hat = !!zeile.querySelector('[data-action="withdraw-team"]');
+          if (!name || hat !== mitKnopf) continue;
+          if (!name.textContent.includes('Bergstedt')) continue;
+          const w = Math.round(name.getBoundingClientRect().width);
+          return { w, eng: name.scrollWidth > w + 1 };
+        }
+        return null;
+      };
+      const mit = spalte(true);
+      const ohne = spalte(false);
+      raus.spalteMitKnopf = mit?.w ?? null;
+      raus.spalteOhneKnopf = ohne?.w ?? null;
+      // Dass der Knopf Platz braucht, ist keine Nachricht — auf 900px
+      // bleiben 616px fuer den Namen, da wird nichts abgeschnitten. Ein
+      // Befund ist es erst, wenn der Knopf etwas KUERZT, das ohne ihn
+      // vollstaendig lesbar waere.
+      raus.verengungSchadet = !!(mit && ohne && mit.eng && !ohne.eng);
       return raus;
     });
 
@@ -158,8 +203,9 @@ server.close();
 let rot = 0;
 for (const b of befunde) {
   const probleme = [
-    b.kurzMitKnopf.length && `gekuerzt MIT Knopf: ${b.kurzMitKnopf.join(' | ')}`,
-    b.kurzOhneKnopf.length && `gekuerzt OHNE Knopf: ${b.kurzOhneKnopf.join(' | ')}`,
+    b.verengungSchadet &&
+      `Knopf kuerzt einen Namen, der ohne ihn ganz lesbar waere: ` +
+        `${b.spalteMitKnopf}px statt ${b.spalteOhneKnopf}px`,
     b.ueberbreit?.length &&
       `ueberbreit: ${b.zeilenUeber}/${b.zeilenGesamt} Zeilen, davon ${b.zeilenUeberMitKnopf} mit Knopf | Kette: ${b.kette.join(' < ')}`,
     b.ueberlappt.length && `ueberlappt: ${b.ueberlappt.join(', ')}`,
