@@ -20,7 +20,9 @@ jobs:
 
       - id: version
         name: Read application version
-        run: echo "value=$(node -p \"require('./backend/package.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(node -p "require('./backend/package.json').version")
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.platform }}
