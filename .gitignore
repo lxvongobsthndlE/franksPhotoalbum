@@ -21,6 +21,7 @@ npm-debug.log*
 
 # Build / Cache
 backend/dist/
+backend/coverage/
 .DS_Store
 Thumbs.db
 .vscode/

@@ -1,9 +1,7 @@
 services:
   app:
     container_name: krunest-app
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${APP_IMAGE:-ghcr.io/lxvongobsthndle/krunest:latest}
     restart: unless-stopped
     ports:
       - "3001:3000"
@@ -38,7 +36,19 @@ services:
       postgres:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   postgres:
     image: postgres:16-alpine
@@ -60,7 +70,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: krunest-minio
     restart: unless-stopped
     environment:
@@ -72,3 +82,12 @@ services:
       - "9001:9001"
     volumes:
       - ./minio_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://127.0.0.1:9000/minio/health/live",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
