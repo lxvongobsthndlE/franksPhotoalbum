@@ -11,6 +11,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%$'\r'}"
   [[ "$line" =~ ^[[:space:]]*# || -z "${line//[[:space:]]/}" ]] && continue
   if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
     key="${BASH_REMATCH[1]}"
@@ -43,6 +44,7 @@ echo "Creating PostgreSQL backup..."
 test -s "$backup_path/postgres.dump"
 
 echo "Creating MinIO backup..."
+mkdir -p "$backup_path/minio"
 docker run --rm --network container:krunest-minio \
   -e MC_HOST_source="http://$MINIO_ACCESS_KEY:$MINIO_SECRET_KEY@127.0.0.1:9000" \
   -v "$backup_path:/backup" \
