@@ -5,6 +5,7 @@
 - [Voraussetzungen](#voraussetzungen)
 - [Lokale Entwicklung](#lokale-entwicklung)
 - [Deployment mit Docker](#deployment-mit-docker)
+- [Release und Redeploy](#release-und-redeploy)
 - [Reverse Proxy (nginx / Caddy)](#reverse-proxy)
 - [Umgebungsvariablen](#umgebungsvariablen)
 - [MinIO einrichten](#minio-einrichten)
@@ -72,19 +73,20 @@ Wichtig: Der Dev-Runner maskiert MinIO-Credentials (`RootUser`, `RootPass`, `mc 
 
 Das Projekt enthält eine fertige `docker-compose.yml` mit drei Services:
 
-| Service    | Image                                  | Port (Host → Container)      |
-| ---------- | -------------------------------------- | ---------------------------- |
-| `app`      | Eigener Build (`./backend/Dockerfile`) | `3001 → 3000`                |
-| `postgres` | `postgres:16-alpine`                   | `5433 → 5432`                |
-| `minio`    | `minio/minio:latest`                   | `9000 → 9000`, `9001 → 9001` |
+| Service    | Image                     | Port (Host → Container)      |
+| ---------- | ------------------------- | ---------------------------- |
+| `app`      | GHCR-Image                | `3001 → 3000`                |
+| `postgres` | `postgres:16-alpine`      | `5433 → 5432`                |
+| `minio`    | Versioniertes MinIO-Image | `9000 → 9000`, `9001 → 9001` |
 
 ```bash
 # 1. Umgebungsvariablen vorbereiten
 cp .env.example .env
 # .env befüllen
 
-# 2. Container bauen und starten
-docker compose up -d --build
+# 2. Veröffentlichtes App-Image laden und starten
+docker compose pull app
+docker compose up -d app
 
 # Logs in Echtzeit anzeigen
 docker compose logs -f app
@@ -96,8 +98,51 @@ docker compose restart app
 **Startablauf:**
 
 1. `postgres` startet und meldet sich per Health-Check als bereit
-2. `app` wartet auf Postgres, führt dann automatisch `prisma migrate deploy` aus
+2. `app` wartet auf PostgreSQL und MinIO, führt dann automatisch `prisma migrate deploy` aus
 3. Fastify-Server lauscht intern auf Port 3000
+
+---
+
+## Release und Redeploy
+
+Pull Requests nach `main` bauen das Backend-Image fuer `linux/amd64` und `linux/arm64`, veroeffentlichen aber nichts. Nach einem Merge nach `main` baut GitHub Actions das Multi-Arch-Image und veroeffentlicht es unter `ghcr.io/lxvongobsthndle/krunest` mit diesen Tags:
+
+- `latest` fuer den normalen Redeploy
+- der Version aus `backend/package.json`
+- `sha-<commit>` fuer einen unveraenderlichen Rollback-Punkt
+
+Das GHCR-Paket muss nach dem ersten Push in den GitHub-Package-Einstellungen auf **Public** gesetzt werden. Der Docker-Host braucht dann keinen Registry-Token.
+
+### Einmalige Host-Einrichtung
+
+1. Repository in ein geschuetztes Betriebsverzeichnis klonen.
+2. `.env.example` nach `.env` kopieren und alle produktiven Werte setzen. Die Datei darf nicht in Git gelangen und sollte nur fuer den Deploy-Benutzer lesbar sein.
+3. `BACKUP_DIR` auf ein lokales Host-Verzeichnis setzen, das ausreichend Speicher fuer PostgreSQL und alle MinIO-Objekte bietet.
+4. Das Backup-Skript auf dem Linux-Host ausfuehrbar machen:
+
+```bash
+chmod 700 ops/backup.sh
+```
+
+### Redeploy im NAS-Docker-Manager
+
+Im Docker-Manager den Dienst `app` oder den Compose-Stack auf **Redeploy latest image** setzen. Der Manager zieht das neue GHCR-Image mit dem Tag `latest` und startet den Container neu. Beim Containerstart werden ausstehende Prisma-Migrationen angewendet, bevor Fastify lauscht.
+
+### Backups
+
+```bash
+./ops/backup.sh
+```
+
+Das Skript sichert PostgreSQL und MinIO in einen UTC-zeitgestempelten Unterordner von `BACKUP_DIR` und entfernt Sicherungen nach `BACKUP_RETENTION_DAYS` Tagen. Es zieht keine Images, fuehrt keine Migrationen aus und startet keine Container neu. Das Skript kann als geplanter NAS-Task eingerichtet werden.
+
+Der Docker-Manager erstellt vor dem Redeploy kein Backup. Datenbankmigrationen werden bei einem fehlgeschlagenen Start nicht automatisch zurueckgerollt; Prisma bietet keine automatische Down-Migration.
+
+### Wiederherstellung
+
+Bei einer fehlgeschlagenen Migration die App auf einen bekannten `sha-<commit>`-Tag setzen und danach PostgreSQL sowie MinIO aus dem letzten Sicherungsordner wiederherstellen. Die Wiederherstellung muss zuerst in einer isolierten Testumgebung geprobt werden.
+
+Die Sicherungen liegen bewusst lokal auf dem Docker-Host. Sie helfen bei fehlerhaften Deployments, schuetzen aber nicht vor einem Verlust des Hosts. Ein verschluesselter Sync auf ein zweites System oder einen Objektspeicher ist fuer Disaster Recovery erforderlich.
 
 ---
 
@@ -154,14 +199,14 @@ Alle Variablen werden in `.env.local` (Entwicklung) bzw. `.env` (Docker Compose)
 
 ### OIDC
 
-| Variable                    | Beschreibung                                | Beispiel                                           |
-| ---------------------------- | -------------------------------------------- | --------------------------------------------------- |
-| `OIDC_ISSUER`                | Issuer-URL des OIDC-Providers               | `https://auth.example.de/application/o/fotoalbum/` |
-| `OIDC_CLIENT_ID`             | Client-ID in Authentik                      | `franks-fotoalbum`                                 |
-| `OIDC_CLIENT_SECRET`         | Client-Secret aus Authentik                 | –                                                  |
-| `OIDC_REDIRECT_URI_PROD`     | Callback-URL (Produktion)                   | `https://photoalbum.example.de/auth/callback`      |
-| `OIDC_REDIRECT_URI_DEV`      | Callback-URL (Entwicklung)                  | `http://localhost:3000/auth/callback`              |
-| `OIDC_ENROLLMENT_FLOW_SLUG`  | Flow-Slug für die Registrierung (optional)  | `default-enrollment-flow` (Standard)               |
+| Variable                    | Beschreibung                               | Beispiel                                           |
+| --------------------------- | ------------------------------------------ | -------------------------------------------------- |
+| `OIDC_ISSUER`               | Issuer-URL des OIDC-Providers              | `https://auth.example.de/application/o/fotoalbum/` |
+| `OIDC_CLIENT_ID`            | Client-ID in Authentik                     | `franks-fotoalbum`                                 |
+| `OIDC_CLIENT_SECRET`        | Client-Secret aus Authentik                | –                                                  |
+| `OIDC_REDIRECT_URI_PROD`    | Callback-URL (Produktion)                  | `https://photoalbum.example.de/auth/callback`      |
+| `OIDC_REDIRECT_URI_DEV`     | Callback-URL (Entwicklung)                 | `http://localhost:3000/auth/callback`              |
+| `OIDC_ENROLLMENT_FLOW_SLUG` | Flow-Slug für die Registrierung (optional) | `default-enrollment-flow` (Standard)               |
 
 Die Authentik-Basis-URL (`authentikBase`) wird nicht separat konfiguriert, sondern serverseitig aus `OIDC_ISSUER` abgeleitet und dem Frontend über `GET /api/auth/config` bereitgestellt.
 
